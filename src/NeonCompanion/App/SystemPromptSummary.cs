@@ -38,7 +38,7 @@ namespace NeonCompanion.App;
 /// <param name="McpServers">How many MCP servers are connected.</param>
 /// <param name="McpTools">How many of their tools the next turn offers (the ones switched off on <c>/mcp</c> left out).</param>
 /// <param name="FileSafeEdits">The setting <c>File safe edits</c> (2026-09-20): off with <c>delete</c> offered puts <see cref="Assistant.FileRuleDeleteInPlace"/> into the default rules — <c>delete</c> removes for good then — and (later still that day) drops <c>restore</c> from the offer, so neither the rules nor the Tools tab name it.</param>
-/// <param name="GitEnabled">The setting <c>Git tools</c> (2026-09-20, the Git tab of <c>/tools</c>).</param>
+/// <param name="GitEnabled">The setting <c>Git native tools</c> (2026-09-20, the Git (native) tab of <c>/tools</c>; <c>Git tools</c> on the Git tab until 2026-09-21).</param>
 /// <param name="GitTools">How many git tools the next turn offers (the ones switched off on <c>/tools</c> left out); the rules carry <see cref="Assistant.GitRule"/> while any is.</param>
 /// <param name="ShellEnabled">Whether the setting <c>Shell command policy</c> is not <c>off</c> (2026-09-21, the Shell tab of <c>/tools</c>): the group's switch.</param>
 /// <param name="ShellTools">How many shell tools the next turn offers (the ones switched off on <c>/tools</c> left out); the rules carry <see cref="Assistant.ShellRule"/> while any is.</param>
@@ -200,8 +200,8 @@ public static class SystemPromptSummary
     /// <summary>The tail of the Sessions group while the setting <c>Session tool</c> is off (2026-09-18). Pinned.</summary>
     public const string SessionsOffSuffix = "session tool is off";
 
-    /// <summary>The tail of the Git group and its Prompt-tab heading while the setting <c>Git tools</c> is off (2026-09-20). Pinned.</summary>
-    public const string GitOffSuffix = "git tools is off";
+    /// <summary>The tail of the Git (native) group and its Prompt-tab heading while the setting <c>Git native tools</c> is off (2026-09-20; the setting's new name since 2026-09-21). Pinned.</summary>
+    public const string GitOffSuffix = "git native tools is off";
 
     /// <summary>The tail of the Shell group and its Prompt-tab heading while the setting <c>Shell command policy</c> is <c>off</c> (2026-09-21). Pinned.</summary>
     public const string ShellOffSuffix = "Shell command policy is off";
@@ -323,18 +323,18 @@ public static class SystemPromptSummary
             sections.Add(new($"Skills — on, {count}", SkillsPrompt.Section(skills), SystemPromptPart.Prompt));
         }
 
-        // The git tools (2026-09-20): a heading only — the tools are on the Tools tab, the rule is in the rules above.
+        // The git tools (2026-09-20; the heading says Git native tools, the setting's name, since 2026-09-21): a heading only — the tools are on the Tools tab, the rule is in the rules above.
         if (!facts.GitEnabled)
         {
-            sections.Add(new($"Git tools — off ({GitOffSuffix})", "", SystemPromptPart.Prompt));
+            sections.Add(new($"Git native tools — off ({GitOffSuffix})", "", SystemPromptPart.Prompt));
         }
         else if (!facts.ToolsEnabled)
         {
-            sections.Add(new($"Git tools — not offered ({ToolsOffSuffix})", "", SystemPromptPart.Prompt));
+            sections.Add(new($"Git native tools — not offered ({ToolsOffSuffix})", "", SystemPromptPart.Prompt));
         }
         else
         {
-            sections.Add(new(facts.GitTools == 0 ? "Git tools — on, none offered (every git tool is switched off in /tools)" : $"Git tools — on, {GitText.Count(facts.GitTools, "tool")} offered", "", SystemPromptPart.Prompt));
+            sections.Add(new(facts.GitTools == 0 ? "Git native tools — on, none offered (every git tool is switched off in /tools)" : $"Git native tools — on, {GitText.Count(facts.GitTools, "tool")} offered", "", SystemPromptPart.Prompt));
         }
 
         // The shell tools (2026-09-21): a heading only, the git shape.
@@ -582,9 +582,9 @@ public static class SystemPromptSummary
         };
         if (git is not null)
         {
-            // The git tools (2026-09-20): right after the file tools, the sandbox's two groups together; offered while the setting Git tools says so.
+            // The git tools (2026-09-20): right after the file tools, the sandbox's two groups together; offered while the setting Git native tools says so.
             string gitNote = !gitEnabled ? NotOffered(GitOffSuffix) : standing;
-            groups.Add(Group("Git", git, gitNote, gitEnabled && toolsEnabled, SettingsField.GitTools, disabled));
+            groups.Add(Group(ToolsText.GitTabTitle, git, gitNote, gitEnabled && toolsEnabled, SettingsField.GitNativeTools, disabled));   // "Git (native)", the tab's word, since 2026-09-21
         }
 
         if (shell is not null)

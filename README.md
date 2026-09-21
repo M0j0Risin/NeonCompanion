@@ -200,13 +200,17 @@ Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Web, Memory, 
 |---|---|---|
 | $-mention enabled | `$` and part of a name on the input line lists the tools the next turn offers; a pick writes `$name` as text. | on |
 
-#### Ask
+#### Web
 
 | Setting | What it does | Default |
 |---|---|---|
-| Ask user | Offers `ask_user`, which puts multiple-choice questions on the pane. | on |
-| Ask max questions | How many questions one call may put (1–10). | 10 |
-| Ask max choices per question | How many options one question may offer (2–15). | 10 |
+| Web tools | Offers `web_search`, `web_fetch`, `open_url` and `download_file`. | on |
+| Web browser mode | `default` fetches with the HTTP client and falls back to a headless browser when a page is blocked or empty; `httpclient` never falls back; `chromium` uses the browser for every page. | `default` |
+| Web browser path | The Chromium executable for the headless leg; empty finds Edge, Chrome or Brave in their standard folders. | (auto) |
+| Web browser network mode | Where a fetch may reach: `internet` (public addresses only), `local_area_network` (this machine and the LAN only) or `both`. | `internet` |
+| Web search method | `duckduckgo` (built in, no setup) or `searxng` (the instance below). | `duckduckgo` |
+| Web SearXNG URL | A SearXNG instance's base URL, used while the method is `searxng`. | (not set) |
+| Web search max results | How many hits a search returns (1–20). | 20 |
 
 #### Files
 
@@ -218,16 +222,6 @@ Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Web, Memory, 
 | File /tree show sizes | `/tree` carries each file's size. | on |
 | File @-mention folder mode | Picking a folder from the `@` list: `folder-remain` keeps the list open inside it; `folder-apply` writes `@folder/` and closes. | `folder-remain` |
 | File view image max (per call) | How many pictures one `view_image` call may load (1–100). | 10 |
-
-#### Git
-
-| Setting | What it does | Default |
-|---|---|---|
-| Git tools | Offers the git tools (status, log, show, diff, blame, branch, stage, commit, stash, discard, delete) over the repository in the working directory — in-process, no `git.exe`. | on |
-| Git diff max lines | Where a `git_diff` patch is cut (20–5000). | 500 |
-| Git log max commits | How many commits `git_log` returns unless the call says otherwise (1–200). | 20 |
-| Git email | The `user.email` that `/git user` writes into the working directory's repository config. Never read by the git tools. | (not set) |
-| Git name | The `user.name` that `/git user` writes beside it. | (not set) |
 
 #### Shell
 
@@ -244,17 +238,23 @@ Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Web, Memory, 
 | Shell tool bridge | Whether an `execute_code` script may call the app's other tools through its `neon_tools` module (a loopback socket with a per-run token). Off: no module is written, the script's environment carries no bridge, and neither the tool's description nor the operating rules mention calling tools — the script does everything itself. | off |
 | Shell code max tool calls | How many tool calls one script may make through its bridge (1–500), while `Shell tool bridge` is on. | 50 |
 
-#### Web
+#### Ask
 
 | Setting | What it does | Default |
 |---|---|---|
-| Web tools | Offers `web_search`, `web_fetch`, `open_url` and `download_file`. | on |
-| Web browser mode | `default` fetches with the HTTP client and falls back to a headless browser when a page is blocked or empty; `httpclient` never falls back; `chromium` uses the browser for every page. | `default` |
-| Web browser path | The Chromium executable for the headless leg; empty finds Edge, Chrome or Brave in their standard folders. | (auto) |
-| Web browser network mode | Where a fetch may reach: `internet` (public addresses only), `local_area_network` (this machine and the LAN only) or `both`. | `internet` |
-| Web search method | `duckduckgo` (built in, no setup) or `searxng` (the instance below). | `duckduckgo` |
-| Web SearXNG URL | A SearXNG instance's base URL, used while the method is `searxng`. | (not set) |
-| Web search max results | How many hits a search returns (1–20). | 20 |
+| Ask user | Offers `ask_user`, which puts multiple-choice questions on the pane. | on |
+| Ask max questions | How many questions one call may put (1–10). | 10 |
+| Ask max choices per question | How many options one question may offer (2–15). | 10 |
+
+#### Git (native)
+
+| Setting | What it does | Default |
+|---|---|---|
+| Git native tools | Offers the git tools (status, log, show, diff, blame, branch, stage, commit, stash, discard, delete) over the repository in the working directory — in-process, no `git.exe`. Off, the model reaches git through the shell only, and `/git user` does nothing. | off |
+| Git native diff max lines | Where a `git_diff` patch is cut (20–5000). | 500 |
+| Git native log max commits | How many commits `git_log` returns unless the call says otherwise (1–200). | 20 |
+| Git native email | The `user.email` that `/git user` writes into the working directory's repository config while *Git native tools* is on. Never read by the git tools. | (not set) |
+| Git native name | The `user.name` that `/git user` writes beside it. | (not set) |
 
 ### MCP servers (`/mcp`)
 
@@ -279,7 +279,7 @@ Read-only: exactly what the next reply will be sent, nothing paraphrased.
 
 #### Prompt
 
-The system prompt section by section, each with its status — **Persona** (default or `persona.md`), **Operating rules** (default or `operata.md`), **Reply format** (Markdown or plain text, and why), **Project notes** (`NEON.md` / `AGENTS.md`), **Memory**, **Skills** (the catalog), **Git tools**, **MCP servers**, and **Voice directive** (default or `vocalia.md`, only on a spoken turn, always last). Under *Also sent, outside the system prompt*: the opening clock, working-directory and memory calls seeded with the first message, and the reasoning fields on the request.
+The system prompt section by section, each with its status — **Persona** (default or `persona.md`), **Operating rules** (default or `operata.md`), **Reply format** (Markdown or plain text, and why), **Project notes** (`NEON.md` / `AGENTS.md`), **Memory**, **Skills** (the catalog), **Git native tools**, **MCP servers**, and **Voice directive** (default or `vocalia.md`, only on a spoken turn, always last). Under *Also sent, outside the system prompt*: the opening clock, working-directory and memory calls seeded with the first message, and the reasoning fields on the request.
 
 #### Tools
 
@@ -303,7 +303,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/exit` | Exit the app. |
 | `/explore [path]` | Open the working directory in your file browser. |
 | `/forget` | Forget every memory (asks first). |
-| `/git user [force]` | Write the *Git email* and *Git name* settings into the working directory's repository config as `user.email` / `user.name`; a `[user]` section already there is kept unless `force`. |
+| `/git user [force]` | Write the *Git native email* and *Git native name* settings into the working directory's repository config as `user.email` / `user.name`; a `[user]` section already there is kept unless `force`. Does nothing while *Git native tools* is off. |
 | `/help` | Show the commands and the keys. |
 | `/interrupt [on\|off]` | Toggle the wake-word interrupt during a spoken reply. |
 | `/learn [note \| sessions [N \| text]]` | Write or improve a skill in the background from the last turn, or from the stored sessions. |
@@ -341,7 +341,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 ## Tools
 [⬆ Back to Top](#readme)
 
-What the model can call, in the groups `/tools` and `/sys` show. A group's switch (`File tools`, `Git tools`, `Shell command policy`, `Web tools`, `Memory`, `Agent skills`, `Session tool`, `Ask user`, `MCP servers`) offers or withholds the whole group; a single tool goes on or off on `/tools`' Offered tab. Required arguments come first; `?` marks an optional one.
+What the model can call, in the groups `/tools` and `/sys` show. A group's switch (`File tools`, `Git native tools`, `Shell command policy`, `Web tools`, `Memory`, `Agent skills`, `Session tool`, `Ask user`, `MCP servers`) offers or withholds the whole group; a single tool goes on or off on `/tools`' Offered tab. Required arguments come first; `?` marks an optional one.
 
 ### Clock
 

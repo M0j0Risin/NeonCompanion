@@ -170,15 +170,15 @@ public sealed class GitToolsTests : IDisposable
 
         string log = await Invoke(Tool<GitLogTool>());
         Assert.Matches($@"^2 commits on main, newest first:\n{second[..7]} 2026-09-01 12:\d\d Test User: second\n{first[..7]} 2026-09-01 12:\d\d Test User: first$", log);
-        _settings.GitLogMaxCommits = 1;
+        _settings.GitNativeLogMaxCommits = 1;
         Assert.StartsWith("1 commit on main, newest first (more before them):\n", await Invoke(Tool<GitLogTool>()));
         Assert.StartsWith("2 commits on main", await Invoke(Tool<GitLogTool>(), ("max_commits", 5)));
         Assert.Equal("Error: max_commits must be 1 to 200", await Invoke(Tool<GitLogTool>(), ("max_commits", 0)));
         Assert.Equal("Error: 'lots' is not a whole number for 'max_commits'", await Invoke(Tool<GitLogTool>(), ("max_commits", "lots")));
         Assert.Equal("Error: 'nope' names no commit, branch or tag", await Invoke(Tool<GitLogTool>(), ("ref", "nope")));
         Assert.Equal("No commits touch b.txt on main", await Invoke(Tool<GitLogTool>(), ("path", "b.txt"), ("max_commits", 5)));
-        Assert.Equal(1, GitLogTool.DefaultCount(new AppSettingsData { GitLogMaxCommits = -4 }));
-        Assert.Equal(200, GitLogTool.DefaultCount(new AppSettingsData { GitLogMaxCommits = 9999 }));
+        Assert.Equal(1, GitLogTool.DefaultCount(new AppSettingsData { GitNativeLogMaxCommits = -4 }));
+        Assert.Equal(200, GitLogTool.DefaultCount(new AppSettingsData { GitNativeLogMaxCommits = 9999 }));
     }
 
     [Fact]
@@ -219,14 +219,14 @@ public sealed class GitToolsTests : IDisposable
         Assert.StartsWith($"Changes from {first[..7]} to {sha} (1 file, +1 −1):", await Invoke(Tool<GitDiffTool>(), ("from", first[..7]), ("to", "HEAD")));
         Assert.Equal("Error: 'zzz' is not there", await Invoke(Tool<GitDiffTool>(), ("ref", "HEAD"), ("path", "zzz")));
 
-        _settings.GitDiffMaxLines = 20;
+        _settings.GitNativeDiffMaxLines = 20;
         string cut = await Invoke(Tool<GitDiffTool>(), ("ref", "HEAD"), ("max_lines", 20));
         Assert.DoesNotContain("[… cut", cut);   // seven lines fit
         Assert.Equal("Error: max_lines must be 20 to 5000", await Invoke(Tool<GitDiffTool>(), ("max_lines", 5)));
         Assert.Equal("Error: give ref alone, from with to, or staged — not a mix", await Invoke(Tool<GitDiffTool>(), ("ref", "HEAD"), ("staged", true)));
         Assert.Equal("Error: give ref alone, from with to, or staged — not a mix", await Invoke(Tool<GitDiffTool>(), ("from", "HEAD")));
         Assert.Equal("Error: 'maybe' is not true or false for 'staged'", await Invoke(Tool<GitDiffTool>(), ("staged", "maybe")));
-        Assert.Equal(20, GitDiffTool.DefaultLines(new AppSettingsData { GitDiffMaxLines = 1 }));
+        Assert.Equal(20, GitDiffTool.DefaultLines(new AppSettingsData { GitNativeDiffMaxLines = 1 }));
         Assert.Null(GitDiffTool.Request("", "HEAD", "a", "b", false));
         Assert.Equal(new GitDiffRequest(GitDiffKind.Range, "src", From: "a", To: "b"), GitDiffTool.Request("src", "", " a ", "b ", false));
         Assert.Equal(new GitDiffRequest(GitDiffKind.Unstaged, ""), GitDiffTool.Request("", "", "", "", false));

@@ -10,10 +10,11 @@ namespace NeonCompanion.Settings;
 ///
 /// <para><b>The key is the label (2026-09-17, the user's call):</b> the tab's prefix as the row shows
 /// it (<c>Llm</c>, <c>Tts</c>, <c>Stt</c>, <c>Ask</c>, <c>File</c>/<c>Tree</c>, <c>Web</c>,
-/// <c>Skill</c>/<c>Reflection</c>, <c>Session</c>; none on General) and the label's words, no <c>Enabled</c> suffix on a
+/// <c>Skill</c>/<c>Reflection</c>, <c>Session</c>, <c>GitNative</c> for the Git (native) tab; none on General) and the label's words, no <c>Enabled</c> suffix on a
 /// switch; a relabelled row is renamed with it. <see cref="SchemaVersion"/> first, then the five
 /// <c>/settings</c> tabs' blocks in the tabs' order, then the <c>/skills</c> pane's Options tab (Skills),
-/// then the <c>/tools</c> pane's (Tools, Ask, Files, Git, Shell, Web) — the strips' order since 2026-09-19 —,
+/// then the <c>/tools</c> pane's (Tools, Ask, Files, Git, Shell, Web — the strip's order until 2026-09-21, when it became
+/// Web, Files, Shell, Ask, Git (native), the user's order; the blocks stayed put) —,
 /// then the <c>/mcp</c> pane's (MCP, 2026-09-20), alphabetical within — the file reads like the four
 /// panes; a new field goes into its block, with a default, and into <c>AppSettings.Copy</c>. Three keys
 /// are not settings rows: <see cref="ToolsDisabled"/>, a list flipped on <c>/tools</c>' Offered tab (the
@@ -738,49 +739,54 @@ public sealed class AppSettingsData
     public const int MaxViewImageMaxPerCall = 100;
     public const int DefaultViewImageMaxPerCall = 10;
 
-    // ─── Git ────────────────────────────────────────────────────────────────────
+    // ─── Git (native) ───────────────────────────────────────────────────────────
+    // Renamed Git native … on 2026-09-21 (the user's call): the in-process LibGit2Sharp tools as
+    // against git through the shell. The five keys followed their labels (no migration: the old
+    // GitTools/GitDiffMaxLines/GitLogMaxCommits/GitEmail/GitName keys are skipped on load).
 
     /// <summary>
-    /// The most patch lines one <c>git_diff</c> shows (2026-09-20): <see cref="MinGitDiffMaxLines"/> to
-    /// <see cref="MaxGitDiffMaxLines"/>; the argument <c>max_lines</c> overrides it up to the same cap, a cut
+    /// The most patch lines one <c>git_diff</c> shows (2026-09-20; <c>Git native diff max lines</c> since 2026-09-21): <see cref="MinGitNativeDiffMaxLines"/> to
+    /// <see cref="MaxGitNativeDiffMaxLines"/>; the argument <c>max_lines</c> overrides it up to the same cap, a cut
     /// patch says so and names <c>path</c> to narrow it, and the tool clamps a hand-edited value. Read at
     /// each call, no reconnect. No variable.
     /// </summary>
-    public int GitDiffMaxLines { get; set; } = DefaultGitDiffMaxLines;
+    public int GitNativeDiffMaxLines { get; set; } = DefaultGitNativeDiffMaxLines;
 
-    public const int MinGitDiffMaxLines = 20;
-    public const int MaxGitDiffMaxLines = 5000;
-    public const int DefaultGitDiffMaxLines = 500;
+    public const int MinGitNativeDiffMaxLines = 20;
+    public const int MaxGitNativeDiffMaxLines = 5000;
+    public const int DefaultGitNativeDiffMaxLines = 500;
 
     /// <summary>
-    /// How many commits a <c>git_log</c> without <c>max_commits</c> lists (2026-09-20):
-    /// <see cref="MinGitLogMaxCommits"/> to <see cref="MaxGitLogMaxCommits"/>; the argument overrides it up to
+    /// How many commits a <c>git_log</c> without <c>max_commits</c> lists (2026-09-20; <c>Git native log max commits</c> since 2026-09-21):
+    /// <see cref="MinGitNativeLogMaxCommits"/> to <see cref="MaxGitNativeLogMaxCommits"/>; the argument overrides it up to
     /// the same cap, and a hand-edited value is clamped. No variable.
     /// </summary>
-    public int GitLogMaxCommits { get; set; } = DefaultGitLogMaxCommits;
+    public int GitNativeLogMaxCommits { get; set; } = DefaultGitNativeLogMaxCommits;
 
-    public const int MinGitLogMaxCommits = 1;
-    public const int MaxGitLogMaxCommits = 200;
-    public const int DefaultGitLogMaxCommits = 20;
+    public const int MinGitNativeLogMaxCommits = 1;
+    public const int MaxGitNativeLogMaxCommits = 200;
+    public const int DefaultGitNativeLogMaxCommits = 20;
 
     /// <summary>
     /// Whether a turn offers the model the eleven git tools over the repository at or under the working
-    /// directory (2026-09-20); read at each turn like <see cref="WebTools"/>, no reconnect. Off, the default
-    /// rules lose their git sentence. The two destructive tools (<c>git_discard</c>, <c>git_delete</c>) are
-    /// off by name in a fresh profile's <see cref="ToolsDisabled"/> besides. No variable.
+    /// directory (2026-09-20; <c>Git native tools</c> since 2026-09-21); read at each turn like <see cref="WebTools"/>, no reconnect.
+    /// Off — the default since 2026-09-21 (the user's call, like <see cref="McpServers"/>): the model reaches git
+    /// through the shell unless the profile opts in — the default rules lose their git sentence and
+    /// <c>/git user</c> refuses. The two destructive tools (<c>git_discard</c>, <c>git_delete</c>) are off by
+    /// name in a fresh profile's <see cref="ToolsDisabled"/> besides. No variable.
     /// </summary>
-    public bool GitTools { get; set; } = true;
+    public bool GitNativeTools { get; set; }
 
     /// <summary>
     /// The <c>user.email</c> that <c>/git user</c> writes into the working directory's repository config
-    /// (2026-09-21), with <see cref="GitName"/>; empty = not set, and the command refuses. Never read by
-    /// the git tools — a commit signs with whatever git's own config holds. The Git tab of <c>/tools</c>,
-    /// fourth row. No variable.
+    /// (2026-09-21), with <see cref="GitNativeName"/>; empty = not set, and the command refuses — as it does
+    /// while <see cref="GitNativeTools"/> is off (later that day). Never read by the git tools — a commit signs
+    /// with whatever git's own config holds. The Git (native) tab of <c>/tools</c>, fourth row. No variable.
     /// </summary>
-    public string GitEmail { get; set; } = "";
+    public string GitNativeEmail { get; set; } = "";
 
-    /// <summary>The <c>user.name</c> <c>/git user</c> writes beside <see cref="GitEmail"/> (2026-09-21); empty = not set. The Git tab's last row. No variable.</summary>
-    public string GitName { get; set; } = "";
+    /// <summary>The <c>user.name</c> <c>/git user</c> writes beside <see cref="GitNativeEmail"/> (2026-09-21); empty = not set. The Git (native) tab's last row. No variable.</summary>
+    public string GitNativeName { get; set; } = "";
 
     // ─── Shell ──────────────────────────────────────────────────────────────────
 

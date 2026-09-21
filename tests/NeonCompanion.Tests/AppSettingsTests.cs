@@ -42,8 +42,8 @@ public class AppSettingsTests : IDisposable
         LlmAutoCompactPercent = 65,
         LlmCompactKeepRecent = 4,
         LlmCompactShowSummary = true,
-        GitEmail = "me@example.invalid",
-        GitName = "Some User",
+        GitNativeEmail = "me@example.invalid",
+        GitNativeName = "Some User",
         ShellToolBridge = true,
         LlmCompactType = "prune",
         LlmContextLength = 32_768,
@@ -140,8 +140,8 @@ public class AppSettingsTests : IDisposable
         Assert.Equal(expected.LlmAutoCompactPercent, actual.LlmAutoCompactPercent);
         Assert.Equal(expected.LlmCompactKeepRecent, actual.LlmCompactKeepRecent);
         Assert.Equal(expected.LlmCompactShowSummary, actual.LlmCompactShowSummary);
-        Assert.Equal(expected.GitEmail, actual.GitEmail);
-        Assert.Equal(expected.GitName, actual.GitName);
+        Assert.Equal(expected.GitNativeEmail, actual.GitNativeEmail);
+        Assert.Equal(expected.GitNativeName, actual.GitNativeName);
         Assert.Equal(expected.ShellToolBridge, actual.ShellToolBridge);
         Assert.Equal(expected.LlmCompactType, actual.LlmCompactType);
         Assert.Equal(expected.LlmContextLength, actual.LlmContextLength);
@@ -250,8 +250,8 @@ public class AppSettingsTests : IDisposable
             d.LlmAutoCompactPercent = full.LlmAutoCompactPercent;
             d.LlmCompactKeepRecent = full.LlmCompactKeepRecent;
             d.LlmCompactShowSummary = full.LlmCompactShowSummary;
-            d.GitEmail = full.GitEmail;
-            d.GitName = full.GitName;
+            d.GitNativeEmail = full.GitNativeEmail;
+            d.GitNativeName = full.GitNativeName;
             d.ShellToolBridge = full.ShellToolBridge;
             d.LlmCompactType = full.LlmCompactType;
             d.LlmContextLength = full.LlmContextLength;
@@ -357,8 +357,8 @@ public class AppSettingsTests : IDisposable
                 d.LlmAutoCompactPercent = full.LlmAutoCompactPercent;
                 d.LlmCompactKeepRecent = full.LlmCompactKeepRecent;
                 d.LlmCompactShowSummary = full.LlmCompactShowSummary;
-                d.GitEmail = full.GitEmail;
-                d.GitName = full.GitName;
+                d.GitNativeEmail = full.GitNativeEmail;
+                d.GitNativeName = full.GitNativeName;
                 d.ShellToolBridge = full.ShellToolBridge;
                 d.LlmCompactType = full.LlmCompactType;
                 d.LlmContextLength = full.LlmContextLength;
@@ -922,11 +922,11 @@ public class AppSettingsTests : IDisposable
         Assert.True(s.ToolsDollarMention);   // 2026-09-19
         Assert.Equal([NeonCompanion.Llm.Tools.DeleteTool.ToolName, NeonCompanion.Llm.Tools.GitDeleteTool.ToolName, NeonCompanion.Llm.Tools.GitDiscardTool.ToolName, NeonCompanion.Llm.Tools.UnzipTool.ToolName, NeonCompanion.Llm.Tools.ZipTool.ToolName], s.ToolsDisabled);   // delete opt-in since 2026-09-20 (the user's call), the two destructive git tools with it later that day, zip and unzip on 2026-09-21; a saved list stands
         // The git tools (2026-09-20): on, 500 patch lines (20–5000), 20 commits (1–200).
-        Assert.True(s.GitTools);
-        Assert.Equal(500, s.GitDiffMaxLines);
-        Assert.Equal(20, s.GitLogMaxCommits);
-        Assert.Equal("", s.GitEmail);   // the /git user pair (2026-09-21): not set until typed
-        Assert.Equal("", s.GitName);
+        Assert.False(s.GitNativeTools);   // off by default since later on 2026-09-21 (on from 2026-09-20): the model reaches git through the shell unless the profile opts in
+        Assert.Equal(500, s.GitNativeDiffMaxLines);
+        Assert.Equal(20, s.GitNativeLogMaxCommits);
+        Assert.Equal("", s.GitNativeEmail);   // the /git user pair (2026-09-21): not set until typed
+        Assert.Equal("", s.GitNativeName);
         // The shell tools (2026-09-21): ask before anything runs, nothing allowed for good, PowerShell, 180 s (1–3600) under a 600 s cap (10–3600), 30,000 chars of output (2000–500000).
         Assert.Equal("ask", s.ShellCommandPolicy);
         Assert.Equal("ask", NeonCompanion.Shell.CommandPolicy.Default);

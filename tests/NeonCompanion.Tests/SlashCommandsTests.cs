@@ -496,7 +496,7 @@ public class SlashCommandsTests
         Assert.Contains(Row("/tree", "print a tree of the working directory's folders and files, or /tree <path>"), SlashCommands.HelpText);
         Assert.Contains(Row("/explore", "open the working directory in your file browser, or /explore <path>"), SlashCommands.HelpText);
         Assert.Contains(Row("/emptytrash", "empty the working directory's .trash for good (asks first)"), SlashCommands.HelpText);
-        Assert.Contains(Row("/git", "write the Git email and Git name settings into the working directory's repository: /git user [force]"), SlashCommands.HelpText);   // 2026-09-21
+        Assert.Contains(Row("/git", "write the Git native email and Git native name settings into the working directory's repository: /git user [force]"), SlashCommands.HelpText);   // 2026-09-21
         Assert.Contains(Row("/timer", "list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all"), SlashCommands.HelpText);
         Assert.Contains(Row("/window", "show the terminal window's width and height"), SlashCommands.HelpText);
         Assert.Contains(Row("/persona", "export and manage persona.md (the personality) in your editor, or /persona reset to go back to the default"), SlashCommands.HelpText);
@@ -583,7 +583,7 @@ public class SlashCommandsTests
         Assert.Equal(["/cwd", "/tree", "/explore", "/emptytrash", "/git"], SlashCommands.HelpGroups[5].Select(e => e.Command));   // /git last since 2026-09-21
         Assert.Equal("/emptytrash", SlashCommands.HelpEntries[31].Command);
         Assert.Equal("/git", SlashCommands.HelpEntries[32].Command);   // the working-directory group's last row (2026-09-21)
-        Assert.Equal("write the Git email and Git name settings into the working directory's repository: /git user [force]", SlashCommands.HelpEntries[32].Summary);
+        Assert.Equal("write the Git native email and Git native name settings into the working directory's repository: /git user [force]", SlashCommands.HelpEntries[32].Summary);
         // /speak and /view: a group of their own (the user's call, 2026-09-17); /window under /view since later on 2026-09-19.
         Assert.Equal(["/speak", "/echo", "/view", "/window"], SlashCommands.HelpGroups[6].Select(e => e.Command));   // /echo between them, later on 2026-09-17
         Assert.Equal("/speak", SlashCommands.HelpEntries[33].Command);

@@ -313,7 +313,7 @@ internal sealed partial class ChatScreen
     public const string GitUserWord = "user";
     public const string GitForceWord = "force";
     public const string GitUsageError = "/git takes user [force].";
-    public const string GitUserNote = "write the Git email and Git name settings into this repository's .git/config";
+    public const string GitUserNote = "write the Git native email and Git native name settings into this repository's .git/config";
     public const string GitUserForceNote = "the same, replacing a [user] section already there";
     public const string TimerUsageError = "/timer takes nothing (list), <duration> [name], stop <name> or stop all; a duration is 10m, 90s, 1h30m, or minutes as a number.";
     public const string NoTimersNotice = "(no timers)";
@@ -1711,7 +1711,7 @@ internal sealed partial class ChatScreen
             _mcp.ServerTools.Count,
             Without(_mcp.Tools, disabled).Count,
             effective.FileSafeEdits,
-            effective.GitTools,
+            effective.GitNativeTools,
             Without(_gitTools, disabled).Count,
             ShellOffered(effective),
             Without(ShellToolsFor(_shellTools), disabled).Count,
@@ -1762,7 +1762,7 @@ internal sealed partial class ChatScreen
         var disabled = ToolsText.DisabledSet(effective.ToolsDisabled);
         var fileTools = FileToolsFor(_fileTools, effective.FileSafeEdits);   // restore only with File safe edits on (later still on 2026-09-20)
         bool files = effective.FileTools && Without(fileTools, disabled).Count > 0;
-        var groups = SystemPromptSummary.ToolGroups(_clockTools, _timerTools, fileTools, _memoryTools, effective.Memory, effective.LlmOfferTools, WebToolsFor(_webTools, files), effective.WebTools, effective.FileTools, _askTools, effective.AskUser, _pane.Enabled, _skillTools, effective.AgentSkills, _sessionTools, effective.SessionTool, disabled, skillInstalled: Catalog(effective).Count > 0, mcp: _mcp.ServerTools, mcpEnabled: effective.McpServers, git: _gitTools, gitEnabled: effective.GitTools, shell: _shellTools, shellEnabled: ShellOffered(effective), codeAvailable: CodeAvailable());
+        var groups = SystemPromptSummary.ToolGroups(_clockTools, _timerTools, fileTools, _memoryTools, effective.Memory, effective.LlmOfferTools, WebToolsFor(_webTools, files), effective.WebTools, effective.FileTools, _askTools, effective.AskUser, _pane.Enabled, _skillTools, effective.AgentSkills, _sessionTools, effective.SessionTool, disabled, skillInstalled: Catalog(effective).Count > 0, mcp: _mcp.ServerTools, mcpEnabled: effective.McpServers, git: _gitTools, gitEnabled: effective.GitNativeTools, shell: _shellTools, shellEnabled: ShellOffered(effective), codeAvailable: CodeAvailable());
         return groups.SelectMany(g => g.Tools.Where(t => g.Offers(t.Name)).Select(t => new CompletionItem(t.Name, t.Description))).ToList();
     }
 
@@ -2178,7 +2178,7 @@ internal sealed partial class ChatScreen
         var disabled = ToolsText.DisabledSet(effective.ToolsDisabled);
         var fileTools = FileToolsFor(_fileTools, effective.FileSafeEdits);   // restore only with File safe edits on (later still on 2026-09-20): /sys shows the list cut, Files (14)
         bool files = effective.FileTools && Without(fileTools, disabled).Count > 0;   // the turn's rule (PrepareTurn): an emptied file group is the switch off
-        return SystemPromptSummary.ToolGroups(_clockTools, _timerTools, fileTools, _memoryTools, effective.Memory, effective.LlmOfferTools, WebToolsFor(_webTools, files), effective.WebTools, effective.FileTools, _askTools, effective.AskUser, _pane.Enabled, _skillTools, effective.AgentSkills, _sessionTools, effective.SessionTool, disabled, mcp: _mcp.ServerTools, mcpEnabled: effective.McpServers, git: _gitTools, gitEnabled: effective.GitTools, shell: _shellTools, shellEnabled: ShellOffered(effective), codeAvailable: CodeAvailable());
+        return SystemPromptSummary.ToolGroups(_clockTools, _timerTools, fileTools, _memoryTools, effective.Memory, effective.LlmOfferTools, WebToolsFor(_webTools, files), effective.WebTools, effective.FileTools, _askTools, effective.AskUser, _pane.Enabled, _skillTools, effective.AgentSkills, _sessionTools, effective.SessionTool, disabled, mcp: _mcp.ServerTools, mcpEnabled: effective.McpServers, git: _gitTools, gitEnabled: effective.GitNativeTools, shell: _shellTools, shellEnabled: ShellOffered(effective), codeAvailable: CodeAvailable());
     }
 
     /// <summary>Whether <c>execute_code</c> has a language to run (2026-09-21): the setting's languages, one of them installed.</summary>
@@ -2206,7 +2206,7 @@ internal sealed partial class ChatScreen
         var disabled = ToolsText.DisabledSet(effective.ToolsDisabled);
         // The whole file list, restore noted under File safe edits off (later still on 2026-09-20): the row stays, dim, with its reason — the download_file shape.
         _interpreters.Refresh();
-        var groups = SystemPromptSummary.ToolGroups(_clockTools, _timerTools, _fileTools, _memoryTools, effective.Memory, effective.LlmOfferTools, _webTools, effective.WebTools, effective.FileTools, _askTools, effective.AskUser, _pane.Enabled, _skillTools, effective.AgentSkills, _sessionTools, effective.SessionTool, disabled, skillInstalled: Catalog(effective).Count > 0, git: _gitTools, gitEnabled: effective.GitTools, safeEdits: effective.FileSafeEdits, shell: _shellTools, shellEnabled: ShellOffered(effective), codeAvailable: CodeAvailable());
+        var groups = SystemPromptSummary.ToolGroups(_clockTools, _timerTools, _fileTools, _memoryTools, effective.Memory, effective.LlmOfferTools, _webTools, effective.WebTools, effective.FileTools, _askTools, effective.AskUser, _pane.Enabled, _skillTools, effective.AgentSkills, _sessionTools, effective.SessionTool, disabled, skillInstalled: Catalog(effective).Count > 0, git: _gitTools, gitEnabled: effective.GitNativeTools, safeEdits: effective.FileSafeEdits, shell: _shellTools, shellEnabled: ShellOffered(effective), codeAvailable: CodeAvailable());
         return new ToolsFacts(groups, effective.LlmOfferTools, disabled);
     }
 
@@ -2356,7 +2356,7 @@ internal sealed partial class ChatScreen
     }
 
     /// <summary>
-    /// The eleven git tools (2026-09-20), offered on every turn while the setting <c>Git tools</c> is on
+    /// The eleven git tools (2026-09-20), offered on every turn while the setting <c>Git native tools</c> (<c>Git tools</c> until 2026-09-21) is on
     /// (headless too): the reads first, then the writes, the two that lose work last — those two are off
     /// by name in a fresh profile's <c>ToolsDisabled</c>. Each reads the settings in force at the call.
     /// </summary>
@@ -2613,7 +2613,7 @@ internal sealed partial class ChatScreen
         // The rule quotes the caps the offered tool itself reads, so the two never disagree.
         AskLimits? ask = askTools is { Count: > 0 } ? askTools.OfType<AskUserTool>().FirstOrDefault()?.Limits ?? AskLimits.Default : null;
         IReadOnlyList<AIFunction> offered = files ? [.. standingTools, .. fileTools!] : standingTools;
-        // The git tools right after the file tools (2026-09-20): the sandbox's tools together, the setting Git tools a per-group offer.
+        // The git tools right after the file tools (2026-09-20): the sandbox's tools together, the setting Git native tools a per-group offer.
         bool git = gitEnabled && gitTools is { Count: > 0 };
         offered = git ? [.. offered, .. gitTools!] : offered;
         // The shell tools right after the git tools (2026-09-21): the setting Shell command policy is the group's switch; execute_code rides only with an interpreter to run.
@@ -3555,9 +3555,12 @@ internal sealed partial class ChatScreen
         };
     }
 
-    /// <summary>Which of the two settings is empty: <c>Git email and Git name are not set; set them on the Git tab of /tools.</c>, or the one. Pinned.</summary>
+    /// <summary>Which of the two settings is empty: <c>Git native email and Git native name are not set; set them on the Git (native) tab of /tools.</c>, or the one. Pinned.</summary>
     public static string GitIdentityUnsetError(bool email, bool name) =>
-        (email && name ? "Git email and Git name are" : email ? "Git email is" : "Git name is") + " not set; set " + (email && name ? "them" : "it") + " on the Git tab of /tools.";
+        (email && name ? "Git native email and Git native name are" : email ? "Git native email is" : "Git native name is") + " not set; set " + (email && name ? "them" : "it") + " on the Git (native) tab of /tools.";
+
+    /// <summary>The setting <c>Git native tools</c> is off (later on 2026-09-21, the user's call): <c>/git user</c> writes nothing and says why. Pinned.</summary>
+    public const string GitNativeToolsOffError = "Git native tools is off; /git user does nothing until it is on (the Git (native) tab of /tools).";
 
     public static string GitIdentityWrittenNotice(string name, string email) => $"(git user set for this repository: {name} <{email}>)";
 
@@ -3569,9 +3572,10 @@ internal sealed partial class ChatScreen
     public static string GitIdentityFailedError(string detail) => $"Could not write the git identity: {detail}";
 
     /// <summary>
-    /// <c>/git user [force]</c> (2026-09-21): the <c>Git email</c> and <c>Git name</c> settings into the
-    /// working directory's repository config (<see cref="GitAccess.SetLocalIdentity"/>). Either setting
-    /// empty is an error naming it; no repository at the root is an error; a <c>[user]</c> section already
+    /// <c>/git user [force]</c> (2026-09-21): the <c>Git native email</c> and <c>Git native name</c> settings into the
+    /// working directory's repository config (<see cref="GitAccess.SetLocalIdentity"/>). <c>Git native tools</c> off
+    /// is an error before anything else (later that day: the switch gates the command as it gates the tools);
+    /// either setting empty is an error naming it; no repository at the root is an error; a <c>[user]</c> section already
     /// there is a notice that names it and the <c>force</c> word, and nothing is written. Refused mid-turn.
     /// </summary>
     private void HandleGit(string args)
@@ -3584,8 +3588,14 @@ internal sealed partial class ChatScreen
         }
 
         var effective = _effective();
-        string email = effective.GitEmail.Trim();
-        string name = effective.GitName.Trim();
+        if (!effective.GitNativeTools)
+        {
+            _transcript.Error(GitNativeToolsOffError);
+            return;
+        }
+
+        string email = effective.GitNativeEmail.Trim();
+        string name = effective.GitNativeName.Trim();
         if (email.Length == 0 || name.Length == 0)
         {
             _transcript.Error(GitIdentityUnsetError(email.Length == 0, name.Length == 0));
@@ -6754,7 +6764,7 @@ internal sealed partial class ChatScreen
         bool styled = StyledReply(effective.TranscriptMarkdown, _pane.Enabled);
         // The shells found are probed afresh per turn (2026-09-21): an install during the session shows without a restart, and the schema and the run agree.
         _interpreters.Refresh();
-        PrepareTurn(assistant, _memory, _memoryTools, [.. _clockTools, .. _timerTools], _persona, _operata, _vocalia, effective.Memory, speaker is not null, effective.LlmMaxToolIterations, effective.LlmOfferTools, _webTools, effective.WebTools, ContextGuardFor(effective, _session.ContextLength), _fileTools, effective.FileTools, _pane.Enabled && effective.AskUser ? _askTools : null, SkillsFor(effective), markdown, _sessionTools, effective.SessionTool, ToolsText.DisabledSet(effective.ToolsDisabled), _mcp.Tools, effective.McpServers, effective.FileSafeEdits, _gitTools, effective.GitTools, _shellTools, ShellOffered(effective), _processes, effective.ShellToolBridge);
+        PrepareTurn(assistant, _memory, _memoryTools, [.. _clockTools, .. _timerTools], _persona, _operata, _vocalia, effective.Memory, speaker is not null, effective.LlmMaxToolIterations, effective.LlmOfferTools, _webTools, effective.WebTools, ContextGuardFor(effective, _session.ContextLength), _fileTools, effective.FileTools, _pane.Enabled && effective.AskUser ? _askTools : null, SkillsFor(effective), markdown, _sessionTools, effective.SessionTool, ToolsText.DisabledSet(effective.ToolsDisabled), _mcp.Tools, effective.McpServers, effective.FileSafeEdits, _gitTools, effective.GitNativeTools, _shellTools, ShellOffered(effective), _processes, effective.ShellToolBridge);
         bool armed = false;
         EchoProbe? probe = null;
         if (speaker is not null && _voice.InterruptReady)

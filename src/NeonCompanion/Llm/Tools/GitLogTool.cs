@@ -11,8 +11,8 @@ public sealed class GitLogTool : GitTool
     public const string ToolName = "git_log";
     public const string MaxCommitsArgument = "max_commits";
 
-    public const int MinCommits = AppSettingsData.MinGitLogMaxCommits;
-    public const int MaxCommits = AppSettingsData.MaxGitLogMaxCommits;
+    public const int MinCommits = AppSettingsData.MinGitNativeLogMaxCommits;
+    public const int MaxCommits = AppSettingsData.MaxGitNativeLogMaxCommits;
 
     private static readonly JsonElement Schema = ToolSchema.Parse(
         $$"""
@@ -42,7 +42,7 @@ public sealed class GitLogTool : GitTool
     public static int DefaultCount(AppSettingsData effective)
     {
         ArgumentNullException.ThrowIfNull(effective);
-        return Math.Clamp(effective.GitLogMaxCommits, MinCommits, MaxCommits);
+        return Math.Clamp(effective.GitNativeLogMaxCommits, MinCommits, MaxCommits);
     }
 
     public string Describe(string path, string reference, int? maxCommits)

@@ -19,8 +19,8 @@ public sealed class GitDiffTool : GitTool
     public const string StagedArgument = "staged";
     public const string MaxLinesArgument = "max_lines";
 
-    public const int MinLines = AppSettingsData.MinGitDiffMaxLines;
-    public const int MaxLines = AppSettingsData.MaxGitDiffMaxLines;
+    public const int MinLines = AppSettingsData.MinGitNativeDiffMaxLines;
+    public const int MaxLines = AppSettingsData.MaxGitNativeDiffMaxLines;
 
     private static readonly JsonElement Schema = ToolSchema.Parse(
         $$"""
@@ -54,7 +54,7 @@ public sealed class GitDiffTool : GitTool
     public static int DefaultLines(AppSettingsData effective)
     {
         ArgumentNullException.ThrowIfNull(effective);
-        return Math.Clamp(effective.GitDiffMaxLines, MinLines, MaxLines);
+        return Math.Clamp(effective.GitNativeDiffMaxLines, MinLines, MaxLines);
     }
 
     /// <summary>Which diff the arguments ask for, or null for a mix that names none (<see cref="GitText.BadDiffArguments"/>).</summary>

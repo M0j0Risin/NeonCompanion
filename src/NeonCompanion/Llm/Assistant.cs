@@ -168,7 +168,7 @@ public sealed class Assistant
         NeonCompanion.Llm.Tools.ViewImageTool.ToolName + " or " + NeonCompanion.Llm.Tools.ReadFileTool.ToolName + " look at the result.";
 
     /// <summary>
-    /// The sentence the default rules gain while the git tools are offered (the setting <c>Git tools</c> on,
+    /// The sentence the default rules gain while the git tools are offered (the setting <c>Git native tools</c> on,
     /// 2026-09-20): appended after <see cref="DownloadRule"/>, with the sandbox's sentences, by <see cref="DefaultRules"/>.
     /// It names the nine tools a fresh profile offers and neither of the two that lose work (<c>git_discard</c>,
     /// <c>git_delete</c>, off by name in <c>ToolsDisabled</c>), so no variant is needed when they are off; a custom

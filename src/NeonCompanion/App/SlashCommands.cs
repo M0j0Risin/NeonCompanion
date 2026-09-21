@@ -91,7 +91,7 @@ public enum SlashCommand
     /// <summary><c>/emptytrash</c>: delete everything in the working directory's <c>.trash</c> for good, after a confirmation.</summary>
     EmptyTrash,
 
-    /// <summary><c>/git user [force]</c> (2026-09-21): the <c>Git email</c> and <c>Git name</c> settings written into the working directory's repository config as <c>user.email</c> / <c>user.name</c>; a <c>[user]</c> section already there is kept unless <c>force</c>. Nothing else yet.</summary>
+    /// <summary><c>/git user [force]</c> (2026-09-21): the <c>Git native email</c> and <c>Git native name</c> settings written into the working directory's repository config as <c>user.email</c> / <c>user.name</c>; a <c>[user]</c> section already there is kept unless <c>force</c>, and <c>Git native tools</c> off refuses (later that day). Nothing else yet.</summary>
     Git,
 
     /// <summary><c>/window</c> (<c>/windowsize</c> until later on 2026-09-19): the terminal window's width and height, for information.</summary>
@@ -202,7 +202,7 @@ public static class SlashCommands
             new("/tree", "print a tree of the working directory's folders and files, or /tree <path>"),
             new("/explore", "open the working directory in your file browser, or /explore <path>"),
             new("/emptytrash", "empty the working directory's .trash for good (asks first)"),
-            new("/git", "write the Git email and Git name settings into the working directory's repository: /git user [force]"),
+            new("/git", "write the Git native email and Git native name settings into the working directory's repository: /git user [force]"),
         ],
         [
             new("/speak", "read a text file from the working directory aloud, as a reply: /speak <file> [n], or /speak to resume, or /speak <n> from sentence n"),

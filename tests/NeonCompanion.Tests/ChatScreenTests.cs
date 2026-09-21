@@ -106,7 +106,7 @@ public partial class ChatScreenTests : IDisposable
         // delete is off in a fresh profile (2026-09-20, the user's call: the trash tool is opt-in): the scripts here pin the full file rule and
         // every file tool offered, so the fixture opts it back on; the delete-off tests pin the fresh-profile picture themselves. The same
         // rule reads "into .trash" only while File safe edits is on (later on 2026-09-20; off by default since 2026-09-19), so that goes on too.
-        _settings.Update(d => { d.ToolsDisabled = []; d.FileSafeEdits = true; });
+        _settings.Update(d => { d.ToolsDisabled = []; d.FileSafeEdits = true; d.GitNativeTools = true; });   // Git native tools off by default since 2026-09-21: the fixture opts in, the git-off test flips it back
         _http.Map("http://127.0.0.1:1234/v1/models", HttpStatusCode.OK, StubHttpMessageHandler.ModelsJson("llama"));
         _session = new LlmSession(new LlmEndpointProbe(new HttpClient(_http), TimeSpan.FromMilliseconds(500)), new ContextLengthProbe(new HttpClient(_http), TimeSpan.FromMilliseconds(500)), (_, _) => _chat, _time);
         _speech = new SpeechSession(_ => _synth, _ => _playback, new ModelStore(Path.Combine(_dir, "models"), new HttpClient(_http)));
@@ -3502,7 +3502,7 @@ public partial class ChatScreenTests : IDisposable
         // The group's name opens its heading row and its reason sits in the description column (2026-09-16).
         Assert.Matches(ToolsHeading("Questions (1)", "not offered: ask user is off", "ask_user"), output);
         Assert.Matches(ToolsHeading("Files (15)", null, "get_working_directory"), output);
-        Assert.Matches(ToolsHeading("Git (11)", null, "git_status"), output);   // between Files and Web (2026-09-20; the fixture opts every tool on)
+        Assert.Matches(ToolsHeading("Git (native) (11)", null, "git_status"), output);   // between Files and Web (2026-09-20; the fixture opts every tool on; the tab's word since 2026-09-21)
         Assert.Matches(ToolsHeading("Web (4)", null, "web_search"), output);
         Assert.Matches(ToolsHeading("Sessions (1)", null, "session_manager"), output);   // 2026-09-18, ahead of the questions
         Assert.Contains("Operating rules — default\n", output);
@@ -4005,17 +4005,17 @@ public partial class ChatScreenTests : IDisposable
         PushLine("/tools");
         _console.Input.PushKey(Keys.Enter);     // get_current_time off
         _console.Input.PushKey(Keys.Right);     // Options
-        _console.Input.PushKey(Keys.Right);     // Ask
-        _console.Input.PushKey(Keys.Right);     // Files
-        _console.Input.PushKey(Keys.Right);     // Git (2026-09-20)
-        _console.Input.PushKey(Keys.Right);     // Shell (2026-09-21)
         _console.Input.PushKey(Keys.Right);     // Web
+        _console.Input.PushKey(Keys.Right);     // Files
+        _console.Input.PushKey(Keys.Right);     // Shell (2026-09-21)
+        _console.Input.PushKey(Keys.Right);     // Ask
+        _console.Input.PushKey(Keys.Right);     // Git (native) (2026-09-20; last, and so named, since later on 2026-09-21 — the user's order)
         _console.Input.PushKey(Keys.Escape);
         PushLine("/exit");
 
         string output = await RunAsync();
 
-        Assert.Contains("Tools   Offered    Options    Ask    Files    Git    Shell    Web ", output);
+        Assert.Contains("Tools   Offered    Options    Web    Files    Shell    Ask    Git (native) ", output);
         Assert.Contains("\n  Clock (3)\n▸ get_current_time      on   ", output);
         Assert.Contains("\n  · get_current_time: off\n  Clock (2 of 3)\n▸ get_current_time      off  ", output);
         Assert.Equal(["get_current_time"], _settings.Current.ToolsDisabled);
@@ -4023,7 +4023,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains("\n▸ $-mention enabled  on\n", output);
         Assert.Contains("\n▸ Ask user                      on\n", output);
         Assert.Contains("\n▸ File tools                      on\n", output);
-        Assert.Contains("\n▸ Git tools            on\n  Git diff max lines   500 lines\n  Git log max commits  20 commits\n  Git email            (not set)\n  Git name             (not set)\n", output);
+        Assert.Contains("\n▸ Git native tools            on\n  Git native diff max lines   500 lines\n  Git native log max commits  20 commits\n  Git native email            (not set)\n  Git native name             (not set)\n", output);
         Assert.Contains("\n▸ Shell command policy       ask\n  Shell allowed commands     none\n  Shell default              powershell\n  Shell timeout (s)          180\n  Shell foreground cap (s)   600\n  Shell output max chars     30,000 chars\n  Shell code languages       powershell, python, node\n  Shell code timeout (s)     300\n  Shell tool bridge          off\n  Shell code max tool calls  50 tool calls\n", output);
         Assert.Contains("\n▸ Web tools                 on\n", output);
         Assert.Contains("\n" + SettingsMenu.TabKeys, output);
@@ -4082,7 +4082,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("Tools   Offered    Options    Ask    Files    Git    Shell    Web ", output);
+        Assert.Contains("Tools   Offered    Options    Web    Files    Shell    Ask    Git (native) ", output);
         Assert.Contains("  · get_current_time: off", output);
         Assert.Equal(["get_current_time"], _settings.Current.ToolsDisabled);
         Assert.DoesNotContain(ChatScreen.MidTurnRefusedNotice("/tools"), output);
@@ -5347,15 +5347,16 @@ public partial class ChatScreenTests : IDisposable
     public void GitLabels_ArePinned()
     {
         Assert.Equal("/git takes user [force].", ChatScreen.GitUsageError);
-        Assert.Equal("Git email and Git name are not set; set them on the Git tab of /tools.", ChatScreen.GitIdentityUnsetError(true, true));
-        Assert.Equal("Git email is not set; set it on the Git tab of /tools.", ChatScreen.GitIdentityUnsetError(true, false));
-        Assert.Equal("Git name is not set; set it on the Git tab of /tools.", ChatScreen.GitIdentityUnsetError(false, true));
+        Assert.Equal("Git native email and Git native name are not set; set them on the Git (native) tab of /tools.", ChatScreen.GitIdentityUnsetError(true, true));
+        Assert.Equal("Git native email is not set; set it on the Git (native) tab of /tools.", ChatScreen.GitIdentityUnsetError(true, false));
+        Assert.Equal("Git native name is not set; set it on the Git (native) tab of /tools.", ChatScreen.GitIdentityUnsetError(false, true));
+        Assert.Equal("Git native tools is off; /git user does nothing until it is on (the Git (native) tab of /tools).", ChatScreen.GitNativeToolsOffError);
         Assert.Equal("(git user set for this repository: Some User <user@email.com>)", ChatScreen.GitIdentityWrittenNotice("Some User", "user@email.com"));
         Assert.Equal("(this repository already has a [user] section: Old <old@x>; /git user force replaces it)", ChatScreen.GitIdentityPresentNotice("Old", "old@x"));
         Assert.Equal(@"'D:\x' is not inside a git repository; /cwd into one first.", ChatScreen.GitNoRepositoryError(@"D:\x"));
         Assert.Equal("Could not write the git identity: why", ChatScreen.GitIdentityFailedError("why"));
         Assert.Equal(["user", "user force"], ChatScreen.GitVerbs.Select(v => v.Text));
-        Assert.Equal("write the Git email and Git name settings into this repository's .git/config", ChatScreen.GitUserNote);
+        Assert.Equal("write the Git native email and Git native name settings into this repository's .git/config", ChatScreen.GitUserNote);
         Assert.Equal("the same, replacing a [user] section already there", ChatScreen.GitUserForceNote);
         Assert.Equal(["user"], ChatScreen.ArgumentItems("/git", "", Sources()).Select(i => i.Text));
         Assert.Equal(["user"], ChatScreen.ArgumentItems("/git", "us", Sources()).Select(i => i.Text));
@@ -5368,7 +5369,7 @@ public partial class ChatScreenTests : IDisposable
     public async Task GitUser_WritesTheIdentity_KeepsOneAlreadyThere_UnlessForced()
     {
         // /git user (2026-09-21): the two settings into the sandbox repository's .git/config; a second run finds the section and says so; force replaces it.
-        _settings.Update(d => { d.TtsOutput = false; d.GitEmail = "user@email.com"; d.GitName = "Some User"; });
+        _settings.Update(d => { d.TtsOutput = false; d.GitNativeEmail = "user@email.com"; d.GitNativeName = "Some User"; });
         string files = Path.Combine(_settings.ProfileDirectory, "files");
         Directory.CreateDirectory(files);
         Repository.Init(files);   // not GitAccessTests.Init: that one writes a local identity already
@@ -5392,7 +5393,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(1, config.Split("name = Some User").Length - 1);
 
         // Forced: the new pair over the old.
-        _settings.Update(d => { d.GitEmail = "new@email.com"; d.GitName = "New User"; });
+        _settings.Update(d => { d.GitNativeEmail = "new@email.com"; d.GitNativeName = "New User"; });
         PushLine("/git user force");
         PushLine("/exit");
         output = await RunAsync();
@@ -5420,19 +5421,32 @@ public partial class ChatScreenTests : IDisposable
         Assert.False(Directory.Exists(Path.Combine(files, ".git")));
 
         // One set: named alone (the settings are read when the line runs, so one run per state).
-        _settings.Update(d => d.GitEmail = "user@email.com");
+        _settings.Update(d => d.GitNativeEmail = "user@email.com");
         PushLine("/git user");
         PushLine("/exit");
         output = await RunAsync();
         Assert.Contains("  ✗ " + ChatScreen.GitIdentityUnsetError(false, true), output);
 
         // Both set, no repository: the root named, and never an init.
-        _settings.Update(d => d.GitName = "Some User");
+        _settings.Update(d => d.GitNativeName = "Some User");
         PushLine("/git user");
         PushLine("/exit");
         output = await RunAsync();
         Assert.Contains("  ✗ " + ChatScreen.GitNoRepositoryError(files), output);
         Assert.False(Directory.Exists(Path.Combine(files, ".git")));
+
+        // Git native tools off (later on 2026-09-21): the error names the switch before anything else — the identity set and a repository there, nothing is written.
+        Repository.Init(files);
+        _settings.Update(d => d.GitNativeTools = false);
+        PushLine("/git user");
+        PushLine("/git user force");
+        PushLine("/exit");
+        output = await RunAsync();
+        Assert.Equal(2, output.Split("  ✗ " + ChatScreen.GitNativeToolsOffError).Length - 1);
+        Assert.DoesNotContain(ChatScreen.GitIdentityWrittenNotice("Some User", "user@email.com"), output);
+        using var repo = new Repository(files);
+        Assert.Null(repo.Config.Get<string>("user.email", ConfigurationLevel.Local));
+        Assert.Null(repo.Config.Get<string>("user.name", ConfigurationLevel.Local));
     }
 
     [Fact]
@@ -5944,7 +5958,7 @@ public partial class ChatScreenTests : IDisposable
         PushLine("/exit");
         var edited = AppSettings.Copy(_settings.Current);
         edited.LlmModel = "by-hand";
-        edited.GitLogMaxCommits = 33;
+        edited.GitNativeLogMaxCommits = 33;
         await _settings.FlushAsync();
         File.WriteAllText(_settings.FilePath, JsonSerializer.Serialize(edited, SettingsJsonContext.Default.AppSettingsData));
 
@@ -5953,11 +5967,11 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains("  · " + ChatScreen.ProfileReloadedNotice(_settings.ProfileName, 2), output);
         Assert.DoesNotContain(SettingsMenu.SwitchedNotice(_settings.ProfileName), output);
         Assert.Equal("by-hand", _settings.Current.LlmModel);
-        Assert.Equal(33, _settings.Current.GitLogMaxCommits);
+        Assert.Equal(33, _settings.Current.GitNativeLogMaxCommits);
         Assert.Equal(2, _chat.Requests.Count);
         Assert.Equal("hi", _chat.Requests[1][1].Text);   // the conversation kept through the reload
         Assert.Equal("again", _chat.Requests[1][^1].Text);
-        Assert.Equal(SettingsChanges.Llm, ChatScreen.ReloadChanges(["LlmModel: before → by-hand", "GitLogMaxCommits: 20 → 33"]));
+        Assert.Equal(SettingsChanges.Llm, ChatScreen.ReloadChanges(["LlmModel: before → by-hand", "GitNativeLogMaxCommits: 20 → 33"]));
         Assert.Equal(SettingsChanges.Tts | SettingsChanges.Voice | SettingsChanges.Mcp | SettingsChanges.Conversation, ChatScreen.ReloadChanges(["TtsSpeed: 1 → 1.2", "SttInput: false → true", "McpServers: true → false", "LlmOfferTools: true → false", "NoSuchField: 1 → 2"]));
         Assert.Equal(SettingsChanges.None, ChatScreen.ReloadChanges([]));
     }
@@ -6978,7 +6992,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Matches(ToolsHeading("Clock (3)", null, "get_current_time"), output);
         Assert.Matches(ToolsHeading("Timers (3)", null, "start_timer"), output);
         Assert.Matches(ToolsHeading("Files (15)", null, "get_working_directory"), output);
-        Assert.Matches(ToolsHeading("Git (11)", null, "git_status"), output);   // between Files and Web (2026-09-20; the fixture opts every tool on)
+        Assert.Matches(ToolsHeading("Git (native) (11)", null, "git_status"), output);   // between Files and Web (2026-09-20; the fixture opts every tool on; the tab's word since 2026-09-21)
         Assert.Matches(ToolsHeading("Web (4)", null, "web_search"), output);
         Assert.Matches(ToolsHeading("Memory (2)", null, "save_memory"), output);
         Assert.Matches(ToolsHeading("Sessions (1)", null, "session_manager"), output);   // 2026-09-18, between the skills and the questions
@@ -7486,7 +7500,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.StartsWith(HelpRow("/memcopy", "copy this profile's memory into another: /memcopy <profile> [overwrite]"), lines[31]);   // 2026-09-17
         Assert.StartsWith(HelpRow("/tree", "print a tree of the working directory's folders and files, or /tree <path>"), lines[34]);
         Assert.StartsWith(HelpRow("/emptytrash", "empty the working directory's .trash for good (asks first)"), lines[36]);
-        Assert.StartsWith(HelpRow("/git", "write the Git email and Git name settings into the working directory's repository: /git user [force]"), lines[37]);   // 2026-09-21
+        Assert.StartsWith(HelpRow("/git", "write the Git native email and Git native name settings into the working directory's repository: /git user [force]"), lines[37]);   // 2026-09-21
         Assert.True(string.IsNullOrWhiteSpace(lines[38]));
         // /speak and /view: a group of their own (the user's call, 2026-09-17); /window (/windowsize until then) under /view since later on 2026-09-19.
         Assert.StartsWith(HelpRow("/speak", "read a text file from the working directory aloud, as a reply: /speak <file> [n], or /speak to resume, or /speak <n> from sentence n"), lines[39]);
@@ -13479,11 +13493,11 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains(Assistant.GitRule, _chat.Requests[0][0].Text!, StringComparison.Ordinal);
     }
 
-    /// <summary>The Git tools switch off: no git tool offered, the rule gone, the group noted on /sys (2026-09-20).</summary>
+    /// <summary>The Git native tools switch off (the default since 2026-09-21): no git tool offered, the rule gone, the group noted on /sys (2026-09-20).</summary>
     [Fact]
     public async Task Turn_GitToolsOff_OffersNoGitTool_AndTheRulesLoseTheGitSentence()
     {
-        _settings.Update(d => { d.TtsOutput = false; d.GitTools = false; });
+        _settings.Update(d => { d.TtsOutput = false; d.GitNativeTools = false; });
         _chat.EnqueueText("Hello.");
         _console.Profile.Height = 110;
         _geometry = new ScreenGeometry(() => null);
@@ -13500,8 +13514,8 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains(ReadFileTool.ToolName, offered);
         Assert.Equal(SkilledPrompt(false, [], web: true, ask: AskLimits.Default, markdown: true, git: false), _chat.Requests[0][0].Text);   // the pane on: the Markdown and ask rules ride
         Assert.DoesNotContain(Assistant.GitRule, _chat.Requests[0][0].Text!, StringComparison.Ordinal);
-        Assert.Contains("Git tools — off (git tools is off)", output);
-        Assert.Matches(ToolsHeading("Git (11)", "not offered: git tools is off", "git_status"), output);
+        Assert.Contains("Git native tools — off (git native tools is off)", output);
+        Assert.Matches(ToolsHeading("Git (native) (11)", "not offered: git native tools is off", "git_status"), output);
     }
 
     [Fact]

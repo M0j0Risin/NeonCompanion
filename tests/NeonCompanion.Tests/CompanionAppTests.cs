@@ -42,7 +42,7 @@ public class CompanionAppTests : IDisposable
         _settings.Update(d => d.SessionNamingMode = "first-line");
         // delete is off in a fresh profile (2026-09-20); the headless scripts pin the full file rule, so the fixture opts it back on —
         // and File safe edits with it, since the rule's clause reads "into .trash" only under the setting (later on 2026-09-20).
-        _settings.Update(d => { d.ToolsDisabled = []; d.FileSafeEdits = true; });
+        _settings.Update(d => { d.ToolsDisabled = []; d.FileSafeEdits = true; d.GitNativeTools = true; });   // Git native tools off by default since 2026-09-21: the headless turns opt in
     }
 
     public void Dispose()

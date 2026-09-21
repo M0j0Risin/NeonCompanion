@@ -37,7 +37,7 @@ public class ToolsMenuTests : IDisposable
     {
         _console.Profile.Width = 100;
         _settings = new AppSettings(_dir);
-        _settings.Update(d => { d.TtsOutput = true; d.TtsSource = "http"; d.ToolsDisabled = []; });   // delete off by default (2026-09-20): the Offered-tab scripts start from every tool on
+        _settings.Update(d => { d.TtsOutput = true; d.TtsSource = "http"; d.ToolsDisabled = []; d.GitNativeTools = true; });   // delete off by default (2026-09-20), Git native tools off by default (2026-09-21): the Offered-tab scripts start from every tool on
         _speech = new SpeechSession(_ => _synth, _ => new FakeAudioPlayback(), new ModelStore(Path.Combine(_dir, "models"), new HttpClient(new StubHttpMessageHandler())));
         var root = Path.Combine(_dir, "files");
         Directory.CreateDirectory(root);
@@ -118,7 +118,7 @@ public class ToolsMenuTests : IDisposable
     private string Titled(string row) => row + new string(' ', _console.Profile.Width - 2 - TextCells.Width(row)) + ScreenPane.CloseGlyph;
 
     /// <summary>The strip as the pane prints it: the label, then every tab title with a space either side, two spaces between. Pinned.</summary>
-    private const string Strip = "Tools   Offered    Options    Ask    Files    Git    Shell    Web ";   // Options second since later on 2026-09-19; Git since 2026-09-20; Shell since 2026-09-21
+    private const string Strip = "Tools   Offered    Options    Web    Files    Shell    Ask    Git (native) ";   // Options second since later on 2026-09-19; the user's order (Web, Files, Shell, Ask, Git (native)) since later on 2026-09-21, alphabetical before
 
     /// <summary>A tool row as the pane prints it at width 100 (the markup rendered): the name padded to 22, the state to 5, then the description, cut to 99 cells and an ellipsis (FittedMarkup; every description is longer).</summary>
     private string Row(string name, bool on, string mark = "  ") => Fitted(mark + name.PadRight(22) + (on ? "on" : "off").PadRight(5) + Description(name));
@@ -133,21 +133,21 @@ public class ToolsMenuTests : IDisposable
         // The three tabs that left /settings (2026-09-19): their rows unchanged, every field on exactly one tab of the three panes (Skills left for /skills later that day);
         // the Options tab ahead of them (later on 2026-09-19): the pane's own $-mention switch.
         Assert.Equal(5, SettingsMenu.TabFields.Count);
-        Assert.Equal(6, SettingsMenu.ToolsTabFields.Count);   // Git between Files and Web since 2026-09-20, Shell between Git and Web since 2026-09-21
-        Assert.Equal(["Offered", "Options", "Ask", "Files", "Git", "Shell", "Web"], ToolsText.TabTitles);
+        Assert.Equal(6, SettingsMenu.ToolsTabFields.Count);   // Git since 2026-09-20, Shell since 2026-09-21; the user's order (Web, Files, Shell, Ask, Git (native)) since later on 2026-09-21, alphabetical before
+        Assert.Equal(["Offered", "Options", "Web", "Files", "Shell", "Ask", "Git (native)"], ToolsText.TabTitles);
         Assert.Equal([SettingsField.ToolsDollarMention], SettingsMenu.ToolsTabFields[0]);
-        Assert.Equal([SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices], SettingsMenu.ToolsTabFields[1]);
+        Assert.Equal([SettingsField.WebTools, SettingsField.WebBrowserMode, SettingsField.WebBrowserPath, SettingsField.WebBrowserNetworkMode, SettingsField.WebSearchMethod, SettingsField.WebSearxngUrl, SettingsField.WebSearchMaxResults], SettingsMenu.ToolsTabFields[1]);
         Assert.Equal([SettingsField.FileTools, SettingsField.FileSafeEdits, SettingsField.FileTreeMaxLength, SettingsField.FileTreeShowSizes, SettingsField.FileMentionFolderMode, SettingsField.FileViewImageMaxPerCall], SettingsMenu.ToolsTabFields[2]);   // the view_image cap last, 2026-09-19
-        Assert.Equal([SettingsField.GitTools, SettingsField.GitDiffMaxLines, SettingsField.GitLogMaxCommits, SettingsField.GitEmail, SettingsField.GitName], SettingsMenu.ToolsTabFields[3]);   // the switch first, then the limits, then the identity pair (2026-09-21)
-        Assert.Equal([SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellToolBridge, SettingsField.ShellCodeMaxToolCalls], SettingsMenu.ToolsTabFields[4]);   // the policy (the switch) first, then the list, the shell, the caps, then execute_code's four (2026-09-21; the bridge switch later that day)
-        Assert.Equal([SettingsField.WebTools, SettingsField.WebBrowserMode, SettingsField.WebBrowserPath, SettingsField.WebBrowserNetworkMode, SettingsField.WebSearchMethod, SettingsField.WebSearxngUrl, SettingsField.WebSearchMaxResults], SettingsMenu.ToolsTabFields[5]);
+        Assert.Equal([SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellToolBridge, SettingsField.ShellCodeMaxToolCalls], SettingsMenu.ToolsTabFields[3]);   // the policy (the switch) first, then the list, the shell, the caps, then execute_code's four (2026-09-21; the bridge switch later that day)
+        Assert.Equal([SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices], SettingsMenu.ToolsTabFields[4]);
+        Assert.Equal([SettingsField.GitNativeTools, SettingsField.GitNativeDiffMaxLines, SettingsField.GitNativeLogMaxCommits, SettingsField.GitNativeEmail, SettingsField.GitNativeName], SettingsMenu.ToolsTabFields[5]);   // the switch first, then the limits, then the identity pair (2026-09-21); the Git native labels later that day
         Assert.Equal(Enum.GetValues<SettingsField>().Order(), SettingsMenu.TabFields.Concat(SettingsMenu.SkillsTabFields).Concat(SettingsMenu.ToolsTabFields).Concat(SettingsMenu.McpTabFields).SelectMany(t => t).Order());
         Assert.Equal(19, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[0]));   // "$-mention enabled"
-        Assert.Equal(30, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[1]));   // "Ask max choices per question"
+        Assert.Equal(26, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[1]));   // "Web browser network mode" (the Web-prefixed labels, later still on 2026-09-19; "Web search max results", 24, before)
         Assert.Equal(32, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[2]));   // "File view image max (per call)" (later still on 2026-09-19; "Stale line number guard", 25, that morning; "Always return line numbers", 28, before)
-        Assert.Equal(21, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[3]));   // "Git log max commits" (2026-09-20)
-        Assert.Equal(27, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[4]));   // "Shell code max tool calls" (the Shell tab, 2026-09-21)
-        Assert.Equal(26, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[5]));   // "Web browser network mode" (the Web-prefixed labels, later still on 2026-09-19; "Web search max results", 24, before)
+        Assert.Equal(27, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[3]));   // "Shell code max tool calls" (the Shell tab, 2026-09-21)
+        Assert.Equal(30, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[4]));   // "Ask max choices per question"
+        Assert.Equal(28, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[5]));   // "Git native log max commits" (later on 2026-09-21; "Git log max commits", 21, from 2026-09-20)
         Assert.All(SettingsMenu.ToolsTabFields.SelectMany(t => t), f => Assert.False(SettingsMenu.RefusedMidTurn(f)));
         Assert.Equal("Settings", SettingsMenu.Title);
         Assert.Equal("Settings › Web browser mode", SettingsMenu.Breadcrumb("Web browser mode"));
@@ -263,13 +263,14 @@ public class ToolsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task OnThePane_TheAskTab_SitsAfterOptions_ItsToggleSaves()
+    public async Task OnThePane_TheAskTab_SitsBetweenShellAndGit_ItsToggleSaves()
     {
+        // The user's order (later on 2026-09-21): Offered, Options, Web, Files, Shell, Ask, Git (native).
         var (menu, pane, _) = PaneMenu();
-        Push(Keys.Right, Keys.Right);                           // Options, Ask
+        Push(Keys.Right, Keys.Right, Keys.Right, Keys.Right, Keys.Right);   // Options, Web, Files, Shell, Ask
         Push(Keys.Enter, Keys.Down, Keys.Enter);                // Ask user: the page, off picked
-        Push(Keys.Right);                                       // Files
-        Push(Keys.Left, Keys.Left, Keys.Left);                  // Ask, Options, Offered
+        Push(Keys.Left, Keys.Left);                             // Shell, Files
+        Push(Keys.Left, Keys.Left, Keys.Left);                  // Web, Options, Offered
         Push(Keys.Escape);
 
         await menu.ShowAsync(CancellationToken.None);
@@ -283,12 +284,12 @@ public class ToolsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task OnThePane_TheFilesTab_SitsBetweenAskAndGit()
+    public async Task OnThePane_TheFilesTab_SitsBetweenWebAndShell()
     {
         var (menu, pane, _) = PaneMenu();
-        Push(Keys.Right, Keys.Right, Keys.Right);               // Files
+        Push(Keys.Right, Keys.Right, Keys.Right);               // Options, Web, Files
         Push(Keys.Enter, Keys.Down, Keys.Enter);                // File tools: the page, off picked
-        Push(Keys.Right, Keys.Right, Keys.Right);               // Git, Shell, Web
+        Push(Keys.Right, Keys.Right, Keys.Right);               // Shell, Ask, Git (native)
         Push(Keys.Escape);
 
         await menu.ShowAsync(CancellationToken.None);
@@ -297,16 +298,16 @@ public class ToolsMenuTests : IDisposable
         // The six rows (the view_image cap last, 2026-09-19; the @-mention folder mode before it, 2026-09-17; Safe edits off by default since 2026-09-19, folder-remain the default since then, Always return line numbers gone later that day and the stale line number guard later still, with edit_lines) padded to the tab's own column (32), the toggle's notice on the status line under the strip.
         Assert.Contains("\n" + Titled(Strip) + "\n \n▸ File tools                      on\n  File safe edits                 off\n  File /tree max length           500 entries\n  File /tree show sizes           on\n  File @-mention folder mode      folder-remain\n  File view image max (per call)  10 pictures\n" + Rule(100), _console.Output);
         Assert.Contains("\n" + Titled(Strip) + "\n  · File tools: off\n▸ File tools                      off\n", _console.Output);
-        Assert.Contains("\n▸ Web tools                 on\n", _console.Output);
+        Assert.Contains("\n▸ Git native tools            on\n", _console.Output);
         pane.Dispose();
     }
 
-    /// <summary>The Git tab (2026-09-20): between Files and Web, the switch first, the two caps typed.</summary>
+    /// <summary>The Git (native) tab (2026-09-20; its name and last place since later on 2026-09-21): the switch first, the two caps typed.</summary>
     [Fact]
-    public async Task OnThePane_TheGitTab_SitsBetweenFilesAndWeb_ItsCapsAreTyped()
+    public async Task OnThePane_TheGitTab_IsTheLastTab_LeftWrapsToIt_ItsCapsAreTyped()
     {
         var (menu, pane, _) = PaneMenu();
-        Push(Keys.Right, Keys.Right, Keys.Right, Keys.Right);   // Git
+        Push(Keys.Left);                                        // the strip wraps: Offered → Git (native), its first row
         Push(Keys.Down, Keys.Enter);                            // Git diff max lines: the typed slot, pre-filled with 500
         Push(Keys.Backspace, Keys.Backspace, Keys.Backspace, Keys.Char('1'), Keys.Char('0'), Keys.Char('0'), Keys.Char('0'), Keys.Enter);
         Push(Keys.Down, Keys.Enter);                            // Git log max commits: the slot, pre-filled with 20; 500 is out of range, kept
@@ -315,22 +316,22 @@ public class ToolsMenuTests : IDisposable
 
         await menu.ShowAsync(CancellationToken.None);
 
-        Assert.Equal(1000, _settings.Current.GitDiffMaxLines);
-        Assert.Equal(20, _settings.Current.GitLogMaxCommits);
-        // The three rows padded to the tab's own column (21), the diff cap's notice then the log cap's refusal on the status line.
-        Assert.Contains("\n" + Titled(Strip) + "\n \n▸ Git tools            on\n  Git diff max lines   500 lines\n  Git log max commits  20 commits\n  Git email            (not set)\n  Git name             (not set)\n" + Rule(100), _console.Output);
-        Assert.Contains("\n  Git diff max lines   1000 lines\n", _console.Output);
-        Assert.Contains("Git log max commits must be 1 to 200 commits; keeping 20.", _console.Output);
+        Assert.Equal(1000, _settings.Current.GitNativeDiffMaxLines);
+        Assert.Equal(20, _settings.Current.GitNativeLogMaxCommits);
+        // The five rows padded to the tab's own column (28), the diff cap's notice then the log cap's refusal on the status line.
+        Assert.Contains("\n" + Titled(Strip) + "\n \n▸ Git native tools            on\n  Git native diff max lines   500 lines\n  Git native log max commits  20 commits\n  Git native email            (not set)\n  Git native name             (not set)\n" + Rule(100), _console.Output);
+        Assert.Contains("\n  Git native diff max lines   1000 lines\n", _console.Output);
+        Assert.Contains("Git native log max commits must be 1 to 200 commits; keeping 20.", _console.Output);
         pane.Dispose();
     }
 
-    /// <summary>The Shell tab (2026-09-21): between Git and Web — the policy picker first (its switch), the allowed list, the shell picker, then the three typed rows.</summary>
+    /// <summary>The Shell tab (2026-09-21; between Files and Ask since later that day): the policy picker first (its switch), the allowed list, the shell picker, then the three typed rows.</summary>
     [Fact]
-    public async Task OnThePane_TheShellTab_SitsBetweenGitAndWeb_PolicyAndShellArePickers_TheListRemoves()
+    public async Task OnThePane_TheShellTab_SitsBetweenFilesAndAsk_PolicyAndShellArePickers_TheListRemoves()
     {
         _settings.Update(d => d.ShellCommandAllowed = ["git push", "dotnet build"]);
         var (menu, pane, _) = PaneMenu();
-        Push(Keys.Right, Keys.Right, Keys.Right, Keys.Right, Keys.Right);   // Shell
+        Push(Keys.Right, Keys.Right, Keys.Right, Keys.Right);   // Options, Web, Files, Shell
         Push(Keys.Enter, Keys.Down, Keys.Enter);                            // Shell command policy: the picker opens on ask, yolo picked
         Push(Keys.Down, Keys.Enter, Keys.Enter, Keys.Escape);               // Shell allowed commands: the list, dotnet build removed, back
         Push(Keys.Down, Keys.Enter, Keys.Down, Keys.Enter);                 // Shell default: the picker, cmd picked
@@ -361,7 +362,7 @@ public class ToolsMenuTests : IDisposable
     public async Task OnThePane_TheToolBridgeRow_IsAPicker_NoReconnect()
     {
         var (menu, pane, _) = PaneMenu();
-        Push(Keys.Right, Keys.Right, Keys.Right, Keys.Right, Keys.Right);   // Shell
+        Push(Keys.Right, Keys.Right, Keys.Right, Keys.Right);   // Shell
         Push(Keys.Down, Keys.Down, Keys.Down, Keys.Down, Keys.Down, Keys.Down, Keys.Down, Keys.Down, Keys.Enter);   // Shell tool bridge: the picker opens on off
         Push(Keys.Up, Keys.Enter);                                          // on is the row above
         Push(Keys.Escape);
@@ -380,7 +381,7 @@ public class ToolsMenuTests : IDisposable
     public async Task OnThePane_TheCodeLanguagesRow_IsACheckboxList_TheLastOneStays()
     {
         var (menu, pane, _) = PaneMenu();
-        Push(Keys.Right, Keys.Right, Keys.Right, Keys.Right, Keys.Right);   // Shell
+        Push(Keys.Right, Keys.Right, Keys.Right, Keys.Right);   // Shell
         Push(Keys.Down, Keys.Down, Keys.Down, Keys.Down, Keys.Down, Keys.Down, Keys.Enter);   // Shell code languages: the list
         Push(Keys.Char(' '));                                               // powershell off
         Push(Keys.Down, Keys.Enter);                                        // python off
@@ -399,10 +400,11 @@ public class ToolsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task OnThePane_TheWebRows_AreTheLastTab_LeftWrapsToIt()
+    public async Task OnThePane_TheWebTab_SitsAfterOptions()
     {
+        // The last tab until later on 2026-09-21 (Left wrapped to it); third since, the user's order.
         var (menu, pane, _) = PaneMenu();
-        Push(Keys.Left);                           // the strip wraps: Offered → Web, its first row
+        Push(Keys.Right, Keys.Right);              // Options, Web
         Push(Keys.Enter, Keys.Down, Keys.Enter);   // Web tools: the page, off picked
         Push(Keys.Escape);
 
@@ -419,7 +421,7 @@ public class ToolsMenuTests : IDisposable
     public async Task OnThePane_APickerFromTheWebTab_IsTitledUnderTools_AndTheRootComesBack()
     {
         var (menu, pane, settings) = PaneMenu();
-        Push(Keys.Left);                           // Web
+        Push(Keys.Right, Keys.Right);              // Options, Web
         Push(Keys.Down, Keys.Enter);               // Browser mode: the picker
         Push(Keys.Down, Keys.Enter);               // httpclient (the second name)
         Push(Keys.Escape);
@@ -454,7 +456,7 @@ public class ToolsMenuTests : IDisposable
     public async Task OnThePane_ATypedRow_EditsUnderTheList_AndEscKeepsTheSavedValue()
     {
         var (menu, pane, _) = PaneMenu();
-        Push(Keys.Right, Keys.Right);               // Ask
+        Push(Keys.Right, Keys.Right, Keys.Right, Keys.Right, Keys.Right);   // Ask
         Push(Keys.Down, Keys.Enter);                // Ask max questions: the typed slot
         Push(Keys.Backspace, Keys.Backspace, Keys.Char('3'), Keys.Enter);
         Push(Keys.Down, Keys.Enter, Keys.Escape);   // Ask max choices: the slot, ESC
@@ -495,7 +497,7 @@ public class ToolsMenuTests : IDisposable
     public async Task OnThePane_SpaceOnASettingsRow_IsNothing()
     {
         var (menu, pane, _) = PaneMenu();
-        Push(Keys.Right, Keys.Right);               // Ask
+        Push(Keys.Right, Keys.Right, Keys.Right, Keys.Right, Keys.Right);   // Ask
         Push(Keys.Char(' '));
         Push(Keys.Escape);
 
@@ -513,7 +515,7 @@ public class ToolsMenuTests : IDisposable
     {
         var (menu, pane, _) = PaneMenu();
         Push(Keys.Enter);                           // get_current_time off
-        Push(Keys.Right, Keys.Right, Keys.Enter, Keys.Down, Keys.Enter);   // Ask user off
+        Push(Keys.Right, Keys.Right, Keys.Right, Keys.Right, Keys.Right, Keys.Enter, Keys.Down, Keys.Enter);   // Ask user off
         Push(Keys.Escape);
 
         await menu.ShowAsync(CancellationToken.None, midTurn: true);
@@ -562,9 +564,11 @@ public class ToolsMenuTests : IDisposable
         Assert.Contains("  ·     read_file             off  Reads a text file", _console.Output);   // the console wraps the long line
         Assert.Contains("switched off in /tools", _console.Output);
         Assert.Contains("  ·   Questions (1) (off: no pane)\n", _console.Output);
-        Assert.Contains("  · Options\n  ·   $-mention enabled: on\n  · Ask\n  ·   Ask user: on\n  ·   Ask max questions: 10 questions\n  ·   Ask max choices per question: 10 choices\n  · Files\n  ·   File tools: on\n  ·   File safe edits: off\n", _console.Output);
-        Assert.Contains("  · Web\n  ·   Web tools: on\n  ·   Web browser mode: default\n  ·   Web browser path: (auto: msedge.exe)\n", _console.Output);
-        Assert.Contains("  ·   Web search max results: 20 results\n", _console.Output);
+        // The tabs in strip order: Web right after Options, then Files, Shell, Ask, Git (native) last (the user's order, later on 2026-09-21).
+        Assert.Contains("  · Options\n  ·   $-mention enabled: on\n  · Web\n  ·   Web tools: on\n  ·   Web browser mode: default\n  ·   Web browser path: (auto: msedge.exe)\n", _console.Output);
+        Assert.Contains("  ·   Web search max results: 20 results\n  · Files\n  ·   File tools: on\n  ·   File safe edits: off\n", _console.Output);
+        Assert.Contains("  · Shell\n  ·   Shell command policy: ask\n", _console.Output);
+        Assert.Contains("  · Ask\n  ·   Ask user: on\n  ·   Ask max questions: 10 questions\n  ·   Ask max choices per question: 10 choices\n  · Git (native)\n  ·   Git native tools: on\n  ·   Git native diff max lines: 500 lines\n  ·   Git native log max commits: 20 commits\n  ·   Git native email: (not set)\n  ·   Git native name: (not set)\n", _console.Output);
         Assert.False(pane.OverlayOpen);
         pane.Dispose();
     }

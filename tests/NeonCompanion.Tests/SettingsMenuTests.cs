@@ -758,10 +758,10 @@ public class SettingsMenuTests : IDisposable
                 SettingsField.SessionLogging, SettingsField.SessionRetentionDays, SettingsField.SessionNamingMode, SettingsField.SessionShowName, SettingsField.SessionTool, SettingsField.SessionSearchMaxResults,
                 SettingsField.ToolsDollarMention, SettingsField.ReflectionCooldownMinutes, SettingsField.ReflectionIncludesSessions, SettingsField.ReflectionCooldownMode,
                 SettingsField.DraftEditor, SettingsField.FileViewImageMaxPerCall,
-                SettingsField.McpServers, SettingsField.McpConnectTimeoutSeconds, SettingsField.GitTools, SettingsField.GitDiffMaxLines, SettingsField.GitLogMaxCommits,
+                SettingsField.McpServers, SettingsField.McpConnectTimeoutSeconds, SettingsField.GitNativeTools, SettingsField.GitNativeDiffMaxLines, SettingsField.GitNativeLogMaxCommits,
                 SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars,
                 SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellCodeMaxToolCalls,
-                SettingsField.LlmCompactShowSummary, SettingsField.GitEmail, SettingsField.GitName, SettingsField.ShellToolBridge,
+                SettingsField.LlmCompactShowSummary, SettingsField.GitNativeEmail, SettingsField.GitNativeName, SettingsField.ShellToolBridge,
             },
             Enum.GetValues<SettingsField>());
         // The compact rows: on the LLM tab after the context length but no reconnect; the type a picker, the two others typed.
@@ -1010,11 +1010,11 @@ public class SettingsMenuTests : IDisposable
 
         Assert.Equal("on", SettingsMenu.FieldValue(SettingsField.FileSafeEdits, new AppSettingsData { FileSafeEdits = true }, _settings.ProfileDirectory));
         Assert.Equal(SettingsMenu.ToolsTabFields[2].Max(f => SettingsMenu.FieldName(f).Length) + 2, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[2]));
-        // The web rows (2026-09-15): the Web tab (titled Browser until later that day; /tools' last since 2026-09-19), in this order, none a reconnect — one toggle, three pickers (the network mode in the LAN switch's slot since 2026-09-18; the search method above the URL it governs), two typed rows that may be empty, a typed count.
-        Assert.Equal(new[] { SettingsField.WebTools, SettingsField.WebBrowserMode, SettingsField.WebBrowserPath, SettingsField.WebBrowserNetworkMode, SettingsField.WebSearchMethod, SettingsField.WebSearxngUrl, SettingsField.WebSearchMaxResults }, SettingsMenu.ToolsTabFields[5]);
-        // The shell rows (2026-09-21): the Shell tab between Git and Web — the policy (the group's switch, a picker), the allowed list, the default shell (a picker), then the three typed caps,
+        // The web rows (2026-09-15): the Web tab (titled Browser until later that day; /tools' last from 2026-09-19, third since later on 2026-09-21), in this order, none a reconnect — one toggle, three pickers (the network mode in the LAN switch's slot since 2026-09-18; the search method above the URL it governs), two typed rows that may be empty, a typed count.
+        Assert.Equal(new[] { SettingsField.WebTools, SettingsField.WebBrowserMode, SettingsField.WebBrowserPath, SettingsField.WebBrowserNetworkMode, SettingsField.WebSearchMethod, SettingsField.WebSearxngUrl, SettingsField.WebSearchMaxResults }, SettingsMenu.ToolsTabFields[1]);
+        // The shell rows (2026-09-21): the Shell tab (between Git and Web that day, between Files and Ask since later on) — the policy (the group's switch, a picker), the allowed list, the default shell (a picker), then the three typed caps,
         // the languages, their timeout, the tool bridge (the tab's one toggle, later that day) above the tool-call cap it governs; none a reconnect.
-        Assert.Equal(new[] { SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellToolBridge, SettingsField.ShellCodeMaxToolCalls }, SettingsMenu.ToolsTabFields[4]);
+        Assert.Equal(new[] { SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellToolBridge, SettingsField.ShellCodeMaxToolCalls }, SettingsMenu.ToolsTabFields[3]);
         Assert.Equal("Shell tool bridge", SettingsMenu.FieldName(SettingsField.ShellToolBridge));
         Assert.True(SettingsMenu.IsToggle(SettingsField.ShellToolBridge));
         Assert.False(SettingsMenu.IsLlmField(SettingsField.ShellToolBridge));
@@ -1043,8 +1043,8 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("Shell timeout (s)", SettingsMenu.FieldName(SettingsField.ShellTimeoutSeconds));
         Assert.Equal("Shell foreground cap (s)", SettingsMenu.FieldName(SettingsField.ShellForegroundCapSeconds));
         Assert.Equal("Shell output max chars", SettingsMenu.FieldName(SettingsField.ShellOutputMaxChars));
-        Assert.Equal([SettingsField.ShellToolBridge], SettingsMenu.ToolsTabFields[4].Where(SettingsMenu.IsToggle));
-        Assert.All(SettingsMenu.ToolsTabFields[4], f => Assert.False(SettingsMenu.RefusedMidTurn(f)));
+        Assert.Equal([SettingsField.ShellToolBridge], SettingsMenu.ToolsTabFields[3].Where(SettingsMenu.IsToggle));
+        Assert.All(SettingsMenu.ToolsTabFields[3], f => Assert.False(SettingsMenu.RefusedMidTurn(f)));
         Assert.Equal("ask", SettingsMenu.FieldValue(SettingsField.ShellCommandPolicy, data, _settings.ProfileDirectory));
         Assert.Equal("none", SettingsMenu.FieldValue(SettingsField.ShellCommandAllowed, data, _settings.ProfileDirectory));
         Assert.Equal("1 prefix", SettingsMenu.FieldValue(SettingsField.ShellCommandAllowed, new AppSettingsData { ShellCommandAllowed = ["git push"] }, _settings.ProfileDirectory));
@@ -1067,42 +1067,43 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("(none: Allow … always on the approval pane adds one)", SettingsMenu.NoAllowedCommandsRow);
         Assert.Equal("Enter = remove · ESC = back", SettingsMenu.RemoveKeys);
         Assert.Equal("Shell allowed commands: git push removed", SettingsMenu.PrefixRemovedNotice("git push"));
-        // The git rows (2026-09-20): the Git tab between Files and Web — the switch, then the two caps alphabetically; typed, none a reconnect.
-        Assert.Equal(new[] { SettingsField.GitTools, SettingsField.GitDiffMaxLines, SettingsField.GitLogMaxCommits, SettingsField.GitEmail, SettingsField.GitName }, SettingsMenu.ToolsTabFields[3]);
+        // The git rows (2026-09-20): the Git tab (Git (native), the last, since later on 2026-09-21) — the switch, then the two caps alphabetically; typed, none a reconnect.
+        Assert.Equal(new[] { SettingsField.GitNativeTools, SettingsField.GitNativeDiffMaxLines, SettingsField.GitNativeLogMaxCommits, SettingsField.GitNativeEmail, SettingsField.GitNativeName }, SettingsMenu.ToolsTabFields[5]);
         // The identity pair (2026-09-21): typed, empty allowed and shown as (not set), no validation.
-        Assert.Equal("Git email", SettingsMenu.FieldName(SettingsField.GitEmail));
-        Assert.Equal("Git name", SettingsMenu.FieldName(SettingsField.GitName));
+        Assert.Equal("Git native email", SettingsMenu.FieldName(SettingsField.GitNativeEmail));   // the Git native labels, later on 2026-09-21
+        Assert.Equal("Git native name", SettingsMenu.FieldName(SettingsField.GitNativeName));
         Assert.Equal("(not set)", SettingsMenu.NoGitIdentityLabel);
-        Assert.Equal("(not set)", SettingsMenu.FieldValue(SettingsField.GitEmail, data, _settings.ProfileDirectory));
-        Assert.Equal("(not set)", SettingsMenu.FieldValue(SettingsField.GitName, data, _settings.ProfileDirectory));
-        Assert.Equal("me@example.invalid", SettingsMenu.FieldValue(SettingsField.GitEmail, new AppSettingsData { GitEmail = "me@example.invalid" }, _settings.ProfileDirectory));
-        Assert.Equal("Some User", SettingsMenu.FieldValue(SettingsField.GitName, new AppSettingsData { GitName = "Some User" }, _settings.ProfileDirectory));
-        Assert.Equal("", SettingsMenu.EditableValue(SettingsField.GitEmail, data));
-        Assert.Equal("", SettingsMenu.EditableValue(SettingsField.GitName, data));
-        Assert.False(SettingsMenu.IsToggle(SettingsField.GitEmail));
-        Assert.False(SettingsMenu.IsToggle(SettingsField.GitName));
-        Assert.Equal("Git tools", SettingsMenu.FieldName(SettingsField.GitTools));
-        Assert.Equal("Git diff max lines", SettingsMenu.FieldName(SettingsField.GitDiffMaxLines));
-        Assert.Equal("Git log max commits", SettingsMenu.FieldName(SettingsField.GitLogMaxCommits));
-        Assert.True(SettingsMenu.IsToggle(SettingsField.GitTools));
-        Assert.False(SettingsMenu.IsToggle(SettingsField.GitDiffMaxLines));
-        Assert.Equal("on", SettingsMenu.FieldValue(SettingsField.GitTools, data, _settings.ProfileDirectory));
-        Assert.Equal("500 lines", SettingsMenu.FieldValue(SettingsField.GitDiffMaxLines, data, _settings.ProfileDirectory));
-        Assert.Equal("20 commits", SettingsMenu.FieldValue(SettingsField.GitLogMaxCommits, data, _settings.ProfileDirectory));
-        Assert.Equal("1 commit", SettingsMenu.FieldValue(SettingsField.GitLogMaxCommits, new AppSettingsData { GitLogMaxCommits = 1 }, _settings.ProfileDirectory));
-        Assert.Equal("500", SettingsMenu.EditableValue(SettingsField.GitDiffMaxLines, data));
-        Assert.Equal("20", SettingsMenu.EditableValue(SettingsField.GitLogMaxCommits, data));
-        Assert.Equal("must be 20 to 5000 lines", SettingsMenu.GitDiffMaxLinesRangeError);
-        Assert.Equal("must be 1 to 200 commits", SettingsMenu.GitLogMaxCommitsRangeError);
-        Assert.Equal("the model reads and changes the git repository in the working directory", SettingsMenu.ToggleDescribe(SettingsField.GitTools, true));
-        Assert.Equal("no git tools", SettingsMenu.ToggleDescribe(SettingsField.GitTools, false));
-        Assert.False(SettingsMenu.RefusedMidTurn(SettingsField.GitTools));
+        Assert.Equal("(not set)", SettingsMenu.FieldValue(SettingsField.GitNativeEmail, data, _settings.ProfileDirectory));
+        Assert.Equal("(not set)", SettingsMenu.FieldValue(SettingsField.GitNativeName, data, _settings.ProfileDirectory));
+        Assert.Equal("me@example.invalid", SettingsMenu.FieldValue(SettingsField.GitNativeEmail, new AppSettingsData { GitNativeEmail = "me@example.invalid" }, _settings.ProfileDirectory));
+        Assert.Equal("Some User", SettingsMenu.FieldValue(SettingsField.GitNativeName, new AppSettingsData { GitNativeName = "Some User" }, _settings.ProfileDirectory));
+        Assert.Equal("", SettingsMenu.EditableValue(SettingsField.GitNativeEmail, data));
+        Assert.Equal("", SettingsMenu.EditableValue(SettingsField.GitNativeName, data));
+        Assert.False(SettingsMenu.IsToggle(SettingsField.GitNativeEmail));
+        Assert.False(SettingsMenu.IsToggle(SettingsField.GitNativeName));
+        Assert.Equal("Git native tools", SettingsMenu.FieldName(SettingsField.GitNativeTools));
+        Assert.Equal("Git native diff max lines", SettingsMenu.FieldName(SettingsField.GitNativeDiffMaxLines));
+        Assert.Equal("Git native log max commits", SettingsMenu.FieldName(SettingsField.GitNativeLogMaxCommits));
+        Assert.True(SettingsMenu.IsToggle(SettingsField.GitNativeTools));
+        Assert.False(SettingsMenu.IsToggle(SettingsField.GitNativeDiffMaxLines));
+        Assert.Equal("off", SettingsMenu.FieldValue(SettingsField.GitNativeTools, data, _settings.ProfileDirectory));   // off by default since later on 2026-09-21
+        Assert.Equal("on", SettingsMenu.FieldValue(SettingsField.GitNativeTools, new AppSettingsData { GitNativeTools = true }, _settings.ProfileDirectory));
+        Assert.Equal("500 lines", SettingsMenu.FieldValue(SettingsField.GitNativeDiffMaxLines, data, _settings.ProfileDirectory));
+        Assert.Equal("20 commits", SettingsMenu.FieldValue(SettingsField.GitNativeLogMaxCommits, data, _settings.ProfileDirectory));
+        Assert.Equal("1 commit", SettingsMenu.FieldValue(SettingsField.GitNativeLogMaxCommits, new AppSettingsData { GitNativeLogMaxCommits = 1 }, _settings.ProfileDirectory));
+        Assert.Equal("500", SettingsMenu.EditableValue(SettingsField.GitNativeDiffMaxLines, data));
+        Assert.Equal("20", SettingsMenu.EditableValue(SettingsField.GitNativeLogMaxCommits, data));
+        Assert.Equal("must be 20 to 5000 lines", SettingsMenu.GitNativeDiffMaxLinesRangeError);
+        Assert.Equal("must be 1 to 200 commits", SettingsMenu.GitNativeLogMaxCommitsRangeError);
+        Assert.Equal("the model reads and changes the git repository in the working directory", SettingsMenu.ToggleDescribe(SettingsField.GitNativeTools, true));
+        Assert.Equal("no git native tools", SettingsMenu.ToggleDescribe(SettingsField.GitNativeTools, false));
+        Assert.False(SettingsMenu.RefusedMidTurn(SettingsField.GitNativeTools));
         Assert.Equal("Web search method", SettingsMenu.FieldName(SettingsField.WebSearchMethod));
         Assert.Equal("duckduckgo", SettingsMenu.FieldValue(SettingsField.WebSearchMethod, data, _settings.ProfileDirectory));
         Assert.Equal("searxng", SettingsMenu.FieldValue(SettingsField.WebSearchMethod, new AppSettingsData { WebSearchMethod = "searxng" }, _settings.ProfileDirectory));
         Assert.Equal("duckduckgo [#9A8BB8]the built-in DuckDuckGo scrape, no setup[/]", SettingsMenu.SearchMethodLabel("duckduckgo"));
         Assert.Equal("searxng    [#9A8BB8]the instance named in Web SearXNG URL; DuckDuckGo until one is set[/]", SettingsMenu.SearchMethodLabel("searxng"));
-        foreach (var f in SettingsMenu.ToolsTabFields[3])
+        foreach (var f in SettingsMenu.ToolsTabFields[5])
         {
             Assert.False(SettingsMenu.IsLlmField(f) || SettingsMenu.IsTtsField(f) || SettingsMenu.IsVoiceField(f));
         }
@@ -1307,10 +1308,10 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("protected   [#9A8BB8]loaded skills survive a prune and the mid-turn guard[/]", SettingsMenu.SkillCompactModeLabel("protected"));
         Assert.Equal("unprotected [#9A8BB8]loaded skills prune like any tool result[/]", SettingsMenu.SkillCompactModeLabel("unprotected"));
         Assert.Equal([SettingsField.ToolsDollarMention], SettingsMenu.ToolsTabFields[0]);   // the Options tab, later on 2026-09-19
-        Assert.Equal([SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices], SettingsMenu.ToolsTabFields[1]);
+        Assert.Equal([SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices], SettingsMenu.ToolsTabFields[4]);   // the Ask tab: second after Options until later on 2026-09-21, between Shell and Git (native) since
         Assert.True(SettingsMenu.IsToggle(SettingsField.AskUser));
         Assert.False(SettingsMenu.IsToggle(SettingsField.AskMaxQuestions) || SettingsMenu.IsToggle(SettingsField.AskMaxChoices));
-        Assert.All(SettingsMenu.ToolsTabFields[1], f => Assert.False(SettingsMenu.IsLlmField(f) || SettingsMenu.IsTtsField(f) || SettingsMenu.IsVoiceField(f) || SettingsMenu.RefusedMidTurn(f)));
+        Assert.All(SettingsMenu.ToolsTabFields[4], f => Assert.False(SettingsMenu.IsLlmField(f) || SettingsMenu.IsTtsField(f) || SettingsMenu.IsVoiceField(f) || SettingsMenu.RefusedMidTurn(f)));
         Assert.Equal("Ask user", SettingsMenu.FieldName(SettingsField.AskUser));
         Assert.Equal("Ask max questions", SettingsMenu.FieldName(SettingsField.AskMaxQuestions));
         Assert.Equal("Ask max choices per question", SettingsMenu.FieldName(SettingsField.AskMaxChoices));
@@ -1331,11 +1332,11 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal(19, SettingsMenu.TabLabelWidth(SettingsTab.Tts));       // "TTS voice preview"
         Assert.Equal(26, SettingsMenu.TabLabelWidth(SettingsTab.Stt));       // "STT interrupt echo guard"
         Assert.Equal(19, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[0]));   // "$-mention enabled" (the Options tab, later on 2026-09-19)
-        Assert.Equal(30, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[1]));   // "Ask max choices per question"
+        Assert.Equal(26, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[1]));   // "Web browser network mode" (the Web-prefixed labels, later still on 2026-09-19; "Web search max results", 24, before)
         Assert.Equal(32, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[2]));   // "File view image max (per call)" (the File-prefixed labels, later still on 2026-09-19; "Stale line number guard", 25, that morning; "Always return line numbers", 28, from 2026-09-17 until it went; "Tree max length", 17, before)
-        Assert.Equal(21, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[3]));   // "Git log max commits" (2026-09-20)
-        Assert.Equal(27, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[4]));   // "Shell code max tool calls" (the Shell tab, 2026-09-21)
-        Assert.Equal(26, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[5]));   // "Web browser network mode" (the Web-prefixed labels, later still on 2026-09-19; "Web search max results", 24, before)
+        Assert.Equal(27, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[3]));   // "Shell code max tool calls" (the Shell tab, 2026-09-21)
+        Assert.Equal(30, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[4]));   // "Ask max choices per question"
+        Assert.Equal(28, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[5]));   // "Git native log max commits" (later on 2026-09-21; "Git log max commits", 21, from 2026-09-20)
         Assert.Equal(38, SettingsMenu.LabelWidthOf(SettingsMenu.SkillsTabFields[0]));   // "Use external skills (.agents\\skills)"
         Assert.Equal(31, SettingsMenu.LabelWidthOf(SettingsMenu.SkillsTabFields[1]));   // "Reflection cooldown (minutes)" (the Reflection tab, later on 2026-09-19)
         Assert.Equal("TTS speed          [#EFE6FF]1.2[/]", SettingsMenu.FieldLabel(SettingsField.TtsSpeed, data, _settings.ProfileDirectory, null, SettingsMenu.TabLabelWidth(SettingsTab.Tts)));   // 1.0 until 2026-09-18

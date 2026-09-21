@@ -56,8 +56,8 @@ public class SystemPromptSummaryTests : IDisposable
     /// <summary>The section heading with MCP servers on and none connected (2026-09-20). Pinned.</summary>
     private const string NoMcpHeading = "MCP servers — none connected";
 
-    /// <summary>The section heading with Git tools on and none offered — the fixture passes no git tool, as it passes no web tool (2026-09-20). Pinned.</summary>
-    private const string GitHeading = "Git tools — on, none offered (every git tool is switched off in /tools)";
+    /// <summary>The section heading with Git native tools on and none offered — the fixture passes no git tool, as it passes no web tool (2026-09-20; the setting's new name since 2026-09-21). Pinned.</summary>
+    private const string GitHeading = "Git native tools — on, none offered (every git tool is switched off in /tools)";
 
     /// <summary>The section heading with the Shell command policy not off and no shell tool offered — the fixture passes none, as with git (2026-09-21). Pinned.</summary>
     private const string ShellHeading = "Shell tools — on, none offered (every shell tool is switched off in /tools)";
@@ -429,7 +429,7 @@ public class SystemPromptSummaryTests : IDisposable
                 NoNotesHeading,
                 "Memory — on, 1 fact remembered",
                 "Skills — not included (LLM offer tools is off)",
-                "Git tools — not offered (LLM offer tools is off)",
+                "Git native tools — not offered (LLM offer tools is off)",
                 "Shell tools — not offered (LLM offer tools is off)",
                 "MCP servers — not offered (LLM offer tools is off)",
                 "Voice directive — default (LLM offer tools is off), included (speech output on, TTS ready), always last",
@@ -691,12 +691,12 @@ public class SystemPromptSummaryTests : IDisposable
     [Fact]
     public void PromptSections_TheGitRow_SaysOnOffOrNone_AndTheRuleRidesWhileAnyToolIsOffered()
     {
-        Assert.Equal("Git tools — on, 11 tools offered", Headings(Facts(gitTools: 11))[6]);
-        Assert.Equal("Git tools — on, 9 tools offered", Headings(Facts(gitTools: 9))[6]);
-        Assert.Equal("Git tools — on, 1 tool offered", Headings(Facts(gitTools: 1))[6]);
+        Assert.Equal("Git native tools — on, 11 tools offered", Headings(Facts(gitTools: 11))[6]);
+        Assert.Equal("Git native tools — on, 9 tools offered", Headings(Facts(gitTools: 9))[6]);
+        Assert.Equal("Git native tools — on, 1 tool offered", Headings(Facts(gitTools: 1))[6]);
         Assert.Equal(GitHeading, Headings(Facts())[6]);
-        Assert.Equal("Git tools — off (git tools is off)", Headings(Facts() with { GitEnabled = false })[6]);
-        Assert.Equal("Git tools — not offered (LLM offer tools is off)", Headings(Facts(tools: false))[6]);
+        Assert.Equal("Git native tools — off (git native tools is off)", Headings(Facts() with { GitEnabled = false })[6]);
+        Assert.Equal("Git native tools — not offered (LLM offer tools is off)", Headings(Facts(tools: false))[6]);
         // The rule rides the defaults only while a git tool is offered; it never names the two opt-in tools, so no variant.
         Assert.Contains(Assistant.GitRule, SystemPromptSummary.PromptSections(Facts(gitTools: 11))[1].Body);
         Assert.DoesNotContain(Assistant.GitRule, SystemPromptSummary.PromptSections(Facts())[1].Body);

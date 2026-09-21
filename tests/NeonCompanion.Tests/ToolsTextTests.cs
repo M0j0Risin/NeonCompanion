@@ -56,7 +56,8 @@ public class ToolsTextTests : IDisposable
     {
         Assert.Equal("Tools", ToolsText.Label);
         Assert.Equal("Offered", ToolsText.OfferedTabTitle);
-        Assert.Equal(["Offered", "Options", "Ask", "Files", "Git", "Shell", "Web"], ToolsText.TabTitles);   // Options second since later on 2026-09-19; Git between Files and Web since 2026-09-20; Shell between Git and Web since 2026-09-21
+        Assert.Equal(["Offered", "Options", "Web", "Files", "Shell", "Ask", "Git (native)"], ToolsText.TabTitles);   // Options second since later on 2026-09-19; Git since 2026-09-20, Shell since 2026-09-21; the user's order and Git (native) since later on 2026-09-21 (alphabetical before)
+        Assert.Equal("Git (native)", ToolsText.GitTabTitle);
         Assert.Equal("Options", ToolsText.OptionsTabTitle);
         Assert.Equal("Enter / Space = on or off · ←/→ tabs · ESC = close", ToolsText.OfferedKeys);
         Assert.Equal("LLM offer tools is off (the LLM tab of /settings): nothing is offered; a switch here saves for when it is on again.", ToolsText.OffLine);
