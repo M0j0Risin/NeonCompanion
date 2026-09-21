@@ -572,7 +572,7 @@ public class SlashCommandsTests
         Assert.Equal("/draft", SlashCommands.HelpEntries[18].Command);
         Assert.Equal("write the next message in your editor: a temporary file, sent when it is saved and closed", SlashCommands.HelpEntries[18].Summary);
         Assert.Equal("/loop", SlashCommands.HelpEntries[19].Command);   // 2026-09-21
-        Assert.Equal("send a message again and again, each reply waited for: /loop <count> <message> | infinite <message> (ESC ends it)", SlashCommands.HelpEntries[19].Summary);
+        Assert.Equal("repeat a message, each reply waited for: /loop <count> <message> | infinite <message> (ESC ends it)", SlashCommands.HelpEntries[19].Summary);
         Assert.Equal("/tts", SlashCommands.HelpEntries[20].Command);
         Assert.Equal(["/tts", "/stt", "/wake", "/interrupt"], SlashCommands.HelpGroups[3].Select(e => e.Command));
         Assert.Equal(["/memory", "/remember", "/forget", "/memcopy"], SlashCommands.HelpGroups[4].Select(e => e.Command));   // /memcopy last since 2026-09-17

@@ -237,7 +237,8 @@ public sealed class AppSettingsData
     /// <summary>
     /// After a compact the transcript shows what it did (2026-09-21, the user's call): in summary mode
     /// the summary's lines dim under the compact notice, in prune mode one line per pruned result
-    /// (the tool's name and the size). Off = the one notice line, as before. The LLM tab's row right
+    /// (the tool's name and the size), and last (later that day) how many messages were protected at
+    /// the start (the opening call pairs) and at the end (the recent turns kept). Off = the one notice line, as before. The LLM tab's row right
     /// under <c>LLM compact keep recent</c>; read at each compact, no reconnect. No variable.
     /// </summary>
     public bool LlmCompactShowSummary { get; set; }
@@ -868,9 +869,21 @@ public sealed class AppSettingsData
     public const int DefaultShellCodeTimeoutSeconds = 300;
 
     /// <summary>
+    /// Whether an <c>execute_code</c> script may call this app's other tools through its <c>neon_tools</c>
+    /// module — the loopback bridge (later on 2026-09-21, the user's ask; off by default, the user's
+    /// call, as zip/unzip and the MCP servers start). Off hides the bridge whole: no server is started,
+    /// no address or token goes into the script's environment, no module is written beside it, and
+    /// neither the tool's description, its schema nor the operating rules say a script can call tools —
+    /// the script does everything itself. Read at each call and at each turn's prompt, no reconnect.
+    /// No variable.
+    /// </summary>
+    public bool ShellToolBridge { get; set; }
+
+    /// <summary>
     /// The most tool calls one <c>execute_code</c> script may make through its bridge (2026-09-21):
     /// <see cref="MinShellCodeMaxToolCalls"/> to <see cref="MaxShellCodeMaxToolCalls"/>; the one over the
-    /// cap is answered with an error the script sees. No variable.
+    /// cap is answered with an error the script sees. Matters only while <see cref="ShellToolBridge"/>
+    /// is on. No variable.
     /// </summary>
     public int ShellCodeMaxToolCalls { get; set; } = DefaultShellCodeMaxToolCalls;
 

@@ -62,13 +62,25 @@ public class CompactionTextTests
     }
 
     [Fact]
-    public void DetailLines_TheSummaryFirst_ThenEachPrunedResult_NothingForABareResult()
+    public void ProtectedLines_ArePinned_ZeroSaidToo()
+    {
+        // The detail's closing lines (later on 2026-09-21): the opening pairs' messages and the recent turns' — zero is still said.
+        Assert.Equal("(🗜️ 6 messages protected at the start)", CompactionText.OpeningKeptLine(6));
+        Assert.Equal("(🗜️ 1 message protected at the start)", CompactionText.OpeningKeptLine(1));
+        Assert.Equal("(🗜️ 0 messages protected at the start)", CompactionText.OpeningKeptLine(0));
+        Assert.Equal("(🗜️ 2 messages protected at the end)", CompactionText.RecentKeptLine(2));
+        Assert.Equal("(🗜️ 1 message protected at the end)", CompactionText.RecentKeptLine(1));
+    }
+
+    [Fact]
+    public void DetailLines_TheSummaryFirst_ThenEachPrunedResult_ThenTheProtectedCounts()
     {
         var entries = new[] { new ConversationCompactor.PrunedEntry("read_file", 500), new ConversationCompactor.PrunedEntry("view_image", 0, 1) };
         Assert.Equal(
-            ["A summary.", "Two lines.", "(✂️ read_file · 500 characters)", "(✂️ 1 picture from view_image)"],
-            CompactionText.DetailLines(new ConversationCompactor.Result(38, 7, 2, null, Summarised: true) { Summary = "A summary.\nTwo lines.", Entries = entries }));
-        Assert.Equal(["(✂️ read_file · 500 characters)"], CompactionText.DetailLines(new ConversationCompactor.Result(12, 12, 1, null) { Entries = [entries[0]] }));
-        Assert.Empty(CompactionText.DetailLines(new ConversationCompactor.Result(38, 7, 0, null, Summarised: true)));
+            ["A summary.", "Two lines.", "(✂️ read_file · 500 characters)", "(✂️ 1 picture from view_image)", "(🗜️ 4 messages protected at the start)", "(🗜️ 2 messages protected at the end)"],
+            CompactionText.DetailLines(new ConversationCompactor.Result(38, 7, 2, null, Summarised: true) { Summary = "A summary.\nTwo lines.", Entries = entries, OpeningKept = 4, RecentKept = 2 }));
+        Assert.Equal(["(✂️ read_file · 500 characters)", "(🗜️ 0 messages protected at the start)", "(🗜️ 12 messages protected at the end)"], CompactionText.DetailLines(new ConversationCompactor.Result(12, 12, 1, null) { Entries = [entries[0]], RecentKept = 12 }));
+        // A bare result still closes with the two counts: the detail is never empty.
+        Assert.Equal(["(🗜️ 0 messages protected at the start)", "(🗜️ 0 messages protected at the end)"], CompactionText.DetailLines(new ConversationCompactor.Result(38, 7, 0, null, Summarised: true)));
     }
 }

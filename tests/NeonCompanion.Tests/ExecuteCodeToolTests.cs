@@ -34,7 +34,8 @@ public sealed class ExecuteCodeToolTests : IDisposable
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "NeonCompanion.Tests", Guid.NewGuid().ToString("N"));
     private readonly string _root;
     private readonly ManualTimeProvider _time = new();
-    private readonly AppSettingsData _settings = new() { ShellCommandPolicy = "yolo" };
+    // The bridge on (later on 2026-09-21 it starts off): these tests are about the bridge; the ones with it off flip it.
+    private readonly AppSettingsData _settings = new() { ShellCommandPolicy = "yolo", ShellToolBridge = true };
     private readonly Files.WorkingDirectory _files;
     private readonly Interpreters _interpreters;
     private readonly EchoTool _echo = new();
@@ -81,6 +82,7 @@ public sealed class ExecuteCodeToolTests : IDisposable
             "The script can call this app's other tools by name through the neon_tools module, so several steps can be done in one call; " +
             "the same approval as run_command applies, and a denied script must not be retried or worked around.",
             _tool.Description);
+        Assert.Equal(ExecuteCodeTool.DescriptionWithBridge, _tool.Description);
         var schema = _tool.JsonSchema;
         Assert.Equal(["language", "code", "timeout"], schema.GetProperty("properties").EnumerateObject().Select(p => p.Name));
         Assert.Equal(["language", "code"], schema.GetProperty("required").EnumerateArray().Select(e => e.GetString()));
@@ -123,6 +125,42 @@ public sealed class ExecuteCodeToolTests : IDisposable
         Assert.Equal("powershell", request.Kind);
         _settings.ShellCommandPolicy = "off";
         Assert.Equal("Error: Shell command policy is off: no command runs", await Invoke(("language", "powershell"), ("code", "Write-Output 1")));
+    }
+
+    [Fact]
+    public void BridgeOff_TheDescriptionAndSchema_NeverMentionNeonTools()
+    {
+        // Shell tool bridge off (later on 2026-09-21, the default): the model is not told a script can call tools, so it never tries.
+        _settings.ShellToolBridge = false;
+        Assert.Equal(
+            "Runs a script (python, node or powershell) in a fresh process and returns what it printed; " +
+            "the same approval as run_command applies, and a denied script must not be retried or worked around.",
+            _tool.Description);
+        Assert.Equal(ExecuteCodeTool.DescriptionWithoutBridge, _tool.Description);
+        var schema = _tool.JsonSchema;
+        Assert.Equal("The script; print what you want back.", schema.GetProperty("properties").GetProperty("code").GetProperty("description").GetString());
+        Assert.DoesNotContain("neon_tools", schema.GetRawText());
+        Assert.Equal(["language", "code", "timeout"], schema.GetProperty("properties").EnumerateObject().Select(p => p.Name));
+
+        // The cached schema follows the setting both ways.
+        _settings.ShellToolBridge = true;
+        Assert.Contains("from neon_tools import", _tool.JsonSchema.GetProperty("properties").GetProperty("code").GetProperty("description").GetString());
+        _settings.ShellToolBridge = false;
+        Assert.DoesNotContain("neon_tools", _tool.JsonSchema.GetRawText());
+    }
+
+    [Fact]
+    public async Task BridgeOff_PowerShell_HasNoModule_NoBridge_AndAPlainHeader()
+    {
+        // With the bridge off no module is written and no server listens: Invoke-NeonTool is an unknown command, the environment carries nothing, the header has no tool-call clause.
+        _settings.ShellToolBridge = false;
+        string code = "Write-Output \"addr: [$env:NEONCOMPANION_BRIDGE_ADDRESS] tok: [$env:NEONCOMPANION_BRIDGE_TOKEN]\"\nWrite-Output (Get-Command Invoke-NeonTool -ErrorAction SilentlyContinue).Count\nWrite-Output 'done'";
+        string result = await Invoke(("language", "powershell"), ("code", code));
+
+        Assert.StartsWith("exit 0 in 0.0 s (powershell): Write-Output \"addr: [$env:NEONCOMPANION_BRIDGE_ADDRESS] tok: [$env:NEONCOMPANION_BRIDGE_TOKEN]\"\n", result);
+        Assert.Contains("\naddr: [] tok: []\n0\ndone", result);
+        Assert.Empty(_echo.Received);
+        Assert.Empty(Directory.Exists(Path.Combine(_dir, "runs")) ? Directory.GetDirectories(Path.Combine(_dir, "runs")) : []);
     }
 
     [Fact]
@@ -276,10 +314,37 @@ public sealed class ExecuteCodeToolTests : IDisposable
     }
 
     [Fact]
+    public void CodeLaunch_BridgeOff_NoModule_NoImport_NoEnvironment()
+    {
+        // Shell tool bridge off (later on 2026-09-21): the script alone, PowerShell's under the bare wrapper, and nothing in the environment.
+        var python = CodeLaunch.Files(CodeLanguage.Python, "print(1)", @"C:\runs\code_1", bridge: false);
+        Assert.Equal(("script.py", "print(1)"), (python.ScriptName, python.ScriptText));
+        Assert.Null(python.ModulePath);
+        Assert.Null(python.ModuleText);
+        var node = CodeLaunch.Files(CodeLanguage.Node, "x", @"C:\runs\code_1", bridge: false);
+        Assert.Equal(("script.js", "x"), (node.ScriptName, node.ScriptText));
+        Assert.Null(node.ModulePath);
+        var ps = CodeLaunch.Files(CodeLanguage.PowerShell, "Write-Output 1", @"C:\runs\it's", bridge: false);
+        Assert.Equal("script.ps1", ps.ScriptName);
+        Assert.Null(ps.ModulePath);
+        Assert.Equal(ShellCommandLine.PowerShellScript("Write-Output 1"), ps.ScriptText);
+        Assert.DoesNotContain("Import-Module", ps.ScriptText);
+
+        var launch = CodeLaunch.For(CodeLanguage.Python, @"C:\py\python.exe", @"C:\runs\code_1", "script.py", @"D:\files", null, null, "print(1)");
+        Assert.Empty(launch.Environment!);   // a dictionary, empty: no bridge variable
+        Assert.Equal(["-X", "utf8", @"C:\runs\code_1\script.py"], launch.ArgumentList);
+    }
+
+    [Fact]
     public void ScriptText_Helpers_ArePinned()
     {
         Assert.Equal("exit 0 in 2.3 s (python, 3 tool calls): import os", ShellText.ScriptExitHeader("python", 0, TimeSpan.FromSeconds(2.34), 3, "import os"));
         Assert.Equal("timed out after 5 m 0 s (python, killed, 1 tool call): x", ShellText.ScriptTimedOutHeader("python", TimeSpan.FromMinutes(5), 1, "x"));
+        // No clause with the bridge off (later on 2026-09-21): null, not zero.
+        Assert.Equal("exit 0 in 2.3 s (python): import os", ShellText.ScriptExitHeader("python", 0, TimeSpan.FromSeconds(2.34), null, "import os"));
+        Assert.Equal("exit 0 in 2.3 s (python, 0 tool calls): import os", ShellText.ScriptExitHeader("python", 0, TimeSpan.FromSeconds(2.34), 0, "import os"));
+        Assert.Equal("timed out after 5 m 0 s (python, killed): x", ShellText.ScriptTimedOutHeader("python", TimeSpan.FromMinutes(5), null, "x"));
+        Assert.Equal("execute_code: python \"import os\" → exit 0 in 2.3 s (2,340 chars)", ShellText.ScriptLogLine("python", "import os", "exit 0 in 2.3 s", null, 2340));
         Assert.Equal("import os", ShellText.FirstLine("\n  \n  import os  \nprint(1)"));
         Assert.Equal("(empty)", ShellText.FirstLine("  \n"));
         Assert.Equal("code:python", ShellText.ScriptPrefix("python"));

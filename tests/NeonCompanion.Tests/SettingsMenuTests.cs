@@ -761,7 +761,7 @@ public class SettingsMenuTests : IDisposable
                 SettingsField.McpServers, SettingsField.McpConnectTimeoutSeconds, SettingsField.GitTools, SettingsField.GitDiffMaxLines, SettingsField.GitLogMaxCommits,
                 SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars,
                 SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellCodeMaxToolCalls,
-                SettingsField.LlmCompactShowSummary, SettingsField.GitEmail, SettingsField.GitName,
+                SettingsField.LlmCompactShowSummary, SettingsField.GitEmail, SettingsField.GitName, SettingsField.ShellToolBridge,
             },
             Enum.GetValues<SettingsField>());
         // The compact rows: on the LLM tab after the context length but no reconnect; the type a picker, the two others typed.
@@ -774,7 +774,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("LLM compact show summary", SettingsMenu.FieldName(SettingsField.LlmCompactShowSummary));
         Assert.Equal("off", SettingsMenu.FieldValue(SettingsField.LlmCompactShowSummary, data, _settings.ProfileDirectory));
         Assert.Equal("on", SettingsMenu.FieldValue(SettingsField.LlmCompactShowSummary, new AppSettingsData { LlmCompactShowSummary = true }, _settings.ProfileDirectory));
-        Assert.Equal("the summary's lines, or the pruned results, follow the compact notice", SettingsMenu.ToggleDescribe(SettingsField.LlmCompactShowSummary, true));
+        Assert.Equal("the summary's lines or the pruned results, then the protected counts", SettingsMenu.ToggleDescribe(SettingsField.LlmCompactShowSummary, true));
         Assert.Equal("the one compact notice alone", SettingsMenu.ToggleDescribe(SettingsField.LlmCompactShowSummary, false));
         // The LLM tab's tail (2026-09-15, the user's order): the tools toggle ABOVE the tool-compact picker, then the cap, then the fun verbs.
         Assert.Equal(new[] { SettingsField.LlmContextLength, SettingsField.LlmCompactType, SettingsField.LlmCompactKeepRecent, SettingsField.LlmCompactShowSummary, SettingsField.LlmAutoCompactPercent, SettingsField.LlmOfferTools, SettingsField.LlmToolCompactType, SettingsField.LlmMaxToolIterations, SettingsField.LlmUseFunVerbs }, SettingsMenu.TabFields[(int)SettingsTab.Llm].TakeLast(9));
@@ -1012,8 +1012,16 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal(SettingsMenu.ToolsTabFields[2].Max(f => SettingsMenu.FieldName(f).Length) + 2, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[2]));
         // The web rows (2026-09-15): the Web tab (titled Browser until later that day; /tools' last since 2026-09-19), in this order, none a reconnect — one toggle, three pickers (the network mode in the LAN switch's slot since 2026-09-18; the search method above the URL it governs), two typed rows that may be empty, a typed count.
         Assert.Equal(new[] { SettingsField.WebTools, SettingsField.WebBrowserMode, SettingsField.WebBrowserPath, SettingsField.WebBrowserNetworkMode, SettingsField.WebSearchMethod, SettingsField.WebSearxngUrl, SettingsField.WebSearchMaxResults }, SettingsMenu.ToolsTabFields[5]);
-        // The shell rows (2026-09-21): the Shell tab between Git and Web — the policy (the group's switch, a picker), the allowed list, the default shell (a picker), then the three typed caps; none a reconnect, none a toggle.
-        Assert.Equal(new[] { SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellCodeMaxToolCalls }, SettingsMenu.ToolsTabFields[4]);
+        // The shell rows (2026-09-21): the Shell tab between Git and Web — the policy (the group's switch, a picker), the allowed list, the default shell (a picker), then the three typed caps,
+        // the languages, their timeout, the tool bridge (the tab's one toggle, later that day) above the tool-call cap it governs; none a reconnect.
+        Assert.Equal(new[] { SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellToolBridge, SettingsField.ShellCodeMaxToolCalls }, SettingsMenu.ToolsTabFields[4]);
+        Assert.Equal("Shell tool bridge", SettingsMenu.FieldName(SettingsField.ShellToolBridge));
+        Assert.True(SettingsMenu.IsToggle(SettingsField.ShellToolBridge));
+        Assert.False(SettingsMenu.IsLlmField(SettingsField.ShellToolBridge));
+        Assert.Equal("off", SettingsMenu.FieldValue(SettingsField.ShellToolBridge, data, _settings.ProfileDirectory));
+        Assert.Equal("on", SettingsMenu.FieldValue(SettingsField.ShellToolBridge, new AppSettingsData { ShellToolBridge = true }, _settings.ProfileDirectory));
+        Assert.Equal("a script may call this app's other tools through its neon_tools module", SettingsMenu.ToggleDescribe(SettingsField.ShellToolBridge, true));
+        Assert.Equal("a script does everything itself: no neon_tools module, no tool calls", SettingsMenu.ToggleDescribe(SettingsField.ShellToolBridge, false));
         Assert.Equal("Shell code languages", SettingsMenu.FieldName(SettingsField.ShellCodeLanguages));
         Assert.Equal("Shell code timeout (s)", SettingsMenu.FieldName(SettingsField.ShellCodeTimeoutSeconds));
         Assert.Equal("Shell code max tool calls", SettingsMenu.FieldName(SettingsField.ShellCodeMaxToolCalls));
@@ -1035,7 +1043,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("Shell timeout (s)", SettingsMenu.FieldName(SettingsField.ShellTimeoutSeconds));
         Assert.Equal("Shell foreground cap (s)", SettingsMenu.FieldName(SettingsField.ShellForegroundCapSeconds));
         Assert.Equal("Shell output max chars", SettingsMenu.FieldName(SettingsField.ShellOutputMaxChars));
-        Assert.All(SettingsMenu.ToolsTabFields[4], f => Assert.False(SettingsMenu.IsToggle(f)));
+        Assert.Equal([SettingsField.ShellToolBridge], SettingsMenu.ToolsTabFields[4].Where(SettingsMenu.IsToggle));
         Assert.All(SettingsMenu.ToolsTabFields[4], f => Assert.False(SettingsMenu.RefusedMidTurn(f)));
         Assert.Equal("ask", SettingsMenu.FieldValue(SettingsField.ShellCommandPolicy, data, _settings.ProfileDirectory));
         Assert.Equal("none", SettingsMenu.FieldValue(SettingsField.ShellCommandAllowed, data, _settings.ProfileDirectory));

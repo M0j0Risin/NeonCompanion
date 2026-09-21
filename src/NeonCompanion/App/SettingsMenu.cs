@@ -295,6 +295,9 @@ public enum SettingsField
 
     /// <summary>Typed: the <c>user.name</c> <c>/git user</c> writes beside the email (<see cref="Settings.AppSettingsData.GitName"/>); empty = not set. The Git tab's last row (2026-09-21); no reconnect.</summary>
     GitName,
+
+    /// <summary>A toggle: whether an <c>execute_code</c> script may call the app's other tools through its <c>neon_tools</c> module (<see cref="Settings.AppSettingsData.ShellToolBridge"/>). The Shell tab, right above the tool-call cap it governs (later on 2026-09-21); no reconnect (read at each call and each turn).</summary>
+    ShellToolBridge,
 }
 
 /// <summary>The tabs of <c>/settings</c> on the pane, in strip order (Sessions right after General — the user's order, 2026-09-18; STT last since 2026-09-19, when the Ask, Files and Web tabs moved to <c>/tools</c> — <see cref="SettingsMenu.ToolsTabFields"/> — and, later that day, the Skills tab to <c>/skills</c> as its Options tab — <see cref="SettingsMenu.SkillsTabFields"/>); the value is the index into <see cref="SettingsMenu.TabTitles"/> and <see cref="SettingsMenu.TabFields"/>.</summary>
@@ -531,7 +534,8 @@ internal sealed class SettingsMenu
     /// Since later still on 2026-09-19 (the user's ask) every Files and Web row carries its tab's word (<c>File /tree max length</c>, <c>Web SearXNG URL</c>, …) and the six JSON keys that
     /// differed followed (<c>FileTreeMaxLength</c>, <c>FileTreeShowSizes</c>, <c>FileMentionFolderMode</c>, <c>FileViewImageMaxPerCall</c>, <c>WebSearxngUrl</c>) — no migration, the old key skipped on load.
     /// Git (2026-09-20) sits between Files and Web — the strip reads alphabetically — with its switch, the diff cap and the log cap;
-    /// Shell (2026-09-21) between Git and Web with the policy (its switch), the allowed list, the default shell, the two timeouts and the output cap.
+    /// Shell (2026-09-21) between Git and Web with the policy (its switch), the allowed list, the default shell, the two timeouts and the output cap,
+    /// then the script rows: the languages, their timeout, the tool bridge switch (later that day) and the tool-call cap it governs.
     /// With <see cref="TabFields"/> and <see cref="SkillsTabFields"/> they are every <see cref="SettingsField"/> once (pinned); the flat no-pane list keeps them all.
     /// </summary>
     public static readonly IReadOnlyList<IReadOnlyList<SettingsField>> ToolsTabFields =
@@ -540,7 +544,7 @@ internal sealed class SettingsMenu
         [SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices],
         [SettingsField.FileTools, SettingsField.FileSafeEdits, SettingsField.FileTreeMaxLength, SettingsField.FileTreeShowSizes, SettingsField.FileMentionFolderMode, SettingsField.FileViewImageMaxPerCall],
         [SettingsField.GitTools, SettingsField.GitDiffMaxLines, SettingsField.GitLogMaxCommits, SettingsField.GitEmail, SettingsField.GitName],
-        [SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellCodeMaxToolCalls],
+        [SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellToolBridge, SettingsField.ShellCodeMaxToolCalls],
         [SettingsField.WebTools, SettingsField.WebBrowserMode, SettingsField.WebBrowserPath, SettingsField.WebBrowserNetworkMode, SettingsField.WebSearchMethod, SettingsField.WebSearxngUrl, SettingsField.WebSearchMaxResults],
     ];
 
@@ -773,7 +777,7 @@ internal sealed class SettingsMenu
             or SettingsField.HideExitAutocomplete or SettingsField.CommandTypoIntercept or SettingsField.WelcomeSplash or SettingsField.ShowWorkingDirectory
             or SettingsField.QueueMessages or SettingsField.AllowSkillDelete or SettingsField.SessionLogging or SettingsField.SessionTool
             or SettingsField.ToolsDollarMention or SettingsField.ReflectionIncludesSessions or SettingsField.McpServers or SettingsField.GitTools
-            or SettingsField.LlmCompactShowSummary;
+            or SettingsField.LlmCompactShowSummary or SettingsField.ShellToolBridge;
 
     public static string FieldName(SettingsField field) => field switch
     {
@@ -834,6 +838,7 @@ internal sealed class SettingsMenu
         SettingsField.ShellOutputMaxChars => "Shell output max chars",
         SettingsField.ShellCodeLanguages => "Shell code languages",
         SettingsField.ShellCodeTimeoutSeconds => "Shell code timeout (s)",
+        SettingsField.ShellToolBridge => "Shell tool bridge",
         SettingsField.ShellCodeMaxToolCalls => "Shell code max tool calls",
         SettingsField.GitLogMaxCommits => "Git log max commits",
         SettingsField.GitEmail => "Git email",
@@ -959,6 +964,7 @@ internal sealed class SettingsMenu
             SettingsField.ShellOutputMaxChars => Chars(data.ShellOutputMaxChars),
             SettingsField.ShellCodeLanguages => string.Join(", ", Shell.CodeLanguages.Resolve(data).Select(Shell.CodeLanguages.Name)),
             SettingsField.ShellCodeTimeoutSeconds => Seconds(data.ShellCodeTimeoutSeconds),
+            SettingsField.ShellToolBridge => OnOff(data.ShellToolBridge),
             SettingsField.ShellCodeMaxToolCalls => ToolCalls(data.ShellCodeMaxToolCalls),
             SettingsField.GitLogMaxCommits => Commits(data.GitLogMaxCommits),
             SettingsField.GitEmail => string.IsNullOrWhiteSpace(data.GitEmail) ? NoGitIdentityLabel : data.GitEmail,
@@ -2643,6 +2649,7 @@ internal sealed class SettingsMenu
             SettingsField.AllowSkillDelete => data.AllowSkillDelete,
             SettingsField.SessionLogging => data.SessionLogging,
             SettingsField.SessionTool => data.SessionTool,
+            SettingsField.ShellToolBridge => data.ShellToolBridge,
             _ => false,
         };
     }
@@ -2686,6 +2693,7 @@ internal sealed class SettingsMenu
             case SettingsField.AllowSkillDelete: data.AllowSkillDelete = on; break;
             case SettingsField.SessionLogging: data.SessionLogging = on; break;
             case SettingsField.SessionTool: data.SessionTool = on; break;
+            case SettingsField.ShellToolBridge: data.ShellToolBridge = on; break;
         }
     }
 
@@ -2717,7 +2725,7 @@ internal sealed class SettingsMenu
         SettingsField.FileTreeShowSizes => on ? "/tree carries each file's size" : "/tree names alone",
         SettingsField.WebTools => on ? "the model may search and fetch the web" : "no web tools",
         SettingsField.GitTools => on ? "the model reads and changes the git repository in the working directory" : "no git tools",
-        SettingsField.LlmCompactShowSummary => on ? "the summary's lines, or the pruned results, follow the compact notice" : "the one compact notice alone",
+        SettingsField.LlmCompactShowSummary => on ? "the summary's lines or the pruned results, then the protected counts" : "the one compact notice alone",
         SettingsField.AgentSkills => on ? "the skills catalog, load_skill and skill_editor are offered" : "no skills, no project notes",
         SettingsField.ExternalSkills => on ? "%USERPROFILE%\\.agents\\skills is read too" : "profile and global skills only",
         SettingsField.SkillHashMention => on ? "# and part of a name lists the loaded skills on the line" : "# is ordinary text",
@@ -2733,6 +2741,7 @@ internal sealed class SettingsMenu
         SettingsField.AllowSkillDelete => on ? "the scope picker in /skills offers delete, after a confirmation" : "a skill is moved between the profile and global roots only",
         SettingsField.SessionLogging => on ? "every completed turn is written to this profile's session store" : "nothing is written; what is stored still lists, restores and purges",
         SettingsField.SessionTool => on ? "the model can search, list and read this profile's earlier sessions" : "the model never sees an earlier session",
+        SettingsField.ShellToolBridge => on ? "a script may call this app's other tools through its neon_tools module" : "a script does everything itself: no neon_tools module, no tool calls",
         _ => "",
     };
 

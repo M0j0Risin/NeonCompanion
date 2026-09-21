@@ -5,7 +5,7 @@ namespace NeonCompanion.App;
 /// <summary>
 /// The words for <c>/compact</c>: one transcript notice per outcome. Pure statics, every string
 /// pinned. The summary itself is not shown unless <c>LLM compact show summary</c> is on (2026-09-21:
-/// <see cref="DetailLines"/>, dim lines under the notice); the figures are the message counts either
+/// <see cref="DetailLines"/>, dim lines under the notice, closed by the two protected counts); the figures are the message counts either
 /// side and, for a summary with a usage report, the summariser's own request — what it read → what
 /// it wrote — not the new context in use, which is only measured at the next reply.
 /// </summary>
@@ -97,9 +97,20 @@ public static class CompactionText
     }
 
     /// <summary>
+    /// The detail's closing lines (later on 2026-09-21, the user's ask): <c>(🗜️ 2 messages protected at the start)</c>
+    /// for the opening call pairs carried across, <c>(🗜️ 5 messages protected at the end)</c> for the
+    /// recent turns kept in place. Zero is still said — the two lines always close the detail, so a
+    /// reader learns that nothing was kept rather than wondering. Pinned.
+    /// </summary>
+    public static string OpeningKeptLine(int messages) => "(" + CompactGlyph + UsageText.Plural(messages, "message", "messages") + " protected at the start)";
+
+    public static string RecentKeptLine(int messages) => "(" + CompactGlyph + UsageText.Plural(messages, "message", "messages") + " protected at the end)";
+
+    /// <summary>
     /// What <c>LLM compact show summary</c> adds under the notice (2026-09-21): the summary's lines
     /// (<see cref="SummaryLines"/>) when there is one, then one <see cref="PrunedLine"/> per stubbed
-    /// result, in order. Empty for a result with neither.
+    /// result, in order, and last the two protected counts (<see cref="OpeningKeptLine"/>,
+    /// <see cref="RecentKeptLine"/>), which every result has.
     /// </summary>
     public static IReadOnlyList<string> DetailLines(ConversationCompactor.Result result)
     {
@@ -115,6 +126,8 @@ public static class CompactionText
             lines.Add(PrunedLine(entry));
         }
 
+        lines.Add(OpeningKeptLine(result.OpeningKept));
+        lines.Add(RecentKeptLine(result.RecentKept));
         return lines;
     }
 }

@@ -43,8 +43,9 @@ public class SystemPromptSummaryTests : IDisposable
         bool projectFile = true,
         bool safeEdits = true,
         int gitTools = 0,
-        int shellTools = 0) =>
-        new(persona, operatingRules, voiceDirective, memoryEnabled, memories ?? [], speechOutput, speechReady, turnCount, "Friday 11 September 2026, 14:05 (Pacific Daylight Time, UTC-07:00)", reasoning, @"The working directory is 'D:\files' (the profile's default folder); every path you pass to a file tool is relative to it.", tools, files, skills, catalog, project, markdown, pane, disabled is null ? null : ToolsText.DisabledSet(disabled), projectFile, FileSafeEdits: safeEdits, GitTools: gitTools, ShellTools: shellTools);
+        int shellTools = 0,
+        bool shellBridge = false) =>
+        new(persona, operatingRules, voiceDirective, memoryEnabled, memories ?? [], speechOutput, speechReady, turnCount, "Friday 11 September 2026, 14:05 (Pacific Daylight Time, UTC-07:00)", reasoning, @"The working directory is 'D:\files' (the profile's default folder); every path you pass to a file tool is relative to it.", tools, files, skills, catalog, project, markdown, pane, disabled is null ? null : ToolsText.DisabledSet(disabled), projectFile, FileSafeEdits: safeEdits, GitTools: gitTools, ShellTools: shellTools, ShellBridge: shellBridge);
 
     /// <summary>The section heading for a working directory with neither notes file. Pinned.</summary>
     private const string NoNotesHeading = "Project notes — none (NEON.md / AGENTS.md not in the working directory)";
@@ -715,12 +716,17 @@ public class SystemPromptSummaryTests : IDisposable
         Assert.Equal("Shell tools — off (Shell command policy is off)", Headings(Facts() with { ShellEnabled = false })[7]);
         Assert.Equal("Shell tools — not offered (LLM offer tools is off)", Headings(Facts(tools: false))[7]);
         Assert.Equal("Shell command policy is off", SystemPromptSummary.ShellOffSuffix);
-        // The rule rides the defaults only while the tool is offered, after the git sentence.
-        Assert.Contains(Assistant.ShellRule, SystemPromptSummary.PromptSections(Facts(shellTools: 1))[1].Body);
-        Assert.DoesNotContain(Assistant.ShellRule, SystemPromptSummary.PromptSections(Facts())[1].Body);
-        Assert.DoesNotContain(Assistant.ShellRule, SystemPromptSummary.PromptSections(Facts(shellTools: 1) with { ShellEnabled = false })[1].Body);
+        // The rule rides the defaults only while the tool is offered, after the git sentence; which rule follows the setting Shell tool bridge (later on 2026-09-21).
+        Assert.Contains(Assistant.ShellRule, SystemPromptSummary.PromptSections(Facts(shellTools: 1, shellBridge: true))[1].Body);
+        Assert.Contains(Assistant.ShellRuleWithoutBridge, SystemPromptSummary.PromptSections(Facts(shellTools: 1))[1].Body);
+        Assert.DoesNotContain("neon_tools", SystemPromptSummary.PromptSections(Facts(shellTools: 1))[1].Body);
+        Assert.DoesNotContain(Assistant.ShellRuleWithoutBridge, SystemPromptSummary.PromptSections(Facts())[1].Body);
+        Assert.DoesNotContain(Assistant.ShellRuleWithoutBridge, SystemPromptSummary.PromptSections(Facts(shellTools: 1) with { ShellEnabled = false })[1].Body);
+        Assert.DoesNotContain("neon_tools", SystemPromptSummary.PromptSections(Facts(shellBridge: true))[1].Body);   // the bridge alone, no shell tool: nothing
         Assert.Equal(Assistant.DefaultRules(false, true, git: true, shell: true), SystemPromptSummary.PromptSections(Facts(gitTools: 11, shellTools: 1))[1].Body);
+        Assert.Equal(Assistant.DefaultRules(false, true, git: true, shell: true, bridge: true), SystemPromptSummary.PromptSections(Facts(gitTools: 11, shellTools: 1, shellBridge: true))[1].Body);
         Assert.Equal(Assistant.SystemPrompt(false, [], skills: [], shell: true), SystemPromptSummary.SystemPrompt(Facts(shellTools: 1)));
+        Assert.Equal(Assistant.SystemPrompt(false, [], skills: [], shell: true, bridge: true), SystemPromptSummary.SystemPrompt(Facts(shellTools: 1, shellBridge: true)));
     }
 
     [Fact]

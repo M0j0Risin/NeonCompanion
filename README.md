@@ -122,7 +122,7 @@ Every setting lives in a profile and is edited from a pane inside the app — `�
 | LLM context length | The model's context window in tokens, for the usage percentage; 0 takes the server's own figure. | 0 (server) |
 | LLM compact type | What `/compact` does: `summary` folds the older turns into one model-written summary; `prune` stubs their bulky tool results and keeps every turn. | `summary` |
 | LLM compact keep recent | How many recent user turns a compact keeps word for word (0–24). | 2 |
-| LLM compact show summary | After a compact, shows what it did under the notice: the summary's text as dim lines, or one line per pruned tool result (tool and size). | off |
+| LLM compact show summary | After a compact, shows what it did under the notice: the summary's text as dim lines, or one line per pruned tool result (tool and size), then how many messages were protected at the start (the opening call pairs) and at the end (the recent turns kept). | off |
 | LLM auto compact (%) | The share of the context window at which the next message compacts first (1–100; 0 = off). | 85 |
 | LLM offer tools | Whether the model gets any tools at all. Off makes every turn tool-free, for chat templates with no tool role; flipping it starts a new conversation. | on |
 | LLM tool compact type | What happens when a single turn's tool calls approach the window: `prune` stubs this turn's older results and carries on, `stop` ends the turn with a notice, `nothing`. | `prune` |
@@ -242,7 +242,8 @@ Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Web, Memory, 
 | Shell output max chars | The most output one result carries back (2000–500000); over it the head and tail are kept and the whole text goes to `.shell\<id>.log` under the working directory, where `read_file` reaches it. | 30000 |
 | Shell code languages | The languages `execute_code` may run — `powershell`, `python`, `node`; one or more, and a language is offered only while its interpreter is found. Enter or Space flips one; the last one on stays. | all three |
 | Shell code timeout (s) | How long an `execute_code` script without `timeout` may run before it is killed (1–3600). | 300 |
-| Shell code max tool calls | How many tool calls one script may make through its bridge (1–500). | 50 |
+| Shell tool bridge | Whether an `execute_code` script may call the app's other tools through its `neon_tools` module (a loopback socket with a per-run token). Off: no module is written, the script's environment carries no bridge, and neither the tool's description nor the operating rules mention calling tools — the script does everything itself. | off |
+| Shell code max tool calls | How many tool calls one script may make through its bridge (1–500), while `Shell tool bridge` is on. | 50 |
 
 #### Web
 
@@ -406,7 +407,7 @@ A command line on your machine. It **starts** in the working directory (`workdir
 | Tool | Arguments | What it does |
 |---|---|---|
 | `run_command` | `command, shell?, workdir?, timeout?, background?, notify?` | Runs the line in `powershell` (the default), `cmd` or `bash` (Git Bash, offered when found) and returns `exit N in T s (shell): command`, then the output, stderr under its own separator. With `background` (or a `timeout` over the foreground cap) it starts the command and returns its `proc_…` id at once; with `notify` you see a `⚡` line when it exits and the model gets a `process poll` seeded into its next turn. |
-| `execute_code` | `language, code, timeout?` | Runs a script in a fresh `python`, `node` or `powershell` process (the languages `Shell code languages` allows and the machine has) and returns `exit N in T s (language, K tool calls): first line`, then what it printed. The script calls the app's other tools by name through a module written beside it — Python `from neon_tools import call, read_file`, Node `const neon = require('neon_tools'); await neon.call('read_file', { path })` inside `neon.run(async () => …)`, PowerShell `Invoke-NeonTool read_file @{ path = 'x' }` — over a loopback socket with a per-run token; `execute_code` and `ask_user` are out of reach, a nested `run_command` is approved as usual but never in the background. The approval pane asks once per language (`Allow python scripts for this session`). No kernel: each call is a fresh process. |
+| `execute_code` | `language, code, timeout?` | Runs a script in a fresh `python`, `node` or `powershell` process (the languages `Shell code languages` allows and the machine has) and returns `exit N in T s (language, K tool calls): first line`, then what it printed. With `Shell tool bridge` on the script calls the app's other tools by name through a module written beside it — Python `from neon_tools import call, read_file`, Node `const neon = require('neon_tools'); await neon.call('read_file', { path })` inside `neon.run(async () => …)`, PowerShell `Invoke-NeonTool read_file @{ path = 'x' }` — over a loopback socket with a per-run token; `execute_code` and `ask_user` are out of reach, a nested `run_command` is approved as usual but never in the background. With it off (the default) no module is written, the header has no `K tool calls` clause and the script does everything itself. The approval pane asks once per language (`Allow python scripts for this session`). No kernel: each call is a fresh process. |
 | `process` | `action, session_id?, data?, timeout?, offset?, limit?` | The background processes: `list` them; `poll` one for its state and the output since the last poll; `log` a numbered window of its last 5,000 lines (`offset`, `limit`); `wait` up to `timeout` seconds; `kill` it and everything it started; `write` / `submit` text to its stdin (submit adds a newline); `close` a finished one. Any unique prefix of the id will do; at most 16 run at once and the newest 64 finished ones are kept. |
 
 ### Web
@@ -475,11 +476,14 @@ Every connected MCP server is a group of its own, its tools offered as `<server>
 ### Model picker
 ![model](./assets/screenshots/screenshot_model_picker.png)
 
+### Model picker
+![reasoning](./assets/screenshots/screenshot_reasoning_picker.png)
+
 ### Profile picker
-![model](./assets/screenshots/screenshot_profile_picker.png)
+![profile](./assets/screenshots/screenshot_profile_picker.png)
 
 ### Answer picker
-![model](./assets/screenshots/screenshot_ask.png)
+![ask](./assets/screenshots/screenshot_ask.png)
 
 ### Voice/Speech features
 ![voice](./assets/screenshots/screenshot_voice.png)

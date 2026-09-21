@@ -186,16 +186,26 @@ public sealed class Assistant
     /// policy</c> not <c>off</c>, 2026-09-21): appended after <see cref="GitRule"/> by <see cref="DefaultRules"/>. It
     /// says what the tool is for, that the sandbox is only where a command starts, that the user stands between
     /// the call and the shell, that a denial is final, and (phase B) how a background job and the process tool
-    /// go together; a custom <c>operata.md</c> stands verbatim. Pinned.
+    /// go together; a custom <c>operata.md</c> stands verbatim. Its last sentence, on <c>execute_code</c>, says the
+    /// script can call the tools through <c>neon_tools</c> — only while the setting <c>Shell tool bridge</c> is on;
+    /// off (later on 2026-09-21) the rules carry <see cref="ShellRuleWithoutBridge"/>, which does not, so the prompt
+    /// never promises a module the run does not write. Pinned.
     /// </summary>
-    public const string ShellRule =
+    public const string ShellRule = ShellRuleHead +
+        "For a task with several steps or many tool calls, " + NeonCompanion.Llm.Tools.ExecuteCodeTool.ToolName + " runs a python, node or powershell script that can call these same tools through its neon_tools module and returns what it printed.";
+
+    /// <summary><see cref="ShellRule"/> with the bridge off: the same head, and <c>execute_code</c> runs a script that does everything itself. Pinned.</summary>
+    public const string ShellRuleWithoutBridge = ShellRuleHead +
+        "For a task with several steps, " + NeonCompanion.Llm.Tools.ExecuteCodeTool.ToolName + " runs a python, node or powershell script and returns what it printed.";
+
+    /// <summary>What the two shell rules share: <c>run_command</c>, the approval, and the background job with <c>process</c>.</summary>
+    private const string ShellRuleHead =
         "To run a program, a build, a test or a script the user asks for, call " + NeonCompanion.Llm.Tools.RunCommandTool.ToolName + " with the command line " +
         "(" + NeonCompanion.Llm.Tools.RunCommandTool.ShellArgument + " picks powershell, cmd or bash when the user's default will not do; " + NeonCompanion.Llm.Tools.RunCommandTool.WorkdirArgument + " a folder under the working directory); " +
         "it starts in the working directory but can reach the whole computer, so the user approves each command before it runs and may deny it — " +
         "never retry or work around a denied command, and say what you ran. " +
         "For a server or a long job pass " + NeonCompanion.Llm.Tools.RunCommandTool.BackgroundArgument + " and use " + NeonCompanion.Llm.Tools.ProcessTool.ToolName + " to poll, read, wait for, write to or kill it; " +
-        "with " + NeonCompanion.Llm.Tools.RunCommandTool.NotifyArgument + " you are told at your next turn when it exits. " +
-        "For a task with several steps or many tool calls, " + NeonCompanion.Llm.Tools.ExecuteCodeTool.ToolName + " runs a python, node or powershell script that can call these same tools through its neon_tools module and returns what it printed.";
+        "with " + NeonCompanion.Llm.Tools.RunCommandTool.NotifyArgument + " you are told at your next turn when it exits. ";
 
     /// <summary>
     /// The sentence the default rules gain while <c>ask_user</c> is offered (the setting <c>Ask user</c>
@@ -278,12 +288,13 @@ public sealed class Assistant
     /// tool is not offered then); the tool rules are
     /// <see cref="ToolRulesWithoutTimers"/> with <paramref name="timers"/> false (no timer tool offered — headless, or the
     /// Timers group emptied on <c>/tools</c>, 2026-09-20); <see cref="ShellRule"/> rides after the git sentence with
-    /// <paramref name="shell"/> (the shell tools offered: <c>Shell command policy</c> not off, 2026-09-21). With
-    /// <paramref name="markdown"/> false it is <see cref="OperatingRules"/> and its variants byte for byte.
+    /// <paramref name="shell"/> (the shell tools offered: <c>Shell command policy</c> not off, 2026-09-21), as
+    /// <see cref="ShellRuleWithoutBridge"/> unless <paramref name="bridge"/> (the setting <c>Shell tool bridge</c>, off by
+    /// default, later that day). With <paramref name="markdown"/> false it is <see cref="OperatingRules"/> and its variants byte for byte.
     /// </summary>
-    public static string DefaultRules(bool markdown, bool tools, bool files = true, bool web = false, AskLimits? ask = null, bool sessions = false, bool download = true, bool delete = true, bool mcp = false, bool safeEdits = true, bool timers = true, bool git = false, bool shell = false) =>
+    public static string DefaultRules(bool markdown, bool tools, bool files = true, bool web = false, AskLimits? ask = null, bool sessions = false, bool download = true, bool delete = true, bool mcp = false, bool safeEdits = true, bool timers = true, bool git = false, bool shell = false, bool bridge = false) =>
         tools
-            ? TextRule(markdown) + " " + (timers ? ToolRules : ToolRulesWithoutTimers) + (files ? " " + (delete ? (safeEdits ? FileRule : FileRuleDeleteInPlace) : FileRuleWithoutDelete) : "") + (web ? " " + WebRule : "") + (web && files && download ? " " + DownloadRule : "") + (git ? " " + GitRule : "") + (shell ? " " + ShellRule : "") + (ask is { } limits ? " " + AskRule(limits) : "") + (sessions ? " " + SessionRule : "") + (mcp ? " " + McpRule : "")
+            ? TextRule(markdown) + " " + (timers ? ToolRules : ToolRulesWithoutTimers) + (files ? " " + (delete ? (safeEdits ? FileRule : FileRuleDeleteInPlace) : FileRuleWithoutDelete) : "") + (web ? " " + WebRule : "") + (web && files && download ? " " + DownloadRule : "") + (git ? " " + GitRule : "") + (shell ? " " + (bridge ? ShellRule : ShellRuleWithoutBridge) : "") + (ask is { } limits ? " " + AskRule(limits) : "") + (sessions ? " " + SessionRule : "") + (mcp ? " " + McpRule : "")
             : TextRule(markdown);
 
     /// <summary>
@@ -323,11 +334,11 @@ public sealed class Assistant
     /// the third (2026-09-20) is a whole group: <paramref name="timers"/> false (no timer tool offered — headless, or the
     /// three switched off) drops <see cref="TimerRule"/>.
     /// </summary>
-    public static string SystemPrompt(bool speechOutput, IReadOnlyList<string>? memories, string? persona = null, string? operatingRules = null, string? voiceDirective = null, bool tools = true, bool web = false, bool files = true, AskLimits? ask = null, ProjectNotes? project = null, IReadOnlyList<Skills.Skill>? skills = null, bool markdown = false, bool sessions = false, bool download = true, bool recall = true, bool delete = true, bool mcp = false, bool safeEdits = true, bool timers = true, bool git = false, bool shell = false)
+    public static string SystemPrompt(bool speechOutput, IReadOnlyList<string>? memories, string? persona = null, string? operatingRules = null, string? voiceDirective = null, bool tools = true, bool web = false, bool files = true, AskLimits? ask = null, ProjectNotes? project = null, IReadOnlyList<Skills.Skill>? skills = null, bool markdown = false, bool sessions = false, bool download = true, bool recall = true, bool delete = true, bool mcp = false, bool safeEdits = true, bool timers = true, bool git = false, bool shell = false, bool bridge = false)
     {
         bool customPersona = !string.IsNullOrWhiteSpace(persona);
         bool customRules = !string.IsNullOrWhiteSpace(operatingRules);
-        string defaultRules = DefaultRules(markdown, tools, files, web, ask, sessions, download, delete, mcp, safeEdits, timers, git, shell);
+        string defaultRules = DefaultRules(markdown, tools, files, web, ask, sessions, download, delete, mcp, safeEdits, timers, git, shell, bridge);
         var sb = new StringBuilder(!customPersona && !customRules
             ? DefaultPersona + " " + defaultRules
             : (customPersona ? persona!.Trim() : DefaultPersona) + "\n\n" + (customRules ? operatingRules!.Trim() : defaultRules));

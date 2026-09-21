@@ -326,6 +326,8 @@ public class ConversationCompactorTests
         Assert.Equal(12, result.MessagesBefore);
         Assert.Equal(7, result.MessagesAfter);
         Assert.Equal(0, result.Pruned);
+        Assert.Equal(4, result.OpeningKept);                        // the two opening pairs
+        Assert.Equal(2, result.RecentKept);                         // the kept turn: its user message and reply
         Assert.Equal(3900, result.Usage!.Value.Input);
         Assert.Equal(50, result.Usage.Value.Output);
         Assert.Equal("A summary.", result.Summary);   // carried for LLM compact show summary (2026-09-21)
@@ -365,6 +367,8 @@ public class ConversationCompactorTests
         Assert.Equal(1, result.Pruned);
         Assert.Equal(12, result.MessagesBefore);
         Assert.Equal(12, result.MessagesAfter);
+        Assert.Equal(4, result.OpeningKept);
+        Assert.Equal(2, result.RecentKept);
         Assert.Null(result.Usage);
         Assert.Null(result.Summary);
         Assert.Equal([new ConversationCompactor.PrunedEntry("read_file", 500)], result.Entries);
@@ -525,6 +529,8 @@ public class ConversationCompactorTests
         Assert.Equal(3, result.Pruned);
         Assert.Equal(12, result.MessagesBefore);
         Assert.Equal(11, result.MessagesAfter);                     // the summary + the opening pair + the 8 of the kept turn
+        Assert.Equal(2, result.OpeningKept);
+        Assert.Equal(8, result.RecentKept);                         // kept in place, three of its results stubbed
         Assert.Single(client.Requests);
         var kept = assistant.History.Messages;
         Assert.Equal("(a 900-character result, pruned by /compact)", ((FunctionResultContent)kept[5].Contents[0]).Result);
@@ -544,6 +550,8 @@ public class ConversationCompactorTests
         Assert.Equal(3, result.Pruned);
         Assert.Null(result.Usage);
         Assert.Equal(12, result.MessagesAfter);
+        Assert.Equal(0, result.OpeningKept);                        // nothing older: the opening pair is in the kept turns
+        Assert.Equal(12, result.RecentKept);
         Assert.Empty(client.Requests);                              // never the summariser over the history that just failed
         Assert.True(tally.LastRequest.IsEmpty);
         Assert.Equal("(a 900-character result, pruned by /compact)", ((FunctionResultContent)assistant.History.Messages[6].Contents[0]).Result);

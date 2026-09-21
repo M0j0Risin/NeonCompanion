@@ -42,6 +42,7 @@ namespace NeonCompanion.App;
 /// <param name="GitTools">How many git tools the next turn offers (the ones switched off on <c>/tools</c> left out); the rules carry <see cref="Assistant.GitRule"/> while any is.</param>
 /// <param name="ShellEnabled">Whether the setting <c>Shell command policy</c> is not <c>off</c> (2026-09-21, the Shell tab of <c>/tools</c>): the group's switch.</param>
 /// <param name="ShellTools">How many shell tools the next turn offers (the ones switched off on <c>/tools</c> left out); the rules carry <see cref="Assistant.ShellRule"/> while any is.</param>
+/// <param name="ShellBridge">The setting <c>Shell tool bridge</c> (later on 2026-09-21): off, the shell rule is <see cref="Assistant.ShellRuleWithoutBridge"/>, which never says a script can call tools.</param>
 public sealed record SystemPromptFacts(
     string? Persona,
     string? OperatingRules,
@@ -70,7 +71,8 @@ public sealed record SystemPromptFacts(
     bool GitEnabled = true,
     int GitTools = 0,
     bool ShellEnabled = true,
-    int ShellTools = 0)
+    int ShellTools = 0,
+    bool ShellBridge = false)
 {
     /// <summary>Whether the rules carry <see cref="Assistant.McpRule"/>: tools on, the MCP switch on and at least one MCP tool offered.</summary>
     public bool Mcp => ToolsEnabled && McpEnabled && McpTools > 0;
@@ -78,8 +80,11 @@ public sealed record SystemPromptFacts(
     /// <summary>Whether the rules carry <see cref="Assistant.GitRule"/>: tools on, the Git switch on and at least one git tool offered (2026-09-20).</summary>
     public bool Git => ToolsEnabled && GitEnabled && GitTools > 0;
 
-    /// <summary>Whether the rules carry <see cref="Assistant.ShellRule"/>: tools on, the policy not off and at least one shell tool offered (2026-09-21).</summary>
+    /// <summary>Whether the rules carry a shell rule: tools on, the policy not off and at least one shell tool offered (2026-09-21).</summary>
     public bool Shell => ToolsEnabled && ShellEnabled && ShellTools > 0;
+
+    /// <summary>Whether that rule is <see cref="Assistant.ShellRule"/> (the bridge on) rather than <see cref="Assistant.ShellRuleWithoutBridge"/>.</summary>
+    public bool Bridge => Shell && ShellBridge;
 
     /// <summary>The next turn's reply is styled Markdown and asked for as such (<see cref="ChatScreen.MarkdownTurn"/>): the setting, the pane, and the turn not spoken.</summary>
     public bool Markdown => ChatScreen.MarkdownTurn(TranscriptMarkdown, PaneOn, TtsOutput && SpeechReady);
@@ -248,7 +253,7 @@ public static class SystemPromptSummary
 
         bool customRules = !string.IsNullOrWhiteSpace(facts.OperatingRules);
         string defaultLabel = !facts.ToolsEnabled ? $"default ({ToolsOffSuffix})" : !facts.FilesEnabled ? $"default ({FilesOffSuffix})" : "default";
-        string rules = customRules ? facts.OperatingRules!.Trim() : Assistant.DefaultRules(facts.Markdown, facts.ToolsEnabled, facts.FilesEnabled, delete: !facts.Off(DeleteTool.ToolName), mcp: facts.Mcp, safeEdits: facts.FileSafeEdits, timers: facts.Timers, git: facts.Git, shell: facts.Shell);
+        string rules = customRules ? facts.OperatingRules!.Trim() : Assistant.DefaultRules(facts.Markdown, facts.ToolsEnabled, facts.FilesEnabled, delete: !facts.Off(DeleteTool.ToolName), mcp: facts.Mcp, safeEdits: facts.FileSafeEdits, timers: facts.Timers, git: facts.Git, shell: facts.Shell, bridge: facts.Bridge);
         sections.Add(new(
             customRules ? $"Operating rules — {OperataFile.FileName} ({rules.Length.ToString(CultureInfo.InvariantCulture)} chars)" : $"Operating rules — {defaultLabel}",
             rules,
@@ -463,7 +468,8 @@ public static class SystemPromptSummary
             safeEdits: facts.FileSafeEdits,
             timers: facts.Timers,
             git: facts.Git,
-            shell: facts.Shell);
+            shell: facts.Shell,
+            bridge: facts.Bridge);
     }
 
     /// <summary>The Prompt tab: every section's heading and, when it has one, its text.</summary>

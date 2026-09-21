@@ -183,7 +183,7 @@ public static class SlashCommands
             new("/queue", "list and prune the messages queued while a reply runs"),
             new("/copy", "copy the last reply to the clipboard as markdown, or /copy <n> | all"),
             new("/draft", "write the next message in your editor: a temporary file, sent when it is saved and closed"),
-            new("/loop", "send a message again and again, each reply waited for: /loop <count> <message> | infinite <message> (ESC ends it)"),
+            new("/loop", "repeat a message, each reply waited for: /loop <count> <message> | infinite <message> (ESC ends it)"),
         ],
         [
             new("/tts", "toggle speech output, or /tts on|off"),

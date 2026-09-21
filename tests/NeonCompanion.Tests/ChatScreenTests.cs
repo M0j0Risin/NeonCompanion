@@ -4008,7 +4008,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains("\n▸ Ask user                      on\n", output);
         Assert.Contains("\n▸ File tools                      on\n", output);
         Assert.Contains("\n▸ Git tools            on\n  Git diff max lines   500 lines\n  Git log max commits  20 commits\n  Git email            (not set)\n  Git name             (not set)\n", output);
-        Assert.Contains("\n▸ Shell command policy       ask\n  Shell allowed commands     none\n  Shell default              powershell\n  Shell timeout (s)          180\n  Shell foreground cap (s)   600\n  Shell output max chars     30,000 chars\n  Shell code languages       powershell, python, node\n  Shell code timeout (s)     300\n  Shell code max tool calls  50 tool calls\n", output);
+        Assert.Contains("\n▸ Shell command policy       ask\n  Shell allowed commands     none\n  Shell default              powershell\n  Shell timeout (s)          180\n  Shell foreground cap (s)   600\n  Shell output max chars     30,000 chars\n  Shell code languages       powershell, python, node\n  Shell code timeout (s)     300\n  Shell tool bridge          off\n  Shell code max tool calls  50 tool calls\n", output);
         Assert.Contains("\n▸ Web tools                 on\n", output);
         Assert.Contains("\n" + SettingsMenu.TabKeys, output);
         Assert.Empty(_chat.Requests);
@@ -7460,7 +7460,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.StartsWith(HelpRow("/queue", "list and prune the messages queued while a reply runs"), lines[18]);   // 2026-09-18
         Assert.StartsWith(HelpRow("/copy", "copy the last reply to the clipboard as markdown, or /copy <n> | all"), lines[19]);   // under /queue since later on 2026-09-18
         Assert.StartsWith(HelpRow("/draft", "write the next message in your editor: a temporary file, sent when it is saved and closed"), lines[20]);   // under /copy since 2026-09-19
-        Assert.StartsWith(HelpRow("/loop", "send a message again and again, each reply waited for: /loop <count> <message> | infinite <message> (ESC ends it)"), lines[21]);   // under /draft since 2026-09-21
+        Assert.StartsWith(HelpRow("/loop", "repeat a message, each reply waited for: /loop <count> <message> | infinite <message> (ESC ends it)"), lines[21]);   // under /draft since 2026-09-21
         Assert.True(string.IsNullOrWhiteSpace(lines[22]));
         Assert.StartsWith(HelpRow("/interrupt", "toggle the speech input wake word interrupt, or /interrupt on|off"), lines[26]);
         Assert.True(string.IsNullOrWhiteSpace(lines[27]));
@@ -8062,7 +8062,8 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("  · (🗜️ compacted: 10 messages → 9 · 300 → 20 tokens)\n  · The user said a.\n  · Then b.\n", output);
+        // … closed (later that day) by how many messages were protected: the three opening pairs, the one kept turn.
+        Assert.Contains("  · (🗜️ compacted: 10 messages → 9 · 300 → 20 tokens)\n  · The user said a.\n  · Then b.\n  · (🗜️ 6 messages protected at the start)\n  · (🗜️ 2 messages protected at the end)\n", output);
     }
 
     [Fact]
@@ -8083,7 +8084,7 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         // The result's length is the tool's text (the file's 600 x's under the header line), so the line is matched by its shape.
-        Assert.Matches(@"  · \(✂️ compacted: 1 tool result pruned\)\n  · \(✂️ read_file · \d{3} characters\)\n", output);
+        Assert.Matches(@"  · \(✂️ compacted: 1 tool result pruned\)\n  · \(✂️ read_file · \d{3} characters\)\n  · \(🗜️ 6 messages protected at the start\)\n  · \(🗜️ 2 messages protected at the end\)\n", output);
     }
 
     [Fact]

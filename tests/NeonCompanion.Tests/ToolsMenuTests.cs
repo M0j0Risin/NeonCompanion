@@ -139,7 +139,7 @@ public class ToolsMenuTests : IDisposable
         Assert.Equal([SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices], SettingsMenu.ToolsTabFields[1]);
         Assert.Equal([SettingsField.FileTools, SettingsField.FileSafeEdits, SettingsField.FileTreeMaxLength, SettingsField.FileTreeShowSizes, SettingsField.FileMentionFolderMode, SettingsField.FileViewImageMaxPerCall], SettingsMenu.ToolsTabFields[2]);   // the view_image cap last, 2026-09-19
         Assert.Equal([SettingsField.GitTools, SettingsField.GitDiffMaxLines, SettingsField.GitLogMaxCommits, SettingsField.GitEmail, SettingsField.GitName], SettingsMenu.ToolsTabFields[3]);   // the switch first, then the limits, then the identity pair (2026-09-21)
-        Assert.Equal([SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellCodeMaxToolCalls], SettingsMenu.ToolsTabFields[4]);   // the policy (the switch) first, then the list, the shell, the caps, then execute_code's three (2026-09-21)
+        Assert.Equal([SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellToolBridge, SettingsField.ShellCodeMaxToolCalls], SettingsMenu.ToolsTabFields[4]);   // the policy (the switch) first, then the list, the shell, the caps, then execute_code's four (2026-09-21; the bridge switch later that day)
         Assert.Equal([SettingsField.WebTools, SettingsField.WebBrowserMode, SettingsField.WebBrowserPath, SettingsField.WebBrowserNetworkMode, SettingsField.WebSearchMethod, SettingsField.WebSearxngUrl, SettingsField.WebSearchMaxResults], SettingsMenu.ToolsTabFields[5]);
         Assert.Equal(Enum.GetValues<SettingsField>().Order(), SettingsMenu.TabFields.Concat(SettingsMenu.SkillsTabFields).Concat(SettingsMenu.ToolsTabFields).Concat(SettingsMenu.McpTabFields).SelectMany(t => t).Order());
         Assert.Equal(19, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[0]));   // "$-mention enabled"
@@ -344,8 +344,8 @@ public class ToolsMenuTests : IDisposable
         Assert.Equal(["git push"], _settings.Current.ShellCommandAllowed);
         Assert.Equal("cmd", _settings.Current.ShellDefault);
         Assert.Equal(180, _settings.Current.ShellTimeoutSeconds);
-        // The six rows padded to the tab's own column (26), then the picker's rows, the list's, and the notices on the status line.
-        Assert.Contains("\n" + Titled(Strip) + "\n \n▸ Shell command policy       ask\n  Shell allowed commands     2 prefixes\n  Shell default              powershell\n  Shell timeout (s)          180\n  Shell foreground cap (s)   600\n  Shell output max chars     30,000 chars\n  Shell code languages       powershell, python, node\n  Shell code timeout (s)     300\n  Shell code max tool calls  50 tool calls\n" + Rule(100), _console.Output);
+        // The ten rows padded to the tab's own column (27), then the picker's rows, the list's, and the notices on the status line.
+        Assert.Contains("\n" + Titled(Strip) + "\n \n▸ Shell command policy       ask\n  Shell allowed commands     2 prefixes\n  Shell default              powershell\n  Shell timeout (s)          180\n  Shell foreground cap (s)   600\n  Shell output max chars     30,000 chars\n  Shell code languages       powershell, python, node\n  Shell code timeout (s)     300\n  Shell tool bridge          off\n  Shell code max tool calls  50 tool calls\n" + Rule(100), _console.Output);
         Assert.Contains("\n" + Titled("Tools › Shell command policy") + "\n \n  off  no shell or script tool is offered\n▸ ask  you approve each command not on the allow list\n  yolo every command runs, nothing is asked\n", _console.Output);
         Assert.Contains("  · Shell command policy: yolo\n", _console.Output);
         Assert.Contains("\n" + Titled("Tools › Shell allowed commands") + "\n \n▸ dotnet build\n  git push\n", _console.Output);
@@ -353,6 +353,25 @@ public class ToolsMenuTests : IDisposable
         Assert.Contains("\n" + Titled("Tools › Shell default") + "\n \n▸ powershell pwsh when installed, else Windows PowerShell 5.1\n  cmd        cmd.exe: batch syntax\n  bash       Git Bash, when bash.exe is found\n", _console.Output);
         Assert.Contains("  · Shell default: cmd\n", _console.Output);
         Assert.Contains("Shell timeout (s) must be 1 to 3600 seconds; keeping 180.", _console.Output);
+        pane.Dispose();
+    }
+
+    /// <summary>The tool bridge row (later on 2026-09-21): the Shell tab's one toggle, a picker that opens on the saved off; no reconnect.</summary>
+    [Fact]
+    public async Task OnThePane_TheToolBridgeRow_IsAPicker_NoReconnect()
+    {
+        var (menu, pane, _) = PaneMenu();
+        Push(Keys.Right, Keys.Right, Keys.Right, Keys.Right, Keys.Right);   // Shell
+        Push(Keys.Down, Keys.Down, Keys.Down, Keys.Down, Keys.Down, Keys.Down, Keys.Down, Keys.Down, Keys.Enter);   // Shell tool bridge: the picker opens on off
+        Push(Keys.Up, Keys.Enter);                                          // on is the row above
+        Push(Keys.Escape);
+
+        await menu.ShowAsync(CancellationToken.None);
+
+        Assert.True(_settings.Current.ShellToolBridge);
+        Assert.Contains("\n" + Titled("Tools › Shell tool bridge") + "\n \n  on  a script may call this app's other tools through its neon_tools module\n▸ off a script does everything itself: no neon_tools module, no tool calls\n", _console.Output);
+        Assert.Contains("  · Shell tool bridge: on", _console.Output);
+        Assert.Contains("\n▸ Shell tool bridge          on\n  Shell code max tool calls  50 tool calls\n", _console.Output);
         pane.Dispose();
     }
 

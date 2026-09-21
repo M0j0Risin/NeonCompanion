@@ -54,7 +54,8 @@ public static class ConversationCompactor
     /// one, and whether the older turns became a summary at all (false for a prune, and for the
     /// automatic compact that found nothing older and stubbed the recent turns alone). Since
     /// 2026-09-21 (<c>LLM compact show summary</c>) it also carries what the transcript may show:
-    /// the summary's text and one <see cref="PrunedEntry"/> per stubbed result.
+    /// the summary's text, one <see cref="PrunedEntry"/> per stubbed result and (later that day,
+    /// the detail's closing lines) how many messages were protected at either end.
     /// </summary>
     public sealed record Result(int MessagesBefore, int MessagesAfter, int Pruned, TokenUsage? Usage, bool Summarised = false)
     {
@@ -63,6 +64,12 @@ public static class ConversationCompactor
 
         /// <summary>One entry per stubbed result — the older turns' first, then the recent turns' under the automatic compact — in message order; <see cref="Pruned"/> is their count (a carrier's pictures counted each). Empty when none.</summary>
         public IReadOnlyList<PrunedEntry> Entries { get; init; } = [];
+
+        /// <summary>How many messages at the start were protected: the opening call pairs (<see cref="Plan.Opening"/>), carried across a summary in place and never stubbed by a prune.</summary>
+        public int OpeningKept { get; init; }
+
+        /// <summary>How many messages at the end were protected: the recent turns (<see cref="Plan.Recent"/>) kept in place — verbatim by hand, their older results stubbed under the automatic compact.</summary>
+        public int RecentKept { get; init; }
     }
 
     /// <summary>
@@ -364,7 +371,7 @@ public static class ConversationCompactor
             shrunk.AddRange(plan.Recent);
             history.Replace(shrunk);
             tally.AddCompaction(null);
-            return new Result(before, shrunk.Count, recentPruned, null) { Entries = recentEntries };
+            return new Result(before, shrunk.Count, recentPruned, null) { Entries = recentEntries, OpeningKept = plan.Opening.Count, RecentKept = plan.Recent.Count };
         }
 
         if (mode == CompactMode.Prune)
@@ -379,14 +386,14 @@ public static class ConversationCompactor
 
             history.Replace(pruned);
             tally.AddCompaction(null);
-            return new Result(before, pruned.Count, count, null) { Entries = [.. olderEntries, .. recentEntries] };
+            return new Result(before, pruned.Count, count, null) { Entries = [.. olderEntries, .. recentEntries], OpeningKept = plan.Opening.Count, RecentKept = plan.Recent.Count };
         }
 
         var (summary, usage) = await assistant.SummarizeAsync(plan.Older, focus, cancellationToken).ConfigureAwait(false);
         var messages = Summarised(summary, plan);
         history.Replace(messages);
         tally.AddCompaction(usage);
-        return new Result(before, messages.Count, recentPruned, usage, Summarised: true) { Summary = summary.Trim(), Entries = recentEntries };
+        return new Result(before, messages.Count, recentPruned, usage, Summarised: true) { Summary = summary.Trim(), Entries = recentEntries, OpeningKept = plan.Opening.Count, RecentKept = plan.Recent.Count };
     }
 
     /// <summary>The opening call id an assistant message carries, or null.</summary>

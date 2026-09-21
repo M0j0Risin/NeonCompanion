@@ -227,15 +227,18 @@ public static class ShellText
 
     // ── Scripts (phase C, 2026-09-21) ────────────────────────────────────────
 
-    /// <summary><c>exit 0 in 2.3 s (python, 3 tool calls): the first line</c>; <see cref="Result"/> adds the cut suffix. Pinned.</summary>
-    public static string ScriptExitHeader(string language, int exitCode, TimeSpan elapsed, int toolCalls, string firstLine) =>
-        $"exit {N(exitCode)} in {Elapsed(elapsed)} ({language}, {ToolCalls(toolCalls)}): {firstLine}";
+    /// <summary><c>exit 0 in 2.3 s (python, 3 tool calls): the first line</c>; <see cref="Result"/> adds the cut suffix. With <paramref name="toolCalls"/> null (the bridge off, later on 2026-09-21) the clause is left out: <c>exit 0 in 2.3 s (python): …</c>. Pinned.</summary>
+    public static string ScriptExitHeader(string language, int exitCode, TimeSpan elapsed, int? toolCalls, string firstLine) =>
+        $"exit {N(exitCode)} in {Elapsed(elapsed)} ({language}{ToolCallsClause(toolCalls)}): {firstLine}";
 
-    /// <summary><c>timed out after 5 m 0 s (python, killed, 12 tool calls): …</c>. Pinned.</summary>
-    public static string ScriptTimedOutHeader(string language, TimeSpan timeout, int toolCalls, string firstLine) =>
-        $"timed out after {Elapsed(timeout)} ({language}, killed, {ToolCalls(toolCalls)}): {firstLine}";
+    /// <summary><c>timed out after 5 m 0 s (python, killed, 12 tool calls): …</c>; <c>(python, killed): …</c> with the bridge off. Pinned.</summary>
+    public static string ScriptTimedOutHeader(string language, TimeSpan timeout, int? toolCalls, string firstLine) =>
+        $"timed out after {Elapsed(timeout)} ({language}, killed{ToolCallsClause(toolCalls)}): {firstLine}";
 
     public static string ToolCalls(int count) => $"{Count(count)} tool {(count == 1 ? "call" : "calls")}";
+
+    /// <summary><c>, 3 tool calls</c>, or nothing for null: the headers' and the log line's optional clause.</summary>
+    private static string ToolCallsClause(int? count) => count is { } n ? ", " + ToolCalls(n) : "";
 
     /// <summary>The script's first non-blank line, trimmed, for the header and the log; <c>(empty)</c> for none.</summary>
     public static string FirstLine(string code)
@@ -265,9 +268,9 @@ public static class ShellText
     public const string BadRequest = "Error: the request is not {\"token\", \"tool\", \"arguments\"} on one line";
     public static string CouldNotWriteScript(string detail) => $"Error: could not write the script ({detail})";
 
-    /// <summary><c>execute_code: python "import os" → exit 0 in 2.3 s, 3 tool calls (2,340 chars)</c>.</summary>
-    public static string ScriptLogLine(string language, string firstLine, string outcome, int toolCalls, long chars) =>
-        $"execute_code: {language} {Quote(firstLine)} → {outcome}, {ToolCalls(toolCalls)} ({Count(chars)} chars)";
+    /// <summary><c>execute_code: python "import os" → exit 0 in 2.3 s, 3 tool calls (2,340 chars)</c>; no tool-call clause with the bridge off.</summary>
+    public static string ScriptLogLine(string language, string firstLine, string outcome, int? toolCalls, long chars) =>
+        $"execute_code: {language} {Quote(firstLine)} → {outcome}{ToolCallsClause(toolCalls)} ({Count(chars)} chars)";
 
     /// <summary><c>bridge: read_file → 1,234 chars</c> / <c>bridge: nope → Error: unknown tool nope</c>.</summary>
     public static string BridgeLogLine(string tool, string result) =>

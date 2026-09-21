@@ -44,6 +44,7 @@ public class AppSettingsTests : IDisposable
         LlmCompactShowSummary = true,
         GitEmail = "me@example.invalid",
         GitName = "Some User",
+        ShellToolBridge = true,
         LlmCompactType = "prune",
         LlmContextLength = 32_768,
         LlmMaxToolIterations = 22,
@@ -141,6 +142,7 @@ public class AppSettingsTests : IDisposable
         Assert.Equal(expected.LlmCompactShowSummary, actual.LlmCompactShowSummary);
         Assert.Equal(expected.GitEmail, actual.GitEmail);
         Assert.Equal(expected.GitName, actual.GitName);
+        Assert.Equal(expected.ShellToolBridge, actual.ShellToolBridge);
         Assert.Equal(expected.LlmCompactType, actual.LlmCompactType);
         Assert.Equal(expected.LlmContextLength, actual.LlmContextLength);
         Assert.Equal(expected.LlmMaxToolIterations, actual.LlmMaxToolIterations);
@@ -250,6 +252,7 @@ public class AppSettingsTests : IDisposable
             d.LlmCompactShowSummary = full.LlmCompactShowSummary;
             d.GitEmail = full.GitEmail;
             d.GitName = full.GitName;
+            d.ShellToolBridge = full.ShellToolBridge;
             d.LlmCompactType = full.LlmCompactType;
             d.LlmContextLength = full.LlmContextLength;
             d.LlmMaxToolIterations = full.LlmMaxToolIterations;
@@ -356,6 +359,7 @@ public class AppSettingsTests : IDisposable
                 d.LlmCompactShowSummary = full.LlmCompactShowSummary;
                 d.GitEmail = full.GitEmail;
                 d.GitName = full.GitName;
+                d.ShellToolBridge = full.ShellToolBridge;
                 d.LlmCompactType = full.LlmCompactType;
                 d.LlmContextLength = full.LlmContextLength;
                 d.LlmMaxToolIterations = full.LlmMaxToolIterations;
@@ -944,6 +948,7 @@ public class AppSettingsTests : IDisposable
         Assert.Equal(300, s.ShellCodeTimeoutSeconds);
         Assert.Equal(1, AppSettingsData.MinShellCodeTimeoutSeconds);
         Assert.Equal(3600, AppSettingsData.MaxShellCodeTimeoutSeconds);
+        Assert.False(s.ShellToolBridge);   // later on 2026-09-21: a script does everything itself unless asked
         Assert.Equal(50, s.ShellCodeMaxToolCalls);
         Assert.Equal(1, AppSettingsData.MinShellCodeMaxToolCalls);
         Assert.Equal(500, AppSettingsData.MaxShellCodeMaxToolCalls);

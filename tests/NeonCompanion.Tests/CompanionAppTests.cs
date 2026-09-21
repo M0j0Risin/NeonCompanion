@@ -314,7 +314,7 @@ public class CompanionAppTests : IDisposable
         string output = await Headless("run it\n");
 
         Assert.Contains("[tool] run_command -> Error: the command was not approved: no screen to ask on (Shell command policy is ask; NEONCOMPANION_COMMAND_POLICY=yolo or the profile's Shell allowed commands would let it run); allowed prefixes: none", output);
-        Assert.Contains(Assistant.ShellRule, _chat.Requests[0][0].Text!, StringComparison.Ordinal);
+        Assert.Contains(Assistant.ShellRuleWithoutBridge, _chat.Requests[0][0].Text!, StringComparison.Ordinal);   // the bridge off by default (later on 2026-09-21)
         var offered = _chat.Options[0]!.Tools!.Cast<AIFunction>().Select(t => t.Name).ToList();
         Assert.Equal(offered.IndexOf("git_delete") + 1, offered.IndexOf("run_command"));
     }
@@ -858,7 +858,7 @@ public class CompanionAppTests : IDisposable
 
         string output = await Headless("first\nsecond\n/compact\nthird\n");
 
-        Assert.Contains("Neon: (🗜️ compacted: 10 messages → 9 · 300 → 20 tokens)" + Environment.NewLine + "[notice] A summary." + Environment.NewLine + "[notice] Of two lines." + Environment.NewLine, output);
+        Assert.Contains("Neon: (🗜️ compacted: 10 messages → 9 · 300 → 20 tokens)" + Environment.NewLine + "[notice] A summary." + Environment.NewLine + "[notice] Of two lines." + Environment.NewLine + "[notice] (🗜️ 6 messages protected at the start)" + Environment.NewLine + "[notice] (🗜️ 2 messages protected at the end)" + Environment.NewLine, output);
     }
 
     [Fact]

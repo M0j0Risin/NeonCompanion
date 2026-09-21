@@ -68,10 +68,21 @@ public sealed class ExecuteCodeTool : AIFunction
 
     public override string Name => ToolName;
 
-    public override string Description =>
+    /// <summary>What the model reads with the bridge on: the script may call the other tools. Pinned.</summary>
+    public const string DescriptionWithBridge =
         "Runs a script (python, node or powershell) in a fresh process and returns what it printed. " +
         "The script can call this app's other tools by name through the neon_tools module, so several steps can be done in one call; " +
         "the same approval as run_command applies, and a denied script must not be retried or worked around.";
+
+    /// <summary>What the model reads with the bridge off (<c>Shell tool bridge</c>, later on 2026-09-21): not a word about calling tools, so it never tries. Pinned.</summary>
+    public const string DescriptionWithoutBridge =
+        "Runs a script (python, node or powershell) in a fresh process and returns what it printed; " +
+        "the same approval as run_command applies, and a denied script must not be retried or worked around.";
+
+    /// <summary>The bridge's on/off, read at each look — the description, the schema and the run all follow the setting.</summary>
+    private bool Bridge => _effective().ShellToolBridge;
+
+    public override string Description => Bridge ? DescriptionWithBridge : DescriptionWithoutBridge;
 
     /// <summary>The languages the model may name right now: the setting's, whose interpreter is found, in <see cref="CodeLanguages.Names"/> order.</summary>
     public IReadOnlyList<string> AvailableLanguages => _interpreters.AvailableLanguages(CodeLanguages.Resolve(_effective())).Select(CodeLanguages.Name).ToList();
@@ -83,10 +94,11 @@ public sealed class ExecuteCodeTool : AIFunction
             var languages = AvailableLanguages;
             var effective = _effective();
             int cap = Math.Clamp(effective.ShellCodeTimeoutSeconds, AppSettingsData.MinShellCodeTimeoutSeconds, AppSettingsData.MaxShellCodeTimeoutSeconds);
-            string key = string.Join(",", languages) + "|" + cap.ToString(CultureInfo.InvariantCulture);
+            bool bridge = effective.ShellToolBridge;
+            string key = string.Join(",", languages) + "|" + cap.ToString(CultureInfo.InvariantCulture) + (bridge ? "|bridge" : "");
             if (_schema.ValueKind == JsonValueKind.Undefined || !string.Equals(key, _schemaKey, StringComparison.Ordinal))
             {
-                _schema = SchemaFor(languages, cap);
+                _schema = SchemaFor(languages, cap, bridge);
                 _schemaKey = key;
             }
 
@@ -94,18 +106,25 @@ public sealed class ExecuteCodeTool : AIFunction
         }
     }
 
-    /// <summary>The schema over the languages offered. Pinned.</summary>
-    public static JsonElement SchemaFor(IReadOnlyList<string> languages, int defaultTimeout)
+    /// <summary>The <c>code</c> property's description with the bridge on: how each language calls a tool. Pinned.</summary>
+    public const string CodeDescriptionWithBridge = "The script. It can call this app's tools: Python `from neon_tools import call, read_file, run_command` (call('tool_name', arg=value) for any tool); Node `const neon = require('neon_tools'); await neon.call('tool_name', { arg: value })` inside neon.run(async () => { ... }); PowerShell `Invoke-NeonTool tool_name @{ arg = value }`. Every tool returns its text; print what you want back.";
+
+    /// <summary>… and with the bridge off: the script alone. Pinned.</summary>
+    public const string CodeDescriptionWithoutBridge = "The script; print what you want back.";
+
+    /// <summary>The schema over the languages offered; with <paramref name="bridge"/> the <c>code</c> property says how a script calls a tool, without it not a word (later on 2026-09-21). Pinned.</summary>
+    public static JsonElement SchemaFor(IReadOnlyList<string> languages, int defaultTimeout, bool bridge = true)
     {
         ArgumentNullException.ThrowIfNull(languages);
         string names = string.Join(", ", languages.Select(l => "\"" + l + "\""));
+        string code = bridge ? CodeDescriptionWithBridge : CodeDescriptionWithoutBridge;
         return ToolSchema.Parse(
             $$"""
             {
               "type": "object",
               "properties": {
                 "language": { "type": "string", "enum": [{{names}}], "description": "Which interpreter runs the script." },
-                "code": { "type": "string", "description": "The script. It can call this app's tools: Python `from neon_tools import call, read_file, run_command` (call('tool_name', arg=value) for any tool); Node `const neon = require('neon_tools'); await neon.call('tool_name', { arg: value })` inside neon.run(async () => { ... }); PowerShell `Invoke-NeonTool tool_name @{ arg = value }`. Every tool returns its text; print what you want back." },
+                "code": { "type": "string", "description": "{{code}}" },
                 "timeout": { "type": "integer", "description": "Seconds before the script is stopped, {{AppSettingsData.MinShellCodeTimeoutSeconds}} to {{AppSettingsData.MaxShellCodeTimeoutSeconds}} (default {{defaultTimeout}})." }
               },
               "required": ["language", "code"]
@@ -171,15 +190,21 @@ public sealed class ExecuteCodeTool : AIFunction
 
         string id = ShellRunner.NewId(_random, IdPrefix);
         string runFolder = Path.Combine(_runsFolder, id);
-        var files = CodeLaunch.Files(language, code, runFolder);
+        // The bridge (Shell tool bridge, later on 2026-09-21): off, no module is written, no server started and no address or token handed down — the script is on its own.
+        bool bridgeOn = effective.ShellToolBridge;
+        var files = CodeLaunch.Files(language, code, runFolder, bridgeOn);
         try
         {
             Directory.CreateDirectory(runFolder);
-            string modulePath = Path.Combine(runFolder, files.ModulePath);
-            Directory.CreateDirectory(Path.GetDirectoryName(modulePath)!);
             // A BOM for PowerShell alone: 5.1 reads a .ps1 without one as ANSI, and an é in the script would come out wrong; python and node take plain UTF-8.
             var encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: language == CodeLanguage.PowerShell);
-            File.WriteAllText(modulePath, files.ModuleText, encoding);
+            if (files.ModulePath is { } relative)
+            {
+                string modulePath = Path.Combine(runFolder, relative);
+                Directory.CreateDirectory(Path.GetDirectoryName(modulePath)!);
+                File.WriteAllText(modulePath, files.ModuleText, encoding);
+            }
+
             File.WriteAllText(Path.Combine(runFolder, files.ScriptName), files.ScriptText, encoding);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
@@ -189,11 +214,11 @@ public sealed class ExecuteCodeTool : AIFunction
 
         try
         {
-            await using var bridge = BridgeServer.Start(DispatchAsync, maxCalls);
+            await using var bridge = bridgeOn ? BridgeServer.Start(DispatchAsync, maxCalls) : null;
             ProcessSession session;
             try
             {
-                session = _runner.Start(CodeLaunch.For(language, executable, runFolder, files.ScriptName, workingDirectory, bridge.Address, bridge.Token, firstLine), id);
+                session = _runner.Start(CodeLaunch.For(language, executable, runFolder, files.ScriptName, workingDirectory, bridge?.Address, bridge?.Token, firstLine), id);
             }
             catch (ShellStartException ex)
             {
@@ -211,7 +236,7 @@ public sealed class ExecuteCodeTool : AIFunction
                 catch (OperationCanceledException)
                 {
                     session.Kill();
-                    DiagnosticLog.Info(ShellKinds.Category, ShellText.ScriptLogLine(name, firstLine, "cancelled after " + ShellText.Elapsed(session.Elapsed), bridge.Calls, session.Output.TotalChars));
+                    DiagnosticLog.Info(ShellKinds.Category, ShellText.ScriptLogLine(name, firstLine, "cancelled after " + ShellText.Elapsed(session.Elapsed), bridge?.Calls, session.Output.TotalChars));
                     throw;
                 }
 
@@ -221,7 +246,7 @@ public sealed class ExecuteCodeTool : AIFunction
                     await session.WaitAsync(RunCommandTool.KillGrace, CancellationToken.None).ConfigureAwait(false);
                 }
 
-                int calls = bridge.Calls;
+                int? calls = bridge?.Calls;
                 string header = exited
                     ? ShellText.ScriptExitHeader(name, session.ExitCode ?? -1, session.Elapsed, calls, firstLine)
                     : ShellText.ScriptTimedOutHeader(name, timeout, calls, firstLine);

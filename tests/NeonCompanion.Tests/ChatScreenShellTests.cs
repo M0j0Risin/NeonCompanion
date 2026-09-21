@@ -78,7 +78,7 @@ public partial class ChatScreenTests
         // The model: the tool after the git tools with its rule, the result under the call id.
         var offered = _chat.Options[0]!.Tools!.Cast<AIFunction>().Select(t => t.Name).ToList();
         Assert.Equal(offered.IndexOf(GitDeleteTool.ToolName) + 1, offered.IndexOf(RunCommandTool.ToolName));
-        Assert.Contains(Assistant.ShellRule, _chat.Requests[0][0].Text!, StringComparison.Ordinal);
+        Assert.Contains(Assistant.ShellRuleWithoutBridge, _chat.Requests[0][0].Text!, StringComparison.Ordinal);   // the bridge off by default (later on 2026-09-21)
         Assert.Equal(SkilledPrompt(false, [], web: true, ask: AskLimits.Default, markdown: true), _chat.Requests[1][0].Text);
         Assert.Equal("exit 0 in 0.0 s (cmd): echo hi\nhi", ToolResult(_chat.Requests[1], "c1"));
         Assert.Empty(_settings.Current.ShellCommandAllowed);
@@ -234,7 +234,7 @@ public partial class ChatScreenTests
     [Fact]
     public async Task ExecuteCode_ThePaneAsksForTheScript_AllowSession_RunsIt_AndTheNextScriptNeverAsks()
     {
-        _settings.Update(d => d.TtsOutput = false);
+        _settings.Update(d => { d.TtsOutput = false; d.ShellToolBridge = true; });   // the bridge on (later on 2026-09-21 it starts off): the script calls a tool
         _console.Profile.Height = 40;
         _geometry = new ScreenGeometry(() => null);
         string code = "$d = Invoke-NeonTool get_working_directory\nWrite-Output \"seen: $($d.Length -gt 0)\"";
@@ -273,6 +273,27 @@ public partial class ChatScreenTests
         Assert.DoesNotContain("seen: True\n", output);
         Assert.Contains(ExecuteCodeTool.ToolName, _chat.Options[0]!.Tools!.Cast<AIFunction>().Select(t => t.Name));
         Assert.Empty(_settings.Current.ShellCommandAllowed);
+        Assert.Contains(Assistant.ShellRule, _chat.Requests[0][0].Text!, StringComparison.Ordinal);   // the bridge on: the rule promises neon_tools
+    }
+
+    /// <summary>Shell tool bridge off (later on 2026-09-21, the default): the script runs on its own, the header has no tool-call clause, the rules and the tool never name neon_tools.</summary>
+    [Fact]
+    public async Task ExecuteCode_BridgeOff_RunsTheScriptAlone_AndNothingMentionsNeonTools()
+    {
+        _settings.Update(d => { d.TtsOutput = false; d.ShellCommandPolicy = "yolo"; });
+        _chat.Enqueue(FakeChatClient.Call("c1", ExecuteCodeTool.ToolName, new Dictionary<string, object?> { ["language"] = "powershell", ["code"] = "Write-Output \"bridge: [$env:NEONCOMPANION_BRIDGE_ADDRESS]\"" }));
+        _chat.EnqueueText("Ran.");
+        StepsWhenIdle(Line("script it"), Line("/exit"));
+
+        string output = await RunAsync();
+
+        Assert.Equal("exit 0 in 0.0 s (powershell): Write-Output \"bridge: [$env:NEONCOMPANION_BRIDGE_ADDRESS]\"\nbridge: []", ToolResult(_chat.Requests[1], "c1"));
+        Assert.Contains("⚙  exit 0 in 0.0 s (powershell): Write-Output \"bridge: [$env:NEONCOMPANION_BRIDGE_ADDRESS]\"\n", output);
+        var code = _chat.Options[0]!.Tools!.Cast<AIFunction>().Single(t => t.Name == ExecuteCodeTool.ToolName);
+        Assert.Equal(ExecuteCodeTool.DescriptionWithoutBridge, code.Description);
+        Assert.DoesNotContain("neon_tools", code.JsonSchema.GetRawText());
+        Assert.Contains(Assistant.ShellRuleWithoutBridge, _chat.Requests[0][0].Text!, StringComparison.Ordinal);
+        Assert.DoesNotContain("neon_tools", _chat.Requests[0][0].Text!, StringComparison.Ordinal);
     }
 
     /// <summary>The policy off: no shell tool offered, the rule gone, the group noted on /sysprompt and /tools (2026-09-21).</summary>
@@ -329,7 +350,7 @@ public partial class ChatScreenTests
 
         Assert.DoesNotContain(RunCommandTool.ToolName, _chat.Options[0]!.Tools!.Cast<AIFunction>().Select(t => t.Name));
         Assert.Contains(ProcessTool.ToolName, _chat.Options[0]!.Tools!.Cast<AIFunction>().Select(t => t.Name));
-        Assert.Contains(Assistant.ShellRule, _chat.Requests[0][0].Text!, StringComparison.Ordinal);
+        Assert.Contains(Assistant.ShellRuleWithoutBridge, _chat.Requests[0][0].Text!, StringComparison.Ordinal);   // the bridge off by default (later on 2026-09-21)
     }
 
     /// <summary>Without the pane nothing can ask: under ask the tool answers the no-screen sentence, the allow list still lets a prefix through.</summary>
