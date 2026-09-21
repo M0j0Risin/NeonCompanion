@@ -7268,6 +7268,44 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal("hi!", Assert.Single(_chat.Requests).Last(m => m.Role == ChatRole.User).Text);
     }
 
+    /// <summary>A double-click on the token tally at the idle line (2026-09-21) is /usage, not /settings: the Usage pane, the draft back under it; beside the tally the row is still the settings.</summary>
+    [Fact]
+    public async Task ADoubleClickOnTheTokenTally_OpensTheUsagePane_BesideIt_TheSettings()
+    {
+        _settings.Update(d => d.TtsOutput = false);
+        _console.Profile.Height = 40;
+        _console.Profile.Width = 240;
+        _geometry = new ScreenGeometry(() => null, () => 100);   // an empty line: row 100, the rule 101, the hint row 102
+        ReplyWithUsage();
+        StepsWhenIdle(
+            Line("hi"),
+            input =>
+            {
+                input.Push(Keys.Char('o'), Keys.Char('k'));
+                input.PushClick(3, 102);                         // "25 tokens · 3 tok/s" from column 0
+                input.PushClick(3, 102);
+            },
+            Key(Keys.Escape),                                    // the Usage pane closed
+            input =>
+            {
+                input.PushClick(60, 102);                        // past the tally: the row
+                input.PushClick(60, 102);
+            },
+            Key(Keys.Escape),                                    // the settings closed
+            input => input.Push(Keys.Char('!'), Keys.Enter),
+            Line("/exit"));
+
+        string output = await RunAsync();
+
+        Assert.StartsWith("25 tokens", UsageText.HintPart(_session.Usage, _session.ContextLength));
+        int usage = output.IndexOf("\n" + Titled("Usage   Tokens    Notes ") + "\n", StringComparison.Ordinal);
+        int settings = output.IndexOf("\n" + Titled("Settings   General    Sessions    LLM    TTS    STT ") + "\n", StringComparison.Ordinal);
+        Assert.True(usage > 0 && settings > usage, output);
+        Assert.DoesNotContain("› /usage", output);
+        Assert.Contains("› ok!", output);
+        Assert.Equal("ok!", _chat.Requests[1].Last(m => m.Role == ChatRole.User).Text);
+    }
+
     /// <summary>A double-click on the scroll's hint at the idle line (later on 2026-09-18) is Ctrl+End — the bottom again, the draft kept, no settings pane; with Mouse in menus off the clicks are nothing and the sent line takes the bottom.</summary>
     [Fact]
     public async Task ADoubleClickOnTheScrolledHint_AtIdle_IsTheBottomAgain_AndOpensNothing()
@@ -7679,7 +7717,11 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(new CwdAction(CwdActionKind.Reset, ""), ChatScreen.ParseCwdArgs(" ~ "));
         Assert.Equal(new CwdAction(CwdActionKind.Set, "~/x"), ChatScreen.ParseCwdArgs("~/x"));   // bare ~ only; ~/x is a path
         Assert.Equal(new CwdAction(CwdActionKind.Set, @"D:\my files"), ChatScreen.ParseCwdArgs(@" D:\my files "));
+        Assert.Equal(new CwdAction(CwdActionKind.Browse, ""), ChatScreen.ParseCwdArgs("browse"));     // the picker, 2026-09-21
+        Assert.Equal(new CwdAction(CwdActionKind.Browse, ""), ChatScreen.ParseCwdArgs(" Browse "));
+        Assert.Equal(new CwdAction(CwdActionKind.Set, "browse2"), ChatScreen.ParseCwdArgs("browse2"));
         Assert.Equal("~", ChatScreen.CwdHomeWord);
+        Assert.Equal("browse", ChatScreen.CwdBrowseWord);
         Assert.Equal(@"Working directory: D:\x  (profile folder)", ChatScreen.CwdNotice(@"D:\x", isDefault: true, null));
         Assert.Equal(@"Working directory: D:\x", ChatScreen.CwdNotice(@"D:\x", isDefault: false, null));
         Assert.Equal(@"Working directory: D:\x  (--cwd this launch)", ChatScreen.CwdNotice(@"D:\x", isDefault: true, "--cwd"));
@@ -7727,6 +7769,83 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains("  · Working directory: " + SettingsMenu.DefaultWorkingDirectoryLabel(_settings.ProfileDirectory), output);   // the reset notice
         Assert.Contains("  · " + ChatScreen.CwdNotice(defaultPath, true, null), output);
         Assert.Equal("", _settings.Current.WorkingDirectory);
+    }
+
+    /// <summary><c>/cwd browse</c> without the pane (a redirected console): the notice, nothing saved.</summary>
+    [Fact]
+    public async Task Cwd_Browse_WithoutThePane_NeedsTheScreen()
+    {
+        PushLine("/cwd browse");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains("  · " + FolderText.NeedsPaneNotice, output);
+        Assert.Equal("", _settings.Current.WorkingDirectory);
+        Assert.Empty(_chat.Requests);
+    }
+
+    /// <summary>
+    /// <c>/cwd browse</c> on the pane (2026-09-21): the tree opens on the directory in force (every folder above it
+    /// opened, hidden ones on the way listed anyway), ← steps onto its parent and Enter saves that through the
+    /// one save path; opened again, ESC keeps the directory and says so.
+    /// </summary>
+    [Fact]
+    public async Task Cwd_Browse_OnThePane_OpensOnTheDirectoryInForce_EnterSavesThePick_EscKeepsIt()
+    {
+        _settings.Update(d => d.TtsOutput = false);
+        _console.Profile.Height = 40;
+        _console.Profile.Width = 240;
+        _geometry = new ScreenGeometry(() => null, () => 100);
+        string elsewhere = Path.Combine(_dir, "elsewhere", "notes");
+        Directory.CreateDirectory(elsewhere);
+        _settings.Update(d => d.WorkingDirectory = elsewhere);
+        StepsWhenIdle(
+            Line("/cwd browse"),
+            input => input.Push(Keys.Left, Keys.Enter),          // onto elsewhere, chosen
+            Line("/cwd browse"),
+            Key(Keys.Escape),
+            Line("/cwd"),
+            Line("/exit"));
+
+        string output = await RunAsync();
+
+        string strip = FolderText.Title + "   " + FolderText.CollapseAllButton + " ";
+        Assert.Contains("\n" + Titled(strip) + "\n" + elsewhere + "\n", output);                  // the path row: the cursor on the directory in force
+        Assert.Contains("\n" + Titled(strip) + "\n" + Path.GetDirectoryName(elsewhere) + "\n", output);
+        Assert.Contains("  · Working directory: " + Path.GetDirectoryName(elsewhere) + "\n", output);   // the saved notice, from the menu
+        Assert.Contains("  · " + FolderText.KeptNotice + "\n", output);
+        Assert.Contains("  · " + ChatScreen.CwdNotice(Path.GetDirectoryName(elsewhere)!, false, null), output);
+        Assert.Equal(Path.GetDirectoryName(elsewhere), _settings.Current.WorkingDirectory);
+        Assert.Empty(_chat.Requests);
+    }
+
+    /// <summary>The profile's own <c>files</c> folder heads the tree as <c>⌂ profile</c> (later on 2026-09-21): the cursor is there when the directory in force is the default, and Enter on it saves the default — the reset, as <c>~</c> — not a full path.</summary>
+    [Fact]
+    public async Task Cwd_Browse_TheProfileRow_HeadsTheTree_AndPickingIt_IsTheReset()
+    {
+        _settings.Update(d => d.TtsOutput = false);
+        _console.Profile.Height = 40;
+        _console.Profile.Width = 240;
+        _geometry = new ScreenGeometry(() => null, () => 100);
+        string elsewhere = Path.Combine(_dir, "elsewhere", "notes");
+        Directory.CreateDirectory(elsewhere);
+        _settings.Update(d => d.WorkingDirectory = elsewhere);
+        StepsWhenIdle(
+            Line("/cwd ~"),
+            Line("/cwd browse"),
+            Key(Keys.Enter),                                   // the profile row, chosen: the default again
+            Line("/exit"));
+
+        string output = await RunAsync();
+
+        string defaultPath = Path.Combine(_settings.ProfileDirectory, WorkingDirectory.DefaultFolderName);
+        string strip = FolderText.Title + "   " + FolderText.CollapseAllButton + " ";
+        Assert.True(Directory.Exists(defaultPath));
+        Assert.Contains("\n" + Titled(strip) + "\n" + defaultPath + "\n" + MenuPane.Pointer + FolderText.CollapsedGlyph + " " + FolderText.ShortcutGlyph + " " + FolderText.ProfileLabel + "\n" + MenuPane.NoPointer + FolderText.CollapsedGlyph + " ", output);
+        Assert.Equal(2, output.Split("  · Working directory: " + SettingsMenu.DefaultWorkingDirectoryLabel(_settings.ProfileDirectory)).Length - 1);   // ~, then the pick
+        Assert.Equal("", _settings.Current.WorkingDirectory);
+        Assert.Empty(_chat.Requests);
     }
 
     // ── /emptytrash, /window ────────────────────────────────────────────────
@@ -8588,6 +8707,36 @@ public partial class ChatScreenTests : IDisposable
         // The first delta has streamed by then: the row reads the writing stage.
         Assert.Contains(" " + ScreenPane.BusyRow(TurnStages.WritingLabel, TimeSpan.Zero, InfoPane.HintText), output);
         Assert.True(pane < output.LastIndexOf("three.", StringComparison.Ordinal));
+        Assert.DoesNotContain(ChatScreen.CancelledNotice, output);
+        Assert.Single(_chat.Requests);
+        Assert.Equal(1, _session.History.TurnCount);
+    }
+
+    /// <summary>A double-click on the spinner and its label during a reply (2026-09-21) is /usage through the watcher's click hook: the Usage pane under the busy row, ESC closes it, the reply runs on.</summary>
+    [Fact]
+    public async Task MidTurn_ADoubleClickOnTheSpinner_OpensTheUsagePane_EscClosesIt_TheReplyRunsOn()
+    {
+        MidTurnFixture(i =>
+        {
+            if (i == 1)
+            {
+                Scripted().PushClick(3, 102);                    // "⠋ thinking 00:00" from column 0: the busy row at 102
+                Scripted().PushClick(3, 102);
+            }
+            else if (i == 2)
+            {
+                Scripted().Push(Keys.Escape);
+            }
+        });
+        _geometry = new ScreenGeometry(() => null, () => 100);   // MidTurnFixture's own geometry has no cursor row
+
+        string output = await RunAsync();
+
+        output = string.Join("\n", output.Split('\n').Select(l => l.TrimEnd()));
+        int pane = output.IndexOf("\n" + Titled("Usage   Tokens    Notes ") + "\n", StringComparison.Ordinal);
+        Assert.True(pane > 0, output);
+        Assert.True(pane < output.LastIndexOf("three.", StringComparison.Ordinal));
+        Assert.DoesNotContain("› /usage", output);
         Assert.DoesNotContain(ChatScreen.CancelledNotice, output);
         Assert.Single(_chat.Requests);
         Assert.Equal(1, _session.History.TurnCount);
@@ -13690,7 +13839,8 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(["stop all"], Texts(ChatScreen.ArgumentItems("/timer", "stop ", Sources())));
         Assert.Empty(ChatScreen.ArgumentItems("/timer", "5m", sources));
 
-        Assert.Equal([new CompletionItem("~", ChatScreen.CwdDefaultNote)], ChatScreen.ArgumentItems("/cwd", "", sources));
+        Assert.Equal([new CompletionItem("~", ChatScreen.CwdDefaultNote), new CompletionItem("browse", FolderText.BrowseNote)], ChatScreen.ArgumentItems("/cwd", "", sources));
+        Assert.Equal([new CompletionItem("browse", FolderText.BrowseNote)], ChatScreen.ArgumentItems("/cwd", "br", sources));
         Assert.Empty(ChatScreen.ArgumentItems("/cwd", "D:", sources));
         Assert.Equal(["docs/", "docs/tools/"], Texts(ChatScreen.ArgumentItems("/tree", "d", sources)));   // the sandbox's folders, a full-path prefix
         Assert.Equal(["test/"], Texts(ChatScreen.ArgumentItems("/explore", "t", sources)));

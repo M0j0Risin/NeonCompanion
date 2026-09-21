@@ -2403,6 +2403,80 @@ public class ScreenPaneTests : IDisposable
         Assert.Equal(ScreenPane.HintZone.Row, hit.Zone);
     }
 
+    /// <summary>The usage zone (2026-09-21): the cells the tally takes on the drawn standing row, behind the trailer and the queued part; nowhere when the hint does not carry it (the timers in its place), when it is cut, or under the busy row's scroll.</summary>
+    [Fact]
+    public void HintHitAt_TheUsageZone_IsTheTallysCells()
+    {
+        Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Usage, "", 5), ScreenPane.HintHitAt("🔊", 30, -1, 0, 5, 11, 5));
+        Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Usage, "", 5), ScreenPane.HintHitAt("🔊", 30, -1, 0, 5, 11, 15));
+        Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Row, "", -1), ScreenPane.HintHitAt("🔊", 30, -1, 0, 5, 11, 16));
+        Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Row, "", -1), ScreenPane.HintHitAt("🔊", 30, -1, 0, 5, 11, 4));
+        Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Strip, "🔊", 0), ScreenPane.HintHitAt("🔊", 30, -1, 0, 5, 11, 1));
+        Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Trailer, "", 30), ScreenPane.HintHitAt("🔊", 30, -1, 0, 5, 11, 30));
+        Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Queued, "", 3), ScreenPane.HintHitAt("🔊", 30, 3, 8, 5, 11, 6));   // the queued part first
+        Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Scrolled, "", -1), ScreenPane.HintHitAt("🔊", 30, -1, 0, -1, 0, 6, scrolled: true));
+        Assert.Equal(ScreenPane.HintHitAt("🔊", 30, 5, 11, 15), ScreenPane.HintHitAt("🔊", 30, 5, 11, -1, 0, 15));
+    }
+
+    /// <summary>The drawn rows: the tally the Usage delegate names is its zone where HintText put it; the timers in its place, or an empty tally, leave the row; the busy row's spinner and label are the zone too, the rest of that row the row.</summary>
+    [Fact]
+    public void TryHitHint_NamesUsage_OnTheTally_AndOnTheBusyRowsSpinner()
+    {
+        _cursorTop = 100;
+        using var pane = Pane();
+        string usage = "1.2k / 4.1k · 30%";
+        pane.Hint = () => usage;
+        pane.Usage = () => usage;
+        pane.Strip = () => "🔊";
+        pane.Trailer = () => "llama";
+        pane.Show();
+        pane.ShowInput("abc", 3);
+        Assert.True(pane.TryHitHint(0, 102, out var hit));
+        Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Strip, "🔊", 0), hit);
+        Assert.True(pane.TryHitHint(4, 102, out hit));    // the separator
+        Assert.Equal(ScreenPane.HintZone.Row, hit.Zone);
+        Assert.True(pane.TryHitHint(5, 102, out hit));    // the 1 of 1.2k: "🔊 · " is five cells
+        Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Usage, "", 5), hit);
+        Assert.True(pane.TryHitHint(21, 102, out hit));   // the %
+        Assert.Equal(ScreenPane.HintZone.Usage, hit.Zone);
+        Assert.True(pane.TryHitHint(22, 102, out hit));
+        Assert.Equal(ScreenPane.HintZone.Row, hit.Zone);
+        Assert.True(pane.TryHitHint(34, 102, out hit));
+        Assert.Equal(ScreenPane.HintZone.Trailer, hit.Zone);
+
+        // The timers took the tally's place: no zone.
+        pane.Hint = () => "⏳ tea 04:59";
+        pane.RefreshHint();
+        Assert.True(pane.TryHitHint(6, 102, out hit));
+        Assert.Equal(ScreenPane.HintZone.Row, hit.Zone);
+
+        // Nothing counted yet: no zone.
+        pane.Hint = () => "";
+        pane.Usage = () => "";
+        pane.RefreshHint();
+        Assert.True(pane.TryHitHint(6, 102, out hit));
+        Assert.Equal(ScreenPane.HintZone.Row, hit.Zone);
+
+        // The busy row: "🔊 · " then the frame and " thinking 00:00" (sixteen cells) are the zone, the blank after them the row.
+        pane.Hint = () => usage;
+        pane.Usage = () => usage;
+        using (pane.BeginBusy("thinking"))
+        {
+            Assert.True(pane.TryHitHint(0, 102, out hit));
+            Assert.Equal(ScreenPane.HintZone.Row, hit.Zone);   // the busy row records no strip
+            Assert.True(pane.TryHitHint(5, 102, out hit));
+            Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Usage, "", 5), hit);
+            Assert.True(pane.TryHitHint(20, 102, out hit));
+            Assert.Equal(ScreenPane.HintZone.Usage, hit.Zone);
+            Assert.True(pane.TryHitHint(21, 102, out hit));
+            Assert.Equal(ScreenPane.HintZone.Row, hit.Zone);
+        }
+
+        // The standing row again after the turn.
+        Assert.True(pane.TryHitHint(5, 102, out hit));
+        Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Usage, "", 5), hit);
+    }
+
     [Fact]
     public void HintHitAt_WhileScrolled_TheRowIsTheScrolledZone_TheStripAndTrailerKept()
     {
@@ -2439,15 +2513,20 @@ public class ScreenPaneTests : IDisposable
         Assert.True(pane.TryHitHint(38, 102, out hit));  // the model name too
         Assert.Equal(ScreenPane.HintZone.Trailer, hit.Zone);
 
-        // The busy row carries the scroll's hint as well; its strip and trailer are nobody's, so the whole row is Scrolled.
+        // The busy row carries the scroll's hint as well; its strip and trailer are nobody's, so the whole row is Scrolled —
+        // the spinner and its label included (their Usage zone, 2026-09-21, is the bottom's alone).
         using (pane.BeginBusy("thinking"))
         {
             Assert.True(pane.TryHitHint(0, 102, out hit));
+            Assert.Equal(ScreenPane.HintZone.Scrolled, hit.Zone);
+            Assert.True(pane.TryHitHint(8, 102, out hit));
             Assert.Equal(ScreenPane.HintZone.Scrolled, hit.Zone);
             Assert.True(pane.TryHitHint(38, 102, out hit));
             Assert.Equal(ScreenPane.HintZone.Scrolled, hit.Zone);
             pane.ScrollToEnd();
             Assert.True(pane.TryHitHint(8, 102, out hit));
+            Assert.Equal(ScreenPane.HintZone.Usage, hit.Zone);
+            Assert.True(pane.TryHitHint(30, 102, out hit));
             Assert.Equal(ScreenPane.HintZone.Row, hit.Zone);
         }
 

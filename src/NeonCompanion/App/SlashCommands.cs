@@ -70,7 +70,7 @@ public enum SlashCommand
     /// <summary><c>/timer</c>: list the timers, start one, stop one or all.</summary>
     Timer,
 
-    /// <summary><c>/cwd</c>: show the working directory, or <c>/cwd &lt;path&gt;</c> | <c>~</c> (<c>default</c> went 2026-09-16).</summary>
+    /// <summary><c>/cwd</c>: show the working directory, or <c>/cwd &lt;path&gt;</c> | <c>~</c> (<c>default</c> went 2026-09-16) | <c>browse</c> (the folder picker on the pane, 2026-09-21).</summary>
     Cwd,
 
     /// <summary><c>/tree</c>: a tree of the working directory's folders and files, or <c>/tree &lt;path&gt;</c> for a folder under it.</summary>
@@ -198,7 +198,7 @@ public static class SlashCommands
             new("/memcopy", "copy this profile's memory into another: /memcopy <profile> [overwrite]"),
         ],
         [
-            new("/cwd", "show or change the working directory, or /cwd <path> | ~"),
+            new("/cwd", "show or change the working directory, or /cwd <path> | ~ | browse"),
             new("/tree", "print a tree of the working directory's folders and files, or /tree <path>"),
             new("/explore", "open the working directory in your file browser, or /explore <path>"),
             new("/emptytrash", "empty the working directory's .trash for good (asks first)"),
@@ -282,6 +282,9 @@ public static class SlashCommands
 
     /// <summary>The <c>/queue</c> word: what a double-click on the hint row's queued part sends through the mid-turn line hook, so the pane opens exactly as the typed command's does (2026-09-18). Pinned.</summary>
     public const string QueueWord = "/queue";
+
+    /// <summary>The <c>/usage</c> word: what a double-click on the busy row's spinner and label sends through the mid-turn line hook (2026-09-21), the Usage pane under the reply as the typed command's. Pinned.</summary>
+    public const string UsageWord = "/usage";
 
     /// <summary>Classifies <paramref name="line"/>; <c>Args</c> is the trimmed remainder — meaningful for the commands <see cref="TakesArgument"/> names, and carried by <see cref="SlashCommand.Overloaded"/> for the error line.</summary>
     public static (SlashCommand Command, string Args) Parse(string line)

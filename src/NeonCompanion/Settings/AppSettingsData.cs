@@ -700,6 +700,14 @@ public sealed class AppSettingsData
     public string FileMentionFolderMode { get; set; } = Files.MentionFolderMode.Default;
 
     /// <summary>
+    /// What the <c>/cwd browse</c> folder tree lists (2026-09-21, the user's ask): <c>default</c>
+    /// leaves out hidden and system folders and dot-folders, Explorer's and Finder's default;
+    /// <c>show-hidden</c> lists them too. One of <see cref="Files.FileBrowserMode.Names"/>; anything
+    /// else reads as <see cref="Files.FileBrowserMode.Default"/>. No variable.
+    /// </summary>
+    public string FileBrowserMode { get; set; } = Files.FileBrowserMode.Default;
+
+    /// <summary>
     /// Whether an edit keeps the previous version (2026-09-17): <c>patch_file</c> and a <c>write_file</c> that
     /// replaces or appends a file that exists copy it into
     /// <c>.trash</c> first, so <c>restore</c> with <c>overwrite</c> undoes the change; a replacing <c>move</c>,

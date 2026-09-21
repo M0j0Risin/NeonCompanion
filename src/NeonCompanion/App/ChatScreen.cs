@@ -134,6 +134,9 @@ public enum CwdActionKind
 
     /// <summary>A path.</summary>
     Set,
+
+    /// <summary><c>browse</c> (2026-09-21): the folder picker on the pane.</summary>
+    Browse,
 }
 
 /// <summary><see cref="Path"/> is set for <see cref="CwdActionKind.Set"/>.</summary>
@@ -321,6 +324,9 @@ internal sealed partial class ChatScreen
     /// <summary>The <c>/cwd</c> word that clears the setting back to the profile's own folder: the shell's home word, bare only (<c>~/x</c> is a path). <c>default</c> was a second word until 2026-09-16 (the user's call); it reads as a relative path now, which the save refuses.</summary>
     public const string CwdHomeWord = "~";
 
+    /// <summary>The <c>/cwd</c> word that opens the folder picker (<see cref="FolderPane"/>, 2026-09-21); case folded.</summary>
+    public const string CwdBrowseWord = "browse";
+
     /// <summary>The <c>/copy</c> word for every exchange.</summary>
     public const string CopyAllWord = "all";
     public const string CopyUsageError = "/copy copies the last reply; /copy <n> the last n; /copy all every one.";
@@ -409,6 +415,7 @@ internal sealed partial class ChatScreen
     private readonly TranscriptRenderer _transcript;
     private readonly InputLine _input;
     private readonly InfoPane _info;
+    private readonly FolderPane _folderPane;
     private readonly MenuPane _menuPane;
     private readonly SettingsMenu _menu;
 
@@ -703,6 +710,9 @@ internal sealed partial class ChatScreen
             // The queued count after the row's lead in both states (2026-09-18): the pane draws it
             // and records where, so a double-click on it can open /queue mid-turn and at idle.
             Queued = () => _queue.Count is > 0 and var queued ? QueuedHintPart(queued) : "",
+            // The tally as HintText carries it (2026-09-21): the pane finds it in the drawn row and
+            // records where, so a double-click on it (or on the spinner under a turn) opens /usage.
+            Usage = () => UsageText.HintPart(_session.Usage, _session.ContextLength) ?? "",
             Placeholder = InputPlaceholder,
             // A pane's × close glyph only while the pane holds the mouse (2026-09-18): the same
             // setting the panes' mouse hook reads, so an unclickable button is never drawn.
@@ -727,6 +737,7 @@ internal sealed partial class ChatScreen
             holdWheel?.Invoke(hold);
         };
         _info = new InfoPane(_pane, keys, menuMouse);
+        _folderPane = new FolderPane(_pane, keys, menuMouse);
         _menuPane = new MenuPane(_pane, keys, menuMouse);
         // The question tool's pane and the tool itself: built always (the /sys Tools tab
         // lists it either way), offered only while the setting Ask user and the pane say so (RunTurnAsync).
@@ -1030,6 +1041,25 @@ internal sealed partial class ChatScreen
         new(UsageText.NotesTabTitle, UsageText.NotesTab),
     ];
 
+    /// <summary>
+    /// <c>/usage</c>: the pane on <see cref="UsageTabs"/>, or — with no pane to open (a redirected
+    /// console) — the tally in the transcript. The typed command's path and, since 2026-09-21, the
+    /// double-click's on the hint row's tally (<see cref="ScreenPane.HintZone.Usage"/>).
+    /// </summary>
+    private async Task ShowUsageAsync(CancellationToken cancellationToken)
+    {
+        if (_pane.Enabled)
+        {
+            await _info.ShowAsync(UsageText.Label, UsageTabs(), 0, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        foreach (var line in UsageText.Lines(_session.Usage, _session.ContextLength))
+        {
+            _transcript.Notice(line);
+        }
+    }
+
     /// <summary>The tabs <c>/about</c> opens: the app and its folders (read when shown: a profile switch moves one), the third-party parts, the licence.</summary>
     private IReadOnlyList<InfoTab> AboutTabs() =>
     [
@@ -1118,8 +1148,10 @@ internal sealed partial class ChatScreen
     /// the idle row's) answer <see cref="SlashCommands.QueueWord"/>, which the line hook runs as the
     /// typed command — the Queue pane; two on the scroll's hint (<see cref="ScreenPane.HintZone.Scrolled"/>,
     /// later that day) are the bottom again, as Ctrl+End through <see cref="ScrollInput"/> — spent
-    /// here, nothing answered. Any other click ends a pair. Every watcher passes it (a reply, a
-    /// compact, a recording): the queue word answered without a line hook is dropped.
+    /// here, nothing answered; two on the spinner and its label (<see cref="ScreenPane.HintZone.Usage"/>,
+    /// 2026-09-21) answer <see cref="SlashCommands.UsageWord"/> — the Usage pane under the reply.
+    /// Any other click ends a pair. Every watcher passes it (a reply, a
+    /// compact, a recording): a word answered without a line hook is dropped.
     /// </summary>
     private string? HintClickLine(InputEvent.Click click)
     {
@@ -1138,6 +1170,11 @@ internal sealed partial class ChatScreen
                 }
 
                 return null;
+            }
+
+            if (hit.Zone == ScreenPane.HintZone.Usage)
+            {
+                return _queuedClicks.Second(2) ? SlashCommands.UsageWord : null;
             }
         }
 
@@ -2061,7 +2098,7 @@ internal sealed partial class ChatScreen
             }
 
             case SlashCommand.Cwd:
-                return MentionCompleter.Matches([new(CwdHomeWord, CwdDefaultNote)], argText);
+                return MentionCompleter.Matches([new(CwdHomeWord, CwdDefaultNote), new(CwdBrowseWord, FolderText.BrowseNote)], argText);
 
             case SlashCommand.Tree or SlashCommand.Explore:
                 return MentionCompleter.Matches(sources.Folders(argText).Select(folder => new CompletionItem(folder, "")).ToList(), argText);
@@ -3461,7 +3498,7 @@ internal sealed partial class ChatScreen
 
     // ── /cwd ────────────────────────────────────────────────────────────────
 
-    /// <summary>The <c>/cwd</c> grammar, pure: nothing ⇒ show; <c>~</c> ⇒ reset; anything else ⇒ that path.</summary>
+    /// <summary>The <c>/cwd</c> grammar, pure: nothing ⇒ show; <c>~</c> ⇒ reset; <c>browse</c> (any case) ⇒ the picker; anything else ⇒ that path.</summary>
     public static CwdAction ParseCwdArgs(string args)
     {
         string text = (args ?? "").Trim();
@@ -3470,8 +3507,8 @@ internal sealed partial class ChatScreen
             return new(CwdActionKind.Show, "");
         }
 
-        return text == CwdHomeWord
-            ? new(CwdActionKind.Reset, "")
+        return text == CwdHomeWord ? new(CwdActionKind.Reset, "")
+            : string.Equals(text, CwdBrowseWord, StringComparison.OrdinalIgnoreCase) ? new(CwdActionKind.Browse, "")
             : new(CwdActionKind.Set, text);
     }
 
@@ -3483,15 +3520,21 @@ internal sealed partial class ChatScreen
     /// <summary>
     /// <c>/cwd</c>: show the directory in force, or save one through the settings menu's one save
     /// path (<see cref="SettingsMenu.TrySaveWorkingDirectory"/>: created now, saved full; the
-    /// menu prints the saved notice and, under <c>--cwd</c>, the override warning).
+    /// menu prints the saved notice and, under <c>--cwd</c>, the override warning) — typed, or
+    /// picked on the <see cref="FolderPane"/> (<c>browse</c>, 2026-09-21): the tree opens on the
+    /// directory in force, lists what <c>File browser mode</c> allows, and a pick is the typed
+    /// path's save; nothing picked keeps the directory and says so. The profile's own <c>files</c>
+    /// folder heads the tree as <c>profile</c> (later that day, the user's ask), created now so it
+    /// opens; picked, it is the reset — an empty setting, as <c>~</c> saves — so the directory
+    /// keeps following the profile.
     /// </summary>
-    private void HandleCwd(string args)
+    private async Task HandleCwdAsync(string args, CancellationToken cancellationToken)
     {
         var action = ParseCwdArgs(args);
+        var effective = _effective();
         switch (action.Kind)
         {
             case CwdActionKind.Show:
-                var effective = _effective();
                 _transcript.Notice(CwdNotice(
                     WorkingDirectory.Resolve(effective.WorkingDirectory, _settings.ProfileDirectory),
                     WorkingDirectory.IsDefault(effective.WorkingDirectory),
@@ -3500,6 +3543,37 @@ internal sealed partial class ChatScreen
 
             case CwdActionKind.Reset:
                 if (_menu.TrySaveWorkingDirectory(""))
+                {
+                    ForgetReading();
+                }
+
+                break;
+
+            case CwdActionKind.Browse:
+                if (!_folderPane.Enabled)
+                {
+                    _transcript.Notice(FolderText.NeedsPaneNotice);
+                    break;
+                }
+
+                string profileFiles = WorkingDirectory.Resolve("", _settings.ProfileDirectory);
+                try
+                {
+                    Directory.CreateDirectory(profileFiles);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    // Left to the tree: the row opens as denied.
+                }
+
+                var tree = new FolderTree(new FileSystemFolders(FileBrowserMode.Resolve(effective)), [new FolderShortcut(FolderText.ProfileLabel, profileFiles)]);
+                int cursor = tree.ExpandTo(WorkingDirectory.Resolve(effective.WorkingDirectory, _settings.ProfileDirectory));
+                string? picked = await _folderPane.PickAsync(tree, cursor, cancellationToken).ConfigureAwait(false);
+                if (picked is null)
+                {
+                    _transcript.Notice(FolderText.KeptNotice);
+                }
+                else if (_menu.TrySaveWorkingDirectory(string.Equals(picked, profileFiles, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal) ? "" : picked))
                 {
                     ForgetReading();
                 }
@@ -4421,7 +4495,7 @@ internal sealed partial class ChatScreen
                         // command were sent — the tail silenced, the timers acknowledged — without
                         // the transcript row or the history; the draft comes back after: the model
                         // name is /model, the brain the reflection's cancel, a speech glyph its
-                        // switch off, anywhere else /settings.
+                        // switch off, the token tally /usage (2026-09-21), anywhere else /settings.
                         _timers.Acknowledge();
                         DisarmExit();
                         await _speech.StopAsync().ConfigureAwait(false);
@@ -4446,6 +4520,10 @@ internal sealed partial class ChatScreen
                         {
                             // The held count (2026-09-18): /queue, as the typed command.
                             await _queueMenu.ShowAsync(cancellationToken).ConfigureAwait(false);
+                        }
+                        else if (hint.Hit.Zone == ScreenPane.HintZone.Usage)
+                        {
+                            await ShowUsageAsync(cancellationToken).ConfigureAwait(false);
                         }
                         else
                         {
@@ -5651,7 +5729,7 @@ internal sealed partial class ChatScreen
                 return false;
 
             case SlashCommand.Cwd:
-                HandleCwd(args);
+                await HandleCwdAsync(args, cancellationToken).ConfigureAwait(false);
                 return false;
 
             case SlashCommand.Tree:
@@ -5695,18 +5773,7 @@ internal sealed partial class ChatScreen
                 return false;
 
             case SlashCommand.Usage:
-                if (_pane.Enabled)
-                {
-                    await _info.ShowAsync(UsageText.Label, UsageTabs(), 0, cancellationToken).ConfigureAwait(false);
-                    return false;
-                }
-
-                // No pane to open (a redirected console): the tally in the transcript.
-                foreach (var line in UsageText.Lines(_session.Usage, _session.ContextLength))
-                {
-                    _transcript.Notice(line);
-                }
-
+                await ShowUsageAsync(cancellationToken).ConfigureAwait(false);
                 return false;
 
             case SlashCommand.Tools:

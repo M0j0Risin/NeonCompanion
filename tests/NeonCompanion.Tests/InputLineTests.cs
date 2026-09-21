@@ -58,7 +58,8 @@ public class InputLineTests : IDisposable
         Assert.Equal(3, InputLine.HintPairKey(new ScreenPane.HintHit(ScreenPane.HintZone.Queued, "", 5)));
         Assert.Equal(8, InputLine.HintPairKey(new ScreenPane.HintHit(ScreenPane.HintZone.Strip, "🔊", 0)));
         Assert.Equal(11, InputLine.HintPairKey(new ScreenPane.HintHit(ScreenPane.HintZone.Strip, "🎤", 3)));
-        var keys = new[] { ScreenPane.HintZone.Row, ScreenPane.HintZone.Strip, ScreenPane.HintZone.Trailer, ScreenPane.HintZone.Queued }
+        Assert.Equal(5, InputLine.HintPairKey(new ScreenPane.HintHit(ScreenPane.HintZone.Usage, "", 0)));   // last in the enum (2026-09-21), the keys above unmoved
+        var keys = new[] { ScreenPane.HintZone.Row, ScreenPane.HintZone.Strip, ScreenPane.HintZone.Trailer, ScreenPane.HintZone.Queued, ScreenPane.HintZone.Scrolled, ScreenPane.HintZone.Usage }
             .Select(zone => InputLine.HintPairKey(new ScreenPane.HintHit(zone, "", zone == ScreenPane.HintZone.Strip ? 0 : -1))).ToList();
         Assert.Equal(keys.Count, keys.Distinct().Count());
     }

@@ -492,7 +492,7 @@ public class SlashCommandsTests
         Assert.Contains(Row("/memory", "list and prune memory items"), SlashCommands.HelpText);
         Assert.Contains(Row("/forget", "forget all memory"), SlashCommands.HelpText);
         Assert.Contains(Row("/memcopy", "copy this profile's memory into another: /memcopy <profile> [overwrite]"), SlashCommands.HelpText);
-        Assert.Contains(Row("/cwd", "show or change the working directory, or /cwd <path> | ~"), SlashCommands.HelpText);
+        Assert.Contains(Row("/cwd", "show or change the working directory, or /cwd <path> | ~ | browse"), SlashCommands.HelpText);
         Assert.Contains(Row("/tree", "print a tree of the working directory's folders and files, or /tree <path>"), SlashCommands.HelpText);
         Assert.Contains(Row("/explore", "open the working directory in your file browser, or /explore <path>"), SlashCommands.HelpText);
         Assert.Contains(Row("/emptytrash", "empty the working directory's .trash for good (asks first)"), SlashCommands.HelpText);

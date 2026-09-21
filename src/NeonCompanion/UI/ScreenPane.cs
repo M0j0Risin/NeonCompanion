@@ -165,6 +165,7 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
     private int _frame;
     private string _shownHint = "";
     private Func<string> _queued = () => "";
+    private Func<string> _usage = () => "";
 
     // The overlay (the info pane, the menus): drawn where the input row is, the cursor hidden
     // meanwhile — or, with an input slot, above the input rows, the cursor on them.
@@ -196,6 +197,13 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
     private int _queuedColumn = -1;
     private int _queuedCells;
 
+    // The usage zone (HintZone.Usage, 2026-09-21) as last drawn, in either row: the token tally
+    // (Usage) on the standing row, the spinner and its label on the busy row — its first column
+    // and its width in cells, −1 / 0 when none was drawn (nothing counted, the timers or the exit
+    // hint in the tally's place, cut by a narrow window, or under an overlay's or the scroll's hint).
+    private int _usageColumn = -1;
+    private int _usageCells;
+
     // Whether the hint row as last drawn (either row) carried the scroll's hint (ScrolledHint):
     // then every hit that is neither a strip glyph nor the trailer is Scrolled, not the row.
     private bool _hintScrolled;
@@ -223,6 +231,13 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
         /// so a double-click there is the bottom again, as Ctrl+End is.
         /// </summary>
         Scrolled,
+
+        /// <summary>
+        /// The token tally on the standing row (<see cref="Usage"/>), or the spinner and its label
+        /// on the busy row (2026-09-21, the user's ask): a double-click on either opens <c>/usage</c>.
+        /// Last so <c>InputLine.HintPairKey</c>'s values stand.
+        /// </summary>
+        Usage,
     }
 
     /// <summary>Where on the hint row a click landed: the zone, the strip glyph under it (<c>""</c> elsewhere) and the zone's first column (−1 for the row).</summary>
@@ -338,6 +353,18 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
     {
         get => _queued;
         set => _queued = value ?? throw new ArgumentNullException(nameof(value));
+    }
+
+    /// <summary>
+    /// The token tally as it stands in the screen's hint (2026-09-21): not drawn by the pane —
+    /// <see cref="Hint"/> carries it — but looked for in the drawn standing row so its cells are
+    /// <see cref="HintZone.Usage"/> for the double-click that opens <c>/usage</c>; empty, or absent
+    /// from the row (the timers or the exit hint in its place), = no zone. Read like <see cref="Strip"/>.
+    /// </summary>
+    public Func<string> Usage
+    {
+        get => _usage;
+        set => _usage = value ?? throw new ArgumentNullException(nameof(value));
     }
 
     /// <summary>
@@ -2012,8 +2039,10 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
     /// <see cref="TryHitHint(int, int)"/> naming the part of the row under the click
     /// (2026-09-18): <see cref="HintZone.Strip"/> with the speech glyph and its first column,
     /// <see cref="HintZone.Trailer"/> over the model name and its reasoning mark at the right
-    /// edge, <see cref="HintZone.Row"/> anywhere else — the separators between the glyphs included.
-    /// The zones are those of the standing row as last drawn; under the busy row every hit is the row.
+    /// edge, <see cref="HintZone.Usage"/> over the token tally (2026-09-21), <see cref="HintZone.Row"/>
+    /// anywhere else — the separators between the glyphs included.
+    /// The zones are those of the standing row as last drawn; under the busy row the spinner and
+    /// its label are <see cref="HintZone.Usage"/> and every other hit is the row.
     /// While the transcript is scrolled (either row) the row is <see cref="HintZone.Scrolled"/>
     /// instead — the strip and the trailer keep their zones — so a double-click on the scroll's
     /// hint is the bottom again; <c>/settings</c> from the row waits for the bottom.
@@ -2038,7 +2067,7 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
                 return false;
             }
 
-            hit = HintHitAt(_hintStrip, _trailerColumn, _busyLabel is null ? _queuedColumn : -1, _queuedCells, x, _hintScrolled);
+            hit = HintHitAt(_hintStrip, _trailerColumn, _busyLabel is null ? _queuedColumn : -1, _queuedCells, _usageColumn, _usageCells, x, _hintScrolled);
             return true;
         }
     }
@@ -2080,7 +2109,17 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
     /// (the row drawn with <see cref="ScrolledHint"/>) what would be the row is
     /// <see cref="HintZone.Scrolled"/>. Pinned.
     /// </summary>
-    public static HintHit HintHitAt(string strip, int trailerColumn, int queuedColumn, int queuedCells, int x, bool scrolled = false)
+    public static HintHit HintHitAt(string strip, int trailerColumn, int queuedColumn, int queuedCells, int x, bool scrolled = false) =>
+        HintHitAt(strip, trailerColumn, queuedColumn, queuedCells, -1, 0, x, scrolled);
+
+    /// <summary>
+    /// <see cref="HintHitAt(string, int, int, int, int, bool)"/> with the usage zone's place
+    /// (2026-09-21): the <paramref name="usageCells"/> from <paramref name="usageColumn"/> (−1 for
+    /// none) are <see cref="HintZone.Usage"/>, its first column the hit's — the token tally on the
+    /// standing row, the spinner and its label on the busy row; behind the trailer and the queued
+    /// part, ahead of the strip. Pinned.
+    /// </summary>
+    public static HintHit HintHitAt(string strip, int trailerColumn, int queuedColumn, int queuedCells, int usageColumn, int usageCells, int x, bool scrolled = false)
     {
         ArgumentNullException.ThrowIfNull(strip);
         if (trailerColumn >= 0 && x >= trailerColumn)
@@ -2091,6 +2130,11 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
         if (queuedColumn >= 0 && x >= queuedColumn && x < queuedColumn + queuedCells)
         {
             return new HintHit(HintZone.Queued, "", queuedColumn);
+        }
+
+        if (usageColumn >= 0 && x >= usageColumn && x < usageColumn + usageCells)
+        {
+            return new HintHit(HintZone.Usage, "", usageColumn);
         }
 
         int column = 0;
@@ -2707,6 +2751,9 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
             _shownHint = left + tail;
             // The queued part's place: after the prefix, the frame, the blank, the label and a separator — when the fit left it whole.
             RecordQueued(queued, TextCells.Width(prefix) + TextCells.Width(frame), TextCells.Width(" " + BusyText(label, elapsed) + HintSeparator), unfitted, restMax);
+            // The usage zone: the frame and the label after the prefix — when the fit kept the label
+            // whole, and not while scrolled (the row is the scroll's then, like the standing one).
+            RecordUsage(_top < 0 ? frame + " " + BusyText(label, elapsed) : "", TextCells.Width(prefix), 0, frame + unfitted, restMax + TextCells.Width(frame));
         }
         else
         {
@@ -2718,7 +2765,13 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
             _hintStrip = _strip();
             _trailerColumn = right.Length == 0 ? -1 : max - TextCells.Width(right);
             // The queued part's place: after the strip and its separator — when the fit left it whole.
-            RecordQueued(StandingQueued(), 0, _hintStrip.Length == 0 ? 0 : TextCells.Width(_hintStrip) + HintSeparator.Length, row, right.Length == 0 ? max : max - TextCells.Width(right) - TrailerGap);
+            int cells = right.Length == 0 ? max : max - TextCells.Width(right) - TrailerGap;
+            RecordQueued(StandingQueued(), 0, _hintStrip.Length == 0 ? 0 : TextCells.Width(_hintStrip) + HintSeparator.Length, row, cells);
+            // The usage zone: the tally where the screen's hint put it — nowhere under an overlay's
+            // or the scroll's hint, or when the timers or the exit hint stand in its place.
+            string usage = _overlay is null && _top < 0 ? _usage() : "";
+            int at = usage.Length == 0 ? -1 : row.IndexOf(usage, StringComparison.Ordinal);
+            RecordUsage(at < 0 ? "" : usage, 0, at < 0 ? 0 : TextCells.Width(row[..at]), row, cells);
         }
 
         if (_busyLabel is not null)
@@ -2744,6 +2797,15 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
         bool whole = width > 0 && (TextCells.Width(text) <= cells || ahead + width < cells);
         _queuedColumn = whole ? offset + ahead : -1;
         _queuedCells = whole ? width : 0;
+    }
+
+    /// <summary><see cref="RecordQueued"/> for the usage zone (2026-09-21): <paramref name="usage"/> is the tally or the spinner with its label.</summary>
+    private void RecordUsage(string usage, int offset, int ahead, string text, int cells)
+    {
+        int width = TextCells.Width(usage);
+        bool whole = width > 0 && (TextCells.Width(text) <= cells || ahead + width < cells);
+        _usageColumn = whole ? offset + ahead : -1;
+        _usageCells = whole ? width : 0;
     }
 
     /// <summary>

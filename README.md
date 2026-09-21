@@ -85,7 +85,7 @@ Every setting lives in a profile and is edited from a pane inside the app — `�
 | Queue cancel mode | What a cancelled reply does with the queue: `hold` keeps it until your next message, `drain` sends the next queued message at once, `empty` drops them all. | `empty` |
 | Memory | Offers the model `save_memory` / `recall_memory` and opens every conversation with what it remembers. | on |
 | Copy user prompt | `/copy` includes your prompt above the reply; off copies the reply alone. | on |
-| Mouse in menus | The app keeps the mouse under a menu: a double-click picks a row, one off the pane closes it, one on the hint row opens `/settings`. Off hands the mouse to the terminal there. | on |
+| Mouse in menus | The app keeps the mouse under a menu: a double-click picks a row, one off the pane closes it, one on the hint row opens `/settings` (on the token tally, or on the reply's spinner mid-turn, `/usage`). Off hands the mouse to the terminal there. | on |
 | Show image thumbnails | Draws a small colour block of each picture you send under your line. | on |
 | Image thumbnail size | The block's size: `small` (48×12), `medium` (64×16), `large` (80×20) or `xlarge` (96×24) columns × rows. | `small` |
 | Transcript markdown | Renders replies as styled Markdown (bold, lists, code fences, tables) instead of plain streamed text. | on |
@@ -221,6 +221,7 @@ Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Web, Memory, 
 | File /tree max length | How many entries `/tree` prints before it stops (1–10000). | 500 |
 | File /tree show sizes | `/tree` carries each file's size. | on |
 | File @-mention folder mode | Picking a folder from the `@` list: `folder-remain` keeps the list open inside it; `folder-apply` writes `@folder/` and closes. | `folder-remain` |
+| File browser mode | What `/cwd browse` lists: `default` hides hidden and system folders and dot-folders; `show-hidden` lists them too. | `default` |
 | File view image max (per call) | How many pictures one `view_image` call may load (1–100). | 10 |
 
 #### Shell
@@ -296,7 +297,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/clear` | Start a new conversation and clear the screen. |
 | `/compact [focus]` | Shrink the current context; a focus steers the summary. |
 | `/copy [n \| all]` | Copy the last reply to the clipboard as Markdown, or reply *n*, or the whole transcript. |
-| `/cwd [path \| ~]` | Show or change the working directory. |
+| `/cwd [path \| ~ \| browse]` | Show or change the working directory; `browse` opens a folder picker on the pane: the profile's own `files\` folder as `⌂ profile` above the drives, opened on the directory in force (Enter chooses — the profile row saves the default, like `~` — Space/→/← open and close, `-` collapses all; a click on a folder's glyph or a double-click on its name opens or closes it; only Enter chooses). |
 | `/draft` | Write the next message in your editor; the file is sent when it is saved and closed. |
 | `/echo <text>` | Print a line as a reply and read it aloud when speech is on. |
 | `/emptytrash` | Empty the working directory's `.trash` for good (asks first). |

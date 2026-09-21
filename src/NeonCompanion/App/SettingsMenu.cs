@@ -298,6 +298,9 @@ public enum SettingsField
 
     /// <summary>A toggle: whether an <c>execute_code</c> script may call the app's other tools through its <c>neon_tools</c> module (<see cref="Settings.AppSettingsData.ShellToolBridge"/>). The Shell tab, right above the tool-call cap it governs (later on 2026-09-21); no reconnect (read at each call and each turn).</summary>
     ShellToolBridge,
+
+    /// <summary>A picker over <see cref="Files.FileBrowserMode.Names"/>: what the <c>/cwd browse</c> tree lists (<see cref="Settings.AppSettingsData.FileBrowserMode"/>). The Files tab's row under the @-mention folder mode (2026-09-21); no reconnect (read when the pane opens).</summary>
+    FileBrowserMode,
 }
 
 /// <summary>The tabs of <c>/settings</c> on the pane, in strip order (Sessions right after General — the user's order, 2026-09-18; STT last since 2026-09-19, when the Ask, Files and Web tabs moved to <c>/tools</c> — <see cref="SettingsMenu.ToolsTabFields"/> — and, later that day, the Skills tab to <c>/skills</c> as its Options tab — <see cref="SettingsMenu.SkillsTabFields"/>); the value is the index into <see cref="SettingsMenu.TabTitles"/> and <see cref="SettingsMenu.TabFields"/>.</summary>
@@ -529,7 +532,7 @@ internal sealed class SettingsMenu
     /// Ask (2026-09-15) is the question tool's switch and its two caps;
     /// Files (2026-09-15) is the file-tools switch, the Safe edits switch (2026-09-17; Stale line number guard beside it until 2026-09-19, Always return
     /// line numbers between them until 2026-09-19), the two <c>/tree</c> rows (once General's last two), the @-mention folder mode
-    /// (General's until 2026-09-17) and the <c>view_image</c> cap last (2026-09-19); Web is the seven web rows (2026-09-15, once on General under Memory; the tab read Browser
+    /// (General's until 2026-09-17), the <c>/cwd browse</c> mode under it (2026-09-21) and the <c>view_image</c> cap last (2026-09-19); Web is the seven web rows (2026-09-15, once on General under Memory; the tab read Browser
     /// until later that day), the search method above the Web SearXNG URL it governs. The group switch stays each tab's first row.
     /// Since later still on 2026-09-19 (the user's ask) every Files and Web row carries its tab's word (<c>File /tree max length</c>, <c>Web SearXNG URL</c>, …) and the six JSON keys that
     /// differed followed (<c>FileTreeMaxLength</c>, <c>FileTreeShowSizes</c>, <c>FileMentionFolderMode</c>, <c>FileViewImageMaxPerCall</c>, <c>WebSearxngUrl</c>) — no migration, the old key skipped on load.
@@ -542,7 +545,7 @@ internal sealed class SettingsMenu
     [
         [SettingsField.ToolsDollarMention],
         [SettingsField.WebTools, SettingsField.WebBrowserMode, SettingsField.WebBrowserPath, SettingsField.WebBrowserNetworkMode, SettingsField.WebSearchMethod, SettingsField.WebSearxngUrl, SettingsField.WebSearchMaxResults],
-        [SettingsField.FileTools, SettingsField.FileSafeEdits, SettingsField.FileTreeMaxLength, SettingsField.FileTreeShowSizes, SettingsField.FileMentionFolderMode, SettingsField.FileViewImageMaxPerCall],
+        [SettingsField.FileTools, SettingsField.FileSafeEdits, SettingsField.FileTreeMaxLength, SettingsField.FileTreeShowSizes, SettingsField.FileMentionFolderMode, SettingsField.FileBrowserMode, SettingsField.FileViewImageMaxPerCall],
         [SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellToolBridge, SettingsField.ShellCodeMaxToolCalls],
         [SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices],
         [SettingsField.GitNativeTools, SettingsField.GitNativeDiffMaxLines, SettingsField.GitNativeLogMaxCommits, SettingsField.GitNativeEmail, SettingsField.GitNativeName],
@@ -855,6 +858,7 @@ internal sealed class SettingsMenu
         SettingsField.AskMaxQuestions => "Ask max questions",
         SettingsField.AskMaxChoices => "Ask max choices per question",
         SettingsField.FileMentionFolderMode => "File @-mention folder mode",
+        SettingsField.FileBrowserMode => "File browser mode",
         SettingsField.AgentSkills => "Agent skills",
         SettingsField.ExternalSkills => ExternalSkillsName,
         SettingsField.TranscriptMarkdown => "Transcript markdown",
@@ -985,6 +989,7 @@ internal sealed class SettingsMenu
             SettingsField.AskMaxQuestions => Questions(data.AskMaxQuestions),
             SettingsField.AskMaxChoices => Choices(data.AskMaxChoices),
             SettingsField.FileMentionFolderMode => data.FileMentionFolderMode,
+            SettingsField.FileBrowserMode => data.FileBrowserMode,
             SettingsField.AgentSkills => OnOff(data.AgentSkills),
             SettingsField.ExternalSkills => OnOff(data.ExternalSkills),
             SettingsField.TranscriptMarkdown => OnOff(data.TranscriptMarkdown),
@@ -1187,6 +1192,10 @@ internal sealed class SettingsMenu
     /// <summary>One row of the @-mention-folder-mode picker: the mode and its hint, padded to fourteen (<c>folder-remain</c> is thirteen). Pinned.</summary>
     public static string MentionFolderModeLabel(string name) =>
         Markup.Escape(name.PadRight(14)) + Theme.DimMarkup(Files.MentionFolderMode.Describe(name));
+
+    /// <summary>One row of the file-browser-mode picker: the mode and its hint, padded to twelve (<c>show-hidden</c> is eleven). Pinned.</summary>
+    public static string FileBrowserModeLabel(string name) =>
+        Markup.Escape(name.PadRight(12)) + Theme.DimMarkup(Files.FileBrowserMode.Describe(name));
 
     /// <summary>One row of the scan-mode picker: the mode and its hint, padded to nine (<c>disabled</c> is eight). Pinned.</summary>
     public static string LlmScanModeLabel(string name) =>
@@ -1775,6 +1784,11 @@ internal sealed class SettingsMenu
         if (field == SettingsField.FileMentionFolderMode)
         {
             return await PickMentionFolderModeAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.FileBrowserMode)
+        {
+            return await PickFileBrowserModeAsync(saved, cancellationToken).ConfigureAwait(false);
         }
 
         if (field == SettingsField.SkillCompactMode)
@@ -2487,6 +2501,21 @@ internal sealed class SettingsMenu
 
         string name = Files.MentionFolderMode.Names[index];
         Apply(SettingsField.FileMentionFolderMode, d => d.FileMentionFolderMode = name);
+        return true;
+    }
+
+    /// <summary>The file-browser-mode picker under the settings list (2026-09-21): one <see cref="FileBrowserModeLabel"/> row per <see cref="Files.FileBrowserMode.Names"/> entry, the saved one under the cursor.</summary>
+    private async Task<bool> PickFileBrowserModeAsync(AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var page = new MenuPage(Crumb(FieldName(SettingsField.FileBrowserMode)), Files.FileBrowserMode.Names.Select(FileBrowserModeLabel).ToList(), PickKeys);
+        int? picked = await PickAsync(page, Array.IndexOf(Files.FileBrowserMode.Names, saved.FileBrowserMode), cancellationToken).ConfigureAwait(false);
+        if (picked is not { } index)
+        {
+            return Unchanged();
+        }
+
+        string name = Files.FileBrowserMode.Names[index];
+        Apply(SettingsField.FileBrowserMode, d => d.FileBrowserMode = name);
         return true;
     }
 
