@@ -49,7 +49,8 @@ public class EnvironmentOverridesTests
             (EnvironmentOverrides.InterruptEchoVariable, "80"),
             (EnvironmentOverrides.InterruptConfirmVariable, "600"),
             (EnvironmentOverrides.LlmContextVariable, "32768"),
-            (EnvironmentOverrides.SearxngUrlVariable, " http://box:8080 "));
+            (EnvironmentOverrides.SearxngUrlVariable, " http://box:8080 "),
+            (EnvironmentOverrides.CommandPolicyVariable, " YOLO "));
 
         var e = env.ApplyTo(new AppSettingsData());
 
@@ -69,7 +70,29 @@ public class EnvironmentOverridesTests
         Assert.Equal(600, e.SttInterruptConfirmMs);
         Assert.Equal(32_768, e.LlmContextLength);
         Assert.Equal("http://box:8080", e.WebSearxngUrl);   // trimmed
+        Assert.Equal("yolo", e.ShellCommandPolicy);   // normalised to the saved word (2026-09-21)
         Assert.Equal(EnvironmentOverrides.AllVariables.Length - 1, env.ActiveVariables().Count);   // everything but HOME
+    }
+
+    [Theory]
+    [InlineData("maybe")]
+    [InlineData("1")]
+    [InlineData("")]
+    public void CommandPolicy_IgnoresAnythingButTheThreeWords(string raw)
+    {
+        var env = With((EnvironmentOverrides.CommandPolicyVariable, raw));
+        Assert.Null(env.ShellCommandPolicy);
+        Assert.Equal("ask", env.ApplyTo(new AppSettingsData()).ShellCommandPolicy);
+        Assert.DoesNotContain(EnvironmentOverrides.CommandPolicyVariable, env.ActiveVariables());
+    }
+
+    [Fact]
+    public void System_ReadsAnyVariableThroughTheSameDoor()
+    {
+        var env = With(("PATH", @" C:\Tools;D:\Bin "), ("PATHEXT", ""));
+        Assert.Equal(@"C:\Tools;D:\Bin", env.System("PATH"));   // trimmed
+        Assert.Null(env.System("PATHEXT"));   // blank is unset
+        Assert.Null(env.System("NOPE"));
     }
 
     [Theory]

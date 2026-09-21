@@ -11,6 +11,7 @@ using NeonCompanion.Mcp;
 using NeonCompanion.Memory;
 using NeonCompanion.Sessions;
 using NeonCompanion.Settings;
+using NeonCompanion.Shell;
 using NeonCompanion.Skills;
 using NeonCompanion.Speech;
 using NeonCompanion.Timers;
@@ -315,6 +316,13 @@ internal sealed partial class ChatScreen
     private readonly IReadOnlyList<AIFunction> _webTools;
     private readonly GitAccess _git;
     private readonly IReadOnlyList<AIFunction> _gitTools;
+    private readonly Interpreters _interpreters;
+    private readonly ShellRunner _runner;
+    private readonly ProcessRegistry _processes;
+    private readonly CommandAllowList _allowList;
+    private readonly CommandGate _gate;
+    private readonly IReadOnlyList<AIFunction> _shellTools;
+    private readonly CommandApprovalMenu _approvalMenu;
     private readonly IReadOnlyList<AIFunction> _askTools;
     private readonly SkillCatalog _catalog;
     private readonly IReadOnlyList<AIFunction> _skillTools;
@@ -516,6 +524,7 @@ internal sealed partial class ChatScreen
     /// <param name="splash">The welcome splash pictures (<see cref="SplashImages.Source"/> in the app: the embedded names and their loader — one picked at random with <paramref name="random"/> at startup, the others walked by Left / Right; tests a name list over generated pictures); null = no splash whatever <see cref="AppSettingsData.WelcomeSplash"/> says.</param>
     /// <param name="editDraft">Opens <c>/draft</c>'s temporary file (the path, the <c>Draft editor</c> command line — blank for the shell's default — and a token) and completes when the editor is done with it (<see cref="PersonaFile.EditAndWaitAsync"/> in the app; tests a lambda that writes the file, or waits on the token); null = <c>/draft</c> answers <see cref="DraftUnavailableError"/>.</param>
     /// <param name="mcp">The MCP servers' session (2026-09-20; <see cref="CompanionApp"/> builds one beside the LLM session and disposes it after the screen); null = the screen builds its own over the real transports and disposes it when it closes (the tests', with nothing configured in their temp home).</param>
+    /// <param name="environment">Reads a system variable for the shell probe (<c>PATH</c>, <c>PATHEXT</c>; <see cref="EnvironmentOverrides.System"/> in the app, 2026-09-21); null = no PATH at all, which still finds <c>cmd.exe</c> and Windows PowerShell under the system folder (the tests' deterministic pair).</param>
     public ChatScreen(
         IAnsiConsole console,
         AppSettings settings,
@@ -540,7 +549,8 @@ internal sealed partial class ChatScreen
         Action<bool>? holdWheel = null,
         SplashSource? splash = null,
         Func<string, string, CancellationToken, Task>? editDraft = null,
-        McpSession? mcp = null)
+        McpSession? mcp = null,
+        Func<string, string?>? environment = null)
     {
         ArgumentNullException.ThrowIfNull(time);
         _time = time;
@@ -572,6 +582,16 @@ internal sealed partial class ChatScreen
         // The git tools (2026-09-20) sit on the same sandbox: the repository is looked for from a sandbox path, never above the root.
         _git = new GitAccess(_files, time);
         _gitTools = GitTools(_git, _effective);
+        // The shell tools (2026-09-21): the runner is the one process-start site of the group; the allow
+        // list lives for the process (a /clear or a profile switch keeps the session's allows, the permanent
+        // ones are the loaded profile's); the gate asks through the approval pane (ApproveCommandAsync).
+        _interpreters = new Interpreters(environment ?? (_ => null));
+        _runner = new ShellRunner(time);
+        // The background processes (phase B): the board signals the idle read like the timers, and is killed off with the screen.
+        _processes = new ProcessRegistry(_runner, _random, SignalAlert);
+        _allowList = new CommandAllowList(() => _effective().ShellCommandAllowed, allowed => _settings.Update(d => d.ShellCommandAllowed = [.. allowed]));
+        _gate = new CommandGate(_effective, _allowList, ApproveCommandAsync);
+        _shellTools = ShellTools(_runner, _processes, _files, _gate, _interpreters, _effective, _random, () => _session.Assistant?.Tools ?? []);
         // The skills read the live roots too: the profile's folder moves with a switch, the
         // project file with the sandbox's root.
         string external = externalSkills ?? SkillRoots.DefaultExternalDirectory();
@@ -631,12 +651,13 @@ internal sealed partial class ChatScreen
         // The question tool's pane and the tool itself: built always (the /sysprompt Tools tab
         // lists it either way), offered only while the setting Ask user and the pane say so (RunTurnAsync).
         _questionMenu = new QuestionMenu(_menuPane, _input);
+        _approvalMenu = new CommandApprovalMenu(_menuPane);
         _askTools = AskTools(AskUserAsync, _effective);
         // Menus read console.Input themselves; over the key source they also see type-ahead.
         _flow = new FlowSink(this);
         _queueMenu = new QueueMenu(_queue, _flow, _menuPane);
         _queuedClicks = new DoubleClick(_pane.Time);
-        _menu = new SettingsMenu(new ConsoleWithInput(_pane, keys), settings, overriddenBy, _input, _transcript, speech, _menuPane, _web.Browser.Locate)
+        _menu = new SettingsMenu(new ConsoleWithInput(_pane, keys), settings, overriddenBy, _input, _transcript, speech, _menuPane, _web.Browser.Locate, () => _interpreters.AvailableShells().Select(ShellKinds.Name).ToHashSet(StringComparer.Ordinal), () => _interpreters.AvailableLanguages([CodeLanguage.PowerShell, CodeLanguage.Python, CodeLanguage.Node]).Select(CodeLanguages.Name).ToHashSet(StringComparer.Ordinal))
         {
             // A picker opened mid-turn closes on the watcher task: its saved line waits for the turn task.
             Flow = _flow,
@@ -1611,7 +1632,9 @@ internal sealed partial class ChatScreen
             Without(_mcp.Tools, disabled).Count,
             effective.FileSafeEdits,
             effective.GitTools,
-            Without(_gitTools, disabled).Count);
+            Without(_gitTools, disabled).Count,
+            ShellOffered(effective),
+            Without(ShellToolsFor(_shellTools), disabled).Count);
     }
 
     /// <summary>
@@ -1658,7 +1681,7 @@ internal sealed partial class ChatScreen
         var disabled = ToolsText.DisabledSet(effective.ToolsDisabled);
         var fileTools = FileToolsFor(_fileTools, effective.FileSafeEdits);   // restore only with File safe edits on (later still on 2026-09-20)
         bool files = effective.FileTools && Without(fileTools, disabled).Count > 0;
-        var groups = SystemPromptSummary.ToolGroups(_clockTools, _timerTools, fileTools, _memoryTools, effective.Memory, effective.LlmOfferTools, WebToolsFor(_webTools, files), effective.WebTools, effective.FileTools, _askTools, effective.AskUser, _pane.Enabled, _skillTools, effective.AgentSkills, _sessionTools, effective.SessionTool, disabled, skillInstalled: Catalog(effective).Count > 0, mcp: _mcp.ServerTools, mcpEnabled: effective.McpServers, git: _gitTools, gitEnabled: effective.GitTools);
+        var groups = SystemPromptSummary.ToolGroups(_clockTools, _timerTools, fileTools, _memoryTools, effective.Memory, effective.LlmOfferTools, WebToolsFor(_webTools, files), effective.WebTools, effective.FileTools, _askTools, effective.AskUser, _pane.Enabled, _skillTools, effective.AgentSkills, _sessionTools, effective.SessionTool, disabled, skillInstalled: Catalog(effective).Count > 0, mcp: _mcp.ServerTools, mcpEnabled: effective.McpServers, git: _gitTools, gitEnabled: effective.GitTools, shell: _shellTools, shellEnabled: ShellOffered(effective), codeAvailable: CodeAvailable());
         return groups.SelectMany(g => g.Tools.Where(t => g.Offers(t.Name)).Select(t => new CompletionItem(t.Name, t.Description))).ToList();
     }
 
@@ -2043,8 +2066,14 @@ internal sealed partial class ChatScreen
         var disabled = ToolsText.DisabledSet(effective.ToolsDisabled);
         var fileTools = FileToolsFor(_fileTools, effective.FileSafeEdits);   // restore only with File safe edits on (later still on 2026-09-20): /sysprompt shows the list cut, Files (14)
         bool files = effective.FileTools && Without(fileTools, disabled).Count > 0;   // the turn's rule (PrepareTurn): an emptied file group is the switch off
-        return SystemPromptSummary.ToolGroups(_clockTools, _timerTools, fileTools, _memoryTools, effective.Memory, effective.LlmOfferTools, WebToolsFor(_webTools, files), effective.WebTools, effective.FileTools, _askTools, effective.AskUser, _pane.Enabled, _skillTools, effective.AgentSkills, _sessionTools, effective.SessionTool, disabled, mcp: _mcp.ServerTools, mcpEnabled: effective.McpServers, git: _gitTools, gitEnabled: effective.GitTools);
+        return SystemPromptSummary.ToolGroups(_clockTools, _timerTools, fileTools, _memoryTools, effective.Memory, effective.LlmOfferTools, WebToolsFor(_webTools, files), effective.WebTools, effective.FileTools, _askTools, effective.AskUser, _pane.Enabled, _skillTools, effective.AgentSkills, _sessionTools, effective.SessionTool, disabled, mcp: _mcp.ServerTools, mcpEnabled: effective.McpServers, git: _gitTools, gitEnabled: effective.GitTools, shell: _shellTools, shellEnabled: ShellOffered(effective), codeAvailable: CodeAvailable());
     }
+
+    /// <summary>Whether <c>execute_code</c> has a language to run (2026-09-21): the setting's languages, one of them installed.</summary>
+    private bool CodeAvailable() => _shellTools.OfType<ExecuteCodeTool>().FirstOrDefault() is not { AvailableLanguages.Count: 0 };
+
+    /// <summary>Whether the shell group is offered (2026-09-21): the setting <c>Shell command policy</c> is not <c>off</c>.</summary>
+    public static bool ShellOffered(AppSettingsData effective) => CommandPolicy.Resolve(effective) != CommandPolicyMode.Off;
 
     /// <summary>
     /// What <c>/tools</c>' Offered tab lists (<see cref="ToolsMenu"/>, read again after every flip): the
@@ -2064,7 +2093,8 @@ internal sealed partial class ChatScreen
         var effective = _effective();
         var disabled = ToolsText.DisabledSet(effective.ToolsDisabled);
         // The whole file list, restore noted under File safe edits off (later still on 2026-09-20): the row stays, dim, with its reason — the download_file shape.
-        var groups = SystemPromptSummary.ToolGroups(_clockTools, _timerTools, _fileTools, _memoryTools, effective.Memory, effective.LlmOfferTools, _webTools, effective.WebTools, effective.FileTools, _askTools, effective.AskUser, _pane.Enabled, _skillTools, effective.AgentSkills, _sessionTools, effective.SessionTool, disabled, skillInstalled: Catalog(effective).Count > 0, git: _gitTools, gitEnabled: effective.GitTools, safeEdits: effective.FileSafeEdits);
+        _interpreters.Refresh();
+        var groups = SystemPromptSummary.ToolGroups(_clockTools, _timerTools, _fileTools, _memoryTools, effective.Memory, effective.LlmOfferTools, _webTools, effective.WebTools, effective.FileTools, _askTools, effective.AskUser, _pane.Enabled, _skillTools, effective.AgentSkills, _sessionTools, effective.SessionTool, disabled, skillInstalled: Catalog(effective).Count > 0, git: _gitTools, gitEnabled: effective.GitTools, safeEdits: effective.FileSafeEdits, shell: _shellTools, shellEnabled: ShellOffered(effective), codeAvailable: CodeAvailable());
         return new ToolsFacts(groups, effective.LlmOfferTools, disabled);
     }
 
@@ -2250,6 +2280,53 @@ internal sealed partial class ChatScreen
     };
 
     /// <summary>
+    /// The shell tools (2026-09-21): <c>run_command</c>, <c>process</c> and <c>execute_code</c>, offered on every turn
+    /// while the setting <c>Shell command policy</c> is not <c>off</c> (headless too, where the gate has no asker and
+    /// the allow list alone decides); <c>execute_code</c> only while a language it may run is installed
+    /// (<see cref="ShellToolsFor"/>). Each reads the settings in force at the call; <paramref name="turnTools"/> is
+    /// what a script's bridge dispatches to — the turn's own list.
+    /// </summary>
+    public static IReadOnlyList<AIFunction> ShellTools(ShellRunner runner, ProcessRegistry processes, WorkingDirectory files, CommandGate gate, Interpreters interpreters, Func<AppSettingsData> effective, Random random, Func<IReadOnlyList<AIFunction>> turnTools, string? runsFolder = null) => new AIFunction[]
+    {
+        new RunCommandTool(runner, processes, files, gate, interpreters, effective, random),
+        new ProcessTool(processes, effective),
+        new ExecuteCodeTool(runner, files, gate, interpreters, effective, turnTools, random, runsFolder),
+    };
+
+    /// <summary><paramref name="tools"/> less <c>execute_code</c> while no language it may run is installed (2026-09-21, the <see cref="WebToolsFor"/> shape). Pure.</summary>
+    public static IReadOnlyList<AIFunction> ShellToolsFor(IReadOnlyList<AIFunction> tools)
+    {
+        ArgumentNullException.ThrowIfNull(tools);
+        return tools.Any(t => t is ExecuteCodeTool { AvailableLanguages.Count: 0 }) ? tools.Where(t => t is not ExecuteCodeTool).ToList() : tools;
+    }
+
+    /// <summary>The shell tools' names: their result's first line is the transcript's note (<see cref="ShellText.Note"/>).</summary>
+    public static readonly IReadOnlySet<string> ShellToolNames = new HashSet<string>(StringComparer.Ordinal)
+    {
+        RunCommandTool.ToolName,
+        ProcessTool.ToolName,
+        ExecuteCodeTool.ToolName,
+    };
+
+    /// <summary>
+    /// The seeded polls for the notified exits since the last turn (2026-09-21): one <c>process poll</c>
+    /// call/result pair each at the next turn's start (<see cref="Assistant.PendingCalls"/>), so the model
+    /// learns what ended without being asked — taken only while the process tool is among
+    /// <paramref name="offered"/>, else they wait (the user saw the alert line either way).
+    /// </summary>
+    public static IReadOnlyList<Assistant.OpeningCall> PendingProcessPolls(ProcessRegistry processes, IReadOnlyList<AIFunction> offered)
+    {
+        ArgumentNullException.ThrowIfNull(processes);
+        ArgumentNullException.ThrowIfNull(offered);
+        if (offered.OfType<ProcessTool>().FirstOrDefault() is not { } tool)
+        {
+            return [];
+        }
+
+        return processes.TakeNotes().Select(id => new Assistant.OpeningCall(tool, Assistant.PendingCallId(id), ProcessTool.PollArguments(id))).ToList();
+    }
+
+    /// <summary>
     /// The question tool (<c>ask_user</c>, 2026-09-15), offered while the setting <c>Ask user</c> is on
     /// and the bottom pane is on: nothing else can draw the questions, and headless never has it.
     /// <paramref name="ask"/> shows them and waits — the screen's <see cref="AskUserAsync"/>, which
@@ -2311,6 +2388,9 @@ internal sealed partial class ChatScreen
         GitStashTool.ToolName,
         GitDiscardTool.ToolName,
         GitDeleteTool.ToolName,
+        RunCommandTool.ToolName,
+        ProcessTool.ToolName,
+        ExecuteCodeTool.ToolName,
     };
 
     /// <summary>
@@ -2361,7 +2441,7 @@ internal sealed partial class ChatScreen
     /// (<see cref="Assistant.TimerRule"/>, 2026-09-20) rides only while a timer tool is among <paramref name="standingTools"/>:
     /// headless passes the clock alone (nothing could ring the alert), and the pane loses the three on <c>/tools</c>. Shared with headless.
     /// </summary>
-    public static void PrepareTurn(Assistant assistant, MemoryStore memory, IReadOnlyList<AIFunction> memoryTools, IReadOnlyList<AIFunction> standingTools, PersonaFile persona, OperataFile operata, VocaliaFile vocalia, bool memoryEnabled, bool speechOutput, int maxToolIterations = Assistant.DefaultMaxToolIterations, bool toolsEnabled = true, IReadOnlyList<AIFunction>? webTools = null, bool webEnabled = false, Assistant.TurnContextGuard? contextGuard = null, IReadOnlyList<AIFunction>? fileTools = null, bool filesEnabled = false, IReadOnlyList<AIFunction>? askTools = null, SkillsForTurn? skills = null, bool markdown = false, IReadOnlyList<AIFunction>? sessionTools = null, bool sessionsEnabled = false, IReadOnlySet<string>? disabledTools = null, IReadOnlyList<AIFunction>? mcpTools = null, bool mcpEnabled = false, bool safeEdits = true, IReadOnlyList<AIFunction>? gitTools = null, bool gitEnabled = false)
+    public static void PrepareTurn(Assistant assistant, MemoryStore memory, IReadOnlyList<AIFunction> memoryTools, IReadOnlyList<AIFunction> standingTools, PersonaFile persona, OperataFile operata, VocaliaFile vocalia, bool memoryEnabled, bool speechOutput, int maxToolIterations = Assistant.DefaultMaxToolIterations, bool toolsEnabled = true, IReadOnlyList<AIFunction>? webTools = null, bool webEnabled = false, Assistant.TurnContextGuard? contextGuard = null, IReadOnlyList<AIFunction>? fileTools = null, bool filesEnabled = false, IReadOnlyList<AIFunction>? askTools = null, SkillsForTurn? skills = null, bool markdown = false, IReadOnlyList<AIFunction>? sessionTools = null, bool sessionsEnabled = false, IReadOnlySet<string>? disabledTools = null, IReadOnlyList<AIFunction>? mcpTools = null, bool mcpEnabled = false, bool safeEdits = true, IReadOnlyList<AIFunction>? gitTools = null, bool gitEnabled = false, IReadOnlyList<AIFunction>? shellTools = null, bool shellEnabled = false, ProcessRegistry? processes = null)
     {
         ArgumentNullException.ThrowIfNull(assistant);
         ArgumentNullException.ThrowIfNull(memory);
@@ -2398,6 +2478,7 @@ internal sealed partial class ChatScreen
             fileTools = fileTools is null ? null : Without(fileTools, disabledTools);
             webTools = webTools is null ? null : Without(webTools, disabledTools);
             gitTools = gitTools is null ? null : Without(gitTools, disabledTools);
+            shellTools = shellTools is null ? null : Without(shellTools, disabledTools);
             memoryTools = Without(memoryTools, disabledTools);
             skillTools = Without(skillTools, disabledTools);
             sessionTools = sessionTools is null ? null : Without(sessionTools, disabledTools);
@@ -2423,6 +2504,10 @@ internal sealed partial class ChatScreen
         // The git tools right after the file tools (2026-09-20): the sandbox's tools together, the setting Git tools a per-group offer.
         bool git = gitEnabled && gitTools is { Count: > 0 };
         offered = git ? [.. offered, .. gitTools!] : offered;
+        // The shell tools right after the git tools (2026-09-21): the setting Shell command policy is the group's switch; execute_code rides only with an interpreter to run.
+        shellTools = shellTools is null ? null : ShellToolsFor(shellTools);
+        bool shell = shellEnabled && shellTools is { Count: > 0 };
+        offered = shell ? [.. offered, .. shellTools!] : offered;
         IReadOnlyList<AIFunction> tools = (web, memoryEnabled) switch
         {
             (true, true) => [.. offered, .. webTools!, .. memoryTools],
@@ -2471,7 +2556,9 @@ internal sealed partial class ChatScreen
         }
 
         assistant.OpeningCalls = opening;
-        assistant.History.SystemPrompt = Assistant.SystemPrompt(speechOutput, memoryEnabled ? memory.Snapshot() : null, persona.Read(), operata.Read(), vocalia.Read(), web: web, files: files, ask: ask, project: project, skills: catalog, markdown: markdown, sessions: sessions, download: download, recall: recall is not null, delete: delete, mcp: mcp, safeEdits: safeEdits, timers: timers, git: git);
+        // The notified exits since the last turn ride in as seeded polls (2026-09-21), on every turn, while process is offered.
+        assistant.PendingCalls = processes is null ? [] : PendingProcessPolls(processes, assistant.Tools);
+        assistant.History.SystemPrompt = Assistant.SystemPrompt(speechOutput, memoryEnabled ? memory.Snapshot() : null, persona.Read(), operata.Read(), vocalia.Read(), web: web, files: files, ask: ask, project: project, skills: catalog, markdown: markdown, sessions: sessions, download: download, recall: recall is not null, delete: delete, mcp: mcp, safeEdits: safeEdits, timers: timers, git: git, shell: shell);
     }
 
     /// <summary>
@@ -4137,6 +4224,8 @@ internal sealed partial class ChatScreen
             _pendingLearn = null;
             _session.CancelLearning();
             _timers.Dispose();
+            // The background processes go with the screen (2026-09-21): what still runs is killed, tree and all.
+            _processes.Dispose();
             _sessions.Dispose();
             if (_ownsMcp)
             {
@@ -4205,7 +4294,7 @@ internal sealed partial class ChatScreen
         }
 
         Volatile.Write(ref _alertSignal, alert);
-        if (_timers.HasAlerts || LearnPending)
+        if (_timers.HasAlerts || _processes.HasAlerts || LearnPending)
         {
             // Queued between the loop's drain and this arm: the read returns at once.
             alert.Cancel();
@@ -4313,6 +4402,17 @@ internal sealed partial class ChatScreen
         {
             _transcript.Alert(TimerText.AlertLine(alert));
         }
+
+        PrintProcessAlerts();
+    }
+
+    /// <summary>The exits of notified background processes as lines (2026-09-21), never spoken: the model hears of them through the next turn's seeded poll.</summary>
+    private void PrintProcessAlerts()
+    {
+        while (_processes.TryTakeAlert(out var alert))
+        {
+            _transcript.ProcessAlert(ShellText.AlertLine(alert));
+        }
     }
 
     /// <summary>
@@ -4324,6 +4424,7 @@ internal sealed partial class ChatScreen
     private async Task<bool> AnnounceAlertsAsync(CancellationToken cancellationToken)
     {
         DrainLearn();
+        PrintProcessAlerts();
         var sentences = new List<string>();
         while (_timers.TryTakeAlert(out var alert))
         {
@@ -6250,7 +6351,9 @@ internal sealed partial class ChatScreen
             e => { _queuedClicks.Reset(); return ScrollInput(e); }, onClick: _pane.Enabled ? HintClickLine : null);
         bool markdown = MarkdownTurn(effective.TranscriptMarkdown, _pane.Enabled, speaker is not null);
         bool styled = StyledReply(effective.TranscriptMarkdown, _pane.Enabled);
-        PrepareTurn(assistant, _memory, _memoryTools, [.. _clockTools, .. _timerTools], _persona, _operata, _vocalia, effective.Memory, speaker is not null, effective.LlmMaxToolIterations, effective.LlmOfferTools, _webTools, effective.WebTools, ContextGuardFor(effective, _session.ContextLength), _fileTools, effective.FileTools, _pane.Enabled && effective.AskUser ? _askTools : null, SkillsFor(effective), markdown, _sessionTools, effective.SessionTool, ToolsText.DisabledSet(effective.ToolsDisabled), _mcp.Tools, effective.McpServers, effective.FileSafeEdits, _gitTools, effective.GitTools);
+        // The shells found are probed afresh per turn (2026-09-21): an install during the session shows without a restart, and the schema and the run agree.
+        _interpreters.Refresh();
+        PrepareTurn(assistant, _memory, _memoryTools, [.. _clockTools, .. _timerTools], _persona, _operata, _vocalia, effective.Memory, speaker is not null, effective.LlmMaxToolIterations, effective.LlmOfferTools, _webTools, effective.WebTools, ContextGuardFor(effective, _session.ContextLength), _fileTools, effective.FileTools, _pane.Enabled && effective.AskUser ? _askTools : null, SkillsFor(effective), markdown, _sessionTools, effective.SessionTool, ToolsText.DisabledSet(effective.ToolsDisabled), _mcp.Tools, effective.McpServers, effective.FileSafeEdits, _gitTools, effective.GitTools, _shellTools, ShellOffered(effective), _processes);
         bool armed = false;
         EchoProbe? probe = null;
         if (speaker is not null && _voice.InterruptReady)
@@ -6657,6 +6760,10 @@ internal sealed partial class ChatScreen
             case TurnEvent.ToolResult result when GitToolNames.Contains(result.Name):
                 // A status, a log, a patch is the model's to read; the line is the result's header (GitText.Note, 2026-09-20).
                 _transcript.ToolNote(GitText.Note(result.Text));
+                break;
+            case TurnEvent.ToolResult result when ShellToolNames.Contains(result.Name):
+                // A command's output is the model's to read; the line is the result's header: the exit code, the time, the command (ShellText.Note, 2026-09-21).
+                _transcript.ToolNote(ShellText.Note(result.Text));
                 break;
             case TurnEvent.ToolResult result when QuietTools.Contains(result.Name):
                 _transcript.ToolNote(result.Text);

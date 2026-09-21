@@ -257,6 +257,29 @@ public class AssistantTests
         Assert.Equal(Assistant.OperatingRules, Assistant.DefaultRules(false, true));
     }
 
+    /// <summary>The shell rule (2026-09-21): after the git rule, before the ask rule, only with tools, only while the tool is offered; it names the tool, its two arguments, the sandbox as the start, the approval and the finality of a denial.</summary>
+    [Fact]
+    public void SystemPrompt_ShellOn_AppendsTheShellRule_AfterTheGitRule_ToTheDefaultRulesOnly()
+    {
+        Assert.Equal(
+            "To run a program, a build, a test or a script the user asks for, call run_command with the command line " +
+            "(shell picks powershell, cmd or bash when the user's default will not do; workdir a folder under the working directory); " +
+            "it starts in the working directory but can reach the whole computer, so the user approves each command before it runs and may deny it — " +
+            "never retry or work around a denied command, and say what you ran. " +
+            "For a server or a long job pass background and use process to poll, read, wait for, write to or kill it; " +
+            "with notify you are told at your next turn when it exits. " +
+            "For a task with several steps or many tool calls, execute_code runs a python, node or powershell script that can call these same tools through its neon_tools module and returns what it printed.",
+            Assistant.ShellRule);
+        Assert.Equal(Assistant.DefaultSystemPrompt + " " + Assistant.ShellRule, Assistant.SystemPrompt(false, null, shell: true));
+        Assert.Equal(Assistant.DefaultSystemPrompt + " " + Assistant.GitRule + " " + Assistant.ShellRule, Assistant.SystemPrompt(false, null, git: true, shell: true));
+        Assert.Equal(Assistant.DefaultWebSystemPrompt + " " + Assistant.GitRule + " " + Assistant.ShellRule + " " + Assistant.AskRule(AskLimits.Default) + " " + Assistant.SessionRule + " " + Assistant.McpRule, Assistant.SystemPrompt(false, null, web: true, ask: AskLimits.Default, sessions: true, mcp: true, git: true, shell: true));
+        Assert.Equal(Assistant.DefaultPersona + " " + Assistant.OperatingRulesWithoutFiles + " " + Assistant.ShellRule, Assistant.SystemPrompt(false, null, files: false, shell: true));   // its own switch: the file tools off leave it
+        Assert.Equal(Assistant.DefaultSystemPrompt, Assistant.SystemPrompt(false, null));
+        Assert.Equal(Assistant.DefaultPersona + "\n\nAnswer in haiku.", Assistant.SystemPrompt(false, null, operatingRules: "Answer in haiku.", shell: true));
+        Assert.Equal(Assistant.DefaultPersona + " " + Assistant.OperatingRulesWithoutTools, Assistant.SystemPrompt(false, null, tools: false, shell: true));
+        Assert.Equal(Assistant.DefaultRules(false, true) + " " + Assistant.ShellRule, Assistant.DefaultRules(false, true, shell: true));
+    }
+
     /// <summary>The MCP rule (2026-09-20): after the session rule, only with tools, only when asked for.</summary>
     [Fact]
     public void SystemPrompt_McpOn_AppendsTheMcpRule_Last_ToTheDefaultRulesOnly()

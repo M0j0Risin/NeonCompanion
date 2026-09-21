@@ -33,10 +33,11 @@ public static class ToolsText
     public const string AskTabTitle = "Ask";
     public const string FilesTabTitle = "Files";
     public const string GitTabTitle = "Git";
+    public const string ShellTabTitle = "Shell";
     public const string WebTabTitle = "Web";
 
-    /// <summary>The six tabs in strip order (Git between Files and Web since 2026-09-20 — alphabetical); the last five index <see cref="SettingsMenu.ToolsTabFields"/> one down.</summary>
-    public static readonly IReadOnlyList<string> TabTitles = [OfferedTabTitle, OptionsTabTitle, AskTabTitle, FilesTabTitle, GitTabTitle, WebTabTitle];
+    /// <summary>The seven tabs in strip order (Git between Files and Web since 2026-09-20, Shell between Git and Web since 2026-09-21 — alphabetical); the last six index <see cref="SettingsMenu.ToolsTabFields"/> one down.</summary>
+    public static readonly IReadOnlyList<string> TabTitles = [OfferedTabTitle, OptionsTabTitle, AskTabTitle, FilesTabTitle, GitTabTitle, ShellTabTitle, WebTabTitle];
 
     /// <summary>The Offered tab's hint row. Pinned.</summary>
     public const string OfferedKeys = "Enter / Space = on or off · ←/→ tabs · ESC = close";

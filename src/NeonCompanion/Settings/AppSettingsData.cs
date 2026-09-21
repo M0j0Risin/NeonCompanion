@@ -13,7 +13,7 @@ namespace NeonCompanion.Settings;
 /// <c>Skill</c>/<c>Reflection</c>, <c>Session</c>; none on General) and the label's words, no <c>Enabled</c> suffix on a
 /// switch; a relabelled row is renamed with it. <see cref="SchemaVersion"/> first, then the five
 /// <c>/settings</c> tabs' blocks in the tabs' order, then the <c>/skills</c> pane's Options tab (Skills),
-/// then the <c>/tools</c> pane's (Tools, Ask, Files, Web) — the strips' order since 2026-09-19 —,
+/// then the <c>/tools</c> pane's (Tools, Ask, Files, Git, Shell, Web) — the strips' order since 2026-09-19 —,
 /// then the <c>/mcp</c> pane's (MCP, 2026-09-20), alphabetical within — the file reads like the four
 /// panes; a new field goes into its block, with a default, and into <c>AppSettings.Copy</c>. Three keys
 /// are not settings rows: <see cref="ToolsDisabled"/>, a list flipped on <c>/tools</c>' Offered tab (the
@@ -760,6 +760,103 @@ public sealed class AppSettingsData
     /// off by name in a fresh profile's <see cref="ToolsDisabled"/> besides. No variable.
     /// </summary>
     public bool GitTools { get; set; } = true;
+
+    // ─── Shell ──────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The prefixes (<see cref="Shell.CommandPrefix"/>: <c>git status</c>, <c>dotnet build</c>, <c>python</c>)
+    /// the user allowed for good on the approval pane (2026-09-21, <c>Allow … always</c>): lower case,
+    /// sorted ordinal, no duplicates, the <see cref="ToolsDisabled"/> shape. A command every one of whose
+    /// prefixes is here runs without asking under <c>Shell command policy</c> = <c>ask</c>; the session's own
+    /// allows live in the process, not here. Read at each judgement; the Shell tab's list row removes one.
+    /// No variable.
+    /// </summary>
+    public List<string> ShellCommandAllowed { get; set; } = [];
+
+    /// <summary>
+    /// What stands between the model's <c>run_command</c> and the shell (2026-09-21, the user's three
+    /// words): one of <see cref="Shell.CommandPolicy.Names"/> — <c>off</c> (no shell tool is offered: this is
+    /// the Shell group's switch, and the default rules lose their shell sentence), <c>ask</c> (a command
+    /// whose prefixes are not all in <see cref="ShellCommandAllowed"/> or allowed for the session is put to
+    /// the user on the pane first; with no pane to ask on it is refused), <c>yolo</c> (everything runs).
+    /// Anything else reads as <see cref="Shell.CommandPolicy.Default"/>. Read at each call, no reconnect.
+    /// <see cref="EnvironmentOverrides.CommandPolicyVariable"/> outranks it, so a scripted headless run can say yolo.
+    /// </summary>
+    public string ShellCommandPolicy { get; set; } = Shell.CommandPolicy.Default;
+
+    /// <summary>
+    /// The shell a <c>run_command</c> without <c>shell</c> runs in (2026-09-21): one of
+    /// <see cref="Shell.ShellKinds.Names"/> — <c>powershell</c> (pwsh when installed, else Windows PowerShell),
+    /// <c>cmd</c>, <c>bash</c> (Git Bash, when found). Anything else reads as <see cref="Shell.ShellKinds.Default"/>;
+    /// a shell that is not installed refuses the call with a sentence, so the row dims one not found. No variable.
+    /// </summary>
+    public string ShellDefault { get; set; } = Shell.ShellKinds.Default;
+
+    /// <summary>
+    /// How many seconds a foreground <c>run_command</c> without <c>timeout</c> waits before the child is
+    /// killed (2026-09-21): <see cref="MinShellTimeoutSeconds"/> to <see cref="MaxShellTimeoutSeconds"/>, never
+    /// over <see cref="ShellForegroundCapSeconds"/>; a hand-edited value is clamped. No variable.
+    /// </summary>
+    public int ShellTimeoutSeconds { get; set; } = DefaultShellTimeoutSeconds;
+
+    public const int MinShellTimeoutSeconds = 1;
+    public const int MaxShellTimeoutSeconds = 3600;
+    public const int DefaultShellTimeoutSeconds = 180;
+
+    /// <summary>
+    /// The most seconds a foreground <c>run_command</c> may wait, whatever its <c>timeout</c> says
+    /// (2026-09-21): <see cref="MinShellForegroundCapSeconds"/> to <see cref="MaxShellForegroundCapSeconds"/>.
+    /// The turn is held while a foreground command runs; the cap bounds that. No variable.
+    /// </summary>
+    public int ShellForegroundCapSeconds { get; set; } = DefaultShellForegroundCapSeconds;
+
+    public const int MinShellForegroundCapSeconds = 10;
+    public const int MaxShellForegroundCapSeconds = 3600;
+    public const int DefaultShellForegroundCapSeconds = 600;
+
+    /// <summary>
+    /// The most chars of a command's output one result carries back (2026-09-21):
+    /// <see cref="MinShellOutputMaxChars"/> to <see cref="MaxShellOutputMaxChars"/>. Over it the result keeps
+    /// its head and tail and the whole text goes to <c>.shell\&lt;id&gt;.log</c> under the working directory,
+    /// where <c>read_file</c> reaches it. No variable.
+    /// </summary>
+    public int ShellOutputMaxChars { get; set; } = DefaultShellOutputMaxChars;
+
+    public const int MinShellOutputMaxChars = 2000;
+    public const int MaxShellOutputMaxChars = 500000;
+    public const int DefaultShellOutputMaxChars = 30000;
+
+    /// <summary>
+    /// The languages <c>execute_code</c> may run (2026-09-21, the user's call: a multiple choice, one or
+    /// more): words from <see cref="Shell.CodeLanguages.Names"/> — <c>powershell</c>, <c>python</c>,
+    /// <c>node</c>. A language is offered only while its interpreter is found; an unknown word is dropped
+    /// with a warning and a list naming nothing usable reads as all three (the Shell tab's editor never
+    /// saves an empty one). Read at each turn, no reconnect. No variable.
+    /// </summary>
+    public List<string> ShellCodeLanguages { get; set; } = [.. Shell.CodeLanguages.Default];
+
+    /// <summary>
+    /// How many seconds an <c>execute_code</c> script without <c>timeout</c> may run before it is killed
+    /// (2026-09-21): <see cref="MinShellCodeTimeoutSeconds"/> to <see cref="MaxShellCodeTimeoutSeconds"/>. A
+    /// script holds the turn like a foreground command, but calls tools on the way, so its default is
+    /// longer. No variable.
+    /// </summary>
+    public int ShellCodeTimeoutSeconds { get; set; } = DefaultShellCodeTimeoutSeconds;
+
+    public const int MinShellCodeTimeoutSeconds = 1;
+    public const int MaxShellCodeTimeoutSeconds = 3600;
+    public const int DefaultShellCodeTimeoutSeconds = 300;
+
+    /// <summary>
+    /// The most tool calls one <c>execute_code</c> script may make through its bridge (2026-09-21):
+    /// <see cref="MinShellCodeMaxToolCalls"/> to <see cref="MaxShellCodeMaxToolCalls"/>; the one over the
+    /// cap is answered with an error the script sees. No variable.
+    /// </summary>
+    public int ShellCodeMaxToolCalls { get; set; } = DefaultShellCodeMaxToolCalls;
+
+    public const int MinShellCodeMaxToolCalls = 1;
+    public const int MaxShellCodeMaxToolCalls = 500;
+    public const int DefaultShellCodeMaxToolCalls = 50;
 
     // ─── Web ────────────────────────────────────────────────────────────────────
 

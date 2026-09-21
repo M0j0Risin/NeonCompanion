@@ -9,9 +9,9 @@ namespace NeonCompanion.App;
 /// heading with <c>on</c> or <c>off</c> beside it (<see cref="ToolsText.OfferedRows"/>), and Enter or
 /// Space on a tool row flips it in place: the name goes into or out of <c>ToolsDisabled</c>
 /// (<see cref="ToolsText.Flip"/>), the save shows on the status line (<see cref="ToolsText.FlippedNotice"/>),
-/// the list is re-read and the cursor stays. The four tabs after it — Options (the pane's own
-/// <c>$-mention enabled</c> switch, later on 2026-09-19, the <c>/skills</c> Options tab's shape), then Ask, Files, Web — are
-/// settings rows, the last three's on <c>/settings</c> until that day (<see cref="SettingsMenu.ToolsTabFields"/>),
+/// the list is re-read and the cursor stays. The tabs after it — Options (the pane's own
+/// <c>$-mention enabled</c> switch, later on 2026-09-19, the <c>/skills</c> Options tab's shape), then Ask, Files, Git (2026-09-20),
+/// Shell (2026-09-21), Web — are settings rows, three of them on <c>/settings</c> until that day (<see cref="SettingsMenu.ToolsTabFields"/>),
 /// edited through <see cref="SettingsMenu"/>'s own seams (<see cref="SettingsMenu.FieldsTab"/>,
 /// <see cref="SettingsMenu.EditAsync"/>) under this pane's strip, its pickers titled <c>Tools › …</c>
 /// (<see cref="SettingsMenu.Root"/>); a group's switch stays the first row of its tab, and a group
@@ -19,7 +19,7 @@ namespace NeonCompanion.App;
 /// per-tool values still flip and save. Nothing here reconnects or clears the conversation: every
 /// flip is read at the next turn (<see cref="ChatScreen.PrepareTurn"/>), so the pane opens mid-turn
 /// too and edits as <c>/settings</c> does there (none of its rows is <see cref="SettingsMenu.RefusedMidTurn"/>).
-/// Without the pane the five tabs print as plain lines. Bare only: <c>/tools x</c> is the no-argument error.
+/// Without the pane the tabs print as plain lines. Bare only: <c>/tools x</c> is the no-argument error.
 /// </summary>
 internal sealed class ToolsMenu
 {
@@ -64,10 +64,10 @@ internal sealed class ToolsMenu
             tabs[t] = menu.FieldsTab(ToolsText.TabTitles[t], SettingsMenu.ToolsTabFields[t - 1], saved);
         }
 
-        return MenuPage.Tabbed(ToolsText.Label, tabs, tab, SettingsMenu.TabKeys) with { SpaceToggles = true, TabCursors = [ToolsText.FirstToolRow(offered), 0, 0, 0, 0, 0] };
+        return MenuPage.Tabbed(ToolsText.Label, tabs, tab, SettingsMenu.TabKeys) with { SpaceToggles = true, TabCursors = [ToolsText.FirstToolRow(offered), 0, 0, 0, 0, 0, 0] };
     }
 
-    /// <summary>The six tabs as plain lines, for a console without the pane: each tab's title as a heading, its content indented.</summary>
+    /// <summary>The seven tabs as plain lines, for a console without the pane: each tab's title as a heading, its content indented.</summary>
     public static IEnumerable<string> Lines(ToolsFacts facts, AppSettingsData saved, SettingsMenu menu)
     {
         ArgumentNullException.ThrowIfNull(facts);

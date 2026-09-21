@@ -40,6 +40,8 @@ namespace NeonCompanion.App;
 /// <param name="FileSafeEdits">The setting <c>File safe edits</c> (2026-09-20): off with <c>delete</c> offered puts <see cref="Assistant.FileRuleDeleteInPlace"/> into the default rules — <c>delete</c> removes for good then — and (later still that day) drops <c>restore</c> from the offer, so neither the rules nor the Tools tab name it.</param>
 /// <param name="GitEnabled">The setting <c>Git tools</c> (2026-09-20, the Git tab of <c>/tools</c>).</param>
 /// <param name="GitTools">How many git tools the next turn offers (the ones switched off on <c>/tools</c> left out); the rules carry <see cref="Assistant.GitRule"/> while any is.</param>
+/// <param name="ShellEnabled">Whether the setting <c>Shell command policy</c> is not <c>off</c> (2026-09-21, the Shell tab of <c>/tools</c>): the group's switch.</param>
+/// <param name="ShellTools">How many shell tools the next turn offers (the ones switched off on <c>/tools</c> left out); the rules carry <see cref="Assistant.ShellRule"/> while any is.</param>
 public sealed record SystemPromptFacts(
     string? Persona,
     string? OperatingRules,
@@ -66,13 +68,18 @@ public sealed record SystemPromptFacts(
     int McpTools = 0,
     bool FileSafeEdits = true,
     bool GitEnabled = true,
-    int GitTools = 0)
+    int GitTools = 0,
+    bool ShellEnabled = true,
+    int ShellTools = 0)
 {
     /// <summary>Whether the rules carry <see cref="Assistant.McpRule"/>: tools on, the MCP switch on and at least one MCP tool offered.</summary>
     public bool Mcp => ToolsEnabled && McpEnabled && McpTools > 0;
 
     /// <summary>Whether the rules carry <see cref="Assistant.GitRule"/>: tools on, the Git switch on and at least one git tool offered (2026-09-20).</summary>
     public bool Git => ToolsEnabled && GitEnabled && GitTools > 0;
+
+    /// <summary>Whether the rules carry <see cref="Assistant.ShellRule"/>: tools on, the policy not off and at least one shell tool offered (2026-09-21).</summary>
+    public bool Shell => ToolsEnabled && ShellEnabled && ShellTools > 0;
 
     /// <summary>The next turn's reply is styled Markdown and asked for as such (<see cref="ChatScreen.MarkdownTurn"/>): the setting, the pane, and the turn not spoken.</summary>
     public bool Markdown => ChatScreen.MarkdownTurn(TranscriptMarkdown, PaneOn, TtsOutput && SpeechReady);
@@ -191,6 +198,12 @@ public static class SystemPromptSummary
     /// <summary>The tail of the Git group and its Prompt-tab heading while the setting <c>Git tools</c> is off (2026-09-20). Pinned.</summary>
     public const string GitOffSuffix = "git tools is off";
 
+    /// <summary>The tail of the Shell group and its Prompt-tab heading while the setting <c>Shell command policy</c> is <c>off</c> (2026-09-21). Pinned.</summary>
+    public const string ShellOffSuffix = "Shell command policy is off";
+
+    /// <summary>The note on <c>execute_code</c> while none of the languages <c>Shell code languages</c> names is installed (2026-09-21). Pinned.</summary>
+    public const string NoInterpreterSuffix = "no interpreter found for the languages in Shell code languages";
+
     /// <summary>The note on a tool switched off by name on <c>/tools</c> (2026-09-19). Pinned.</summary>
     public const string DisabledSuffix = "switched off in /tools";
 
@@ -235,7 +248,7 @@ public static class SystemPromptSummary
 
         bool customRules = !string.IsNullOrWhiteSpace(facts.OperatingRules);
         string defaultLabel = !facts.ToolsEnabled ? $"default ({ToolsOffSuffix})" : !facts.FilesEnabled ? $"default ({FilesOffSuffix})" : "default";
-        string rules = customRules ? facts.OperatingRules!.Trim() : Assistant.DefaultRules(facts.Markdown, facts.ToolsEnabled, facts.FilesEnabled, delete: !facts.Off(DeleteTool.ToolName), mcp: facts.Mcp, safeEdits: facts.FileSafeEdits, timers: facts.Timers, git: facts.Git);
+        string rules = customRules ? facts.OperatingRules!.Trim() : Assistant.DefaultRules(facts.Markdown, facts.ToolsEnabled, facts.FilesEnabled, delete: !facts.Off(DeleteTool.ToolName), mcp: facts.Mcp, safeEdits: facts.FileSafeEdits, timers: facts.Timers, git: facts.Git, shell: facts.Shell);
         sections.Add(new(
             customRules ? $"Operating rules — {OperataFile.FileName} ({rules.Length.ToString(CultureInfo.InvariantCulture)} chars)" : $"Operating rules — {defaultLabel}",
             rules,
@@ -317,6 +330,20 @@ public static class SystemPromptSummary
         else
         {
             sections.Add(new(facts.GitTools == 0 ? "Git tools — on, none offered (every git tool is switched off in /tools)" : $"Git tools — on, {GitText.Count(facts.GitTools, "tool")} offered", "", SystemPromptPart.Prompt));
+        }
+
+        // The shell tools (2026-09-21): a heading only, the git shape.
+        if (!facts.ShellEnabled)
+        {
+            sections.Add(new($"Shell tools — off ({ShellOffSuffix})", "", SystemPromptPart.Prompt));
+        }
+        else if (!facts.ToolsEnabled)
+        {
+            sections.Add(new($"Shell tools — not offered ({ToolsOffSuffix})", "", SystemPromptPart.Prompt));
+        }
+        else
+        {
+            sections.Add(new(facts.ShellTools == 0 ? "Shell tools — on, none offered (every shell tool is switched off in /tools)" : $"Shell tools — on, {GitText.Count(facts.ShellTools, "tool")} offered", "", SystemPromptPart.Prompt));
         }
 
         // The MCP servers (2026-09-20): a heading only — their tools are on the Tools tab, the rule is in the rules above.
@@ -435,7 +462,8 @@ public static class SystemPromptSummary
             mcp: facts.Mcp,
             safeEdits: facts.FileSafeEdits,
             timers: facts.Timers,
-            git: facts.Git);
+            git: facts.Git,
+            shell: facts.Shell);
     }
 
     /// <summary>The Prompt tab: every section's heading and, when it has one, its text.</summary>
@@ -524,7 +552,10 @@ public static class SystemPromptSummary
         bool mcpEnabled = true,
         IReadOnlyList<AIFunction>? git = null,
         bool gitEnabled = true,
-        bool safeEdits = true)
+        bool safeEdits = true,
+        IReadOnlyList<AIFunction>? shell = null,
+        bool shellEnabled = true,
+        bool codeAvailable = true)
     {
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(timers);
@@ -548,6 +579,15 @@ public static class SystemPromptSummary
             // The git tools (2026-09-20): right after the file tools, the sandbox's two groups together; offered while the setting Git tools says so.
             string gitNote = !gitEnabled ? NotOffered(GitOffSuffix) : standing;
             groups.Add(Group("Git", git, gitNote, gitEnabled && toolsEnabled, SettingsField.GitTools, disabled));
+        }
+
+        if (shell is not null)
+        {
+            // The shell tools (2026-09-21): after the git tools; offered while the setting Shell command policy is not off, which is the group's switch row.
+            string shellNote = !shellEnabled ? NotOffered(ShellOffSuffix) : standing;
+            // execute_code rides only with an interpreter to run (2026-09-21): the row stays, dim, with its reason — the download_file shape.
+            var codeNotes = !codeAvailable && shell.Any(t => t is ExecuteCodeTool) ? new Dictionary<string, string>(StringComparer.Ordinal) { [ExecuteCodeTool.ToolName] = NotOffered(NoInterpreterSuffix) } : null;
+            groups.Add(Group("Shell", shell, shellNote, shellEnabled && toolsEnabled, SettingsField.ShellCommandPolicy, disabled, codeNotes));
         }
 
         if (web is not null)

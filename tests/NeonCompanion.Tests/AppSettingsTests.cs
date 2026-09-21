@@ -871,6 +871,30 @@ public class AppSettingsTests : IDisposable
         Assert.True(s.GitTools);
         Assert.Equal(500, s.GitDiffMaxLines);
         Assert.Equal(20, s.GitLogMaxCommits);
+        // The shell tools (2026-09-21): ask before anything runs, nothing allowed for good, PowerShell, 180 s (1–3600) under a 600 s cap (10–3600), 30,000 chars of output (2000–500000).
+        Assert.Equal("ask", s.ShellCommandPolicy);
+        Assert.Equal("ask", NeonCompanion.Shell.CommandPolicy.Default);
+        Assert.Empty(s.ShellCommandAllowed);
+        Assert.Equal("powershell", s.ShellDefault);
+        Assert.Equal("powershell", NeonCompanion.Shell.ShellKinds.Default);
+        Assert.Equal(180, s.ShellTimeoutSeconds);
+        Assert.Equal(1, AppSettingsData.MinShellTimeoutSeconds);
+        Assert.Equal(3600, AppSettingsData.MaxShellTimeoutSeconds);
+        Assert.Equal(600, s.ShellForegroundCapSeconds);
+        Assert.Equal(10, AppSettingsData.MinShellForegroundCapSeconds);
+        Assert.Equal(3600, AppSettingsData.MaxShellForegroundCapSeconds);
+        Assert.Equal(30000, s.ShellOutputMaxChars);
+        Assert.Equal(2000, AppSettingsData.MinShellOutputMaxChars);
+        Assert.Equal(500000, AppSettingsData.MaxShellOutputMaxChars);
+        // execute_code (2026-09-21): every language the machine has, 300 s (1–3600), 50 tool calls a run (1–500).
+        Assert.Equal(["powershell", "python", "node"], s.ShellCodeLanguages);
+        Assert.Equal(["powershell", "python", "node"], NeonCompanion.Shell.CodeLanguages.Default);
+        Assert.Equal(300, s.ShellCodeTimeoutSeconds);
+        Assert.Equal(1, AppSettingsData.MinShellCodeTimeoutSeconds);
+        Assert.Equal(3600, AppSettingsData.MaxShellCodeTimeoutSeconds);
+        Assert.Equal(50, s.ShellCodeMaxToolCalls);
+        Assert.Equal(1, AppSettingsData.MinShellCodeMaxToolCalls);
+        Assert.Equal(500, AppSettingsData.MaxShellCodeMaxToolCalls);
         // The MCP servers (2026-09-20): on, none switched off, 30 s to connect (5–300).
         Assert.True(s.McpServers);
         Assert.Empty(s.McpServersDisabled);

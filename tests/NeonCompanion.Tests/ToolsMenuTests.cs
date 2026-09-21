@@ -118,7 +118,7 @@ public class ToolsMenuTests : IDisposable
     private string Titled(string row) => row + new string(' ', _console.Profile.Width - 2 - TextCells.Width(row)) + ScreenPane.CloseGlyph;
 
     /// <summary>The strip as the pane prints it: the label, then every tab title with a space either side, two spaces between. Pinned.</summary>
-    private const string Strip = "Tools   Offered    Options    Ask    Files    Git    Web ";   // Options second since later on 2026-09-19; Git since 2026-09-20
+    private const string Strip = "Tools   Offered    Options    Ask    Files    Git    Shell    Web ";   // Options second since later on 2026-09-19; Git since 2026-09-20; Shell since 2026-09-21
 
     /// <summary>A tool row as the pane prints it at width 100 (the markup rendered): the name padded to 22, the state to 5, then the description, cut to 99 cells and an ellipsis (FittedMarkup; every description is longer).</summary>
     private string Row(string name, bool on, string mark = "  ") => Fitted(mark + name.PadRight(22) + (on ? "on" : "off").PadRight(5) + Description(name));
@@ -133,19 +133,21 @@ public class ToolsMenuTests : IDisposable
         // The three tabs that left /settings (2026-09-19): their rows unchanged, every field on exactly one tab of the three panes (Skills left for /skills later that day);
         // the Options tab ahead of them (later on 2026-09-19): the pane's own $-mention switch.
         Assert.Equal(5, SettingsMenu.TabFields.Count);
-        Assert.Equal(5, SettingsMenu.ToolsTabFields.Count);   // Git between Files and Web since 2026-09-20
-        Assert.Equal(["Offered", "Options", "Ask", "Files", "Git", "Web"], ToolsText.TabTitles);
+        Assert.Equal(6, SettingsMenu.ToolsTabFields.Count);   // Git between Files and Web since 2026-09-20, Shell between Git and Web since 2026-09-21
+        Assert.Equal(["Offered", "Options", "Ask", "Files", "Git", "Shell", "Web"], ToolsText.TabTitles);
         Assert.Equal([SettingsField.ToolsDollarMention], SettingsMenu.ToolsTabFields[0]);
         Assert.Equal([SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices], SettingsMenu.ToolsTabFields[1]);
         Assert.Equal([SettingsField.FileTools, SettingsField.FileSafeEdits, SettingsField.FileTreeMaxLength, SettingsField.FileTreeShowSizes, SettingsField.FileMentionFolderMode, SettingsField.FileViewImageMaxPerCall], SettingsMenu.ToolsTabFields[2]);   // the view_image cap last, 2026-09-19
         Assert.Equal([SettingsField.GitTools, SettingsField.GitDiffMaxLines, SettingsField.GitLogMaxCommits], SettingsMenu.ToolsTabFields[3]);   // the switch first, then alphabetical (2026-09-20)
-        Assert.Equal([SettingsField.WebTools, SettingsField.WebBrowserMode, SettingsField.WebBrowserPath, SettingsField.WebBrowserNetworkMode, SettingsField.WebSearchMethod, SettingsField.WebSearxngUrl, SettingsField.WebSearchMaxResults], SettingsMenu.ToolsTabFields[4]);
+        Assert.Equal([SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellCodeMaxToolCalls], SettingsMenu.ToolsTabFields[4]);   // the policy (the switch) first, then the list, the shell, the caps, then execute_code's three (2026-09-21)
+        Assert.Equal([SettingsField.WebTools, SettingsField.WebBrowserMode, SettingsField.WebBrowserPath, SettingsField.WebBrowserNetworkMode, SettingsField.WebSearchMethod, SettingsField.WebSearxngUrl, SettingsField.WebSearchMaxResults], SettingsMenu.ToolsTabFields[5]);
         Assert.Equal(Enum.GetValues<SettingsField>().Order(), SettingsMenu.TabFields.Concat(SettingsMenu.SkillsTabFields).Concat(SettingsMenu.ToolsTabFields).Concat(SettingsMenu.McpTabFields).SelectMany(t => t).Order());
         Assert.Equal(19, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[0]));   // "$-mention enabled"
         Assert.Equal(30, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[1]));   // "Ask max choices per question"
         Assert.Equal(32, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[2]));   // "File view image max (per call)" (later still on 2026-09-19; "Stale line number guard", 25, that morning; "Always return line numbers", 28, before)
         Assert.Equal(21, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[3]));   // "Git log max commits" (2026-09-20)
-        Assert.Equal(26, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[4]));   // "Web browser network mode" (the Web-prefixed labels, later still on 2026-09-19; "Web search max results", 24, before)
+        Assert.Equal(27, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[4]));   // "Shell code max tool calls" (the Shell tab, 2026-09-21)
+        Assert.Equal(26, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[5]));   // "Web browser network mode" (the Web-prefixed labels, later still on 2026-09-19; "Web search max results", 24, before)
         Assert.All(SettingsMenu.ToolsTabFields.SelectMany(t => t), f => Assert.False(SettingsMenu.RefusedMidTurn(f)));
         Assert.Equal("Settings", SettingsMenu.Title);
         Assert.Equal("Settings › Web browser mode", SettingsMenu.Breadcrumb("Web browser mode"));
@@ -286,7 +288,7 @@ public class ToolsMenuTests : IDisposable
         var (menu, pane, _) = PaneMenu();
         Push(Keys.Right, Keys.Right, Keys.Right);               // Files
         Push(Keys.Enter, Keys.Down, Keys.Enter);                // File tools: the page, off picked
-        Push(Keys.Right, Keys.Right);                           // Git, Web
+        Push(Keys.Right, Keys.Right, Keys.Right);               // Git, Shell, Web
         Push(Keys.Escape);
 
         await menu.ShowAsync(CancellationToken.None);
@@ -319,6 +321,61 @@ public class ToolsMenuTests : IDisposable
         Assert.Contains("\n" + Titled(Strip) + "\n \n▸ Git tools            on\n  Git diff max lines   500 lines\n  Git log max commits  20 commits\n" + Rule(100), _console.Output);
         Assert.Contains("\n  Git diff max lines   1000 lines\n", _console.Output);
         Assert.Contains("Git log max commits must be 1 to 200 commits; keeping 20.", _console.Output);
+        pane.Dispose();
+    }
+
+    /// <summary>The Shell tab (2026-09-21): between Git and Web — the policy picker first (its switch), the allowed list, the shell picker, then the three typed rows.</summary>
+    [Fact]
+    public async Task OnThePane_TheShellTab_SitsBetweenGitAndWeb_PolicyAndShellArePickers_TheListRemoves()
+    {
+        _settings.Update(d => d.ShellCommandAllowed = ["git push", "dotnet build"]);
+        var (menu, pane, _) = PaneMenu();
+        Push(Keys.Right, Keys.Right, Keys.Right, Keys.Right, Keys.Right);   // Shell
+        Push(Keys.Enter, Keys.Down, Keys.Enter);                            // Shell command policy: the picker opens on ask, yolo picked
+        Push(Keys.Down, Keys.Enter, Keys.Enter, Keys.Escape);               // Shell allowed commands: the list, dotnet build removed, back
+        Push(Keys.Down, Keys.Enter, Keys.Down, Keys.Enter);                 // Shell default: the picker, cmd picked
+        Push(Keys.Down, Keys.Enter);                                        // Shell timeout (s): the typed slot, pre-filled with 180; 0 is out of range, kept
+        Push(Keys.Backspace, Keys.Backspace, Keys.Backspace, Keys.Char('0'), Keys.Enter);
+        Push(Keys.Escape);
+
+        await menu.ShowAsync(CancellationToken.None);
+
+        Assert.Equal("yolo", _settings.Current.ShellCommandPolicy);
+        Assert.Equal(["git push"], _settings.Current.ShellCommandAllowed);
+        Assert.Equal("cmd", _settings.Current.ShellDefault);
+        Assert.Equal(180, _settings.Current.ShellTimeoutSeconds);
+        // The six rows padded to the tab's own column (26), then the picker's rows, the list's, and the notices on the status line.
+        Assert.Contains("\n" + Titled(Strip) + "\n \n▸ Shell command policy       ask\n  Shell allowed commands     2 prefixes\n  Shell default              powershell\n  Shell timeout (s)          180\n  Shell foreground cap (s)   600\n  Shell output max chars     30,000 chars\n  Shell code languages       powershell, python, node\n  Shell code timeout (s)     300\n  Shell code max tool calls  50 tool calls\n" + Rule(100), _console.Output);
+        Assert.Contains("\n" + Titled("Tools › Shell command policy") + "\n \n  off  no shell or script tool is offered\n▸ ask  you approve each command not on the allow list\n  yolo every command runs, nothing is asked\n", _console.Output);
+        Assert.Contains("  · Shell command policy: yolo\n", _console.Output);
+        Assert.Contains("\n" + Titled("Tools › Shell allowed commands") + "\n \n▸ dotnet build\n  git push\n", _console.Output);
+        Assert.Contains("  · Shell allowed commands: dotnet build removed\n▸ git push\n", _console.Output);
+        Assert.Contains("\n" + Titled("Tools › Shell default") + "\n \n▸ powershell pwsh when installed, else Windows PowerShell 5.1\n  cmd        cmd.exe: batch syntax\n  bash       Git Bash, when bash.exe is found\n", _console.Output);
+        Assert.Contains("  · Shell default: cmd\n", _console.Output);
+        Assert.Contains("Shell timeout (s) must be 1 to 3600 seconds; keeping 180.", _console.Output);
+        pane.Dispose();
+    }
+
+    /// <summary>The code-languages list (2026-09-21): Enter or Space flips and saves at once, the last one on refuses to go.</summary>
+    [Fact]
+    public async Task OnThePane_TheCodeLanguagesRow_IsACheckboxList_TheLastOneStays()
+    {
+        var (menu, pane, _) = PaneMenu();
+        Push(Keys.Right, Keys.Right, Keys.Right, Keys.Right, Keys.Right);   // Shell
+        Push(Keys.Down, Keys.Down, Keys.Down, Keys.Down, Keys.Down, Keys.Down, Keys.Enter);   // Shell code languages: the list
+        Push(Keys.Char(' '));                                               // powershell off
+        Push(Keys.Down, Keys.Enter);                                        // python off
+        Push(Keys.Down, Keys.Enter);                                        // node: the last one, refused
+        Push(Keys.Escape, Keys.Escape);
+
+        await menu.ShowAsync(CancellationToken.None);
+
+        Assert.Equal(["node"], _settings.Current.ShellCodeLanguages);
+        Assert.Contains("\n" + Titled("Tools › Shell code languages") + "\n \n▸ [x] powershell a .ps1 through pwsh or Windows PowerShell; Invoke-NeonTool calls a tool\n  [x] python     a .py through python.exe; from neon_tools import …\n  [x] node       a .js through node.exe; require('neon_tools')\n", _console.Output);
+        Assert.Contains("  · Shell code languages: python, node\n", _console.Output);
+        Assert.Contains("  · Shell code languages: node\n", _console.Output);
+        Assert.Contains("At least one language stays on.", _console.Output);
+        Assert.Contains("\n▸ Shell code languages       node\n  Shell code timeout (s)     300\n", _console.Output);
         pane.Dispose();
     }
 

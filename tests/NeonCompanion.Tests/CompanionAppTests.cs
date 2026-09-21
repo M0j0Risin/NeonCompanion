@@ -97,8 +97,8 @@ public class CompanionAppTests : IDisposable
     private readonly InProcessMcpServers _mcpServers = new();
 
     /// <summary>The prompt as headless builds it: Agent skills on by default, no skill installed, so every prompt with tools ends with the skills block over an empty catalog (2026-09-16); no timer tool, so the tool rules lose their timer sentence (2026-09-20).</summary>
-    private static string SkilledPrompt(bool speechOutput, IReadOnlyList<string>? memories, string? persona = null, string? operatingRules = null, string? voiceDirective = null, bool tools = true, bool web = false, bool files = true, AskLimits? ask = null, ProjectNotes? project = null, IReadOnlyList<Skill>? skills = null, bool sessions = true, bool mcp = false, bool git = true) =>
-        Assistant.SystemPrompt(speechOutput, memories, persona, operatingRules, voiceDirective, tools, web, files, ask, project, skills ?? [], sessions: sessions && tools, mcp: mcp && tools, timers: false, git: git && tools);
+    private static string SkilledPrompt(bool speechOutput, IReadOnlyList<string>? memories, string? persona = null, string? operatingRules = null, string? voiceDirective = null, bool tools = true, bool web = false, bool files = true, AskLimits? ask = null, ProjectNotes? project = null, IReadOnlyList<Skill>? skills = null, bool sessions = true, bool mcp = false, bool git = true, bool shell = true) =>
+        Assistant.SystemPrompt(speechOutput, memories, persona, operatingRules, voiceDirective, tools, web, files, ask, project, skills ?? [], sessions: sessions && tools, mcp: mcp && tools, timers: false, git: git && tools, shell: shell && tools);
 
     /// <summary>Every window title the app set (the <c>setTitle</c> seam): the interactive screen's launch, never headless.</summary>
     private readonly List<string> _titles = new();
@@ -303,6 +303,95 @@ public class CompanionAppTests : IDisposable
         Assert.Contains("git_discard", _chat.Options[0]!.Tools!.Cast<AIFunction>().Select(t => t.Name));   // the fixture opts every tool on; a fresh profile keeps the two opt-ins off
     }
 
+    /// <summary>Headless has no pane to ask on (2026-09-21): under <c>ask</c> a command whose prefix is not allowed is refused with the no-screen sentence; the tool and its rule are offered like the screen's.</summary>
+    [Fact]
+    public async Task Headless_RunCommand_UnderAsk_IsRefusedWithoutAScreen()
+    {
+        ServerOn1234("llama");
+        _chat.Enqueue(FakeChatClient.Call("c1", "run_command", new Dictionary<string, object?> { ["command"] = "echo hi", ["shell"] = "cmd" }));
+        _chat.EnqueueText("Then not.");
+
+        string output = await Headless("run it\n");
+
+        Assert.Contains("[tool] run_command -> Error: the command was not approved: no screen to ask on (Shell command policy is ask; NEONCOMPANION_COMMAND_POLICY=yolo or the profile's Shell allowed commands would let it run); allowed prefixes: none", output);
+        Assert.Contains(Assistant.ShellRule, _chat.Requests[0][0].Text!, StringComparison.Ordinal);
+        var offered = _chat.Options[0]!.Tools!.Cast<AIFunction>().Select(t => t.Name).ToList();
+        Assert.Equal(offered.IndexOf("git_delete") + 1, offered.IndexOf("run_command"));
+    }
+
+    /// <summary>The variable says yolo (2026-09-21): the command runs headless, its result a generic tool line — the header, then the output flattened.</summary>
+    [Fact]
+    public async Task Headless_RunCommand_UnderYoloFromTheVariable_Runs()
+    {
+        ServerOn1234("llama");
+        var env = new EnvironmentOverrides(n => n == EnvironmentOverrides.CommandPolicyVariable ? "yolo" : null);
+        _chat.Enqueue(FakeChatClient.Call("c1", "run_command", new Dictionary<string, object?> { ["command"] = "echo hi", ["shell"] = "cmd" }));
+        _chat.EnqueueText("It said hi.");
+
+        string output = await Headless("run it\n", env);
+
+        Assert.Contains("[tool] run_command -> exit 0 in 0.0 s (cmd): echo hi", output);
+        Assert.Equal(EnvironmentOverrides.CommandPolicyVariable, App(env).OverriddenBy(SettingsField.ShellCommandPolicy));
+        Assert.Null(App().OverriddenBy(SettingsField.ShellCommandPolicy));
+    }
+
+    /// <summary>A background run headless (phase B): the start line, the exit as a <c>[notice]</c> at the loop top, and the seeded poll on the next turn.</summary>
+    [Fact]
+    public async Task Headless_RunCommand_Background_NoticesTheExit_AndSeedsThePoll()
+    {
+        ServerOn1234("llama");
+        var env = new EnvironmentOverrides(n => n == EnvironmentOverrides.CommandPolicyVariable ? "yolo" : null);
+        _chat.Enqueue(FakeChatClient.Call("c1", "run_command", new Dictionary<string, object?> { ["command"] = "echo bg", ["shell"] = "cmd", ["background"] = true, ["notify"] = true }));
+        _chat.EnqueueText("Started.");
+        _chat.EnqueueText("It ended.");
+        var reader = new WaitingReader(["start it\n", "and?\n"], () => _chat.Requests.Count >= 2 ? Task.Delay(500) : Task.CompletedTask);
+
+        var stdout = new StringWriter();
+        var app = App(env, reader, stdout);
+        Assert.Equal(0, await app.RunAsync(CompanionOptions.None with { Headless = true }, CancellationToken.None));
+        string output = stdout.ToString();
+
+        Assert.Matches("\\[tool\\] run_command -> started proc_[0-9a-f]{6} \\(cmd, pid [0-9]+\\): echo bg", output);
+        Assert.Matches("\\[notice\\] proc_[0-9a-f]{6} exited 0 after [0-9.]+ s: echo bg", output);
+        var call = _chat.Requests[2].SelectMany(m => m.Contents.OfType<FunctionCallContent>()).Single(c => c.CallId.StartsWith(Assistant.PendingCallIdPrefix, StringComparison.Ordinal));
+        Assert.Equal("process", call.Name);
+        Assert.Contains("[tool] process -> proc_", output);
+        Assert.Contains("— 1 new line", output);
+    }
+
+    /// <summary>A stdin whose lines come one at a time, each after <paramref name="before"/> has run: the second line waits for a background child to exit.</summary>
+    private sealed class WaitingReader(IReadOnlyList<string> lines, Func<Task> before) : TextReader
+    {
+        private int _next;
+
+        public override async ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken)
+        {
+            if (_next >= lines.Count)
+            {
+                return null;
+            }
+
+            await before();
+            return lines[_next++].TrimEnd('\n');
+        }
+
+        public override string? ReadLine() => _next < lines.Count ? lines[_next++].TrimEnd('\n') : null;
+    }
+
+    /// <summary>A prefix on the profile's list runs headless under <c>ask</c> (2026-09-21): the list is the only gate there.</summary>
+    [Fact]
+    public async Task Headless_RunCommand_UnderAsk_RunsAnAllowedPrefix()
+    {
+        ServerOn1234("llama");
+        _settings.Update(d => d.ShellCommandAllowed = ["echo"]);
+        _chat.Enqueue(FakeChatClient.Call("c1", "run_command", new Dictionary<string, object?> { ["command"] = "echo hi", ["shell"] = "cmd" }));
+        _chat.EnqueueText("It said hi.");
+
+        string output = await Headless("run it\n");
+
+        Assert.Contains("[tool] run_command -> exit 0 in 0.0 s (cmd): echo hi", output);
+    }
+
     /// <summary>Headless connects the MCP servers after the LLM (2026-09-20): the status line, the tools offered like the screen's, a call printed as any tool's, the rule in the prompt.</summary>
     [Fact]
     public async Task Headless_McpServer_ConnectsAfterTheLlm_OffersItsTools_AndACallIsATooLine()
@@ -359,7 +448,7 @@ public class CompanionAppTests : IDisposable
         Assert.Contains("[tool] save_memory -> remembered: They live in Leeds.", output);
         Assert.Contains("Noted.", output);
         Assert.Contains("Neon: Leeds.", output);
-        Assert.Equal(11 + FileToolNames.All.Length + GitToolNames.All.Length, _chat.Options[0]!.Tools!.Count);   // clock ×3, the files, the git tools (2026-09-20), the four web tools, the two memory tools, skill_editor, session_manager
+        Assert.Equal(11 + FileToolNames.All.Length + GitToolNames.All.Length + ShellToolNames.All.Length, _chat.Options[0]!.Tools!.Count);   // clock ×3, the files, the git tools (2026-09-20), the four web tools, the two memory tools, skill_editor, session_manager
         Assert.Equal(SkilledPrompt(false, new[] { "Their name is Chris." }, web: true), _chat.Requests[0][0].Text);
         // The list rides the opening recall_memory pair, the last of the three (2026-09-17), and the
         // pair is kept current: the save of the first turn is in the second turn's result, in place.
@@ -395,7 +484,7 @@ public class CompanionAppTests : IDisposable
         await Headless("hello\n");
 
         Assert.Equal(
-            (string[])["get_current_time", "shift_date", "days_between", .. FileToolNames.All, .. GitToolNames.All, "save_memory", "recall_memory", "skill_editor", "session_manager"],
+            (string[])["get_current_time", "shift_date", "days_between", .. FileToolNames.All, .. GitToolNames.All, .. ShellToolNames.All, "save_memory", "recall_memory", "skill_editor", "session_manager"],
             _chat.Options[0]!.Tools!.Cast<AIFunction>().Select(t => t.Name).ToArray());
         Assert.DoesNotContain(Assistant.WebRule, _chat.Requests[0][0].Text!);
     }
@@ -435,7 +524,7 @@ public class CompanionAppTests : IDisposable
         string output = await Headless("hello\n");
 
         Assert.Equal(
-            (string[])["get_current_time", "shift_date", "days_between", .. GitToolNames.All, "web_search", "web_fetch", "open_url", "save_memory", "recall_memory", "skill_editor", "session_manager"],
+            (string[])["get_current_time", "shift_date", "days_between", .. GitToolNames.All, .. ShellToolNames.All, "web_search", "web_fetch", "open_url", "save_memory", "recall_memory", "skill_editor", "session_manager"],
             _chat.Options[0]!.Tools!.Cast<AIFunction>().Select(t => t.Name).ToArray());
         var request = _chat.Requests[0];
         Assert.Equal(SkilledPrompt(false, [], web: true, files: false), request[0].Text);
@@ -465,10 +554,10 @@ public class CompanionAppTests : IDisposable
         string output = await Headless("a haiku\n");
 
         Assert.Equal(
-            (string[])["get_current_time", "shift_date", "days_between", .. FileToolNames.All, .. GitToolNames.All, "web_search", "web_fetch", "open_url", "download_file", "save_memory", "recall_memory", "load_skill", "skill_editor", "session_manager"],
+            (string[])["get_current_time", "shift_date", "days_between", .. FileToolNames.All, .. GitToolNames.All, .. ShellToolNames.All, "web_search", "web_fetch", "open_url", "download_file", "save_memory", "recall_memory", "load_skill", "skill_editor", "session_manager"],
             _chat.Options[0]!.Tools!.Cast<AIFunction>().Select(t => t.Name).ToArray());
         var haiku = new Skill("haiku", "Writes haiku.", SkillScope.Profile, skills);
-        Assert.Equal(Assistant.SystemPrompt(false, [], web: true, project: new ProjectNotes("AGENTS.md", "The notes."), skills: [haiku], sessions: true, timers: false, git: true), _chat.Requests[0][0].Text);
+        Assert.Equal(Assistant.SystemPrompt(false, [], web: true, project: new ProjectNotes("AGENTS.md", "The notes."), skills: [haiku], sessions: true, timers: false, git: true, shell: true), _chat.Requests[0][0].Text);
         Assert.Contains("[tool] load_skill -> <skill_content name=\"haiku\">", output);
         Assert.True(ConversationHistory.IsSkillResult(Assert.Single(_chat.Requests[1][^1].Contents.OfType<FunctionResultContent>())));
         Assert.Contains("Old pond.", output);
@@ -478,7 +567,7 @@ public class CompanionAppTests : IDisposable
         _chat.EnqueueText("Hi.");
         await Headless("hello\n");
         Assert.DoesNotContain("skill_editor", _chat.Options[2]!.Tools!.Cast<AIFunction>().Select(t => t.Name));
-        Assert.Equal(Assistant.SystemPrompt(false, [], web: true, sessions: true, timers: false, git: true), _chat.Requests[2][0].Text);
+        Assert.Equal(Assistant.SystemPrompt(false, [], web: true, sessions: true, timers: false, git: true, shell: true), _chat.Requests[2][0].Text);
     }
 
     [Fact]
@@ -491,7 +580,7 @@ public class CompanionAppTests : IDisposable
         await Headless("hello\n");
 
         Assert.Equal(
-            (string[])["get_current_time", "shift_date", "days_between", .. FileToolNames.All, .. GitToolNames.All, "web_search", "web_fetch", "open_url", "download_file", "skill_editor", "session_manager"],
+            (string[])["get_current_time", "shift_date", "days_between", .. FileToolNames.All, .. GitToolNames.All, .. ShellToolNames.All, "web_search", "web_fetch", "open_url", "download_file", "skill_editor", "session_manager"],
             _chat.Options[0]!.Tools!.Cast<AIFunction>().Select(t => t.Name).ToArray());
         Assert.Equal(SkilledPrompt(false, null, web: true), _chat.Requests[0][0].Text);
     }

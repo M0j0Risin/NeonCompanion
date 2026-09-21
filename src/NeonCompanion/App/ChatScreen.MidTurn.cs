@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using NeonCompanion.Diagnostics;
 using NeonCompanion.Llm.Tools;
+using NeonCompanion.Shell;
 using NeonCompanion.UI;
 
 namespace NeonCompanion.App;
@@ -436,6 +437,57 @@ internal sealed partial class ChatScreen
 
     public const string AskUserNotAnsweredLogLine = "ask_user: not answered (ESC).";
     public const string AskUserNotAskedLogLine = "ask_user: never asked (no watcher to run the pane).";
+
+    /// <summary>
+    /// The gate's asker (2026-09-21), on the turn task: the <see cref="AskUserAsync"/> shape over the
+    /// approval pane (<see cref="CommandApprovalMenu"/>) — the request goes to the watcher as a pane
+    /// request, the wait is under the turn token, ESC inside the pane is a deny and the reply runs
+    /// on with the tool's refusal. Null (never asked) when no watcher could run the pane: the gate
+    /// answers with the no-screen sentence. A Session or Permanent pick is noted on the transcript
+    /// here, on its way back to the gate that records it — the pane is gone by then, and the line
+    /// reads above the tool's own.
+    /// </summary>
+    private async Task<CommandChoice?> ApproveCommandAsync(CommandRequest request, CancellationToken turnToken)
+    {
+        var paneToken = _paneClose?.Token ?? CancellationToken.None;
+        CommandChoice? choice = null;
+        var pending = _keys.RequestPaneAsync(async () =>
+        {
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(paneToken, turnToken);
+            try
+            {
+                choice = await _approvalMenu.AskAsync(request, linked.Token).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException && !linked.IsCancellationRequested)
+            {
+                DiagnosticLog.Error(ScreenPane.Category, "The approval pane failed: " + Llm.Assistant.Explain(ex), ex);
+            }
+        });
+        try
+        {
+            await pending.WaitAsync(turnToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!turnToken.IsCancellationRequested)
+        {
+            // No watcher to run the pane: never asked.
+            DiagnosticLog.Info(AppCategory, ApprovalNotAskedLogLine);
+            return null;
+        }
+
+        switch (choice)
+        {
+            case CommandChoice.Session:
+                _transcript.Notice(ShellText.SessionAllowedNotice(request.Prefixes));
+                break;
+            case CommandChoice.Permanent:
+                _transcript.Notice(ShellText.PermanentAllowedNotice(request.Prefixes));
+                break;
+        }
+
+        return choice;
+    }
+
+    public const string ApprovalNotAskedLogLine = "run_command: never asked (no watcher to run the pane).";
 
     /// <summary>A yes/no question: the pane (<see cref="SettingsMenu.ConfirmAsync"/>) where menus open, else the question with <see cref="TypedConfirmSuffix"/> and a typed <c>y</c> on the input line.</summary>
     private async Task<bool> ConfirmAsync(string question, CancellationToken cancellationToken)

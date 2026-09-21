@@ -46,6 +46,7 @@ Neon Companion is released under the GPLv3 license.
 ### Built-In Tooling & Voice
 * **Essential Tools:** Sandboxed file I/O, web search (DuckDuckGo/SearXNG), web browsing (httpClient/Chromium), graphical clarification prompts, and clock/timer functions.
 * **Local Git Management:** Built-in capabilities to seamlessly inspect, manage, and interact with local Git repositories.
+* **Shell Commands & Scripts:** `run_command` runs a command line in PowerShell, cmd or Git Bash from the working directory (foreground, or in the background with a `process` tool to poll, feed and kill it), and `execute_code` runs a Python, Node or PowerShell script that can call the other tools — all behind an approval pane (allow once, for the session, or for good) and a `yolo` mode for trusted setups.
 * **MCP Server Support:** Seamless integration with Model Context Protocol (MCP) servers to expand tool capabilities and connect to external data sources.
 * **Native Voice Stack:** Features in-process Whisper STT, push-to-talk, and Vosk wake-word integration.
 * **Text-to-Speech:** Includes in-process Kokoro TTS, with support for an external HTTP Kokoro endpoint.
@@ -191,7 +192,7 @@ One row, **Project file**: whether `NEON.md` (or `AGENTS.md`) in the working dir
 
 #### Offered
 
-Every tool the app has, grouped (Clock, Timers, Files, Git, Web, Memory, Skills, Sessions, Questions) with the description the model reads. Enter or Space flips a single tool on or off; a group whose switch is off is shown dim. `delete`, `git_discard` and `git_delete` — the tools that lose work — start off.
+Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Web, Memory, Skills, Sessions, Questions) with the description the model reads. Enter or Space flips a single tool on or off; a group whose switch is off is shown dim. `delete`, `git_discard` and `git_delete` — the tools that lose work — start off.
 
 #### Options
 
@@ -225,6 +226,20 @@ Every tool the app has, grouped (Clock, Timers, Files, Git, Web, Memory, Skills,
 | Git tools | Offers the git tools (status, log, show, diff, blame, branch, stage, commit, stash, discard, delete) over the repository in the working directory — in-process, no `git.exe`. | on |
 | Git diff max lines | Where a `git_diff` patch is cut (20–5000). | 500 |
 | Git log max commits | How many commits `git_log` returns unless the call says otherwise (1–200). | 20 |
+
+#### Shell
+
+| Setting | What it does | Default |
+|---|---|---|
+| Shell command policy | What stands between `run_command` and the shell: `off` (no shell tool is offered — the group's switch), `ask` (a command whose prefixes are not all allowed is put to you on the pane first: Deny, Allow once, Allow the prefixes for this session, or Allow them always; with no pane to ask on it is refused), `yolo` (everything runs, nothing is asked). `NEONCOMPANION_COMMAND_POLICY` outranks it, so a scripted `--headless` run can say `yolo`. | `ask` |
+| Shell allowed commands | The prefixes allowed for good — `git status`, `dotnet build`, `python` (the program, plus its subcommand for git, dotnet, npm, pip, gh, docker, cargo, go, winget and the like). Enter on one removes it; the pane's *Allow … always* adds one. | none |
+| Shell default | The shell a `run_command` without `shell` runs in: `powershell` (pwsh when installed, else Windows PowerShell 5.1), `cmd`, or `bash` (Git Bash, when found). | `powershell` |
+| Shell timeout (s) | How long a foreground command without `timeout` may run before it is killed (1–3600). | 180 |
+| Shell foreground cap (s) | The most a foreground command may wait, whatever its `timeout` says (10–3600). | 600 |
+| Shell output max chars | The most output one result carries back (2000–500000); over it the head and tail are kept and the whole text goes to `.shell\<id>.log` under the working directory, where `read_file` reaches it. | 30000 |
+| Shell code languages | The languages `execute_code` may run — `powershell`, `python`, `node`; one or more, and a language is offered only while its interpreter is found. Enter or Space flips one; the last one on stays. | all three |
+| Shell code timeout (s) | How long an `execute_code` script without `timeout` may run before it is killed (1–3600). | 300 |
+| Shell code max tool calls | How many tool calls one script may make through its bridge (1–500). | 50 |
 
 #### Web
 
@@ -320,7 +335,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 ## Tools
 [↑ Back to top](#neon-companion)
 
-What the model can call, in the groups `/tools` and `/sysprompt` show. A group's switch (`File tools`, `Git tools`, `Web tools`, `Memory`, `Agent skills`, `Session tool`, `Ask user`, `MCP servers`) offers or withholds the whole group; a single tool goes on or off on `/tools`' Offered tab. Required arguments come first; `?` marks an optional one.
+What the model can call, in the groups `/tools` and `/sysprompt` show. A group's switch (`File tools`, `Git tools`, `Shell command policy`, `Web tools`, `Memory`, `Agent skills`, `Session tool`, `Ask user`, `MCP servers`) offers or withholds the whole group; a single tool goes on or off on `/tools`' Offered tab. Required arguments come first; `?` marks an optional one.
 
 ### Clock
 
@@ -377,6 +392,16 @@ Every git tool takes an optional `path` — the file or folder the call is about
 | `git_stash` | `action, message?, index?, include_untracked?, path?` | `push` saves the working tree's changes aside, `pop` or `apply` brings a stash back, `list` shows them. |
 | `git_discard` | `paths?, ref?, path?` | Throws uncommitted changes away: the paths named back to `ref`, or with none a hard reset of the whole tree (untracked files left alone). |
 | `git_delete` | `kind, name?, index?, path?` | Removes a local `branch` (never the one checked out), a `tag`, or a `stash` by index. |
+
+### Shell
+
+A command line on your machine. It **starts** in the working directory (`workdir` names a folder under it) but is not confined to it: a shell can reach anything you can, so the guard is the `Shell command policy` — under `ask` (the default) the command is shown on the pane with its shell and you choose Deny, Allow once, Allow its prefixes for this session, or Allow them always (saved to the profile); a denial is returned to the model as an error it is told not to work around. Every child runs with no window, its output read as UTF-8, colour and pagers off, stdin closed (a background one keeps it for `write`); on a timeout the command and everything it started are killed. Background processes die with the app. Under `--headless` nothing can ask, so `ask` runs only what the allow list covers — set `NEONCOMPANION_COMMAND_POLICY=yolo` for a scripted run. A crash of the app leaves a running command to Windows.
+
+| Tool | Arguments | What it does |
+|---|---|---|
+| `run_command` | `command, shell?, workdir?, timeout?, background?, notify?` | Runs the line in `powershell` (the default), `cmd` or `bash` (Git Bash, offered when found) and returns `exit N in T s (shell): command`, then the output, stderr under its own separator. With `background` (or a `timeout` over the foreground cap) it starts the command and returns its `proc_…` id at once; with `notify` you see a `⚡` line when it exits and the model gets a `process poll` seeded into its next turn. |
+| `execute_code` | `language, code, timeout?` | Runs a script in a fresh `python`, `node` or `powershell` process (the languages `Shell code languages` allows and the machine has) and returns `exit N in T s (language, K tool calls): first line`, then what it printed. The script calls the app's other tools by name through a module written beside it — Python `from neon_tools import call, read_file`, Node `const neon = require('neon_tools'); await neon.call('read_file', { path })` inside `neon.run(async () => …)`, PowerShell `Invoke-NeonTool read_file @{ path = 'x' }` — over a loopback socket with a per-run token; `execute_code` and `ask_user` are out of reach, a nested `run_command` is approved as usual but never in the background. The approval pane asks once per language (`Allow python scripts for this session`). No kernel: each call is a fresh process. |
+| `process` | `action, session_id?, data?, timeout?, offset?, limit?` | The background processes: `list` them; `poll` one for its state and the output since the last poll; `log` a numbered window of its last 5,000 lines (`offset`, `limit`); `wait` up to `timeout` seconds; `kill` it and everything it started; `write` / `submit` text to its stdin (submit adds a newline); `close` a finished one. Any unique prefix of the id will do; at most 16 run at once and the newest 64 finished ones are kept. |
 
 ### Web
 

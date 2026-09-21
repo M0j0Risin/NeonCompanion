@@ -435,6 +435,14 @@ public sealed class CompanionApp
         var webTools = ChatScreen.WebTools(_web, files, () => EffectiveSettings);
         var git = new Git.GitAccess(files, _time);
         var gitTools = ChatScreen.GitTools(git, () => EffectiveSettings);
+        // The shell tools (2026-09-21): headless has no pane to ask on, so the gate has no asker — under ask the
+        // allow list alone decides, and NEONCOMPANION_COMMAND_POLICY=yolo is how a scripted run says yes.
+        var interpreters = new Shell.Interpreters(_environment.System);
+        var allowList = new Shell.CommandAllowList(() => EffectiveSettings.ShellCommandAllowed, allowed => _settings.Update(d => d.ShellCommandAllowed = [.. allowed]));
+        var runner = new Shell.ShellRunner(_time);
+        // The background processes (2026-09-21): nothing to signal headless (the next line is read when it is read); the exits print as notices at the loop top and ride the next turn as seeded polls.
+        using var processes = new Shell.ProcessRegistry(runner, Random.Shared, () => { });
+        var shellTools = ChatScreen.ShellTools(runner, processes, files, new Shell.CommandGate(() => EffectiveSettings, allowList, null), interpreters, () => EffectiveSettings, Random.Shared, () => session.Assistant?.Tools ?? []);
         var persona = BuildPersonaFile();
         var operata = BuildOperataFile();
         var vocalia = BuildVocaliaFile();
@@ -473,6 +481,11 @@ public sealed class CompanionApp
 
             while (!cancellationToken.IsCancellationRequested)
             {
+                while (processes.TryTakeAlert(out var alert))
+                {
+                    await HeadlessNoticeLineAsync("[notice] " + Shell.ShellText.AlertLine(alert)).ConfigureAwait(false);
+                }
+
                 await _headlessOutput.WriteAsync("You: ").ConfigureAwait(false);
                 await _headlessOutput.FlushAsync(cancellationToken).ConfigureAwait(false);
                 _headlessAtLineStart = false;
@@ -541,7 +554,7 @@ public sealed class CompanionApp
                 }
 
                 // Per turn, as the screen does: a memory saved in this turn is in the next one's prompt.
-                ChatScreen.PrepareTurn(assistant, memory, memoryTools, standingTools, persona, operata, vocalia, EffectiveSettings.Memory, speechOutput: false, EffectiveSettings.LlmMaxToolIterations, EffectiveSettings.LlmOfferTools, webTools, EffectiveSettings.WebTools, ChatScreen.ContextGuardFor(EffectiveSettings, session.ContextLength), fileTools, EffectiveSettings.FileTools, skills: skills with { Enabled = EffectiveSettings.AgentSkills, External = EffectiveSettings.AgentSkills && EffectiveSettings.ExternalSkills }, sessionTools: sessionTools, sessionsEnabled: EffectiveSettings.SessionTool, disabledTools: ToolsText.DisabledSet(EffectiveSettings.ToolsDisabled), mcpTools: mcp.Tools, mcpEnabled: EffectiveSettings.McpServers, safeEdits: EffectiveSettings.FileSafeEdits, gitTools: gitTools, gitEnabled: EffectiveSettings.GitTools);
+                ChatScreen.PrepareTurn(assistant, memory, memoryTools, standingTools, persona, operata, vocalia, EffectiveSettings.Memory, speechOutput: false, EffectiveSettings.LlmMaxToolIterations, EffectiveSettings.LlmOfferTools, webTools, EffectiveSettings.WebTools, ChatScreen.ContextGuardFor(EffectiveSettings, session.ContextLength), fileTools, EffectiveSettings.FileTools, skills: skills with { Enabled = EffectiveSettings.AgentSkills, External = EffectiveSettings.AgentSkills && EffectiveSettings.ExternalSkills }, sessionTools: sessionTools, sessionsEnabled: EffectiveSettings.SessionTool, disabledTools: ToolsText.DisabledSet(EffectiveSettings.ToolsDisabled), mcpTools: mcp.Tools, mcpEnabled: EffectiveSettings.McpServers, safeEdits: EffectiveSettings.FileSafeEdits, gitTools: gitTools, gitEnabled: EffectiveSettings.GitTools, shellTools: shellTools, shellEnabled: ChatScreen.ShellOffered(EffectiveSettings), processes: processes);
                 var turn = await RunHeadlessTurnAsync(session, assistant, text, cancellationToken).ConfigureAwait(false);
                 if (EffectiveSettings.SessionLogging)
                 {
@@ -739,7 +752,7 @@ public sealed class CompanionApp
         // on the row and hands it back to the terminal otherwise, so the terminal's own selection
         // and right-click copy work whenever there is nothing to click into.
         var mouse = _input as WindowsConsoleInput;
-        var screen = new ChatScreen(_console, _settings, () => EffectiveSettings, OverriddenBy, session, speech, new KeySource(_input ?? _console.Input), voice, PersonaFile.OpenInEditor, RenderScreen, _time, _geometry, _clipboard, mouse is null ? null : mouse.Capture, _copyToClipboard, clipboardImage: _clipboardImage, web: _web, setTitle: _setTitle, externalSkills: _externalSkills, holdWheel: mouse is null ? null : mouse.HoldWheel, splash: SplashImages.Source, editDraft: PersonaFile.EditAndWaitAsync, mcp: mcp);
+        var screen = new ChatScreen(_console, _settings, () => EffectiveSettings, OverriddenBy, session, speech, new KeySource(_input ?? _console.Input), voice, PersonaFile.OpenInEditor, RenderScreen, _time, _geometry, _clipboard, mouse is null ? null : mouse.Capture, _copyToClipboard, clipboardImage: _clipboardImage, web: _web, setTitle: _setTitle, externalSkills: _externalSkills, holdWheel: mouse is null ? null : mouse.HoldWheel, splash: SplashImages.Source, editDraft: PersonaFile.EditAndWaitAsync, mcp: mcp, environment: _environment.System);
         if (mouse is not null)
         {
             mouse.ModeChanged = screen.FlushConsole;
@@ -823,6 +836,7 @@ public sealed class CompanionApp
         SettingsField.LlmReasoning => _environment.LlmReasoning is not null ? EnvironmentOverrides.LlmReasoningVariable : null,
         SettingsField.WorkingDirectory => _options.WorkingDirectory is not null ? CompanionOptions.CwdFlag : null,
         SettingsField.WebSearxngUrl => _environment.WebSearxngUrl is not null ? EnvironmentOverrides.SearxngUrlVariable : null,
+        SettingsField.ShellCommandPolicy => _environment.ShellCommandPolicy is not null ? EnvironmentOverrides.CommandPolicyVariable : null,
         _ => null,
     };
 

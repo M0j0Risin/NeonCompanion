@@ -259,6 +259,33 @@ public enum SettingsField
 
     /// <summary>Typed: how many commits a <c>git_log</c> without <c>max_commits</c> lists, 1 to 200 (<see cref="Settings.AppSettingsData.GitLogMaxCommits"/>). The Git tab's last row; no reconnect (read at each call).</summary>
     GitLogMaxCommits,
+
+    /// <summary>A picker over <see cref="Shell.CommandPolicy.Names"/>: what stands between <c>run_command</c> and the shell (<see cref="Settings.AppSettingsData.ShellCommandPolicy"/>) — <c>off</c> is the Shell group's switch. The Shell tab of <c>/tools</c>' first row (2026-09-21); no reconnect (read at each call).</summary>
+    ShellCommandPolicy,
+
+    /// <summary>A list: the prefixes allowed for good on the approval pane (<see cref="Settings.AppSettingsData.ShellCommandAllowed"/>); Enter on one removes it. The Shell tab's second row (2026-09-21); no reconnect.</summary>
+    ShellCommandAllowed,
+
+    /// <summary>A picker over <see cref="Shell.ShellKinds.Names"/>: the shell a <c>run_command</c> without <c>shell</c> runs in (<see cref="Settings.AppSettingsData.ShellDefault"/>). The Shell tab's third row (2026-09-21); no reconnect (read at each call).</summary>
+    ShellDefault,
+
+    /// <summary>Typed: the seconds a foreground <c>run_command</c> without <c>timeout</c> waits, 1 to 3600 (<see cref="Settings.AppSettingsData.ShellTimeoutSeconds"/>). The Shell tab's fourth row (2026-09-21); no reconnect (read at each call).</summary>
+    ShellTimeoutSeconds,
+
+    /// <summary>Typed: the most seconds a foreground <c>run_command</c> may wait, 10 to 3600 (<see cref="Settings.AppSettingsData.ShellForegroundCapSeconds"/>). The Shell tab's fifth row (2026-09-21); no reconnect (read at each call).</summary>
+    ShellForegroundCapSeconds,
+
+    /// <summary>Typed: the most chars of output one result carries, 2000 to 500000 (<see cref="Settings.AppSettingsData.ShellOutputMaxChars"/>). The Shell tab's sixth row (2026-09-21); no reconnect (read at each call).</summary>
+    ShellOutputMaxChars,
+
+    /// <summary>A checkbox list over <see cref="Shell.CodeLanguages.Names"/>: the languages <c>execute_code</c> may run, at least one (<see cref="Settings.AppSettingsData.ShellCodeLanguages"/>). The Shell tab's seventh row (2026-09-21); no reconnect (read at each turn).</summary>
+    ShellCodeLanguages,
+
+    /// <summary>Typed: the seconds an <c>execute_code</c> script without <c>timeout</c> may run, 1 to 3600 (<see cref="Settings.AppSettingsData.ShellCodeTimeoutSeconds"/>). The Shell tab's eighth row (2026-09-21); no reconnect (read at each call).</summary>
+    ShellCodeTimeoutSeconds,
+
+    /// <summary>Typed: the most tool calls one <c>execute_code</c> script may make, 1 to 500 (<see cref="Settings.AppSettingsData.ShellCodeMaxToolCalls"/>). The Shell tab's last row (2026-09-21); no reconnect (read at each call).</summary>
+    ShellCodeMaxToolCalls,
 }
 
 /// <summary>The tabs of <c>/settings</c> on the pane, in strip order (Sessions right after General — the user's order, 2026-09-18; STT last since 2026-09-19, when the Ask, Files and Web tabs moved to <c>/tools</c> — <see cref="SettingsMenu.ToolsTabFields"/> — and, later that day, the Skills tab to <c>/skills</c> as its Options tab — <see cref="SettingsMenu.SkillsTabFields"/>); the value is the index into <see cref="SettingsMenu.TabTitles"/> and <see cref="SettingsMenu.TabFields"/>.</summary>
@@ -494,7 +521,8 @@ internal sealed class SettingsMenu
     /// until later that day), the search method above the Web SearXNG URL it governs. The group switch stays each tab's first row.
     /// Since later still on 2026-09-19 (the user's ask) every Files and Web row carries its tab's word (<c>File /tree max length</c>, <c>Web SearXNG URL</c>, …) and the six JSON keys that
     /// differed followed (<c>FileTreeMaxLength</c>, <c>FileTreeShowSizes</c>, <c>FileMentionFolderMode</c>, <c>FileViewImageMaxPerCall</c>, <c>WebSearxngUrl</c>) — no migration, the old key skipped on load.
-    /// Git (2026-09-20) sits between Files and Web — the strip reads alphabetically — with its switch, the diff cap and the log cap.
+    /// Git (2026-09-20) sits between Files and Web — the strip reads alphabetically — with its switch, the diff cap and the log cap;
+    /// Shell (2026-09-21) between Git and Web with the policy (its switch), the allowed list, the default shell, the two timeouts and the output cap.
     /// With <see cref="TabFields"/> and <see cref="SkillsTabFields"/> they are every <see cref="SettingsField"/> once (pinned); the flat no-pane list keeps them all.
     /// </summary>
     public static readonly IReadOnlyList<IReadOnlyList<SettingsField>> ToolsTabFields =
@@ -503,6 +531,7 @@ internal sealed class SettingsMenu
         [SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices],
         [SettingsField.FileTools, SettingsField.FileSafeEdits, SettingsField.FileTreeMaxLength, SettingsField.FileTreeShowSizes, SettingsField.FileMentionFolderMode, SettingsField.FileViewImageMaxPerCall],
         [SettingsField.GitTools, SettingsField.GitDiffMaxLines, SettingsField.GitLogMaxCommits],
+        [SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellCodeMaxToolCalls],
         [SettingsField.WebTools, SettingsField.WebBrowserMode, SettingsField.WebBrowserPath, SettingsField.WebBrowserNetworkMode, SettingsField.WebSearchMethod, SettingsField.WebSearxngUrl, SettingsField.WebSearchMaxResults],
     ];
 
@@ -525,6 +554,8 @@ internal sealed class SettingsMenu
     private readonly SpeechSession _speech;
     private readonly MenuPane _pane;
     private readonly Func<string, string?> _locateBrowser;
+    private readonly Func<IReadOnlySet<string>> _installedShells;
+    private readonly Func<IReadOnlySet<string>> _installedLanguages;
     // Set for the visit of a /settings opened while a reply runs (ShowAsync's midTurn): the rows
     // that would reconnect, switch the profile, move the sandbox or reshape the history answer
     // NotWhileReplyRunsNotice instead, and no voice preview plays over the reply's speech.
@@ -540,9 +571,13 @@ internal sealed class SettingsMenu
     /// <param name="speech">Lists the voices for the picker and speaks its preview.</param>
     /// <param name="pane">The menu host in the bottom pane; disabled (no pane), every list is a Spectre prompt.</param>
     /// <param name="locateBrowser">What the empty <c>Web browser path</c> row names: the headless browser auto-detection finds (<see cref="Web.IHeadlessBrowser.Locate"/>); null = the real one.</param>
-    public SettingsMenu(IAnsiConsole console, AppSettings settings, Func<SettingsField, string?> overriddenBy, InputLine input, TranscriptRenderer transcript, SpeechSession speech, MenuPane pane, Func<string, string?>? locateBrowser = null)
+    /// <param name="installedShells">The shells the <c>Shell default</c> picker marks as found (their <see cref="Shell.ShellKinds.Names"/> words; the screen's <see cref="Shell.Interpreters"/>, 2026-09-21); null = all three marked found.</param>
+    /// <param name="installedLanguages">The languages the <c>Shell code languages</c> list marks as found (their <see cref="Shell.CodeLanguages.Names"/> words); null = all three marked found.</param>
+    public SettingsMenu(IAnsiConsole console, AppSettings settings, Func<SettingsField, string?> overriddenBy, InputLine input, TranscriptRenderer transcript, SpeechSession speech, MenuPane pane, Func<string, string?>? locateBrowser = null, Func<IReadOnlySet<string>>? installedShells = null, Func<IReadOnlySet<string>>? installedLanguages = null)
     {
         _locateBrowser = locateBrowser ?? new Web.HeadlessBrowser().Locate;
+        _installedShells = installedShells ?? (() => new HashSet<string>(Shell.ShellKinds.Names, StringComparer.Ordinal));
+        _installedLanguages = installedLanguages ?? (() => new HashSet<string>(Shell.CodeLanguages.Names, StringComparer.Ordinal));
         _console = console ?? throw new ArgumentNullException(nameof(console));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _overriddenBy = overriddenBy ?? throw new ArgumentNullException(nameof(overriddenBy));
@@ -780,6 +815,15 @@ internal sealed class SettingsMenu
         SettingsField.WebTools => "Web tools",
         SettingsField.GitTools => "Git tools",
         SettingsField.GitDiffMaxLines => "Git diff max lines",
+        SettingsField.ShellCommandPolicy => "Shell command policy",
+        SettingsField.ShellCommandAllowed => "Shell allowed commands",
+        SettingsField.ShellDefault => "Shell default",
+        SettingsField.ShellTimeoutSeconds => "Shell timeout (s)",
+        SettingsField.ShellForegroundCapSeconds => "Shell foreground cap (s)",
+        SettingsField.ShellOutputMaxChars => "Shell output max chars",
+        SettingsField.ShellCodeLanguages => "Shell code languages",
+        SettingsField.ShellCodeTimeoutSeconds => "Shell code timeout (s)",
+        SettingsField.ShellCodeMaxToolCalls => "Shell code max tool calls",
         SettingsField.GitLogMaxCommits => "Git log max commits",
         SettingsField.WebBrowserMode => "Web browser mode",
         SettingsField.WebBrowserPath => "Web browser path",
@@ -893,6 +937,15 @@ internal sealed class SettingsMenu
             SettingsField.WebTools => OnOff(data.WebTools),
             SettingsField.GitTools => OnOff(data.GitTools),
             SettingsField.GitDiffMaxLines => Lines(data.GitDiffMaxLines),
+            SettingsField.ShellCommandPolicy => data.ShellCommandPolicy,
+            SettingsField.ShellCommandAllowed => Prefixes(data.ShellCommandAllowed.Count),
+            SettingsField.ShellDefault => data.ShellDefault,
+            SettingsField.ShellTimeoutSeconds => Seconds(data.ShellTimeoutSeconds),
+            SettingsField.ShellForegroundCapSeconds => Seconds(data.ShellForegroundCapSeconds),
+            SettingsField.ShellOutputMaxChars => Chars(data.ShellOutputMaxChars),
+            SettingsField.ShellCodeLanguages => string.Join(", ", Shell.CodeLanguages.Resolve(data).Select(Shell.CodeLanguages.Name)),
+            SettingsField.ShellCodeTimeoutSeconds => Seconds(data.ShellCodeTimeoutSeconds),
+            SettingsField.ShellCodeMaxToolCalls => ToolCalls(data.ShellCodeMaxToolCalls),
             SettingsField.GitLogMaxCommits => Commits(data.GitLogMaxCommits),
             SettingsField.WebBrowserMode => data.WebBrowserMode,
             SettingsField.WebBrowserPath => string.IsNullOrWhiteSpace(data.WebBrowserPath) ? AutoBrowserLabel(locatedBrowser) : data.WebBrowserPath,
@@ -980,6 +1033,56 @@ internal sealed class SettingsMenu
     /// <summary>The settings-menu wording for a bad <see cref="SettingsField.McpConnectTimeoutSeconds"/>. Pinned.</summary>
     public static readonly string McpConnectTimeoutRangeError =
         "must be " + AppSettingsData.MinMcpConnectTimeout.ToString(CultureInfo.InvariantCulture) + " to " + AppSettingsData.MaxMcpConnectTimeout.ToString(CultureInfo.InvariantCulture) + " seconds";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.ShellTimeoutSeconds"/>. Pinned.</summary>
+    public static readonly string ShellTimeoutSecondsRangeError =
+        "must be " + AppSettingsData.MinShellTimeoutSeconds.ToString(CultureInfo.InvariantCulture) + " to " + AppSettingsData.MaxShellTimeoutSeconds.ToString(CultureInfo.InvariantCulture) + " seconds";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.ShellForegroundCapSeconds"/>. Pinned.</summary>
+    public static readonly string ShellForegroundCapSecondsRangeError =
+        "must be " + AppSettingsData.MinShellForegroundCapSeconds.ToString(CultureInfo.InvariantCulture) + " to " + AppSettingsData.MaxShellForegroundCapSeconds.ToString(CultureInfo.InvariantCulture) + " seconds";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.ShellOutputMaxChars"/>. Pinned.</summary>
+    public static readonly string ShellOutputMaxCharsRangeError =
+        "must be " + AppSettingsData.MinShellOutputMaxChars.ToString(CultureInfo.InvariantCulture) + " to " + AppSettingsData.MaxShellOutputMaxChars.ToString(CultureInfo.InvariantCulture) + " chars";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.ShellCodeTimeoutSeconds"/>. Pinned.</summary>
+    public static readonly string ShellCodeTimeoutSecondsRangeError =
+        "must be " + AppSettingsData.MinShellCodeTimeoutSeconds.ToString(CultureInfo.InvariantCulture) + " to " + AppSettingsData.MaxShellCodeTimeoutSeconds.ToString(CultureInfo.InvariantCulture) + " seconds";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.ShellCodeMaxToolCalls"/>. Pinned.</summary>
+    public static readonly string ShellCodeMaxToolCallsRangeError =
+        "must be " + AppSettingsData.MinShellCodeMaxToolCalls.ToString(CultureInfo.InvariantCulture) + " to " + AppSettingsData.MaxShellCodeMaxToolCalls.ToString(CultureInfo.InvariantCulture) + " tool calls";
+
+    /// <summary>One row of the code-languages list: the mark, the language, its hint and <see cref="NotFoundSuffix"/> when its interpreter is not installed (padded to eleven). Pinned.</summary>
+    public static string CodeLanguageLabel(string name, bool enabled, bool installed) =>
+        Markup.Escape((enabled ? "[x] " : "[ ] ") + name.PadRight(11)) + Theme.DimMarkup(Shell.CodeLanguages.Describe(name) + (installed ? "" : NotFoundSuffix));
+
+    /// <summary>The code-languages list's hint. Pinned.</summary>
+    public const string ToggleKeys = "Enter / Space = on or off · ESC = back";
+
+    /// <summary>The status line when the last language would go: at least one stays (the user's rule, 2026-09-21). Pinned.</summary>
+    public const string LastLanguageError = "At least one language stays on.";
+
+    /// <summary>One row of the command-policy picker: the mode and its hint (padded to five: <c>yolo</c> is four). Pinned.</summary>
+    public static string CommandPolicyLabel(string name) =>
+        Markup.Escape(name.PadRight(5)) + Theme.DimMarkup(Shell.CommandPolicy.Describe(name));
+
+    /// <summary>One row of the default-shell picker: the shell, its hint, and <see cref="NotFoundSuffix"/> when it is not installed (padded to eleven: <c>powershell</c> is ten). Pinned.</summary>
+    public static string ShellLabel(string name, bool installed) =>
+        Markup.Escape(name.PadRight(11)) + Theme.DimMarkup(Shell.ShellKinds.Describe(name) + (installed ? "" : NotFoundSuffix));
+
+    /// <summary>After a shell's hint on the picker while it is not installed. Pinned.</summary>
+    public const string NotFoundSuffix = " — not found";
+
+    /// <summary>The one row of the allowed-commands list while nothing is allowed for good. Pinned.</summary>
+    public const string NoAllowedCommandsRow = "(none: Allow … always on the approval pane adds one)";
+
+    /// <summary>The allowed-commands list's hint. Pinned.</summary>
+    public const string RemoveKeys = "Enter = remove · ESC = back";
+
+    /// <summary>The notice after a prefix is removed from the allowed list: <c>Shell allowed commands: git push removed</c>. Pinned.</summary>
+    public static string PrefixRemovedNotice(string prefix) => FieldName(SettingsField.ShellCommandAllowed) + ": " + prefix + " removed";
 
     /// <summary>The settings-menu wording for a bad <see cref="SettingsField.GitDiffMaxLines"/>. Pinned.</summary>
     public static readonly string GitDiffMaxLinesRangeError =
@@ -1142,6 +1245,11 @@ internal sealed class SettingsMenu
         SettingsField.McpConnectTimeoutSeconds => data.McpConnectTimeoutSeconds.ToString(CultureInfo.InvariantCulture),
         SettingsField.WebSearchMaxResults => data.WebSearchMaxResults.ToString(CultureInfo.InvariantCulture),
         SettingsField.GitDiffMaxLines => data.GitDiffMaxLines.ToString(CultureInfo.InvariantCulture),
+        SettingsField.ShellTimeoutSeconds => data.ShellTimeoutSeconds.ToString(CultureInfo.InvariantCulture),
+        SettingsField.ShellForegroundCapSeconds => data.ShellForegroundCapSeconds.ToString(CultureInfo.InvariantCulture),
+        SettingsField.ShellOutputMaxChars => data.ShellOutputMaxChars.ToString(CultureInfo.InvariantCulture),
+        SettingsField.ShellCodeTimeoutSeconds => data.ShellCodeTimeoutSeconds.ToString(CultureInfo.InvariantCulture),
+        SettingsField.ShellCodeMaxToolCalls => data.ShellCodeMaxToolCalls.ToString(CultureInfo.InvariantCulture),
         SettingsField.GitLogMaxCommits => data.GitLogMaxCommits.ToString(CultureInfo.InvariantCulture),
         SettingsField.AskMaxQuestions => data.AskMaxQuestions.ToString(CultureInfo.InvariantCulture),
         SettingsField.AskMaxChoices => data.AskMaxChoices.ToString(CultureInfo.InvariantCulture),
@@ -1667,6 +1775,26 @@ internal sealed class SettingsMenu
             return await PickNetworkModeAsync(saved, cancellationToken).ConfigureAwait(false);
         }
 
+        if (field == SettingsField.ShellCommandPolicy)
+        {
+            return await PickCommandPolicyAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.ShellDefault)
+        {
+            return await PickShellAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.ShellCommandAllowed)
+        {
+            return await EditAllowedCommandsAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.ShellCodeLanguages)
+        {
+            return await EditCodeLanguagesAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         if (field == SettingsField.SessionNamingMode)
         {
             return await PickSessionNamingModeAsync(saved, cancellationToken).ConfigureAwait(false);
@@ -1863,6 +1991,56 @@ internal sealed class SettingsMenu
                 }
 
                 Apply(field, d => d.GitLogMaxCommits = logCommits);
+                return true;
+
+            case SettingsField.ShellTimeoutSeconds:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int shellTimeout) || shellTimeout < AppSettingsData.MinShellTimeoutSeconds || shellTimeout > AppSettingsData.MaxShellTimeoutSeconds)
+                {
+                    Sink.Error($"{FieldName(field)} {ShellTimeoutSecondsRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.ShellTimeoutSeconds = shellTimeout);
+                return true;
+
+            case SettingsField.ShellForegroundCapSeconds:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int shellCap) || shellCap < AppSettingsData.MinShellForegroundCapSeconds || shellCap > AppSettingsData.MaxShellForegroundCapSeconds)
+                {
+                    Sink.Error($"{FieldName(field)} {ShellForegroundCapSecondsRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.ShellForegroundCapSeconds = shellCap);
+                return true;
+
+            case SettingsField.ShellOutputMaxChars:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int shellChars) || shellChars < AppSettingsData.MinShellOutputMaxChars || shellChars > AppSettingsData.MaxShellOutputMaxChars)
+                {
+                    Sink.Error($"{FieldName(field)} {ShellOutputMaxCharsRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.ShellOutputMaxChars = shellChars);
+                return true;
+
+            case SettingsField.ShellCodeTimeoutSeconds:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int codeTimeout) || codeTimeout < AppSettingsData.MinShellCodeTimeoutSeconds || codeTimeout > AppSettingsData.MaxShellCodeTimeoutSeconds)
+                {
+                    Sink.Error($"{FieldName(field)} {ShellCodeTimeoutSecondsRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.ShellCodeTimeoutSeconds = codeTimeout);
+                return true;
+
+            case SettingsField.ShellCodeMaxToolCalls:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int codeCalls) || codeCalls < AppSettingsData.MinShellCodeMaxToolCalls || codeCalls > AppSettingsData.MaxShellCodeMaxToolCalls)
+                {
+                    Sink.Error($"{FieldName(field)} {ShellCodeMaxToolCallsRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.ShellCodeMaxToolCalls = codeCalls);
                 return true;
 
             case SettingsField.FileViewImageMaxPerCall:
@@ -2585,6 +2763,111 @@ internal sealed class SettingsMenu
         return true;
     }
 
+    /// <summary>The command-policy picker under the settings list (2026-09-21): one <see cref="CommandPolicyLabel"/> row per <see cref="Shell.CommandPolicy.Names"/> entry, the saved one under the cursor.</summary>
+    private async Task<bool> PickCommandPolicyAsync(AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var page = new MenuPage(Crumb(FieldName(SettingsField.ShellCommandPolicy)), Shell.CommandPolicy.Names.Select(CommandPolicyLabel).ToList(), PickKeys);
+        int? picked = await PickAsync(page, Array.IndexOf(Shell.CommandPolicy.Names, saved.ShellCommandPolicy), cancellationToken).ConfigureAwait(false);
+        if (picked is not { } index)
+        {
+            return Unchanged();
+        }
+
+        string name = Shell.CommandPolicy.Names[index];
+        Apply(SettingsField.ShellCommandPolicy, d => d.ShellCommandPolicy = name);
+        return true;
+    }
+
+    /// <summary>The default-shell picker under the settings list (2026-09-21): one <see cref="ShellLabel"/> row per <see cref="Shell.ShellKinds.Names"/> entry, a shell not installed noted, the saved one under the cursor. A shell not found can still be picked: the row is the wish, the tool says what is missing.</summary>
+    private async Task<bool> PickShellAsync(AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var installed = _installedShells();
+        var page = new MenuPage(Crumb(FieldName(SettingsField.ShellDefault)), Shell.ShellKinds.Names.Select(name => ShellLabel(name, installed.Contains(name))).ToList(), PickKeys);
+        int? picked = await PickAsync(page, Array.IndexOf(Shell.ShellKinds.Names, saved.ShellDefault), cancellationToken).ConfigureAwait(false);
+        if (picked is not { } index)
+        {
+            return Unchanged();
+        }
+
+        string name = Shell.ShellKinds.Names[index];
+        Apply(SettingsField.ShellDefault, d => d.ShellDefault = name);
+        return true;
+    }
+
+    /// <summary>
+    /// The allowed-commands list under the settings list (2026-09-21): one row per prefix saved for
+    /// good, Enter removing it (the list re-shown until ESC); <see cref="NoAllowedCommandsRow"/> alone
+    /// while it is empty. The session's own allows are not here: they live in the process, not the file.
+    /// True when anything was removed.
+    /// </summary>
+    private async Task<bool> EditAllowedCommandsAsync(CancellationToken cancellationToken)
+    {
+        bool changed = false;
+        int cursor = 0;
+        while (true)
+        {
+            var allowed = Shell.CommandAllowList.Merge(_settings.Current.ShellCommandAllowed, []);
+            IReadOnlyList<string> rows = allowed.Count == 0 ? [Markup.Escape(NoAllowedCommandsRow)] : allowed.Select(Markup.Escape).ToList();
+            var page = new MenuPage(Crumb(FieldName(SettingsField.ShellCommandAllowed)), rows, allowed.Count == 0 ? PickKeys : RemoveKeys);
+            int? picked = await PickAsync(page, Math.Min(cursor, rows.Count - 1), cancellationToken).ConfigureAwait(false);
+            if (picked is not { } index || allowed.Count == 0)
+            {
+                if (!changed)
+                {
+                    Sink.Notice(UnchangedNotice);
+                }
+
+                return changed;
+            }
+
+            string prefix = allowed[index];
+            _settings.Update(d => d.ShellCommandAllowed = Shell.CommandAllowList.Without(d.ShellCommandAllowed, prefix));
+            Sink.Notice(PrefixRemovedNotice(prefix));
+            changed = true;
+            cursor = index;
+        }
+    }
+
+    /// <summary>
+    /// The code-languages list under the settings list (2026-09-21): one <see cref="CodeLanguageLabel"/> row
+    /// per <see cref="Shell.CodeLanguages.Names"/> entry, Enter or Space flipping it and saving at once, the
+    /// list re-shown until ESC; the last language on refuses to go (<see cref="LastLanguageError"/>).
+    /// True when anything was flipped.
+    /// </summary>
+    private async Task<bool> EditCodeLanguagesAsync(CancellationToken cancellationToken)
+    {
+        bool changed = false;
+        int cursor = 0;
+        var installed = _installedLanguages();
+        while (true)
+        {
+            var enabled = Shell.CodeLanguages.Resolve(_settings.Current).Select(Shell.CodeLanguages.Name).ToHashSet(StringComparer.Ordinal);
+            var page = new MenuPage(Crumb(FieldName(SettingsField.ShellCodeLanguages)), Shell.CodeLanguages.Names.Select(name => CodeLanguageLabel(name, enabled.Contains(name), installed.Contains(name))).ToList(), ToggleKeys) { SpaceToggles = true };
+            int? picked = await PickAsync(page, cursor, cancellationToken).ConfigureAwait(false);
+            if (picked is not { } index)
+            {
+                if (!changed)
+                {
+                    Sink.Notice(UnchangedNotice);
+                }
+
+                return changed;
+            }
+
+            cursor = index;
+            string name = Shell.CodeLanguages.Names[index];
+            if (enabled.Contains(name) && enabled.Count == 1)
+            {
+                Sink.Error(LastLanguageError);
+                continue;
+            }
+
+            var next = Shell.CodeLanguages.Names.Where(n => enabled.Contains(n) != string.Equals(n, name, StringComparison.Ordinal)).ToList();
+            Apply(SettingsField.ShellCodeLanguages, d => d.ShellCodeLanguages = next);
+            changed = true;
+        }
+    }
+
     /// <summary>The queue-cancel-mode picker under the settings list: one <see cref="QueueCancelModeLabel"/> row per <see cref="QueueCancelMode.Names"/> entry, the saved one under the cursor.</summary>
     private async Task<bool> PickQueueCancelModeAsync(AppSettingsData saved, CancellationToken cancellationToken)
     {
@@ -2832,6 +3115,12 @@ internal sealed class SettingsMenu
 
     /// <summary>A hit count as the menu shows it: <c>8 results</c>, <c>1 result</c>. Pinned.</summary>
     public static string Results(int value) => value.ToString(CultureInfo.InvariantCulture) + (value == 1 ? " result" : " results");
+
+    /// <summary>The <c>Shell allowed commands</c> row's value: <c>3 prefixes</c>, <c>1 prefix</c>, <c>none</c> at 0 (2026-09-21). Pinned.</summary>
+    public static string Prefixes(int value) => value == 0 ? "none" : value.ToString(CultureInfo.InvariantCulture) + (value == 1 ? " prefix" : " prefixes");
+
+    /// <summary>The <c>Shell output max chars</c> row's value: <c>30,000 chars</c> (2026-09-21). Pinned.</summary>
+    public static string Chars(int value) => value.ToString("N0", CultureInfo.InvariantCulture) + " chars";
 
     /// <summary><c>20 commits</c> (the Git log cap, 2026-09-20).</summary>
     public static string Commits(int value) => value.ToString(CultureInfo.InvariantCulture) + (value == 1 ? " commit" : " commits");

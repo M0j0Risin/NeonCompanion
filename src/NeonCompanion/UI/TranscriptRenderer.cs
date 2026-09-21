@@ -41,6 +41,9 @@ public sealed class TranscriptRenderer : INoticeSink
     // font draws it wider, over the cell that follows — one space vanished under it in Windows Terminal.
     public const string ToolGlyph = "  ⚙  ";
     public const string AlertGlyph = "  ⏰ ";
+
+    /// <summary>A background process's exit (2026-09-21): its own glyph, so it never reads as a timer.</summary>
+    public const string ProcessGlyph = "  ⚡ ";
     public const string NoReplyText = "(no reply)";
 
     /// <summary>Tool arguments and results are cut to this many characters on the transcript.</summary>
@@ -103,6 +106,9 @@ public sealed class TranscriptRenderer : INoticeSink
 
     /// <summary>A timer alert: the warning colour behind its own glyph, so it stands out from a diagnostic.</summary>
     public static string AlertMarkup(string text) => Theme.ColorMarkup(Theme.Warn, AlertGlyph + text);
+
+    /// <summary>A process's exit: the warning colour behind <see cref="ProcessGlyph"/>.</summary>
+    public static string ProcessAlertMarkup(string text) => Theme.ColorMarkup(Theme.Warn, ProcessGlyph + text);
 
     public static string ToolMarkup(string name, string argumentsJson) =>
         Theme.ColorMarkup(Theme.Dim, $"{ToolGlyph}{name} {Truncate(argumentsJson, ToolTextLimit)}");
@@ -187,6 +193,8 @@ public sealed class TranscriptRenderer : INoticeSink
     public void Error(string text) => Line(ErrorMarkup(text), Theme.ColorMarkup(Theme.Bad, text));
 
     public void Alert(string text) => Line(AlertMarkup(text), Theme.ColorMarkup(Theme.Warn, text));
+
+    public void ProcessAlert(string text) => Line(ProcessAlertMarkup(text), Theme.ColorMarkup(Theme.Warn, text));
 
     public void Tool(string name, string argumentsJson) => Line(ToolMarkup(name, argumentsJson), ToolMarkup(name, argumentsJson).TrimStart());
 

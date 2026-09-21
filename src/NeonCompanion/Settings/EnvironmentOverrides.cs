@@ -37,6 +37,7 @@ public sealed class EnvironmentOverrides
     public const string InterruptConfirmVariable = Prefix + "INTERRUPT_CONFIRM";
     public const string LlmContextVariable = Prefix + "LLM_CONTEXT";
     public const string SearxngUrlVariable = Prefix + "SEARXNG_URL";
+    public const string CommandPolicyVariable = Prefix + "COMMAND_POLICY";
 
     /// <summary>Every variable this class reads, for documentation.</summary>
     public static readonly string[] AllVariables =
@@ -45,6 +46,7 @@ public sealed class EnvironmentOverrides
         RequestTimeoutVariable, TurnTimeoutVariable, TtsUrlVariable, TtsVoiceVariable, TtsSpeedVariable,
         WhisperModelVariable, LlmReasoningVariable, TtsVoice2Variable, TtsMixVariable,
         InterruptEchoVariable, InterruptConfirmVariable, LlmContextVariable, SearxngUrlVariable,
+        CommandPolicyVariable,
     };
 
     /// <summary>The log category of every environment line.</summary>
@@ -105,6 +107,21 @@ public sealed class EnvironmentOverrides
     /// <summary>Context-window override in tokens, or null when unset or not a positive whole number.</summary>
     public int? LlmContextLength => ReadTokens(LlmContextVariable);
 
+    /// <summary>Shell command policy override as one of <see cref="Shell.CommandPolicy.Names"/> (lowercased), or null when unset or not a mode (2026-09-21: the way a scripted headless run says <c>yolo</c>).</summary>
+    public string? ShellCommandPolicy => ReadCommandPolicy(CommandPolicyVariable);
+
+    /// <summary>
+    /// A variable that is not an override: <c>PATH</c>, <c>PATHEXT</c>, <c>ProgramFiles</c> — what the
+    /// shell probe (<see cref="Shell.Interpreters"/>) walks (2026-09-21). The one door stays this class's:
+    /// nothing else calls <c>Environment.GetEnvironmentVariable</c>, and tests hand a dictionary here too.
+    /// Null for unset or blank.
+    /// </summary>
+    public string? System(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        return Read(name);
+    }
+
     /// <summary>The names of the variables that are currently set to a usable value.</summary>
     public IReadOnlyList<string> ActiveVariables()
     {
@@ -121,6 +138,7 @@ public sealed class EnvironmentOverrides
                 InterruptEchoVariable => SttInterruptEchoGuard is not null,
                 InterruptConfirmVariable => SttInterruptConfirmMs is not null,
                 LlmContextVariable => LlmContextLength is not null,
+                CommandPolicyVariable => ShellCommandPolicy is not null,
                 _ => Read(name) is not null,
             };
             if (set)
@@ -183,8 +201,26 @@ public sealed class EnvironmentOverrides
         if (SttInterruptConfirmMs is { } confirm) effective.SttInterruptConfirmMs = confirm;
         if (LlmContextLength is { } context) effective.LlmContextLength = context;
         if (WebSearxngUrl is { } searxng) effective.WebSearxngUrl = searxng;
+        if (ShellCommandPolicy is { } policy) effective.ShellCommandPolicy = policy;
 
         return effective;
+    }
+
+    private string? ReadCommandPolicy(string name)
+    {
+        var raw = Read(name);
+        if (raw is null)
+        {
+            return null;
+        }
+
+        if (!Shell.CommandPolicy.TryParse(raw, out var mode))
+        {
+            DiagnosticLog.Warn(Category, $"{name}='{raw}' is not one of {string.Join(", ", Shell.CommandPolicy.Names)}; ignoring it.");
+            return null;
+        }
+
+        return Shell.CommandPolicy.Name(mode);
     }
 
     private int? ReadTokens(string name)

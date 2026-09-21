@@ -759,6 +759,8 @@ public class SettingsMenuTests : IDisposable
                 SettingsField.ToolsDollarMention, SettingsField.ReflectionCooldownMinutes, SettingsField.ReflectionIncludesSessions, SettingsField.ReflectionCooldownMode,
                 SettingsField.DraftEditor, SettingsField.FileViewImageMaxPerCall,
                 SettingsField.McpServers, SettingsField.McpConnectTimeoutSeconds, SettingsField.GitTools, SettingsField.GitDiffMaxLines, SettingsField.GitLogMaxCommits,
+                SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars,
+                SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellCodeMaxToolCalls,
             },
             Enum.GetValues<SettingsField>());
         // The compact rows: on the LLM tab after the context length but no reconnect; the type a picker, the two others typed.
@@ -906,7 +908,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("protected   [#9A8BB8]loaded skills survive a prune and the mid-turn guard[/]", SettingsMenu.SkillCompactModeLabel("protected"));
         Assert.Equal("unprotected [#9A8BB8]loaded skills prune like any tool result[/]", SettingsMenu.SkillCompactModeLabel("unprotected"));
         Assert.Equal(5, SettingsMenu.TabFields.Count);   // 9 until 2026-09-19, when Ask, Files and Web moved to /tools (ToolsTabFields) and, later that day, Skills to /skills (SkillsTabFields)
-        Assert.Equal(5, SettingsMenu.ToolsTabFields.Count);   // Options first since later on 2026-09-19; Git between Files and Web since 2026-09-20
+        Assert.Equal(6, SettingsMenu.ToolsTabFields.Count);   // Options first since later on 2026-09-19; Git between Files and Web since 2026-09-20; Shell between Git and Web since 2026-09-21
         Assert.Equal(2, SettingsMenu.SkillsTabFields.Count);   // Options and Reflection, since later on 2026-09-19 (one list of 11, then 14, before)
         Assert.Equal(13, SettingsMenu.SkillsTabFields.Sum(t => t.Count));   // 14 until Reflection verbose went later still on 2026-09-19
         Assert.Equal(new[] { SettingsField.Profile, SettingsField.NewProfileMode, SettingsField.WorkingDirectory, SettingsField.QueueMessages, SettingsField.QueueCancelMode, SettingsField.Memory, SettingsField.CopyUserPrompt, SettingsField.MouseInMenus, SettingsField.ShowImageThumbnails, SettingsField.ImageThumbnailSize, SettingsField.TranscriptMarkdown, SettingsField.PastePreviewLines, SettingsField.HideExitAutocomplete, SettingsField.CommandTypoIntercept, SettingsField.WelcomeSplash, SettingsField.ShowWorkingDirectory, SettingsField.DraftEditor }, SettingsMenu.TabFields[(int)SettingsTab.General]);
@@ -1000,7 +1002,54 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("on", SettingsMenu.FieldValue(SettingsField.FileSafeEdits, new AppSettingsData { FileSafeEdits = true }, _settings.ProfileDirectory));
         Assert.Equal(SettingsMenu.ToolsTabFields[2].Max(f => SettingsMenu.FieldName(f).Length) + 2, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[2]));
         // The web rows (2026-09-15): the Web tab (titled Browser until later that day; /tools' last since 2026-09-19), in this order, none a reconnect — one toggle, three pickers (the network mode in the LAN switch's slot since 2026-09-18; the search method above the URL it governs), two typed rows that may be empty, a typed count.
-        Assert.Equal(new[] { SettingsField.WebTools, SettingsField.WebBrowserMode, SettingsField.WebBrowserPath, SettingsField.WebBrowserNetworkMode, SettingsField.WebSearchMethod, SettingsField.WebSearxngUrl, SettingsField.WebSearchMaxResults }, SettingsMenu.ToolsTabFields[4]);
+        Assert.Equal(new[] { SettingsField.WebTools, SettingsField.WebBrowserMode, SettingsField.WebBrowserPath, SettingsField.WebBrowserNetworkMode, SettingsField.WebSearchMethod, SettingsField.WebSearxngUrl, SettingsField.WebSearchMaxResults }, SettingsMenu.ToolsTabFields[5]);
+        // The shell rows (2026-09-21): the Shell tab between Git and Web — the policy (the group's switch, a picker), the allowed list, the default shell (a picker), then the three typed caps; none a reconnect, none a toggle.
+        Assert.Equal(new[] { SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellCodeMaxToolCalls }, SettingsMenu.ToolsTabFields[4]);
+        Assert.Equal("Shell code languages", SettingsMenu.FieldName(SettingsField.ShellCodeLanguages));
+        Assert.Equal("Shell code timeout (s)", SettingsMenu.FieldName(SettingsField.ShellCodeTimeoutSeconds));
+        Assert.Equal("Shell code max tool calls", SettingsMenu.FieldName(SettingsField.ShellCodeMaxToolCalls));
+        Assert.Equal("powershell, python, node", SettingsMenu.FieldValue(SettingsField.ShellCodeLanguages, data, _settings.ProfileDirectory));
+        Assert.Equal("python", SettingsMenu.FieldValue(SettingsField.ShellCodeLanguages, new AppSettingsData { ShellCodeLanguages = ["python", "ruby"] }, _settings.ProfileDirectory));
+        Assert.Equal("300", SettingsMenu.FieldValue(SettingsField.ShellCodeTimeoutSeconds, data, _settings.ProfileDirectory));
+        Assert.Equal("50 tool calls", SettingsMenu.FieldValue(SettingsField.ShellCodeMaxToolCalls, data, _settings.ProfileDirectory));
+        Assert.Equal("300", SettingsMenu.EditableValue(SettingsField.ShellCodeTimeoutSeconds, data));
+        Assert.Equal("50", SettingsMenu.EditableValue(SettingsField.ShellCodeMaxToolCalls, data));
+        Assert.Equal("must be 1 to 3600 seconds", SettingsMenu.ShellCodeTimeoutSecondsRangeError);
+        Assert.Equal("must be 1 to 500 tool calls", SettingsMenu.ShellCodeMaxToolCallsRangeError);
+        Assert.Equal("[[x]] python     [#9A8BB8]a .py through python.exe; from neon_tools import …[/]", SettingsMenu.CodeLanguageLabel("python", enabled: true, installed: true));   // the marks escaped for markup
+        Assert.Equal("[[ ]] node       [#9A8BB8]a .js through node.exe; require('neon_tools') — not found[/]", SettingsMenu.CodeLanguageLabel("node", enabled: false, installed: false));
+        Assert.Equal("Enter / Space = on or off · ESC = back", SettingsMenu.ToggleKeys);
+        Assert.Equal("At least one language stays on.", SettingsMenu.LastLanguageError);
+        Assert.Equal("Shell command policy", SettingsMenu.FieldName(SettingsField.ShellCommandPolicy));
+        Assert.Equal("Shell allowed commands", SettingsMenu.FieldName(SettingsField.ShellCommandAllowed));
+        Assert.Equal("Shell default", SettingsMenu.FieldName(SettingsField.ShellDefault));
+        Assert.Equal("Shell timeout (s)", SettingsMenu.FieldName(SettingsField.ShellTimeoutSeconds));
+        Assert.Equal("Shell foreground cap (s)", SettingsMenu.FieldName(SettingsField.ShellForegroundCapSeconds));
+        Assert.Equal("Shell output max chars", SettingsMenu.FieldName(SettingsField.ShellOutputMaxChars));
+        Assert.All(SettingsMenu.ToolsTabFields[4], f => Assert.False(SettingsMenu.IsToggle(f)));
+        Assert.All(SettingsMenu.ToolsTabFields[4], f => Assert.False(SettingsMenu.RefusedMidTurn(f)));
+        Assert.Equal("ask", SettingsMenu.FieldValue(SettingsField.ShellCommandPolicy, data, _settings.ProfileDirectory));
+        Assert.Equal("none", SettingsMenu.FieldValue(SettingsField.ShellCommandAllowed, data, _settings.ProfileDirectory));
+        Assert.Equal("1 prefix", SettingsMenu.FieldValue(SettingsField.ShellCommandAllowed, new AppSettingsData { ShellCommandAllowed = ["git push"] }, _settings.ProfileDirectory));
+        Assert.Equal("2 prefixes", SettingsMenu.FieldValue(SettingsField.ShellCommandAllowed, new AppSettingsData { ShellCommandAllowed = ["git push", "python"] }, _settings.ProfileDirectory));
+        Assert.Equal("powershell", SettingsMenu.FieldValue(SettingsField.ShellDefault, data, _settings.ProfileDirectory));
+        Assert.Equal("180", SettingsMenu.FieldValue(SettingsField.ShellTimeoutSeconds, data, _settings.ProfileDirectory));
+        Assert.Equal("600", SettingsMenu.FieldValue(SettingsField.ShellForegroundCapSeconds, data, _settings.ProfileDirectory));
+        Assert.Equal("30,000 chars", SettingsMenu.FieldValue(SettingsField.ShellOutputMaxChars, data, _settings.ProfileDirectory));
+        Assert.Equal("180", SettingsMenu.EditableValue(SettingsField.ShellTimeoutSeconds, data));
+        Assert.Equal("600", SettingsMenu.EditableValue(SettingsField.ShellForegroundCapSeconds, data));
+        Assert.Equal("30000", SettingsMenu.EditableValue(SettingsField.ShellOutputMaxChars, data));
+        Assert.Equal("must be 1 to 3600 seconds", SettingsMenu.ShellTimeoutSecondsRangeError);
+        Assert.Equal("must be 10 to 3600 seconds", SettingsMenu.ShellForegroundCapSecondsRangeError);
+        Assert.Equal("must be 2000 to 500000 chars", SettingsMenu.ShellOutputMaxCharsRangeError);
+        Assert.Equal("ask  [#9A8BB8]you approve each command not on the allow list[/]", SettingsMenu.CommandPolicyLabel("ask"));
+        Assert.Equal("yolo [#9A8BB8]every command runs, nothing is asked[/]", SettingsMenu.CommandPolicyLabel("yolo"));
+        Assert.Equal("off  [#9A8BB8]no shell or script tool is offered[/]", SettingsMenu.CommandPolicyLabel("off"));
+        Assert.Equal("bash       [#9A8BB8]Git Bash, when bash.exe is found — not found[/]", SettingsMenu.ShellLabel("bash", installed: false));
+        Assert.Equal("cmd        [#9A8BB8]cmd.exe: batch syntax[/]", SettingsMenu.ShellLabel("cmd", installed: true));
+        Assert.Equal("(none: Allow … always on the approval pane adds one)", SettingsMenu.NoAllowedCommandsRow);
+        Assert.Equal("Enter = remove · ESC = back", SettingsMenu.RemoveKeys);
+        Assert.Equal("Shell allowed commands: git push removed", SettingsMenu.PrefixRemovedNotice("git push"));
         // The git rows (2026-09-20): the Git tab between Files and Web — the switch, then the two caps alphabetically; typed, none a reconnect.
         Assert.Equal(new[] { SettingsField.GitTools, SettingsField.GitDiffMaxLines, SettingsField.GitLogMaxCommits }, SettingsMenu.ToolsTabFields[3]);
         Assert.Equal("Git tools", SettingsMenu.FieldName(SettingsField.GitTools));
@@ -1256,7 +1305,8 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal(30, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[1]));   // "Ask max choices per question"
         Assert.Equal(32, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[2]));   // "File view image max (per call)" (the File-prefixed labels, later still on 2026-09-19; "Stale line number guard", 25, that morning; "Always return line numbers", 28, from 2026-09-17 until it went; "Tree max length", 17, before)
         Assert.Equal(21, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[3]));   // "Git log max commits" (2026-09-20)
-        Assert.Equal(26, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[4]));   // "Web browser network mode" (the Web-prefixed labels, later still on 2026-09-19; "Web search max results", 24, before)
+        Assert.Equal(27, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[4]));   // "Shell code max tool calls" (the Shell tab, 2026-09-21)
+        Assert.Equal(26, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[5]));   // "Web browser network mode" (the Web-prefixed labels, later still on 2026-09-19; "Web search max results", 24, before)
         Assert.Equal(38, SettingsMenu.LabelWidthOf(SettingsMenu.SkillsTabFields[0]));   // "Use external skills (.agents\\skills)"
         Assert.Equal(31, SettingsMenu.LabelWidthOf(SettingsMenu.SkillsTabFields[1]));   // "Reflection cooldown (minutes)" (the Reflection tab, later on 2026-09-19)
         Assert.Equal("TTS speed          [#EFE6FF]1.2[/]", SettingsMenu.FieldLabel(SettingsField.TtsSpeed, data, _settings.ProfileDirectory, null, SettingsMenu.TabLabelWidth(SettingsTab.Tts)));   // 1.0 until 2026-09-18

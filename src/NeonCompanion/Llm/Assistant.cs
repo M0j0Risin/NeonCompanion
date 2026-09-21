@@ -182,6 +182,22 @@ public sealed class Assistant
         " change it — commit only what the user asked to commit, with the message they gave or a short imperative one, and never remove or overwrite work the user did not name.";
 
     /// <summary>
+    /// The sentence the default rules gain while the shell tools are offered (the setting <c>Shell command
+    /// policy</c> not <c>off</c>, 2026-09-21): appended after <see cref="GitRule"/> by <see cref="DefaultRules"/>. It
+    /// says what the tool is for, that the sandbox is only where a command starts, that the user stands between
+    /// the call and the shell, that a denial is final, and (phase B) how a background job and the process tool
+    /// go together; a custom <c>operata.md</c> stands verbatim. Pinned.
+    /// </summary>
+    public const string ShellRule =
+        "To run a program, a build, a test or a script the user asks for, call " + NeonCompanion.Llm.Tools.RunCommandTool.ToolName + " with the command line " +
+        "(" + NeonCompanion.Llm.Tools.RunCommandTool.ShellArgument + " picks powershell, cmd or bash when the user's default will not do; " + NeonCompanion.Llm.Tools.RunCommandTool.WorkdirArgument + " a folder under the working directory); " +
+        "it starts in the working directory but can reach the whole computer, so the user approves each command before it runs and may deny it — " +
+        "never retry or work around a denied command, and say what you ran. " +
+        "For a server or a long job pass " + NeonCompanion.Llm.Tools.RunCommandTool.BackgroundArgument + " and use " + NeonCompanion.Llm.Tools.ProcessTool.ToolName + " to poll, read, wait for, write to or kill it; " +
+        "with " + NeonCompanion.Llm.Tools.RunCommandTool.NotifyArgument + " you are told at your next turn when it exits. " +
+        "For a task with several steps or many tool calls, " + NeonCompanion.Llm.Tools.ExecuteCodeTool.ToolName + " runs a python, node or powershell script that can call these same tools through its neon_tools module and returns what it printed.";
+
+    /// <summary>
     /// The sentence the default rules gain while <c>ask_user</c> is offered (the setting <c>Ask user</c>
     /// on, the bottom pane on): appended after <see cref="WebRule"/> by
     /// <see cref="SystemPrompt(bool, IReadOnlyList{string}?, string?, string?, string?, bool, bool, bool, AskLimits?)"/>;
@@ -261,12 +277,13 @@ public sealed class Assistant
     /// (<c>File safe edits</c> off while <c>delete</c> is offered, 2026-09-20 — neither names <c>restore</c> or <c>.trash</c>, since the
     /// tool is not offered then); the tool rules are
     /// <see cref="ToolRulesWithoutTimers"/> with <paramref name="timers"/> false (no timer tool offered — headless, or the
-    /// Timers group emptied on <c>/tools</c>, 2026-09-20). With
+    /// Timers group emptied on <c>/tools</c>, 2026-09-20); <see cref="ShellRule"/> rides after the git sentence with
+    /// <paramref name="shell"/> (the shell tools offered: <c>Shell command policy</c> not off, 2026-09-21). With
     /// <paramref name="markdown"/> false it is <see cref="OperatingRules"/> and its variants byte for byte.
     /// </summary>
-    public static string DefaultRules(bool markdown, bool tools, bool files = true, bool web = false, AskLimits? ask = null, bool sessions = false, bool download = true, bool delete = true, bool mcp = false, bool safeEdits = true, bool timers = true, bool git = false) =>
+    public static string DefaultRules(bool markdown, bool tools, bool files = true, bool web = false, AskLimits? ask = null, bool sessions = false, bool download = true, bool delete = true, bool mcp = false, bool safeEdits = true, bool timers = true, bool git = false, bool shell = false) =>
         tools
-            ? TextRule(markdown) + " " + (timers ? ToolRules : ToolRulesWithoutTimers) + (files ? " " + (delete ? (safeEdits ? FileRule : FileRuleDeleteInPlace) : FileRuleWithoutDelete) : "") + (web ? " " + WebRule : "") + (web && files && download ? " " + DownloadRule : "") + (git ? " " + GitRule : "") + (ask is { } limits ? " " + AskRule(limits) : "") + (sessions ? " " + SessionRule : "") + (mcp ? " " + McpRule : "")
+            ? TextRule(markdown) + " " + (timers ? ToolRules : ToolRulesWithoutTimers) + (files ? " " + (delete ? (safeEdits ? FileRule : FileRuleDeleteInPlace) : FileRuleWithoutDelete) : "") + (web ? " " + WebRule : "") + (web && files && download ? " " + DownloadRule : "") + (git ? " " + GitRule : "") + (shell ? " " + ShellRule : "") + (ask is { } limits ? " " + AskRule(limits) : "") + (sessions ? " " + SessionRule : "") + (mcp ? " " + McpRule : "")
             : TextRule(markdown);
 
     /// <summary>
@@ -306,11 +323,11 @@ public sealed class Assistant
     /// the third (2026-09-20) is a whole group: <paramref name="timers"/> false (no timer tool offered — headless, or the
     /// three switched off) drops <see cref="TimerRule"/>.
     /// </summary>
-    public static string SystemPrompt(bool speechOutput, IReadOnlyList<string>? memories, string? persona = null, string? operatingRules = null, string? voiceDirective = null, bool tools = true, bool web = false, bool files = true, AskLimits? ask = null, ProjectNotes? project = null, IReadOnlyList<Skills.Skill>? skills = null, bool markdown = false, bool sessions = false, bool download = true, bool recall = true, bool delete = true, bool mcp = false, bool safeEdits = true, bool timers = true, bool git = false)
+    public static string SystemPrompt(bool speechOutput, IReadOnlyList<string>? memories, string? persona = null, string? operatingRules = null, string? voiceDirective = null, bool tools = true, bool web = false, bool files = true, AskLimits? ask = null, ProjectNotes? project = null, IReadOnlyList<Skills.Skill>? skills = null, bool markdown = false, bool sessions = false, bool download = true, bool recall = true, bool delete = true, bool mcp = false, bool safeEdits = true, bool timers = true, bool git = false, bool shell = false)
     {
         bool customPersona = !string.IsNullOrWhiteSpace(persona);
         bool customRules = !string.IsNullOrWhiteSpace(operatingRules);
-        string defaultRules = DefaultRules(markdown, tools, files, web, ask, sessions, download, delete, mcp, safeEdits, timers, git);
+        string defaultRules = DefaultRules(markdown, tools, files, web, ask, sessions, download, delete, mcp, safeEdits, timers, git, shell);
         var sb = new StringBuilder(!customPersona && !customRules
             ? DefaultPersona + " " + defaultRules
             : (customPersona ? persona!.Trim() : DefaultPersona) + "\n\n" + (customRules ? operatingRules!.Trim() : defaultRules));
@@ -490,8 +507,23 @@ public sealed class Assistant
 
     private static readonly IReadOnlySet<string> OpeningCallIds = new HashSet<string>(StringComparer.Ordinal) { OpeningClockCallId, OpeningCwdCallId, OpeningMemoryCallId };
 
-    /// <summary>Whether <paramref name="callId"/> is one of the opening calls' (<see cref="OpeningClockCallId"/>, <see cref="OpeningCwdCallId"/>, <see cref="OpeningMemoryCallId"/>).</summary>
-    public static bool IsOpeningCallId(string callId) => OpeningCallIds.Contains(callId);
+    /// <summary>
+    /// The prefix of a pending call's id (2026-09-21): <c>neonp</c> and the last four characters of the
+    /// process id (<c>neonp2a1b</c> for <c>proc_3f2a1b</c>) — nine alphanumerics, the opening calls' rule.
+    /// </summary>
+    public const string PendingCallIdPrefix = "neonp";
+
+    /// <summary>The call id a seeded poll for <paramref name="sessionId"/> carries: <see cref="PendingCallIdPrefix"/> and the id's last four characters.</summary>
+    public static string PendingCallId(string sessionId)
+    {
+        ArgumentNullException.ThrowIfNull(sessionId);
+        string tail = sessionId.Length >= 4 ? sessionId[^4..] : sessionId.PadLeft(4, '0');
+        return PendingCallIdPrefix + tail;
+    }
+
+    /// <summary>Whether <paramref name="callId"/> is one of the opening calls' (<see cref="OpeningClockCallId"/>, <see cref="OpeningCwdCallId"/>, <see cref="OpeningMemoryCallId"/>) or a pending call's (<see cref="PendingCallIdPrefix"/>).</summary>
+    public static bool IsOpeningCallId(string callId) =>
+        OpeningCallIds.Contains(callId) || (callId.Length == 9 && callId.StartsWith(PendingCallIdPrefix, StringComparison.Ordinal));
 
     /// <summary>
     /// Appended to the <c>Model error:</c> notice when the server refused a request that carried
@@ -514,8 +546,12 @@ public sealed class Assistant
     /// <summary>What <see cref="SummarizeAsync"/> throws when the server answered with no text. Pinned.</summary>
     public const string EmptySummaryError = "The server returned an empty summary.";
 
-    /// <summary>One opening call: the tool and the fixed id its call/result pair carries; the arguments are always empty (a <c>/skill</c> activation carried the skill's name here from 2026-09-16 until later on 2026-09-18).</summary>
-    public sealed record OpeningCall(AIFunction Tool, string CallId);
+    /// <summary>
+    /// One opening call: the tool and the fixed id its call/result pair carries; the arguments are
+    /// empty for the three openers (a <c>/skill</c> activation carried the skill's name here from
+    /// 2026-09-16 until later on 2026-09-18) and the poll's for a pending call (2026-09-21).
+    /// </summary>
+    public sealed record OpeningCall(AIFunction Tool, string CallId, IReadOnlyDictionary<string, object?>? Arguments = null);
 
     /// <summary>Logged (Info, so <c>--log</c> only) when a reply carried a <c>&lt;/think&gt;</c> with no opener: the server's parser missed, and the text before it was thinking.</summary>
     public const string ThinkingLeakedNote = "The server streamed thinking as content (a </think> with no <think>); the tag was dropped.";
@@ -579,6 +615,16 @@ public sealed class Assistant
     public IReadOnlyList<OpeningCall> OpeningCalls { get; set; } = [];
 
     /// <summary>
+    /// The calls seeded at the start of the <em>next</em> turn, whatever its number (2026-09-21): the
+    /// <c>process poll</c> pairs for the background processes that exited with <c>notify</c> since the
+    /// last turn, so the model learns of an end without asking. Set per turn by the shell after
+    /// <see cref="OpeningCalls"/>, and cleared by <see cref="RunTurnAsync(string, IReadOnlyList{ImageAttachment}, CancellationToken)"/>
+    /// once seeded, so a retry of the same message does not repeat them. Same shape as the opening
+    /// calls: a real pair, no model request, no iteration spent.
+    /// </summary>
+    public IReadOnlyList<OpeningCall> PendingCalls { get; set; } = [];
+
+    /// <summary>
     /// True for the events the opening calls raise (a <see cref="TurnEvent.ToolCall"/> or
     /// <see cref="TurnEvent.ToolResult"/> carrying <see cref="OpeningClockCallId"/>,
     /// <see cref="OpeningCwdCallId"/> or <see cref="OpeningMemoryCallId"/>). They come first and at
@@ -618,8 +664,14 @@ public sealed class Assistant
         ArgumentNullException.ThrowIfNull(images);
 
         // Decided before the user message lands: the first turn of a conversation opens with the
-        // opening calls, a retry of it (the user message already committed) does not.
+        // opening calls, a retry of it (the user message already committed) does not; the pending
+        // calls (a process's exit) ride any turn, once.
         IReadOnlyList<OpeningCall> opening = _history.TurnCount == 0 ? OpeningCalls : [];
+        if (PendingCalls.Count > 0)
+        {
+            opening = [.. opening, .. PendingCalls];
+            PendingCalls = [];
+        }
 
         // The turn's two lines in the log (2026-09-19): the opening one now, the closing one with
         // the tally when the scope ends — the reply's end, a notice, a cancel (the consumer's
@@ -629,12 +681,12 @@ public sealed class Assistant
         // Committed up front: a turn that fails still leaves the question in the transcript.
         _history.AddUser(userText, images);
 
-        foreach (var (tool, callId) in opening)
+        foreach (var (tool, callId, seededArguments) in opening)
         {
             // A genuine call/result pair, not a prompt line: the same two events the model's own
             // calls raise, so the transcript shows it the same way, and not a model request, so it
             // costs no iteration and no time on the turn budget.
-            var call = new FunctionCallContent(callId, tool.Name, new Dictionary<string, object?>());
+            var call = new FunctionCallContent(callId, tool.Name, seededArguments is null ? new Dictionary<string, object?>() : new Dictionary<string, object?>(seededArguments));
             _history.AddMessage(new ChatMessage(ChatRole.Assistant, [call]));
             string openingJson = SerializeArguments(call.Arguments);
             DiagnosticLog.Debug(Category, ToolCallLogLine(call.Name, openingJson) + OpeningSuffix);
