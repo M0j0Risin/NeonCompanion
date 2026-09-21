@@ -1,0 +1,855 @@
+namespace NeonCompanion.Settings;
+
+/// <summary>
+/// Everything the user can change, as one flat object with one concrete property per knob and a
+/// default on every one.
+///
+/// <para><b>Not a <c>Dictionary&lt;string, object&gt;</c>.</b> Source-generated JSON needs concrete
+/// types; a dictionary of boxed values is the reflection path NativeAOT turns off. It would
+/// compile, pass under the JIT, and throw in the published binary.</para>
+///
+/// <para><b>The key is the label (2026-09-17, the user's call):</b> the tab's prefix as the row shows
+/// it (<c>Llm</c>, <c>Tts</c>, <c>Stt</c>, <c>Ask</c>, <c>File</c>/<c>Tree</c>, <c>Web</c>,
+/// <c>Skill</c>/<c>Reflection</c>, <c>Session</c>; none on General) and the label's words, no <c>Enabled</c> suffix on a
+/// switch; a relabelled row is renamed with it. <see cref="SchemaVersion"/> first, then the five
+/// <c>/settings</c> tabs' blocks in the tabs' order, then the <c>/skills</c> pane's Options tab (Skills),
+/// then the <c>/tools</c> pane's (Tools, Ask, Files, Web) — the strips' order since 2026-09-19 —,
+/// then the <c>/mcp</c> pane's (MCP, 2026-09-20), alphabetical within — the file reads like the four
+/// panes; a new field goes into its block, with a default, and into <c>AppSettings.Copy</c>. Three keys
+/// are not settings rows: <see cref="ToolsDisabled"/>, a list flipped on <c>/tools</c>' Offered tab (the
+/// Tools block holds it and the Options tab's one row, <see cref="ToolsDollarMention"/>),
+/// <see cref="McpServersDisabled"/>, the second list, flipped on <c>/mcp</c>' Servers tab, and
+/// <see cref="ProjectFile"/>, flipped on <c>/skills</c>' Project tab. The deserializer supplies
+/// the default when a key is absent and skips one it does not know, so a file written by an older
+/// build loads — a renamed or retired key simply takes its default (no migration, the user's call
+/// over keeping every old spelling alive).</para>
+///
+/// <para>Any of these may be overridden per launch by an environment variable; see
+/// <see cref="EnvironmentOverrides"/>. A variable always outranks the saved value.</para>
+/// </summary>
+public sealed class AppSettingsData
+{
+    /// <summary>Bumped when a field changes meaning rather than merely being added: 1 until 2026-09-17, 2 since the keys were renamed to follow their labels and regrouped by tab (no migration: an old key is skipped, its default stands).</summary>
+    public int SchemaVersion { get; set; } = 2;
+
+    // ─── General ────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Whether a sent line that is exactly a command's name without its slash (<c>clear</c>) is
+    /// held on the pane with <c>/clear</c> offered first: Enter puts the command on the line, ESC
+    /// sends the text as typed (2026-09-18). Pane only, read at each Enter. No variable.
+    /// </summary>
+    public bool CommandTypoIntercept { get; set; } = true;
+
+    /// <summary>
+    /// Whether <c>/copy</c> puts the user's own prompt (as a blockquote) above each reply it
+    /// copies, or the replies alone. A toggle like <see cref="Memory"/>: no variable.
+    /// </summary>
+    public bool CopyUserPrompt { get; set; } = true;
+
+    /// <summary>
+    /// The command line <c>/draft</c> opens its temporary file with (2026-09-19), the file's path
+    /// appended, run through <c>cmd.exe</c> so a word on the <c>PATH</c> works (<c>code --wait</c>,
+    /// <c>notepad</c>); empty = whatever Windows opens a <c>.txt</c> with. An editor that hands the
+    /// file to a window already open returns at once and nothing is sent — this row names one that
+    /// waits. Read at each <c>/draft</c>, no reconnect. No variable.
+    /// </summary>
+    public string DraftEditor { get; set; } = "";
+
+    /// <summary>
+    /// Whether the <c>/</c> completion list leaves <c>/exit</c> out (on by default, 2026-09-18) so a
+    /// pick never ends the app by mistake; typed in full it exits as ever. Read at each keystroke. No variable.
+    /// </summary>
+    public bool HideExitAutocomplete { get; set; } = true;
+
+    /// <summary>
+    /// How big the thumbnail under a sent picture is drawn (<see cref="ShowImageThumbnails"/>):
+    /// <c>small</c> (48 columns × 12 rows), <c>medium</c> (64 × 16), <c>large</c> (80 × 20) or <c>xlarge</c> (96 × 24). One of
+    /// <see cref="UI.ThumbnailSize.Names"/>; anything else reads as <see cref="UI.ThumbnailSize.Default"/>. No variable.
+    /// </summary>
+    public string ImageThumbnailSize { get; set; } = UI.ThumbnailSize.Default;
+
+    /// <summary>
+    /// Whether long-term memory is on: the model is offered <c>save_memory</c> and sees what is
+    /// remembered on every turn, and <c>/remember</c> works. Off leaves <c>memory.json</c>
+    /// untouched; <c>/forget</c> erases it. No environment variable, like the other switches.
+    /// </summary>
+    public bool Memory { get; set; } = true;
+
+    /// <summary>
+    /// Whether the app keeps the mouse while a menu, <c>/help</c> or <c>/sysprompt</c> is open
+    /// (a click highlights a row, a double-click picks it, a click picks a tab, the wheel scrolls
+    /// the pane; the terminal's selection needs Shift), or hands it to the terminal there (plain
+    /// drag-select and copy over the pane's text; the keys do the moving) and takes it back when the
+    /// pane closes — the screen holds it everywhere else (2026-09-17). On, a double-click on the hint
+    /// row at the idle line opens the settings too (2026-09-18). A toggle like <see cref="Memory"/>: no variable.
+    /// </summary>
+    public bool MouseInMenus { get; set; } = true;
+
+    /// <summary>
+    /// What <c>/profile add</c> copies from the current profile: <c>basic</c> (the default: the settings and
+    /// the memories) or <c>advanced</c> (the settings plus the memories, persona, operating rules and voice
+    /// directive files, each when it exists). One of <see cref="Settings.NewProfileMode.Names"/>; anything
+    /// else reads as <see cref="Settings.NewProfileMode.Default"/>. No variable.
+    /// </summary>
+    public string NewProfileMode { get; set; } = Settings.NewProfileMode.Default;
+
+    /// <summary>
+    /// How many lines of a collapsed paste the transcript shows under the sent line (2026-09-16),
+    /// dim, closed by <c>[… +K more lines]</c> when the block is longer: 0 to
+    /// <see cref="UI.PasteBlocks.MaxPreviewLines"/>, 0 = the <c>[Pasted text #n +L lines]</c>
+    /// label alone. Read at each idle read, no reconnect; the model and <c>/copy</c> get the whole
+    /// block whatever this says. No variable.
+    /// </summary>
+    public int PastePreviewLines { get; set; } = UI.PasteBlocks.DefaultPreviewLines;
+
+    /// <summary>
+    /// What a cancelled reply does to the messages queued behind it (2026-09-18): <c>hold</c>
+    /// (nothing sent by itself until the next reply ends normally), <c>drain</c> (the next one at
+    /// once) or <c>empty</c> (all dropped, with a notice) — <see cref="App.QueueCancelMode"/>.
+    /// Read when a turn ends, no reconnect. No variable.
+    /// </summary>
+    public string QueueCancelMode { get; set; } = App.QueueCancelMode.Default;
+
+    /// <summary>
+    /// Whether a message sent while a reply runs waits in the queue (<see cref="App.MessageQueue"/>,
+    /// sent when the reply ends, listed by <c>/queue</c>) or stays type-ahead on the input line as
+    /// before (2026-09-18); off, <c>/queue</c> leaves the input line's <c>/</c> list too (later that day). Pane only, read at each mid-turn Enter and each keystroke. No variable.
+    /// </summary>
+    public bool QueueMessages { get; set; } = true;
+
+    /// <summary>
+    /// Whether each picture sent with a message is drawn under the user's line as a thumbnail
+    /// (<see cref="UI.ImageStrip"/>); off, it is attached and labelled just the same and nothing is
+    /// drawn. A toggle like <see cref="Memory"/>: no variable.
+    /// </summary>
+    public bool ShowImageThumbnails { get; set; } = true;
+
+    /// <summary>
+    /// Whether the working directory in force (the resolved full path, what <c>/cwd</c> prints)
+    /// sits at the right edge of the banner's title line, cut from the front to fit (2026-09-18).
+    /// Read at each banner draw — startup, <c>/clear</c>, a profile switch, the splash dismissal —
+    /// so a <c>/cwd</c> change or a flip of this shows at the next of those. No variable.
+    /// </summary>
+    public bool ShowWorkingDirectory { get; set; } = true;
+
+    /// <summary>
+    /// Whether the assistant's reply is shown as styled Markdown (2026-09-16): bold, lists, code
+    /// blocks, headings rendered in the pane's live slot, the markers consumed, and the model asked
+    /// for light Markdown instead of plain text on a turn that is not spoken. Off = the plain
+    /// streamed text and the plain-text rule, as before. Read at each turn, no reconnect; nothing
+    /// without the pane (headless keeps plain text whatever this says). No variable.
+    /// </summary>
+    public bool TranscriptMarkdown { get; set; } = true;
+
+    /// <summary>
+    /// Whether one of the embedded splash pictures (<c>UI.SplashImages</c>, the repo's
+    /// <c>assets\splash</c>) is drawn under the banner at startup, filling the transcript region
+    /// until the first sent line wipes the screen back to the banner (on by default, 2026-09-18);
+    /// <c>/clear</c> never brings it back. Read once at startup; nothing without the pane. No variable.
+    /// </summary>
+    public bool WelcomeSplash { get; set; } = true;
+
+    /// <summary>
+    /// The folder the file tools may read and write, a full path. Empty means the profile's own
+    /// <c>files\</c> folder (<c>WorkingDirectory.Resolve</c>), so every profile has a sandbox
+    /// from its first turn and the setting only ever points it somewhere else. No environment
+    /// variable, by design: a variable is not per-profile, and <c>--cwd</c> covers "this launch".
+    /// </summary>
+    public string WorkingDirectory { get; set; } = "";
+
+    // ─── Sessions ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Whether every completed turn is written to this profile's <c>sessions.db</c>
+    /// (<see cref="Sessions.SessionStore"/>, 2026-09-18): a session per conversation, restorable with
+    /// <c>/session</c>. Off writes nothing; what is stored still lists, restores and purges. Read at
+    /// each turn, no reconnect; the Sessions tab's first row. No variable.
+    /// </summary>
+    public bool SessionLogging { get; set; } = true;
+
+    /// <summary>
+    /// Where a new session's title comes from: one of <see cref="Sessions.SessionNamingMode.Names"/> —
+    /// <c>first-line</c> (the first sent line, cut) or <c>model-written</c> (a background request after
+    /// the first turn asks the model; the first line stands until it answers). Anything else reads
+    /// as <see cref="Sessions.SessionNamingMode.Default"/> with a warning. No variable.
+    /// </summary>
+    public string SessionNamingMode { get; set; } = Sessions.SessionNamingMode.Default;
+
+    /// <summary>
+    /// Days a session is kept after its last turn: at startup and after a profile switch, sessions
+    /// last updated longer ago are purged without a word (the <c>/session purge older</c> act run by
+    /// the app). <c>0</c> keeps every session forever. <see cref="MinSessionRetentionDays"/> to
+    /// <see cref="MaxSessionRetentionDays"/>. No variable.
+    /// </summary>
+    public int SessionRetentionDays { get; set; } = DefaultSessionRetentionDays;
+
+    public const int DefaultSessionRetentionDays = 0;
+
+    public const int MinSessionRetentionDays = 0;
+
+    public const int MaxSessionRetentionDays = 3650;
+
+    /// <summary>
+    /// How many sessions a <c>session_manager</c> search or list without <c>max_results</c> returns:
+    /// <see cref="MinSessionSearchMaxResults"/> to <see cref="MaxSessionSearchMaxResults"/>; the
+    /// argument overrides it up to the same cap, and a hand-edited value is clamped. No variable.
+    /// </summary>
+    public int SessionSearchMaxResults { get; set; } = DefaultSessionSearchMaxResults;
+
+    public const int MinSessionSearchMaxResults = 1;
+
+    public const int MaxSessionSearchMaxResults = 20;
+
+    public const int DefaultSessionSearchMaxResults = 10;
+
+    /// <summary>
+    /// Which session names the rule above the input row shows at its right edge (2026-09-18): one
+    /// of <see cref="Sessions.SessionShowName.Names"/> — <c>all-names</c> (the first line, then the
+    /// model's slug in its place), <c>model-written</c> (a model-written or typed name alone, never
+    /// the first line) or <c>none</c> (the rule stays bare). Anything else reads as
+    /// <see cref="Sessions.SessionShowName.Default"/> with a warning. Read at each draw; no reconnect. No variable.
+    /// </summary>
+    public string SessionShowName { get; set; } = Sessions.SessionShowName.Default;
+
+    /// <summary>
+    /// Whether <c>session_manager</c> is offered to the model (the <c>Ask user</c> shape: a per-group
+    /// offer, no clear): search, list and read earlier sessions of this profile. Read at each turn,
+    /// no reconnect. No variable.
+    /// </summary>
+    public bool SessionTool { get; set; } = true;
+
+    // ─── LLM ────────────────────────────────────────────────────────────────────
+
+    /// <summary>Bearer token. Keyless local servers are happy with the literal <c>empty</c>.</summary>
+    public string LlmApiKey { get; set; } = "empty";
+
+    /// <summary>
+    /// The share of the context window (percent) at which the next message compacts first, once
+    /// the last reply's context reached it; 0 turns the automatic compact off. Needs a known window
+    /// (<see cref="LlmContextLength"/> or the server's figure). No variable.
+    /// </summary>
+    public int LlmAutoCompactPercent { get; set; } = 85;
+
+    /// <summary>How many of the most recent user turns a compact keeps word for word (0 to <see cref="Llm.ConversationHistory.MaxTurns"/>). No variable.</summary>
+    public int LlmCompactKeepRecent { get; set; } = 2;
+
+    /// <summary>
+    /// What <c>/compact</c> does: <c>summary</c> (the older turns become one summary the model
+    /// writes) or <c>prune</c> (their bulky tool results become stubs). One of
+    /// <see cref="Llm.CompactType.Names"/>; anything else reads as <see cref="Llm.CompactType.Default"/>. No variable.
+    /// </summary>
+    public string LlmCompactType { get; set; } = Llm.CompactType.Default;
+
+    /// <summary>
+    /// The loaded model's context window in tokens, for the <c>/usage</c> percentage; 0 means the
+    /// server's own figure (<see cref="Llm.ContextLengthProbe"/>). Set it for a server that publishes
+    /// none (llama.cpp behind a proxy, an Ollama whose ceiling is not its runtime window). Variable
+    /// <see cref="EnvironmentOverrides.LlmContextVariable"/>.
+    /// </summary>
+    public int LlmContextLength { get; set; }
+
+    /// <summary>
+    /// Model round trips one message may spend on tool calls before the turn stops with a notice
+    /// (<see cref="Llm.Assistant.MaxToolIterations"/>): a tool call is one, a picture fetched by
+    /// <c>view_image</c> one more. <see cref="MinToolIterations"/> to <see cref="MaxToolIterationsCap"/>;
+    /// the turn budget stays the guard against a runaway. No variable.
+    /// </summary>
+    public int LlmMaxToolIterations { get; set; } = Llm.Assistant.DefaultMaxToolIterations;
+
+    /// <summary>The least and the most <see cref="LlmMaxToolIterations"/> may be set to.</summary>
+    public const int MinToolIterations = 1;
+    public const int MaxToolIterationsCap = 10000;
+
+    /// <summary>
+    /// Model id sent with every request. Empty means "the first chat model the server lists".
+    /// vLLM and SGLang require an exact match with <c>--served-model-name</c>.
+    /// </summary>
+    public string LlmModel { get; set; } = "";
+
+    /// <summary>
+    /// Whether a turn offers the model its tools at all. Off, the request carries no <c>tools</c>,
+    /// no opening call/result pairs are seeded and the default rules lose their tool sentences —
+    /// nothing takes their place: the model then has no clock and no path, on purpose. For a model
+    /// whose chat template renders no <c>tool</c> role (a Mistral-family template answers
+    /// <c>Only user, system and assistant roles are supported!</c> with HTTP 400). A change clears the
+    /// conversation. No variable.
+    /// </summary>
+    public bool LlmOfferTools { get; set; } = true;
+
+    /// <summary>
+    /// How hard the model thinks before it answers: one of <c>ReasoningLevel.Levels</c>
+    /// (<c>none</c>, <c>low</c>, <c>medium</c>, <c>high</c>, <c>xhigh</c>), sent as
+    /// <c>reasoning_effort</c>; <c>none</c> also switches Qwen-style templates' thinking off.
+    /// Anything else resolves to <c>none</c> with a warning.
+    /// </summary>
+    public string LlmReasoning { get; set; } = "none";
+
+    /// <summary>
+    /// Ceiling on one HTTP request, seconds, up to <see cref="Llm.LlmTimeouts.MaxRequestSeconds"/>
+    /// (an hour, the default too since 2026-09-15 — <see cref="Llm.LlmTimeouts.DefaultRequest"/>).
+    /// Interlocked with <see cref="LlmTurnTimeoutSeconds"/>: the request ceiling must be lower than the
+    /// turn ceiling or the turn check is unreachable.
+    /// </summary>
+    public double LlmRequestTimeoutSeconds { get; set; } = 3600;
+
+    /// <summary>
+    /// Where discovery looks when <see cref="LlmUrl"/> is blank: one of <see cref="Llm.LlmScanMode.Names"/>
+    /// (<c>local</c> = the usual ports on 127.0.0.1, <c>remote</c> = the same ports on every other
+    /// machine of the local network, <c>both</c>, <c>disabled</c> = no scan at all: a blank URL
+    /// connects nothing and a bare <c>/server</c> refuses, 2026-09-15). Read at each scan
+    /// (<c>/server</c>, a blank-URL connect), never a reconnect. No variable.
+    /// </summary>
+    public string LlmScanMode { get; set; } = Llm.LlmScanMode.Default;
+
+    /// <summary>
+    /// What the tool loop does when a request's usage reaches <see cref="LlmAutoCompactPercent"/> of the
+    /// window mid-turn: <c>prune</c> (this turn's older tool results become stubs), <c>stop</c> (the
+    /// turn ends with a notice) or <c>nothing</c>. One of <see cref="Llm.ToolCompactType.Names"/>;
+    /// anything else reads as <see cref="Llm.ToolCompactType.Default"/>. No variable.
+    /// </summary>
+    public string LlmToolCompactType { get; set; } = Llm.ToolCompactType.Default;
+
+    /// <summary>
+    /// Whole-turn budget in seconds, checked at tool-loop boundaries, never a CTS; up to
+    /// <see cref="Llm.LlmTimeouts.MaxTurnSeconds"/>. Six hours by default (<see cref="Llm.LlmTimeouts.DefaultTurn"/>).
+    /// </summary>
+    public double LlmTurnTimeoutSeconds { get; set; } = 21600;
+
+    /// <summary>
+    /// Base URL of the OpenAI-compatible server (LM Studio, vLLM, SGLang, llama.cpp, Ollama).
+    /// Normalised to end in <c>/v1</c> when used. Empty means "probe the usual local ports".
+    /// </summary>
+    public string LlmUrl { get; set; } = "";
+
+    /// <summary>
+    /// Whether the thinking spinner reads a random verb from <see cref="App.ThinkingVerbs.All"/>
+    /// (<c>bafflering</c>, <c>zonkerating</c>, …) picked each time it starts, instead of
+    /// <see cref="App.ChatScreen.ThinkingLabel"/>. No variable.
+    /// </summary>
+    public bool LlmUseFunVerbs { get; set; }
+
+    // ─── TTS ────────────────────────────────────────────────────────────────────
+
+    /// <summary>Base URL of the Kokoro-FastAPI server (OpenAI-compatible <c>/v1/audio/speech</c>).</summary>
+    public string TtsHttpUrl { get; set; } = "http://localhost:8880/v1";
+
+    /// <summary>
+    /// Whether replies are spoken. Independent of <see cref="SttInput"/>: all four
+    /// combinations of the two are valid. Off by default (since 2026-09-12): a fresh install
+    /// probes nothing on port 8880 until <c>/tts</c>. When the TTS server is unreachable the app
+    /// degrades to text and says so; it never refuses to start.
+    /// </summary>
+    public bool TtsOutput { get; set; }
+
+    /// <summary>
+    /// Where replies are synthesised (2026-09-16): <c>in-process</c> (KokoroSharp over ONNX Runtime
+    /// in this process, <c>kokoro.onnx</c> downloaded on first use; the default) or <c>http</c> (a
+    /// Kokoro-FastAPI server at <see cref="TtsHttpUrl"/>). One of <c>TtsSource.Names</c>;
+    /// a flip reconnects speech. <see cref="TtsHttpUrl"/> keeps its value and is not read while this is
+    /// <c>in-process</c>. No variable.
+    /// </summary>
+    public string TtsSource { get; set; } = Speech.TtsSource.Default;
+
+    /// <summary>Kokoro speed multiplier, sent as <c>speed</c> with every synthesis request. 1.2 by default (2026-09-18), a shade brisker than the voice's natural 1.0.</summary>
+    public double TtsSpeed { get; set; } = 1.2;
+
+    /// <summary>The accepted <see cref="TtsSpeed"/> range; outside it a saved or environment value is refused, never clamped.</summary>
+    public const double MinTtsSpeed = 0.5;
+
+    public const double MaxTtsSpeed = 2.0;
+
+    /// <summary>Kokoro voice name. First letter is accent (a=American, b=British), second is f/m.</summary>
+    public string TtsVoice { get; set; } = "af_heart";
+
+    /// <summary>
+    /// A second Kokoro voice blended into <see cref="TtsVoice"/> (Kokoro-FastAPI's
+    /// <c>voice(w)+voice(w)</c> form, built by <c>VoiceMix.Spec</c>). Empty means no mix: the
+    /// primary voice alone. <c>am_eric</c> by default since 2026-09-16 (the user's call; empty before).
+    /// </summary>
+    public string TtsVoice2 { get; set; } = DefaultTtsVoice2;
+
+    /// <summary>The fresh profile's second voice (2026-09-16, the user's call); blank was the default before.</summary>
+    public const string DefaultTtsVoice2 = "am_eric";
+
+    /// <summary>
+    /// The primary voice's share of the mix in percent, 0–100; the secondary voice gets the rest.
+    /// Only matters when <see cref="TtsVoice2"/> is set; 100 sends the primary alone, 0 the secondary alone.
+    /// 80 by default since 2026-09-16 (the user's call; 50 before).
+    /// </summary>
+    public int TtsVoiceMix { get; set; } = DefaultTtsVoiceMix;
+
+    /// <summary>The fresh profile's mix (2026-09-16, the user's call); 50 before.</summary>
+    public const int DefaultTtsVoiceMix = 80;
+
+    /// <summary>The accepted <see cref="TtsVoiceMix"/> range; outside it a saved or environment value is refused, never clamped.</summary>
+    public const int MinTtsVoiceMix = 0;
+
+    public const int MaxTtsVoiceMix = 100;
+
+    /// <summary>Whether the <c>TTS voice</c> / <c>TTS voice 2</c> pickers speak a test phrase in the highlighted voice (speech output on, the pane). No variable.</summary>
+    public bool TtsVoicePreview { get; set; } = true;
+
+    // ─── STT ────────────────────────────────────────────────────────────────────
+
+    /// <summary>Whether the microphone path (push-to-talk, and the wake word if enabled) is on.</summary>
+    public bool SttInput { get; set; }
+
+    /// <summary>
+    /// Whether saying the wake phrase while a reply is being spoken interrupts it: playback
+    /// stops and the app listens for the request. Needs voice input and speech output.
+    /// </summary>
+    public bool SttInterrupt { get; set; }
+
+    /// <summary>
+    /// How long, in milliseconds, the wake phrase must persist in the interrupt recogniser's
+    /// interim results before a hit counts (<c>WakeListener</c>'s confirm window). The window
+    /// rides out the decoder briefly labelling a fragment of the assistant's own speech as the
+    /// phrase; the echo probe now catches those where they happen, so the default stays short —
+    /// 200 ms (150 until 2026-09-17, the user's call), about what the decoder holds a real
+    /// "velora" for under the assistant's voice. 0 fires on the first interim result; raise it
+    /// if the assistant interrupts itself.
+    /// </summary>
+    public int SttInterruptConfirmMs { get; set; } = DefaultSttInterruptConfirmMs;
+
+    /// <summary>The accepted <see cref="SttInterruptConfirmMs"/> range; outside it a saved or environment value is refused, never clamped.</summary>
+    public const int MinSttInterruptConfirmMs = 0;
+
+    public const int MaxSttInterruptConfirmMs = 2000;
+
+    public const int DefaultSttInterruptConfirmMs = 200;
+
+    /// <summary>
+    /// The interrupt's text echo guard: how similar, in percent, a stretch of the assistant's
+    /// own just-played text must be to the wake phrase for a hit to be ignored as an echo
+    /// (<c>WakeWordMatch.SoundsLike</c>). 100, the default, ignores only the exact phrase: the
+    /// echo probe listens to the assistant's own audio with the real recogniser and needs no
+    /// spelling proxy, and at 65 the field log showed every real "velora" thrown away for a
+    /// "velop" (as in "develop") somewhere in the sentence. Lower it only on a setup without the probe.
+    /// </summary>
+    public int SttInterruptEchoGuard { get; set; } = DefaultSttInterruptEchoGuard;
+
+    /// <summary>The accepted <see cref="SttInterruptEchoGuard"/> range; outside it a saved or environment value is refused, never clamped.</summary>
+    public const int MinSttInterruptEchoGuard = 50;
+
+    public const int MaxSttInterruptEchoGuard = 100;
+
+    public const int DefaultSttInterruptEchoGuard = 100;
+
+    /// <summary>Name of the <see cref="ConsoleKey"/> that starts a push-to-talk capture.</summary>
+    public string SttPushToTalkKey { get; set; } = "F4";
+
+    /// <summary>
+    /// The Vosk model the wake word and the interrupt listen with (2026-09-16): one of
+    /// <c>ModelStore.VoskModelNames</c> — <c>vosk-model-small-en-us-0.15</c> (the default),
+    /// <c>vosk-model-en-us-0.22-lgraph</c> or <c>vosk-model-small-en-in-0.4</c> — downloaded once
+    /// into <c>&lt;settings dir&gt;\models\&lt;name&gt;</c>. A picker, never a path; a hand-edited
+    /// value outside the list leaves the wake word unavailable. No variable.
+    /// </summary>
+    public string SttVoskModel { get; set; } = "vosk-model-small-en-us-0.15";
+
+    /// <summary>Whether the always-on wake-word listener runs while voice input is enabled.</summary>
+    public bool SttWake { get; set; }
+
+    /// <summary>
+    /// The phrase that starts a turn. Matching is open-vocabulary substring against the
+    /// recogniser's transcript, not a decoder grammar, so changing it needs no restart. Two
+    /// words by default (since 2026-09-12): the interrupt's keyword grammar then needs both in
+    /// order, and the assistant saying its own name no longer counts as an echo.
+    /// </summary>
+    public string SttWakePhrase { get; set; } = "hey neon";
+
+    /// <summary>
+    /// The Whisper model for voice input: <c>ggml-tiny.en.bin</c>, <c>ggml-base.en.bin</c> or
+    /// <c>ggml-small.en.bin</c> (the file names, downloaded once into <c>&lt;settings dir&gt;\models</c>;
+    /// the short <c>base.en</c> form was retired 2026-09-16 and is refused), or an absolute path to
+    /// a ggml <c>.bin</c> file that is used as-is.
+    /// </summary>
+    public string SttWhisperModel { get; set; } = "ggml-base.en.bin";
+
+    // ─── Skills ─────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Whether the model gets skills (2026-09-16): the Agent Skills folders under
+    /// <c>&lt;profile&gt;\skills</c> and <c>&lt;home&gt;\skills</c> listed in the system prompt with
+    /// <c>load_skill</c> and <c>skill_editor</c> offered, and the working directory's <c>NEON.md</c>
+    /// (else <c>AGENTS.md</c>) read into the prompt. Off = none of it. Read at each turn like
+    /// <see cref="Memory"/>, no reconnect; the Options tab of <c>/skills</c>, first row. No variable.
+    /// </summary>
+    public bool AgentSkills { get; set; } = true;
+
+    /// <summary>
+    /// Whether the <c>/skills</c> pane's scope picker offers <c>delete</c> (2026-09-18, the
+    /// user's call): a skill's folder removed with everything in it, after a confirmation, under the
+    /// profile and global roots alone — the model's tool never deletes. Off by default: moving a skill
+    /// between the two roots is the safe act, and stays offered either way. Read when the picker
+    /// opens, no reconnect; the Options tab of <c>/skills</c>, fifth row, labelled <c>Allow skill delete</c>. No variable.
+    /// </summary>
+    public bool AllowSkillDelete { get; set; }
+
+    /// <summary>
+    /// Whether the cross-client folder <c>%USERPROFILE%\.agents\skills</c> is scanned too
+    /// (2026-09-16); read only while <see cref="AgentSkills"/> is on. Off by default: another
+    /// client's skills were written for its tools. Read only, never written. No variable.
+    /// </summary>
+    public bool ExternalSkills { get; set; }
+
+    /// <summary>
+    /// Whether the working directory's <c>NEON.md</c> (else <c>AGENTS.md</c>) is read into the
+    /// system prompt (later on 2026-09-19, the user's ask; always, under <see cref="AgentSkills"/>,
+    /// until then). Off = the file is left alone whatever it holds; nothing either way while
+    /// <see cref="AgentSkills"/> is off. Read at each turn, no reconnect, no conversation clear.
+    /// Not a settings row: the <c>Project file</c> row of <c>/skills</c>' Project tab flips it in
+    /// place (Enter or Space, the <c>/tools</c> Offered tab's shape), the one editor. No variable.
+    /// </summary>
+    public bool ProjectFile { get; set; } = true;
+
+    /// <summary>
+    /// Whether a turn that was work — <c>Reflection min tool calls</c> (4) or more of the model's own tool calls, or an error it
+    /// recovered from (<c>Skills.SkillLearner.ShouldLearn</c>) — is followed by a background
+    /// reflection that writes or improves a skill (2026-09-17, the user's call). No effect while
+    /// <see cref="AgentSkills"/> or <see cref="LlmOfferTools"/> is off; <c>/learn</c> runs the reflection
+    /// whatever this says. Read at each turn's end, no reconnect; the Reflection tab of <c>/skills</c> (its Options tab until later on 2026-09-19), sixth row, labelled <c>Reflection (auto-learn)</c> (<c>Skills auto learn</c> until 2026-09-17; the key followed later that day). No variable.
+    /// </summary>
+    public bool ReflectionAutoLearn { get; set; } = true;
+
+    /// <summary>
+    /// The cooldown after a reflection wrote a skill (<c>Skills.ReflectionCooldown</c>, 2026-09-19,
+    /// the user's call): an automatic reflection is skipped — its tally kept, so the next qualifying
+    /// turn past the cooldown fires — while the newest <c>reflections</c> row that wrote a skill is
+    /// younger than this many minutes; 0 = no cooldown. A <c>/learn</c> never waits. Read from the
+    /// session store, so nothing while <c>Session logging</c> is off. <see cref="MinReflectionCooldownMinutes"/>
+    /// to <see cref="MaxReflectionCooldownMinutes"/>, a value outside warned and replaced by the default,
+    /// never clamped. Read at each reply's end, no reconnect; the Reflection tab of <c>/skills</c> (its Options tab until later on 2026-09-19), after
+    /// <c>Reflection max requests</c>, labelled <c>Reflection cooldown (minutes)</c>. No variable.
+    /// </summary>
+    public int ReflectionCooldownMinutes { get; set; } = DefaultReflectionCooldownMinutes;
+
+    public const int DefaultReflectionCooldownMinutes = 5;   // 30 for an hour on 2026-09-19, then the user's call
+
+    /// <summary>
+    /// What the cooldown holds back (<c>Skills.ReflectionCooldownMode</c>, 2026-09-19, the user's
+    /// call): <c>last-written-skill</c> (the default) skips an automatic reflection only when the
+    /// turns since the last reflection loaded the skill the newest reflection wrote — another
+    /// lesson reflects at once; <c>all-skills</c> holds every automatic reflection back while the
+    /// cooldown runs. Read at each reply's end, no reconnect; the Reflection tab of <c>/skills</c> (its Options tab until later on 2026-09-19),
+    /// the row after <c>Reflection cooldown (minutes)</c>, labelled <c>Reflection cooldown mode</c>. No variable.
+    /// </summary>
+    public string ReflectionCooldownMode { get; set; } = Skills.ReflectionCooldownMode.Default;
+
+    public const int MinReflectionCooldownMinutes = 0;
+
+    public const int MaxReflectionCooldownMinutes = 1440;
+
+    /// <summary>
+    /// Whether a reflection is handed the earlier sessions (2026-09-19, the user's ask): the
+    /// stored sessions matching the turn's words open its transcript's end as a seeded
+    /// <c>session_manager</c> search, the catalog carries each skill's usage across the stored
+    /// turns, and <c>session_manager</c> is its third tool. Off = the reflection reads the
+    /// conversation on screen alone. Nothing while <c>Session logging</c> is off. Read when a
+    /// reflection is decided, no reconnect; the Reflection tab of <c>/skills</c> (its Options tab until later on 2026-09-19), last row, labelled
+    /// <c>Reflection includes sessions</c>. No variable.
+    /// </summary>
+    public bool ReflectionIncludesSessions { get; set; } = true;
+
+    /// <summary>
+    /// How many model requests one reflection may make before it is given up as exhausted
+    /// (<c>Skills.ReflectionMaxRequests</c>; a load or two, then the write — the reflection's own
+    /// cap, never <see cref="LlmMaxToolIterations"/>, the turn's). <see cref="MinReflectionMaxRequests"/>
+    /// to <see cref="MaxReflectionMaxRequests"/>, a value outside warned and replaced by the default,
+    /// never clamped. Read when a reflection starts, no reconnect; the Reflection tab of <c>/skills</c> (its Options tab until later on 2026-09-19), tenth row, labelled
+    /// <c>Reflection max requests</c> (2026-09-17, the user's call; a constant until then). No variable.
+    /// </summary>
+    public int ReflectionMaxRequests { get; set; } = DefaultReflectionMaxRequests;
+
+    public const int DefaultReflectionMaxRequests = 4;
+
+    public const int MinReflectionMaxRequests = 1;
+
+    public const int MaxReflectionMaxRequests = 20;
+
+    /// <summary>
+    /// How many of the model's own tool calls, added up across the turns since the last reflection,
+    /// make a task worth a skill (<c>Skills.ReflectionMinToolCalls</c>; the other door, an error recovered
+    /// from, is not a setting — one recovered error is the lesson). <see cref="MinReflectionMinToolCalls"/>
+    /// to <see cref="MaxReflectionMinToolCalls"/>, a value outside warned and replaced by the default,
+    /// never clamped. Read at each reply's end, no reconnect; the Reflection tab of <c>/skills</c> (its Options tab until later on 2026-09-19), last row (2026-09-17). No variable.
+    /// </summary>
+    public int ReflectionMinToolCalls { get; set; } = DefaultReflectionMinToolCalls;
+
+    public const int DefaultReflectionMinToolCalls = 4;   // 5 until 2026-09-17 (the user's call)
+
+    public const int MinReflectionMinToolCalls = 3;
+
+    public const int MaxReflectionMinToolCalls = 20;
+
+    /// <summary>
+    /// The reasoning level of the skill-learning reflection (<c>Skills.ReflectionReasoning</c>):
+    /// <c>profile</c> for <see cref="ReasoningEffort"/>'s level (<c>profile-default</c> until later on
+    /// 2026-09-19, no old spelling kept), or one of its five words outright; <c>none</c> by default
+    /// since then (the profile's level before — the user's call). Read at each reflection, no reconnect; the Reflection tab of <c>/skills</c> (its Options tab until later on 2026-09-19), second row. No variable.
+    /// </summary>
+    public string ReflectionReasoning { get; set; } = Skills.ReflectionReasoning.Default;
+
+    /// <summary>
+    /// How many of the last turns the skill-learning reflection reads (<c>Skills.ReflectionWindow</c>):
+    /// the last in full, the earlier ones as its lead-up with their tool results shortened; the
+    /// trigger adds the model's calls up across the turns since the last reflection. One is the
+    /// last turn alone. <see cref="MinReflectionWindow"/> to <see cref="MaxReflectionWindow"/>, a
+    /// value outside warned and replaced by the default, never clamped. Read at each reflection,
+    /// no reconnect; the Reflection tab of <c>/skills</c> (its Options tab until later on 2026-09-19), last row (2026-09-17). No variable.
+    /// </summary>
+    public int ReflectionWindow { get; set; } = DefaultReflectionWindow;
+
+    public const int DefaultReflectionWindow = 3;
+
+    public const int MinReflectionWindow = 1;
+
+    public const int MaxReflectionWindow = 5;
+
+    /// <summary>
+    /// Whether a loaded skill's instructions survive the prune compact and the mid-turn guard
+    /// (2026-09-16): <c>protected</c> (the default) or <c>unprotected</c>. One of
+    /// <c>SkillCompactMode.Names</c>; anything else reads as the default with a warning. No variable.
+    /// </summary>
+    public string SkillCompactMode { get; set; } = Skills.SkillCompactMode.Default;
+
+    /// <summary>
+    /// Whether <c>#</c> and part of a name on the chat line lists the loaded skills (2026-09-17, the
+    /// user's call), as <c>@</c> lists files: a pick writes <c>#name</c> into the draft — text the model
+    /// reads, nothing seeded. Off = <c>#</c> is ordinary text. Read at each keystroke, no reconnect;
+    /// the Options tab of <c>/skills</c>, fourth row (fifth until later on 2026-09-18, when <c>Skill slash commands</c> went). No variable.
+    /// </summary>
+    public bool SkillHashMention { get; set; } = true;
+
+    // ─── Tools ──────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The model's tools switched off one by one on <c>/tools</c>' Offered tab (2026-09-19): tool
+    /// names, sorted ordinal, no duplicates; empty = every tool its group offers. A name here drops
+    /// the tool from the next turn whatever its group's switch says (an emptied group loses its rule
+    /// too); a name no tool carries is inert and kept. Read at each turn, no reconnect, no
+    /// conversation clear. Not a settings row — the one list in the file. No variable.
+    /// <c>delete</c> from the start (2026-09-20, the user's call: the trash tool is opt-in, flipped on
+    /// <c>/tools</c>' Offered tab), and <c>git_delete</c> / <c>git_discard</c> with it (later on 2026-09-20, the
+    /// same call: the two git tools that lose work); a saved list stands — a profile that holds <c>[]</c> or
+    /// <c>["delete"]</c> keeps the rest on.
+    /// </summary>
+    public List<string> ToolsDisabled { get; set; } = [Llm.Tools.DeleteTool.ToolName, Llm.Tools.GitDeleteTool.ToolName, Llm.Tools.GitDiscardTool.ToolName];
+
+    /// <summary>
+    /// Whether <c>$</c> and part of a name on the chat line lists the tools the next turn offers
+    /// (2026-09-19, the user's call), as <c>#</c> lists the skills: the offered names with their
+    /// descriptions, a pick writes <c>$read_file</c> into the draft — text the model reads, nothing
+    /// seeded. Off = <c>$</c> is ordinary text. Read at each keystroke, no reconnect; the Options tab
+    /// of <c>/tools</c>, its one row. No variable.
+    /// </summary>
+    public bool ToolsDollarMention { get; set; } = true;
+
+    // ─── Ask ────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The most options one <c>ask_user</c> question may offer: <see cref="MinAskMaxChoices"/> to
+    /// <see cref="MaxAskMaxChoices"/> (the floor is the tool's own — a question needs two answers to
+    /// choose between); quoted, refused over and clamped like <see cref="AskMaxQuestions"/>. No variable.
+    /// </summary>
+    public int AskMaxChoices { get; set; } = DefaultAskMaxChoices;
+
+    public const int MinAskMaxChoices = 2;
+    public const int MaxAskMaxChoices = 15;
+    public const int DefaultAskMaxChoices = 10;
+
+    /// <summary>
+    /// The most questions one <c>ask_user</c> call may put to the user: <see cref="MinAskMaxQuestions"/>
+    /// to <see cref="MaxAskMaxQuestions"/>; the tool's schema and rule quote it, a call over it is
+    /// refused with an <c>Error:</c> sentence, and a hand-edited value is clamped. No variable.
+    /// </summary>
+    public int AskMaxQuestions { get; set; } = DefaultAskMaxQuestions;
+
+    public const int MinAskMaxQuestions = 1;
+    public const int MaxAskMaxQuestions = 10;
+    public const int DefaultAskMaxQuestions = 10;
+
+    /// <summary>
+    /// Whether a turn offers the model <c>ask_user</c> (the questions pane, 2026-09-15); read at each
+    /// turn like <see cref="WebTools"/>, no reconnect. The bottom pane stays a gate: without it
+    /// nothing can draw the questions, whatever this says. The row is the one switch (<c>/ask</c> went 2026-09-18). No variable.
+    /// </summary>
+    public bool AskUser { get; set; } = true;
+
+    // ─── Files ──────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// What applying a folder from the line's @-mention list does (2026-09-16): <c>folder-apply</c>
+    /// (<c>@folder/</c> and a space go on the line, the list closes — a folder is a mention like a
+    /// file; the default until 2026-09-19) or <c>folder-remain</c> (<c>@folder/</c> goes on the line and the list
+    /// stays open on the folder's contents; the default since). One of <see cref="Files.MentionFolderMode.Names"/>;
+    /// anything else reads as <see cref="Files.MentionFolderMode.Default"/>. No variable.
+    /// </summary>
+    public string FileMentionFolderMode { get; set; } = Files.MentionFolderMode.Default;
+
+    /// <summary>
+    /// Whether an edit keeps the previous version (2026-09-17): <c>patch_file</c> and a <c>write_file</c> that
+    /// replaces or appends a file that exists copy it into
+    /// <c>.trash</c> first, so <c>restore</c> with <c>overwrite</c> undoes the change; a replacing <c>move</c>,
+    /// <c>copy</c> or <c>restore</c> keeps what it replaces the same way, and <c>delete</c> moves into
+    /// <c>.trash</c> (both 2026-09-20). Off = the edit alone, and <c>delete</c> removes for good, a folder with
+    /// everything in it (the default since 2026-09-19, on before). Read at each tool call, no reconnect. No variable.
+    /// </summary>
+    public bool FileSafeEdits { get; set; }
+
+    /// <summary>
+    /// Whether a turn offers the model the fifteen file tools over the working directory; read at each
+    /// turn like <see cref="WebTools"/>, no reconnect. Off, the default rules lose their file
+    /// sentences and no <c>get_working_directory</c> call opens the conversation (the user's own
+    /// <c>/cwd</c>, <c>/tree</c>, <c>/explore</c> and <c>/emptytrash</c> keep working). The row is the one
+    /// switch (<c>/files</c> went 2026-09-18). No variable.
+    /// </summary>
+    public bool FileTools { get; set; } = true;
+
+    /// <summary>
+    /// Entries a <c>/tree</c> lists before it stops with a tail line: <see cref="Files.WorkingDirectory.MinTreeLength"/>
+    /// to <see cref="Files.WorkingDirectory.MaxTreeLength"/>; the walk clamps a hand-edited value. No variable.
+    /// </summary>
+    public int FileTreeMaxLength { get; set; } = Files.WorkingDirectory.DefaultTreeLength;
+
+    /// <summary>Whether a <c>/tree</c> line carries the file's size after its name. No variable.</summary>
+    public bool FileTreeShowSizes { get; set; } = true;
+
+    /// <summary>
+    /// The most pictures one <c>view_image</c> call loads (2026-09-19, the user's ask; a constant 4 until
+    /// then): <see cref="MinViewImageMaxPerCall"/> to <see cref="MaxViewImageMaxPerCall"/>; the tool's schema
+    /// and description quote it, a call over it loads the first that many and names the rest, and the
+    /// tool clamps a hand-edited value. Read at each call, no reconnect. No variable.
+    /// </summary>
+    public int FileViewImageMaxPerCall { get; set; } = DefaultViewImageMaxPerCall;
+
+    public const int MinViewImageMaxPerCall = 1;
+    public const int MaxViewImageMaxPerCall = 100;
+    public const int DefaultViewImageMaxPerCall = 10;
+
+    // ─── Git ────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The most patch lines one <c>git_diff</c> shows (2026-09-20): <see cref="MinGitDiffMaxLines"/> to
+    /// <see cref="MaxGitDiffMaxLines"/>; the argument <c>max_lines</c> overrides it up to the same cap, a cut
+    /// patch says so and names <c>path</c> to narrow it, and the tool clamps a hand-edited value. Read at
+    /// each call, no reconnect. No variable.
+    /// </summary>
+    public int GitDiffMaxLines { get; set; } = DefaultGitDiffMaxLines;
+
+    public const int MinGitDiffMaxLines = 20;
+    public const int MaxGitDiffMaxLines = 5000;
+    public const int DefaultGitDiffMaxLines = 500;
+
+    /// <summary>
+    /// How many commits a <c>git_log</c> without <c>max_commits</c> lists (2026-09-20):
+    /// <see cref="MinGitLogMaxCommits"/> to <see cref="MaxGitLogMaxCommits"/>; the argument overrides it up to
+    /// the same cap, and a hand-edited value is clamped. No variable.
+    /// </summary>
+    public int GitLogMaxCommits { get; set; } = DefaultGitLogMaxCommits;
+
+    public const int MinGitLogMaxCommits = 1;
+    public const int MaxGitLogMaxCommits = 200;
+    public const int DefaultGitLogMaxCommits = 20;
+
+    /// <summary>
+    /// Whether a turn offers the model the eleven git tools over the repository at or under the working
+    /// directory (2026-09-20); read at each turn like <see cref="WebTools"/>, no reconnect. Off, the default
+    /// rules lose their git sentence. The two destructive tools (<c>git_discard</c>, <c>git_delete</c>) are
+    /// off by name in a fresh profile's <see cref="ToolsDisabled"/> besides. No variable.
+    /// </summary>
+    public bool GitTools { get; set; } = true;
+
+    // ─── Web ────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// How <c>web_fetch</c> gets a page: one of <see cref="Web.BrowserMode.Names"/> — <c>default</c>
+    /// (the HTTP client, then a headless Edge / Chrome / Brave when the page came back blocked or as a
+    /// script shell), <c>httpclient</c> (the client alone), <c>chromium</c> (the browser for every
+    /// page). Anything else reads as <see cref="Web.BrowserMode.Default"/>. No variable.
+    /// </summary>
+    public string WebBrowserMode { get; set; } = Web.BrowserMode.Default;
+
+    /// <summary>
+    /// Where <c>web_fetch</c> may reach: one of <see cref="Web.NetworkMode.Names"/> — <c>internet</c>
+    /// (public addresses alone; this machine and the local network — loopback, 10/8, 172.16/12,
+    /// 192.168/16, link-local — refused), <c>local_area_network</c> (those alone; the internet
+    /// refused), <c>both</c>. Every hop is judged at the socket by <see cref="Web.LanPolicy"/>; the
+    /// app's own SearXNG request is exempt. Anything else reads as <see cref="Web.NetworkMode.Default"/>.
+    /// Replaced the on/off <c>Browser allow LAN</c> on 2026-09-18, no migration. No variable.
+    /// </summary>
+    public string WebBrowserNetworkMode { get; set; } = Web.NetworkMode.Default;
+
+    /// <summary>
+    /// The Chromium executable the headless leg runs, or empty to find Edge, Chrome or Brave in their
+    /// standard folders (<see cref="Web.HeadlessBrowser.Candidates"/>). No variable.
+    /// </summary>
+    public string WebBrowserPath { get; set; } = "";
+
+    /// <summary>
+    /// How many hits a <c>web_search</c> without <c>max_results</c> returns:
+    /// <see cref="MinWebSearchMaxResults"/> to <see cref="MaxWebSearchMaxResults"/>; the argument overrides
+    /// it up to the same cap, and a hand-edited value is clamped. No variable.
+    /// </summary>
+    public int WebSearchMaxResults { get; set; } = DefaultWebSearchMaxResults;
+
+    public const int MinWebSearchMaxResults = 1;
+    public const int MaxWebSearchMaxResults = 20;
+    public const int DefaultWebSearchMaxResults = 20;
+
+    /// <summary>
+    /// Which engine <c>web_search</c> asks: one of <see cref="Web.SearchMethod.Names"/> —
+    /// <c>duckduckgo</c> (the built-in scrape) or <c>searxng</c> (the instance <see cref="WebSearxngUrl"/>
+    /// names; DuckDuckGo until it holds an http(s) URL). Anything else reads as
+    /// <see cref="Web.SearchMethod.Default"/>. No variable.
+    /// </summary>
+    public string WebSearchMethod { get; set; } = Web.SearchMethod.Default;
+
+    /// <summary>
+    /// A SearXNG instance's URL (<c>http://localhost:8080</c>), read only while
+    /// <see cref="WebSearchMethod"/> is <c>searxng</c>; blank or not an http(s) URL there = the
+    /// built-in DuckDuckGo scrape until one is set. Variable <c>NEONCOMPANION_SEARXNG_URL</c>
+    /// (the URL alone — the method still picks the engine).
+    /// </summary>
+    public string WebSearxngUrl { get; set; } = "";
+
+    /// <summary>
+    /// Whether a turn offers the model <c>web_search</c> and <c>web_fetch</c>; read at each turn like
+    /// <see cref="Memory"/>, no reconnect. Off, the default rules lose their web sentence.
+    /// The row is the one switch (<c>/web</c> went 2026-09-18). No variable.
+    /// </summary>
+    public bool WebTools { get; set; } = true;
+
+    // ─── MCP ────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// How long one MCP server gets to answer the initialize handshake and list its tools at a
+    /// connect: <see cref="MinMcpConnectTimeout"/> to <see cref="MaxMcpConnectTimeout"/> seconds; past
+    /// it the server is <c>failed: timed out</c> and the others are unaffected. Read at the next
+    /// connect (startup, a profile switch, a flip, <c>reload</c>), no reconnect of its own. The
+    /// second row of <c>/mcp</c>' Options tab (2026-09-20). No variable.
+    /// </summary>
+    public int McpConnectTimeoutSeconds { get; set; } = DefaultMcpConnectTimeout;
+
+    public const int MinMcpConnectTimeout = 5;
+    public const int MaxMcpConnectTimeout = 300;
+    public const int DefaultMcpConnectTimeout = 30;
+
+    /// <summary>
+    /// The master switch over the MCP servers <c>mcp.json</c> names (the profile's, then the home's):
+    /// on, every server not in <see cref="McpServersDisabled"/> is started at startup and after a
+    /// profile switch and its tools are offered as <c>&lt;server&gt;__&lt;tool&gt;</c>; off, nothing is
+    /// started and the <c>/mcp</c> pane still lists the config. A flip reconnects (disconnects) at once,
+    /// so it is refused mid-turn. The first row of <c>/mcp</c>' Options tab (2026-09-20). No variable.
+    /// </summary>
+    public bool McpServers { get; set; } = true;
+
+    /// <summary>
+    /// The MCP servers switched off by name on <c>/mcp</c>' Servers tab (2026-09-20): sorted
+    /// ordinal, no duplicates, written by <c>ToolsText.Flip</c> like <see cref="ToolsDisabled"/>.
+    /// Not a settings row — the second list in the file. A name no file names any more stays
+    /// harmless. No variable, no clear.
+    /// </summary>
+    public List<string> McpServersDisabled { get; set; } = [];
+}

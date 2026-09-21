@@ -1,0 +1,356 @@
+using System.Text;
+using NeonCompanion.Files;
+
+namespace NeonCompanion.Skills;
+
+/// <summary>What a <see cref="SkillEditor"/> act came to.</summary>
+public enum SkillEditOutcome
+{
+    Created,
+    Updated,
+    BadName,
+    Exists,
+    Missing,
+    EmptyDescription,
+    DescriptionTooLong,
+    EmptyInstructions,
+    InstructionsTooLong,
+    NothingToChange,
+    Unparseable,
+    Failed,
+
+    /// <summary>A create for a name that is already a skill in another writable root (the result's scope is where it lives): a copy would hide it (2026-09-16).</summary>
+    ExistsElsewhere,
+
+    /// <summary>A create or update for a name that is a skill in the external folder, which the app never writes (2026-09-16).</summary>
+    ExternalReadOnly,
+
+    /// <summary>The pane moved the folder between the profile and global roots (<see cref="SkillEditor.Move"/>, 2026-09-18); the result's scope is the destination.</summary>
+    Moved,
+
+    /// <summary>The pane removed the folder and everything in it (<see cref="SkillEditor.Delete"/>, 2026-09-18), after a confirmation.</summary>
+    Deleted,
+}
+
+/// <summary>
+/// The outcome, the skill's name and scope, the bytes written, a detail for the failures; and
+/// <paramref name="Summary"/> — the model's own sentence on what changed, from the tool's
+/// <c>summary</c> argument (2026-09-19; empty when it gave none), never part of the skill.
+/// </summary>
+public sealed record SkillEditResult(SkillEditOutcome Outcome, string Name, SkillScope Scope, long Bytes = 0, string Detail = "", int Length = 0, string Summary = "");
+
+/// <summary>
+/// The write side of the skills, used by <c>skill_editor</c> (<see cref="Create"/>, <see cref="Update"/>)
+/// and, since 2026-09-18, by the <c>/skill</c> pane (<see cref="Move"/>, <see cref="Delete"/>):
+/// <see cref="Create"/> makes <c>&lt;root&gt;\&lt;name&gt;\SKILL.md</c> from a description and the
+/// instructions, <see cref="Update"/> rewrites one or both in an existing file and carries its other
+/// frontmatter lines through, <see cref="Move"/> renames the folder under the other writable root and
+/// <see cref="Delete"/> removes it with everything in it. Only the profile and global roots are written
+/// (<see cref="SkillScopes.Writable"/>); the external folder is other clients' and read-only here. The
+/// model's tool never deletes or moves a skill — the pane does, after a confirmation, and only a folder
+/// that sits right under its root (<see cref="Move"/> and <see cref="Delete"/> check before they act).
+/// The file is written whole to a temp name and moved over (the <c>MemoryStore</c> shape), UTF-8 without
+/// a BOM. A model's mistake is an outcome, never an exception.
+///
+/// <para>A name is one skill across the roots (2026-09-16, after a model asked to update a global
+/// skill wrote a profile copy that shadowed it): <see cref="Create"/> refuses a name that is a skill
+/// in any root the catalog reads (<see cref="Find"/>), and <see cref="Update"/> changes the skill
+/// where it lives when the named root has none — the result carries the real scope.</para>
+///
+/// <para>A name may be any valid one, a built-in command's word included: from 2026-09-17 until
+/// later on 2026-09-18 <see cref="Create"/> refused <c>help</c>, <c>learn</c>, <c>exit</c> and the
+/// rest, since under <c>Skill slash commands</c> every loaded skill was a <c>/&lt;name&gt;</c>
+/// command that a base command won; the commands went with the switch (the user's call: the
+/// <c>#</c>-mention never collides), and the rule with them.</para>
+/// </summary>
+public static class SkillEditor
+{
+    /// <summary>Characters of instructions accepted at most — the specification wants a body under 500 lines.</summary>
+    public const int MaxInstructionChars = 64_000;
+
+    private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
+
+    /// <summary>
+    /// Where <paramref name="name"/> is already a skill (a folder holding <c>SKILL.md</c>), checked
+    /// in precedence order; null when nowhere. The external root only while <paramref name="external"/>
+    /// says the catalog reads it — a skill there is invisible otherwise, and no reason to refuse.
+    /// </summary>
+    public static SkillScope? Find(SkillRoots roots, string name, bool external)
+    {
+        ArgumentNullException.ThrowIfNull(roots);
+        ArgumentNullException.ThrowIfNull(name);
+        foreach (var scope in new[] { SkillScope.Profile, SkillScope.Global, SkillScope.External })
+        {
+            if (scope == SkillScope.External && !external)
+            {
+                continue;
+            }
+
+            if (File.Exists(Path.Combine(roots.Of(scope), name, SkillCatalog.FileName)))
+            {
+                return scope;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>A new skill; refused when the folder is already there, or the name is a skill in any other root the catalog reads.</summary>
+    /// <param name="external">Whether the external root is read (the setting <c>Use external skills</c>): a skill there blocks the name too.</param>
+    public static SkillEditResult Create(SkillRoots roots, SkillScope scope, string name, string description, string instructions, bool external)
+    {
+        ArgumentNullException.ThrowIfNull(roots);
+        ArgumentNullException.ThrowIfNull(name);
+        ArgumentNullException.ThrowIfNull(description);
+        ArgumentNullException.ThrowIfNull(instructions);
+        name = name.Trim();
+        if (!SkillFrontmatter.IsValidName(name))
+        {
+            return new SkillEditResult(SkillEditOutcome.BadName, name, scope);
+        }
+
+        string flat = SkillFrontmatter.Flatten(description);
+        if (Check(flat, instructions, name, scope) is { } refused)
+        {
+            return refused;
+        }
+
+        string directory = Path.Combine(roots.Of(scope), name);
+        if (Directory.Exists(directory) || File.Exists(directory))
+        {
+            return new SkillEditResult(SkillEditOutcome.Exists, name, scope);
+        }
+
+        // The name is one skill across the roots: a copy here would shadow the one there.
+        switch (Find(roots, name, external))
+        {
+            case SkillScope.External:
+                return new SkillEditResult(SkillEditOutcome.ExternalReadOnly, name, SkillScope.External);
+            case { } elsewhere:
+                return new SkillEditResult(SkillEditOutcome.ExistsElsewhere, name, elsewhere);
+        }
+
+        return Write(directory, name, scope, SkillFrontmatter.Write(name, flat, [], instructions), SkillEditOutcome.Created);
+    }
+
+    /// <summary>
+    /// A new description, new instructions or both for an existing skill. When the named root has no
+    /// such skill the one in the other writable root is changed instead (the result's scope says which);
+    /// a skill in the external folder alone is refused. A file whose frontmatter cannot be read is
+    /// rewritten only when both are given (its other lines are lost then).
+    /// </summary>
+    /// <param name="external">Whether the external root is read: a skill only there answers <see cref="SkillEditOutcome.ExternalReadOnly"/>, not <see cref="SkillEditOutcome.Missing"/>.</param>
+    public static SkillEditResult Update(SkillRoots roots, SkillScope scope, string name, string? description, string? instructions, bool external)
+    {
+        ArgumentNullException.ThrowIfNull(roots);
+        ArgumentNullException.ThrowIfNull(name);
+        name = name.Trim();
+        if (!SkillFrontmatter.IsValidName(name))
+        {
+            return new SkillEditResult(SkillEditOutcome.BadName, name, scope);
+        }
+
+        string directory = Path.Combine(roots.Of(scope), name);
+        string file = Path.Combine(directory, SkillCatalog.FileName);
+        if (!File.Exists(file))
+        {
+            // Not here: where it lives, if anywhere — never a hint to create a copy of a skill that exists.
+            switch (Find(roots, name, external))
+            {
+                case SkillScope.External:
+                    return new SkillEditResult(SkillEditOutcome.ExternalReadOnly, name, SkillScope.External);
+                case { } found:
+                    scope = found;
+                    directory = Path.Combine(roots.Of(scope), name);
+                    file = Path.Combine(directory, SkillCatalog.FileName);
+                    break;
+                default:
+                    return new SkillEditResult(SkillEditOutcome.Missing, name, scope);
+            }
+        }
+
+        bool hasDescription = !string.IsNullOrWhiteSpace(description);
+        bool hasInstructions = !string.IsNullOrWhiteSpace(instructions);
+        if (!hasDescription && !hasInstructions)
+        {
+            return new SkillEditResult(SkillEditOutcome.NothingToChange, name, scope);
+        }
+
+        string? flat = hasDescription ? SkillFrontmatter.Flatten(description!) : null;
+        // The absent half is checked as a stand-in: only what was given can be wrong.
+        if (Check(flat ?? "x", hasInstructions ? instructions! : "x", name, scope) is { } refused)
+        {
+            return refused;
+        }
+
+        string text;
+        try
+        {
+            text = WorkingDirectory.Decode(File.ReadAllBytes(file), out _);
+        }
+        catch (Exception ex) when (IsFileFailure(ex))
+        {
+            return new SkillEditResult(SkillEditOutcome.Failed, name, scope, Detail: ex.Message);
+        }
+
+        IReadOnlyList<string> other = [];
+        string body = "";
+        string current = "";
+        if (SkillFrontmatter.TryParse(text, out var frontmatter, out body, out string? problem))
+        {
+            other = frontmatter!.OtherLines;
+            current = frontmatter.Description;
+        }
+        else if (!hasDescription || !hasInstructions)
+        {
+            return new SkillEditResult(SkillEditOutcome.Unparseable, name, scope, Detail: problem ?? "");
+        }
+
+        return Write(directory, name, scope, SkillFrontmatter.Write(name, flat ?? current, other, hasInstructions ? instructions! : body), SkillEditOutcome.Updated);
+    }
+
+    /// <summary>
+    /// The <c>/skill</c> pane's move (2026-09-18): <paramref name="skill"/>'s folder renamed under
+    /// the root of <paramref name="to"/>, the skill's files with it. Refused for the external root as
+    /// the source or the destination (<see cref="SkillEditOutcome.ExternalReadOnly"/>), for the scope it
+    /// is in already (<see cref="SkillEditOutcome.NothingToChange"/>), for a folder that is not right
+    /// under its root or has no <c>SKILL.md</c> any more (<see cref="SkillEditOutcome.Missing"/>) and
+    /// when the destination root already holds the folder's name (<see cref="SkillEditOutcome.Exists"/>,
+    /// the result's scope the destination) — by the folder's name, since a skill's name may differ
+    /// from its folder. A file failure is <see cref="SkillEditOutcome.Failed"/> with the detail.
+    /// </summary>
+    public static SkillEditResult Move(SkillRoots roots, Skill skill, SkillScope to)
+    {
+        ArgumentNullException.ThrowIfNull(roots);
+        ArgumentNullException.ThrowIfNull(skill);
+        if (skill.Scope == SkillScope.External || to == SkillScope.External)
+        {
+            return new SkillEditResult(SkillEditOutcome.ExternalReadOnly, skill.Name, SkillScope.External);
+        }
+
+        if (to == skill.Scope)
+        {
+            return new SkillEditResult(SkillEditOutcome.NothingToChange, skill.Name, skill.Scope);
+        }
+
+        if (!IsUnderItsRoot(roots, skill))
+        {
+            return new SkillEditResult(SkillEditOutcome.Missing, skill.Name, skill.Scope);
+        }
+
+        string destination = Path.Combine(roots.Of(to), skill.FolderName);
+        if (Directory.Exists(destination) || File.Exists(destination))
+        {
+            return new SkillEditResult(SkillEditOutcome.Exists, skill.Name, to);
+        }
+
+        try
+        {
+            Directory.CreateDirectory(roots.Of(to));
+            Directory.Move(skill.Directory, destination);
+            return new SkillEditResult(SkillEditOutcome.Moved, skill.Name, to);
+        }
+        catch (Exception ex) when (IsFileFailure(ex))
+        {
+            return new SkillEditResult(SkillEditOutcome.Failed, skill.Name, to, Detail: ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// The <c>/skill</c> pane's delete (2026-09-18, behind <c>Allow skill delete</c> and a
+    /// confirmation): <paramref name="skill"/>'s folder and everything in it. Refused for the external
+    /// root (<see cref="SkillEditOutcome.ExternalReadOnly"/>) and for a folder that is not right under
+    /// its root or has no <c>SKILL.md</c> any more (<see cref="SkillEditOutcome.Missing"/>) — the
+    /// guard a recursive delete owes. A file failure is <see cref="SkillEditOutcome.Failed"/>.
+    /// </summary>
+    public static SkillEditResult Delete(SkillRoots roots, Skill skill)
+    {
+        ArgumentNullException.ThrowIfNull(roots);
+        ArgumentNullException.ThrowIfNull(skill);
+        if (skill.Scope == SkillScope.External)
+        {
+            return new SkillEditResult(SkillEditOutcome.ExternalReadOnly, skill.Name, SkillScope.External);
+        }
+
+        if (!IsUnderItsRoot(roots, skill))
+        {
+            return new SkillEditResult(SkillEditOutcome.Missing, skill.Name, skill.Scope);
+        }
+
+        try
+        {
+            Directory.Delete(skill.Directory, recursive: true);
+            return new SkillEditResult(SkillEditOutcome.Deleted, skill.Name, skill.Scope);
+        }
+        catch (Exception ex) when (IsFileFailure(ex))
+        {
+            return new SkillEditResult(SkillEditOutcome.Failed, skill.Name, skill.Scope, Detail: ex.Message);
+        }
+    }
+
+    /// <summary>Whether <paramref name="skill"/>'s folder holds a <c>SKILL.md</c> and sits right under the root of its scope — what a move or a delete acts on, never a folder a hand-built record points elsewhere.</summary>
+    private static bool IsUnderItsRoot(SkillRoots roots, Skill skill)
+    {
+        try
+        {
+            if (!File.Exists(skill.FilePath) || Path.GetDirectoryName(Path.GetFullPath(skill.Directory)) is not string parent)
+            {
+                return false;
+            }
+
+            string root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(roots.Of(skill.Scope)));
+            return string.Equals(Path.TrimEndingDirectorySeparator(parent), root, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (IsFileFailure(ex))
+        {
+            return false;
+        }
+    }
+
+    private static SkillEditResult? Check(string description, string instructions, string name, SkillScope scope)
+    {
+        if (description.Length == 0)
+        {
+            return new SkillEditResult(SkillEditOutcome.EmptyDescription, name, scope);
+        }
+
+        if (description.Length > SkillFrontmatter.MaxDescriptionLength)
+        {
+            return new SkillEditResult(SkillEditOutcome.DescriptionTooLong, name, scope, Length: description.Length);
+        }
+
+        if (string.IsNullOrWhiteSpace(instructions))
+        {
+            return new SkillEditResult(SkillEditOutcome.EmptyInstructions, name, scope);
+        }
+
+        if (instructions.Length > MaxInstructionChars)
+        {
+            return new SkillEditResult(SkillEditOutcome.InstructionsTooLong, name, scope, Length: instructions.Length);
+        }
+
+        return null;
+    }
+
+    private static SkillEditResult Write(string directory, string name, SkillScope scope, string content, SkillEditOutcome done)
+    {
+        string file = Path.Combine(directory, SkillCatalog.FileName);
+        string temp = $"{file}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            Directory.CreateDirectory(directory);
+            byte[] bytes = Utf8NoBom.GetBytes(content);
+            File.WriteAllBytes(temp, bytes);
+            File.Move(temp, file, overwrite: true);
+            return new SkillEditResult(done, name, scope, bytes.Length);
+        }
+        catch (Exception ex) when (IsFileFailure(ex))
+        {
+            try { File.Delete(temp); } catch { /* best effort */ }
+            return new SkillEditResult(SkillEditOutcome.Failed, name, scope, Detail: ex.Message);
+        }
+    }
+
+    private static bool IsFileFailure(Exception ex) =>
+        ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException;
+}

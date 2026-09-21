@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Coverage collection for `dotnet test` (coverlet.collector, already referenced by the test
+  project). build.ps1 passes this file and reads the root line-rate of the Cobertura report
+  it produces under publish/coverage; -CoverageFloor turns the number into a gate.
+
+  Exclusions, and why:
+  - NeonCompanion.Audio.WinMm*: the WinMM device classes (playback, capture, the imports) run
+    only against a real device and only prove anything in the PUBLISHED binary (the NAudio
+    by-value-marshalling scar was invisible under the JIT). They are gated by the published-exe
+    smoke (audio:winmm, audio:winmm-in) and by the audio and voice checks on the published exe,
+    not by line coverage. (No double hyphen in this comment: XML forbids it, and dotnet test
+    rejects the whole file.)
+  - Program: the composition root; the smoke run on the published exe covers it.
+  - GeneratedCodeAttribute / ExcludeFromCodeCoverageAttribute: source-generated JSON contexts,
+    LibraryImport stubs and GeneratedRegex bodies. CompilerGeneratedAttribute is deliberately
+    NOT excluded: that would drop every async state machine and lambda body.
+-->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <Exclude>[NeonCompanion]NeonCompanion.Audio.WinMm*,[NeonCompanion]Program</Exclude>
+          <ExcludeByAttribute>GeneratedCodeAttribute,ExcludeFromCodeCoverageAttribute</ExcludeByAttribute>
+          <SkipAutoProps>true</SkipAutoProps>
+          <IncludeTestAssembly>false</IncludeTestAssembly>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

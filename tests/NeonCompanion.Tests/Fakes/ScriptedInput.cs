@@ -1,0 +1,178 @@
+using NeonCompanion.UI;
+using Spectre.Console;
+
+namespace NeonCompanion.Tests.Fakes;
+
+/// <summary>
+/// An <see cref="IAnsiConsoleInput"/> (and <see cref="IInputEvents"/>: keys, mouse clicks and drags in
+/// one queue) whose failure modes are scriptable, for the cases <c>TestConsoleInput</c> cannot
+/// produce: <see cref="NoKeyboard"/> makes <see cref="IsKeyAvailable"/> throw the way a redirected
+/// real console does, and an empty queue makes <see cref="ReadKeyAsync"/> wait for cancellation
+/// and then <b>throw <see cref="TaskCanceledException"/></b>, exactly as Spectre's <c>DefaultInput</c>
+/// does (its poll loop is a <c>Task.Delay</c> on the token). An earlier version returned null
+/// here, and the first live wake word crashed the published exe because nothing above it expected
+/// the throw. <see cref="ReturnNullOnCancel"/> restores the old behaviour for the one test that
+/// pins both shapes. <see cref="Completed"/> is a source that is gone (the real reader's channel
+/// closed): every read throws <see cref="InvalidOperationException"/>.
+/// </summary>
+public sealed class ScriptedInput : IAnsiConsoleInput, IInputEvents
+{
+    private readonly Queue<InputEvent> _events = new();
+
+    public bool NoKeyboard { get; set; }
+
+    /// <summary>Return null on cancellation instead of throwing; the real console throws.</summary>
+    public bool ReturnNullOnCancel { get; set; }
+
+    /// <summary>The source is gone: reads throw <see cref="InvalidOperationException"/> once the queue is empty.</summary>
+    public bool Completed { get; set; }
+
+    /// <summary>
+    /// Runs once each time <see cref="ReadKeyAsync"/> finds the queue empty, before it waits: the
+    /// timer tests advance the manual clock here (the screen is blocked on the read, as it would be
+    /// on a real keyboard) or push the keys that come next.
+    /// </summary>
+    public Action? OnWait { get; set; }
+
+    public ScriptedInput Push(params ConsoleKeyInfo[] keys)
+    {
+        foreach (var key in keys)
+        {
+            _events.Enqueue(new InputEvent.Key(key));
+        }
+
+        return this;
+    }
+
+    /// <summary>The terminal's paste of <paramref name="text"/> (one block, as the console reader delivers a burst), queued in order with the keys.</summary>
+    public ScriptedInput PushPaste(string text)
+    {
+        _events.Enqueue(new InputEvent.Paste(text));
+        return this;
+    }
+
+    /// <summary>A mouse click at buffer cell (<paramref name="x"/>, <paramref name="y"/>), queued in order with the keys.</summary>
+    public ScriptedInput PushClick(int x, int y, MouseButton button = MouseButton.Left)
+    {
+        _events.Enqueue(new InputEvent.Click(x, y, button));
+        return this;
+    }
+
+    /// <summary>The mouse dragged (left button held) to buffer cell (<paramref name="x"/>, <paramref name="y"/>), queued in order with the keys.</summary>
+    public ScriptedInput PushDrag(int x, int y)
+    {
+        _events.Enqueue(new InputEvent.Drag(x, y));
+        return this;
+    }
+
+    /// <summary>The wheel turned <paramref name="notches"/> (positive = up, away from the user) at buffer cell (<paramref name="x"/>, <paramref name="y"/>), queued in order with the keys.</summary>
+    public ScriptedInput PushWheel(int notches, int x = 0, int y = 0)
+    {
+        _events.Enqueue(new InputEvent.Wheel(x, y, notches));
+        return this;
+    }
+
+    // ── IInputEvents ────────────────────────────────────────────────────────
+
+    public bool IsAvailable
+    {
+        get
+        {
+            ThrowIfNoKeyboard();
+            if (_events.Count == 0 && Completed)
+            {
+                throw new InvalidOperationException("The input source is gone.");
+            }
+
+            return _events.Count > 0;
+        }
+    }
+
+    public bool NextIsMouse => _events.Count > 0 && _events.Peek() is InputEvent.Click or InputEvent.Drag or InputEvent.Wheel;
+
+    public InputEvent? Read()
+    {
+        ThrowIfNoKeyboard();
+        return _events.Count > 0 ? _events.Dequeue() : null;
+    }
+
+    public async Task<InputEvent?> ReadAsync(CancellationToken cancellationToken)
+    {
+        ThrowIfNoKeyboard();
+        if (_events.Count == 0)
+        {
+            if (Completed)
+            {
+                throw new InvalidOperationException("The input source is gone.");
+            }
+
+            OnWait?.Invoke();
+        }
+
+        while (_events.Count == 0)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                if (ReturnNullOnCancel)
+                {
+                    return null;
+                }
+
+                throw new TaskCanceledException("A task was canceled.");
+            }
+
+            await Task.Delay(5, CancellationToken.None);
+        }
+
+        return _events.Dequeue();
+    }
+
+    // ── IAnsiConsoleInput (keys only) ───────────────────────────────────────
+
+    public bool IsKeyAvailable()
+    {
+        ThrowIfNoKeyboard();
+        DropMouse();
+        return _events.Count > 0;
+    }
+
+    public ConsoleKeyInfo? ReadKey(bool intercept)
+    {
+        ThrowIfNoKeyboard();
+        DropMouse();
+        return _events.Count > 0 && _events.Dequeue() is InputEvent.Key key ? key.Info : null;
+    }
+
+    public async Task<ConsoleKeyInfo?> ReadKeyAsync(bool intercept, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            var e = await ReadAsync(cancellationToken);
+            if (e is null)
+            {
+                return null;
+            }
+
+            if (e is InputEvent.Key key)
+            {
+                return key.Info;
+            }
+        }
+    }
+
+    private void DropMouse()
+    {
+        while (NextIsMouse)
+        {
+            _events.Dequeue();
+        }
+    }
+
+    private void ThrowIfNoKeyboard()
+    {
+        if (NoKeyboard)
+        {
+            throw new InvalidOperationException("Failed to read input in non-interactive mode.");
+        }
+    }
+}

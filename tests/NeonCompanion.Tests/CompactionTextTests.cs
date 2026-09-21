@@ -1,0 +1,46 @@
+using NeonCompanion.App;
+using NeonCompanion.Llm;
+using NeonCompanion.UI;
+
+namespace NeonCompanion.Tests;
+
+public class CompactionTextTests
+{
+    private static readonly TokenUsage Usage = new(41_200, 3_100, 44_300, 1, TimeSpan.Zero, TimeSpan.Zero);
+
+    [Fact]
+    public void CompactGlyph_IsTheClampWithItsSelector_AtTwoCells_ThenASpace()
+    {
+        // U+1F5DC + U+FE0F (2026-09-19): the pair's two cells, the selector zero after a wide character.
+        Assert.Equal("\U0001F5DC️ ", CompactionText.CompactGlyph);
+        Assert.Equal(2, TextCells.Width(CompactionText.CompactGlyph.TrimEnd()));
+        Assert.Equal(3, TextCells.Width(CompactionText.CompactGlyph));
+    }
+
+    [Fact]
+    public void TheThreeOutcomes_OpenWithTheClamp()
+    {
+        Assert.Equal("(🗜️ nothing to compact)", CompactionText.NothingToCompact);
+        Assert.Equal("(🗜️ compact cancelled)", CompactionText.Cancelled);
+        Assert.Equal("🗜️ Compact failed: ", CompactionText.FailedPrefix);
+        Assert.Equal("compacting the conversation", CompactionText.CompactingLabel);   // the spinner's label: no glyph
+    }
+
+    [Fact]
+    public void Notice_ASummary_WearsTheClamp_WhateverItsTail()
+    {
+        Assert.Equal("(🗜️ compacted: 38 messages → 7 · 41.2k → 3.1k tokens)", CompactionText.Notice(new ConversationCompactor.Result(38, 7, 0, Usage, Summarised: true), null));
+        Assert.Equal("(🗜️ compacted: 38 messages → 7)", CompactionText.Notice(new ConversationCompactor.Result(38, 7, 0, null, Summarised: true), null));
+        Assert.Equal("(🗜️ auto-compacted at 83%: 38 messages → 7 · 41.2k → 3.1k tokens · 12 tool results pruned)", CompactionText.Notice(new ConversationCompactor.Result(38, 7, 12, Usage, Summarised: true), 83));
+        Assert.Equal("(🗜️ auto-compacted at 83%: 38 messages → 7 · 1 tool result pruned)", CompactionText.Notice(new ConversationCompactor.Result(38, 7, 1, null, Summarised: true), 83));
+    }
+
+    [Fact]
+    public void Notice_APruneAlone_WearsTheScissors()
+    {
+        Assert.Equal("(✂️ compacted: 12 tool results pruned)", CompactionText.Notice(new ConversationCompactor.Result(38, 38, 12, null), null));
+        Assert.Equal("(✂️ compacted: 1 tool result pruned)", CompactionText.Notice(new ConversationCompactor.Result(38, 38, 1, null), null));
+        Assert.Equal("(✂️ auto-compacted at 35%: 1 tool result pruned)", CompactionText.Notice(new ConversationCompactor.Result(14, 14, 1, null), 35));
+        Assert.StartsWith("(" + Assistant.PruneGlyph, CompactionText.Notice(new ConversationCompactor.Result(14, 14, 1, null), 35));
+    }
+}

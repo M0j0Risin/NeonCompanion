@@ -1,0 +1,2849 @@
+using System.Globalization;
+using NeonCompanion.Files;
+using NeonCompanion.Llm;
+using NeonCompanion.Settings;
+using NeonCompanion.Speech;
+using NeonCompanion.UI;
+using Spectre.Console;
+
+namespace NeonCompanion.App;
+
+/// <summary>
+/// Every knob the settings menu edits, in menu order: on the flat list (no pane) the row order IS
+/// the declaration order (<c>Enum.GetValues</c>); on the pane the rows sit under the six
+/// <see cref="SettingsTab"/>s in <see cref="SettingsMenu.TabFields"/>'s order (the STT tab
+/// follows this order, the others are spelled out) — and, since 2026-09-19, the Options, Ask, Files and Web
+/// rows a member's summary names are <c>/tools</c>' tabs (<see cref="SettingsMenu.ToolsTabFields"/>),
+/// edited through the same menu. The tests navigate by row, so moving a member changes
+/// every <c>Down(n)</c> and row-number assertion in <c>SettingsMenuTests</c> / <c>ChatScreenTests</c>
+/// and the rows quoted in the docs. The values are never persisted.
+/// </summary>
+public enum SettingsField
+{
+    /// <summary>Which profile is loaded: a picker over <see cref="Settings.Profiles.List"/>. Not a field of the data; the first row.</summary>
+    Profile,
+
+    /// <summary>Long-term memory on/off; a toggle that needs no reconnect (every turn reads it). Second row, under the profile it belongs to.</summary>
+    Memory,
+    LlmUrl,
+    LlmModel,
+    LlmApiKey,
+
+    /// <summary>A picker over <see cref="Llm.ReasoningLevel.Levels"/>.</summary>
+    LlmReasoning,
+    LlmRequestTimeoutSeconds,
+    LlmTurnTimeoutSeconds,
+    /// <summary>The speech-output switch; first of the TTS rows so the block reads top-down.</summary>
+    TtsOutput,
+    TtsHttpUrl,
+    TtsVoice,
+
+    /// <summary>The optional second voice of a Kokoro mix; the picker offers "(none)" first.</summary>
+    TtsVoice2,
+
+    /// <summary>The primary voice's share of the mix in percent.</summary>
+    TtsVoiceMix,
+    TtsSpeed,
+    SttInput,
+    SttWake,
+    SttWakePhrase,
+    SttInterrupt,
+    /// <summary>The interrupt's echo guard in percent: how close the assistant's own just-played speech must be to the phrase to be ignored.</summary>
+    SttInterruptEchoGuard,
+
+    /// <summary>Milliseconds the phrase must persist in the interrupt recogniser's interim results before a hit counts.</summary>
+    SttInterruptConfirmMs,
+
+    /// <summary>A picker over <see cref="SettingsMenu.PushToTalkKeys"/>; never typed.</summary>
+    SttPushToTalkKey,
+
+    /// <summary>A picker over <see cref="ModelStore.WhisperModelNames"/>; never typed (the path form is the variable's alone).</summary>
+    SttWhisperModel,
+
+    /// <summary>The folder the file tools work under: a full path, or empty for the profile's own <c>files\</c> folder.</summary>
+    WorkingDirectory,
+
+    /// <summary>Whether <c>/copy</c> puts the user's prompt above each reply (<see cref="Settings.AppSettingsData.CopyUserPrompt"/>; <c>Copy user text</c> until 2026-09-18); a toggle that needs no reconnect.</summary>
+    CopyUserPrompt,
+
+    /// <summary>Whether the app holds the mouse under a menu or the info pane; a toggle that needs no reconnect (read on every take).</summary>
+    MouseInMenus,
+
+    /// <summary>The model's context window in tokens for the <c>/usage</c> percentage; 0 = the server's own figure. Last of the LLM rows (enum order within the tab).</summary>
+    LlmContextLength,
+
+    /// <summary>Whether a sent picture is drawn under the user's line; a toggle that needs no reconnect (read at each turn).</summary>
+    ShowImageThumbnails,
+
+    /// <summary>A picker over <see cref="Llm.CompactType.Names"/>: what <c>/compact</c> does. On the LLM tab; no reconnect (read at each compact).</summary>
+    LlmCompactType,
+    /// <summary>How many recent user turns a compact keeps verbatim (0 to <see cref="Llm.ConversationHistory.MaxTurns"/>). On the LLM tab; no reconnect.</summary>
+    LlmCompactKeepRecent,
+
+    /// <summary>The share of the window at which the next message compacts first; 0 = off. On the LLM tab; no reconnect.</summary>
+    LlmAutoCompactPercent,
+    /// <summary>A picker over <see cref="Llm.ToolCompactType.Names"/>: what the tool loop does at the <see cref="CompactAt"/> share mid-turn. On the LLM tab under <see cref="CompactAt"/>; no reconnect (read at each turn).</summary>
+    LlmToolCompactType,
+    /// <summary>Whether a turn offers the model its tools at all (<see cref="Settings.AppSettingsData.LlmOfferTools"/>). On the LLM tab above <see cref="MaxToolIterations"/>; no reconnect (read at each turn), but a change clears the conversation (<see cref="SettingsChanges.Conversation"/>).</summary>
+    LlmOfferTools,
+
+    /// <summary>Model round trips a message may spend on tools (<see cref="Settings.AppSettingsData.LlmMaxToolIterations"/>). On the LLM tab, last; no reconnect (read at each turn).</summary>
+    LlmMaxToolIterations,
+    /// <summary>A picker over <see cref="UI.ThumbnailSize.Names"/>: how big the thumbnail under a sent picture is. On the General tab beside <see cref="ShowImageThumbnails"/>; no reconnect (read at each turn).</summary>
+    ImageThumbnailSize,
+
+    /// <summary>Entries a <c>/tree</c> lists before it stops (<see cref="Settings.AppSettingsData.FileTreeMaxLength"/>). On the Files tab under <see cref="FileTools"/> (on General until 2026-09-15); no reconnect (read at each <c>/tree</c>).</summary>
+    FileTreeMaxLength,
+
+    /// <summary>Whether a <c>/tree</c> line carries the file's size (<see cref="Settings.AppSettingsData.FileTreeShowSizes"/>). The Files tab's row under Tree max length (on General until 2026-09-15; the last until the @-mention folder mode, 2026-09-17); no reconnect.</summary>
+    FileTreeShowSizes,
+
+    /// <summary>A picker over <see cref="Settings.NewProfileMode.Names"/>: what <c>/profile add</c> copies. On the General tab under <see cref="Profile"/>; no reconnect (read at each <c>/profile add</c>).</summary>
+    NewProfileMode,
+
+    /// <summary>Whether the thinking spinner reads a random <see cref="ThinkingVerbs"/> entry (<see cref="Settings.AppSettingsData.LlmUseFunVerbs"/>). Labelled <c>LLM use fun verbs</c> since 2026-09-15 (the member and the JSON key keep their name so a saved profile still loads); the LLM tab's last row; no reconnect (read at each spinner start).</summary>
+    LlmUseFunVerbs,
+
+    /// <summary>A picker over <see cref="Llm.LlmScanMode.Names"/>: where a blank URL's discovery looks, or <c>disabled</c> for no scan at all (2026-09-15). On the LLM tab FIRST, above <see cref="LlmUrl"/>; no reconnect (read at each scan).</summary>
+    LlmScanMode,
+
+    /// <summary>Whether a turn offers <c>web_search</c> / <c>web_fetch</c> (<see cref="Settings.AppSettingsData.WebTools"/>). The Web tab's first row; a toggle, no reconnect (read at each turn).</summary>
+    WebTools,
+
+    /// <summary>A picker over <see cref="Web.BrowserMode.Names"/>: how <c>web_fetch</c> gets a page (<see cref="Settings.AppSettingsData.WebBrowserMode"/>). On the Web tab under <see cref="WebTools"/>; no reconnect (read at each fetch).</summary>
+    WebBrowserMode,
+
+    /// <summary>The headless browser's executable, or empty for auto-detection (<see cref="Settings.AppSettingsData.WebBrowserPath"/>). On the Web tab; typed, no reconnect.</summary>
+    WebBrowserPath,
+
+    /// <summary>A picker over <see cref="Web.NetworkMode.Names"/>: where <c>web_fetch</c> may reach (<see cref="Settings.AppSettingsData.WebBrowserNetworkMode"/>; the on/off <c>Browser allow LAN</c> until 2026-09-18, this slot kept). On the Web tab; no reconnect (read at each connect).</summary>
+    WebBrowserNetworkMode,
+
+    /// <summary>A SearXNG instance's URL, read while <see cref="WebSearchMethod"/> is <c>searxng</c>, or empty (<see cref="Settings.AppSettingsData.WebSearxngUrl"/>). On the Web tab under <see cref="WebSearchMethod"/>; typed, no reconnect (read at each search).</summary>
+    WebSearxngUrl,
+
+    /// <summary>How many hits a <c>web_search</c> without <c>max_results</c> returns (<see cref="Settings.AppSettingsData.WebSearchMaxResults"/>). The Web tab's last row; typed, no reconnect.</summary>
+    WebSearchMaxResults,
+
+    /// <summary>Whether the voice pickers speak <see cref="SettingsMenu.VoicePreviewText"/> in the highlighted voice, and the mix and speed rows the blend at the value they just saved (<see cref="Settings.AppSettingsData.TtsVoicePreview"/>). On the TTS tab, last; a toggle on by default, no reconnect (read at the next pick or save).</summary>
+    TtsVoicePreview,
+
+    /// <summary>Whether a turn offers the twenty-one file tools (<see cref="Settings.AppSettingsData.FileTools"/>). The Files tab's first row (2026-09-15); a toggle, no reconnect (read at each turn).</summary>
+    FileTools,
+
+    /// <summary>A picker over <see cref="Web.SearchMethod.Names"/>: which engine <c>web_search</c> asks (<see cref="Settings.AppSettingsData.WebSearchMethod"/>). On the Web tab above <see cref="WebSearxngUrl"/> (2026-09-15); no reconnect (read at each search).</summary>
+    WebSearchMethod,
+
+    /// <summary>Whether a turn offers the question tool <c>ask_user</c> (<see cref="Settings.AppSettingsData.AskUser"/>). The Ask tab's first row (2026-09-15); a toggle, no reconnect (read at each turn), the pane still a gate.</summary>
+    AskUser,
+
+    /// <summary>The most questions one <c>ask_user</c> call may put (<see cref="Settings.AppSettingsData.AskMaxQuestions"/>). On the Ask tab under <see cref="AskUser"/>; typed, no reconnect (read at each use).</summary>
+    AskMaxQuestions,
+
+    /// <summary>The most options one <c>ask_user</c> question may offer (<see cref="Settings.AppSettingsData.AskMaxChoices"/>). The Ask tab's last row; typed, no reconnect (read at each use).</summary>
+    AskMaxChoices,
+
+    /// <summary>A picker over <see cref="Speech.TtsSource.Names"/>: the server over HTTP or Kokoro in this process (<see cref="Settings.AppSettingsData.TtsSource"/>). On the TTS tab under <see cref="SpeechOutput"/> (2026-09-16); a reconnect (<see cref="SettingsMenu.IsTtsField"/>).</summary>
+    TtsSource,
+
+    /// <summary>A picker over <see cref="ModelStore.VoskModelNames"/>: the Vosk model the wake word and the interrupt listen with (<see cref="Settings.AppSettingsData.SttVoskModel"/>). The STT tab's last row (2026-09-16); never typed, no path form; a voice reconnect (<see cref="SettingsMenu.IsVoiceField"/>).</summary>
+    SttVoskModel,
+
+    /// <summary>A picker over <see cref="Files.MentionFolderMode.Names"/>: what applying a folder from the line's @-mention list does (<see cref="Settings.AppSettingsData.FileMentionFolderMode"/>). The Files tab's last row (2026-09-17; General's row under Image thumbnail size before); no reconnect (read at each idle read).</summary>
+    FileMentionFolderMode,
+
+    /// <summary>A toggle: whether the model gets the skills, the two skill tools and the working directory's <c>NEON.md</c> / <c>AGENTS.md</c> (<see cref="Settings.AppSettingsData.AgentSkills"/>). The Options tab of <c>/skills</c>' first row (2026-09-16); no reconnect (read at each turn).</summary>
+    AgentSkills,
+
+    /// <summary>A toggle: whether <c>%USERPROFILE%\.agents\skills</c> is scanned too (<see cref="Settings.AppSettingsData.ExternalSkills"/>), read only while <see cref="AgentSkills"/> is on. The Options tab of <c>/skills</c>' second row (2026-09-16); no reconnect.</summary>
+    ExternalSkills,
+
+    /// <summary>A picker over <see cref="Skills.SkillCompactMode.Names"/>: whether a loaded skill survives a prune (<see cref="Settings.AppSettingsData.SkillCompactMode"/>). The Options tab of <c>/skills</c>' third row (2026-09-16); no reconnect.</summary>
+    SkillCompactMode,
+
+    /// <summary>A toggle: whether replies are shown as styled Markdown and asked for as such (<see cref="Settings.AppSettingsData.TranscriptMarkdown"/>). The General tab's row under Image thumbnail size (2026-09-16, once under @-mention folder mode; the last until Paste preview lines); no reconnect (read at each turn).</summary>
+    TranscriptMarkdown,
+
+    /// <summary>Lines of a collapsed paste the transcript shows under the sent line (<see cref="Settings.AppSettingsData.PastePreviewLines"/>); 0 = the label alone. The General tab's last row from 2026-09-16 until the two switches of 2026-09-18; no reconnect (read at each idle read).</summary>
+    PastePreviewLines,
+
+    /// <summary>A toggle: whether an edit copies the previous version into <c>.trash</c> first and <c>delete</c> moves there (<see cref="Settings.AppSettingsData.FileSafeEdits"/>); off, edits land in place and <c>delete</c> removes for good (2026-09-20). The Files tab's second row (2026-09-17); no reconnect (read at each tool call).</summary>
+    FileSafeEdits,
+
+    /// <summary>A toggle: whether <c>#</c> and part of a name lists the loaded skills on the chat line (<see cref="Settings.AppSettingsData.SkillHashMention"/>). The Options tab of <c>/skills</c>' fourth row (2026-09-17; fifth until later on 2026-09-18, when Skill slash commands went); no reconnect (read at each keystroke).</summary>
+    SkillHashMention,
+
+    /// <summary>A toggle: whether a turn of work is followed by a background reflection that writes or improves a skill (<see cref="Settings.AppSettingsData.ReflectionAutoLearn"/>). The Options tab of <c>/skills</c>' sixth row (2026-09-17); no reconnect (read at each turn's end).</summary>
+    ReflectionAutoLearn,
+
+    /// <summary>A picker: the reflection's reasoning level (<see cref="Settings.AppSettingsData.ReflectionReasoning"/>, <c>Skills.ReflectionReasoning</c>). The Options tab of <c>/skills</c>' seventh row (2026-09-17); no reconnect (read at each reflection).</summary>
+    ReflectionReasoning,
+
+    /// <summary>Typed: how many of the last turns the reflection reads, 1 to 5 (<see cref="Settings.AppSettingsData.ReflectionWindow"/>, <c>Skills.ReflectionWindow</c>). The Options tab of <c>/skills</c>' eighth row (2026-09-17); no reconnect (read at each reflection).</summary>
+    ReflectionWindow,
+
+    /// <summary>Typed: the model's own tool calls that make a task worth a reflection, 3 to 20 (<see cref="Settings.AppSettingsData.ReflectionMinToolCalls"/>, <c>Skills.ReflectionMinToolCalls</c>). The Options tab of <c>/skills</c>' ninth row (2026-09-17, its last until later that day); no reconnect (read at each reply's end).</summary>
+    ReflectionMinToolCalls,
+
+    /// <summary>Typed: the model requests one reflection may make before it is given up, 1 to 20 (<see cref="Settings.AppSettingsData.ReflectionMaxRequests"/>, <c>Skills.ReflectionMaxRequests</c>). The Options tab of <c>/skills</c>' tenth row (2026-09-17; the verbose switch under it until later still on 2026-09-19); no reconnect (read when a reflection starts).</summary>
+    ReflectionMaxRequests,
+
+    /// <summary>A toggle: whether the <c>/</c> completion list leaves <c>/exit</c> out (<see cref="Settings.AppSettingsData.HideExitAutocomplete"/>). The General tab's row after Paste preview lines (2026-09-18); no reconnect (read at each keystroke).</summary>
+    HideExitAutocomplete,
+
+    /// <summary>A toggle: whether a sent line that is a command's bare name offers the command first (<see cref="Settings.AppSettingsData.CommandTypoIntercept"/>). The General tab's row before Welcome splash (2026-09-18); no reconnect (read at each Enter).</summary>
+    CommandTypoIntercept,
+
+    /// <summary>A toggle: whether a splash picture fills the transcript under the banner at startup (<see cref="Settings.AppSettingsData.WelcomeSplash"/>). The General tab's row before Show working directory (2026-09-18, the user's order); no reconnect (read once at startup).</summary>
+    WelcomeSplash,
+
+    /// <summary>A toggle: whether the working directory sits at the right edge of the banner's title line (<see cref="Settings.AppSettingsData.ShowWorkingDirectory"/>). The General tab's row before Draft editor (2026-09-18, its last row until 2026-09-19); no reconnect (read at each banner draw).</summary>
+    ShowWorkingDirectory,
+
+    /// <summary>A toggle: whether a message sent while a reply runs is queued rather than left type-ahead (<see cref="Settings.AppSettingsData.QueueMessages"/>). The General tab's row after Working directory (2026-09-18, the user's order); no reconnect (read at each mid-turn Enter).</summary>
+    QueueMessages,
+
+    /// <summary>A picker: what a cancelled reply does to the queue — <c>hold</c> / <c>drain</c> / <c>empty</c> (<see cref="Settings.AppSettingsData.QueueCancelMode"/>). The General tab's row after Queue messages (2026-09-18); no reconnect (read when a turn ends).</summary>
+    QueueCancelMode,
+
+    /// <summary>A toggle: whether the <c>/skills</c> scope picker offers <c>delete</c> (<see cref="Settings.AppSettingsData.AllowSkillDelete"/>). The Options tab of <c>/skills</c>' fifth row, after #-mention enabled and before the reflection rows (2026-09-18); no reconnect (read when the picker opens).</summary>
+    AllowSkillDelete,
+
+    /// <summary>A toggle: whether every completed turn is written to the profile's <c>sessions.db</c> (<see cref="Settings.AppSettingsData.SessionLogging"/>). The Sessions tab's first row (2026-09-18); no reconnect (read at each turn's end).</summary>
+    SessionLogging,
+
+    /// <summary>Typed: days a session is kept after its last turn, 0 = forever (<see cref="Settings.AppSettingsData.SessionRetentionDays"/>). The Sessions tab's second row (2026-09-18, the user's order; third that morning); no reconnect (read at startup and after a profile switch).</summary>
+    SessionRetentionDays,
+
+    /// <summary>A picker over <see cref="Sessions.SessionNamingMode.Names"/>: where a new session's title comes from (<see cref="Settings.AppSettingsData.SessionNamingMode"/>). The Sessions tab's third row (2026-09-18; second that morning); no reconnect (read at the first turn's end).</summary>
+    SessionNamingMode,
+
+    /// <summary>A picker over <see cref="Sessions.SessionShowName.Names"/>: which session names the rule above the input row shows (<see cref="Settings.AppSettingsData.SessionShowName"/>). The Sessions tab's fourth row, under the naming mode (2026-09-18); no reconnect (read at each draw).</summary>
+    SessionShowName,
+
+    /// <summary>A toggle: whether <c>session_manager</c> is offered to the model (<see cref="Settings.AppSettingsData.SessionTool"/>). The Sessions tab's fifth row (2026-09-18, the user's order; last that morning, fourth until the show-name row); no reconnect (read at each turn).</summary>
+    SessionTool,
+
+    /// <summary>Typed: how many sessions a <c>session_manager</c> search or list without <c>max_results</c> returns, 1 to 20 (<see cref="Settings.AppSettingsData.SessionSearchMaxResults"/>). The Sessions tab's last row (2026-09-18; fourth that morning); no reconnect (read at each call).</summary>
+    SessionSearchMaxResults,
+
+    /// <summary>A toggle: whether <c>$</c> and part of a name lists the tools the next turn offers on the chat line (<see cref="Settings.AppSettingsData.ToolsDollarMention"/>). The Options tab of <c>/tools</c>' one row (2026-09-19); no reconnect (read at each keystroke).</summary>
+    ToolsDollarMention,
+
+    /// <summary>Typed: the minutes an automatic reflection waits after one wrote a skill, 0 (off) to 1440 (<see cref="Settings.AppSettingsData.ReflectionCooldownMinutes"/>, <c>Skills.ReflectionCooldown</c>). The Options tab of <c>/skills</c>' row after Reflection max requests (2026-09-19); no reconnect (read at each reply's end).</summary>
+    ReflectionCooldownMinutes,
+
+    /// <summary>A toggle: whether a reflection is handed the earlier sessions that match the turn and <c>session_manager</c> (<see cref="Settings.AppSettingsData.ReflectionIncludesSessions"/>). The Options tab of <c>/skills</c>' last row (2026-09-19); no reconnect (read when a reflection is decided).</summary>
+    ReflectionIncludesSessions,
+
+    /// <summary>A picker over <see cref="Skills.ReflectionCooldownMode.Names"/>: what the cooldown holds back (<see cref="Settings.AppSettingsData.ReflectionCooldownMode"/>). The Options tab of <c>/skills</c>' row after the cooldown minutes (2026-09-19); no reconnect (read at each reply's end).</summary>
+    ReflectionCooldownMode,
+
+    /// <summary>Typed: the command line <c>/draft</c> opens its file with, or empty for the shell's default (<see cref="Settings.AppSettingsData.DraftEditor"/>). The General tab's last row (2026-09-19); no reconnect (read at each <c>/draft</c>).</summary>
+    DraftEditor,
+
+    /// <summary>Typed: the most pictures one <c>view_image</c> call loads, 1 to 100 (<see cref="Settings.AppSettingsData.FileViewImageMaxPerCall"/>). The Files tab of <c>/tools</c>' last row (2026-09-19); no reconnect (read at each call).</summary>
+    FileViewImageMaxPerCall,
+
+    /// <summary>A toggle: the master switch over the MCP servers <c>mcp.json</c> names (<see cref="Settings.AppSettingsData.McpServers"/>). The Options tab of <c>/mcp</c>' first row (2026-09-20); a flip connects or disconnects them at once (<see cref="SettingsChanges.Mcp"/>), so it is refused mid-turn.</summary>
+    McpServers,
+
+    /// <summary>Typed: the seconds one MCP server gets to connect and list its tools, 5 to 300 (<see cref="Settings.AppSettingsData.McpConnectTimeoutSeconds"/>). The Options tab of <c>/mcp</c>' second row (2026-09-20); no reconnect (read at the next connect).</summary>
+    McpConnectTimeoutSeconds,
+
+    /// <summary>Whether a turn offers the eleven git tools (<see cref="Settings.AppSettingsData.GitTools"/>). The Git tab of <c>/tools</c>' first row (2026-09-20); a toggle, no reconnect (read at each turn).</summary>
+    GitTools,
+
+    /// <summary>Typed: the most patch lines one <c>git_diff</c> shows, 20 to 5000 (<see cref="Settings.AppSettingsData.GitDiffMaxLines"/>). The Git tab's second row; no reconnect (read at each call).</summary>
+    GitDiffMaxLines,
+
+    /// <summary>Typed: how many commits a <c>git_log</c> without <c>max_commits</c> lists, 1 to 200 (<see cref="Settings.AppSettingsData.GitLogMaxCommits"/>). The Git tab's last row; no reconnect (read at each call).</summary>
+    GitLogMaxCommits,
+}
+
+/// <summary>The tabs of <c>/settings</c> on the pane, in strip order (Sessions right after General — the user's order, 2026-09-18; STT last since 2026-09-19, when the Ask, Files and Web tabs moved to <c>/tools</c> — <see cref="SettingsMenu.ToolsTabFields"/> — and, later that day, the Skills tab to <c>/skills</c> as its Options tab — <see cref="SettingsMenu.SkillsTabFields"/>); the value is the index into <see cref="SettingsMenu.TabTitles"/> and <see cref="SettingsMenu.TabFields"/>.</summary>
+public enum SettingsTab
+{
+    General,
+
+    /// <summary>The session store's five rows (2026-09-18), second since later that day (last that morning).</summary>
+    Sessions,
+
+    /// <summary>Third since 2026-09-19 (the skills' rows sat between, 2026-09-18 until then).</summary>
+    Llm,
+    Tts,
+
+    /// <summary>The voice rows, last since 2026-09-19 (Ask, Files and Web after it until then).</summary>
+    Stt,
+}
+
+/// <summary>What <see cref="SettingsMenu.ShowAsync"/> changed, so the screen rebuilds only what depends on it.</summary>
+[Flags]
+public enum SettingsChanges
+{
+    None = 0,
+    Llm = 1,
+    Tts = 2,
+    Voice = 4,
+
+    /// <summary>Another profile was loaded: everything may differ, and the screen rebinds memory and persona too.</summary>
+    Profile = 8,
+
+    /// <summary>
+    /// <see cref="SettingsField.LlmOfferTools"/> was flipped: the history's shape depends on it (off, its
+    /// tool messages would keep a template that has no tool role failing; on, the opening calls seed
+    /// only at the first turn), so the screen clears the conversation. No reconnect.
+    /// </summary>
+    Conversation = 16,
+
+    /// <summary><see cref="SettingsField.McpServers"/> was flipped: the screen connects or disconnects the MCP servers (2026-09-20). Set by the pane-less flat list of <c>/settings</c> and by <c>/mcp</c>' Options tab.</summary>
+    Mcp = 32,
+}
+
+/// <summary>
+/// The <c>/settings</c> and <c>/model</c> screens and every other picker: a list in the bottom pane
+/// (<see cref="MenuPane"/>: <c>/settings</c> is one level — its rows under the General / LLM / TTS /
+/// STT tabs of <see cref="TabFields"/>, the strip and keys the info pane's — a row's picker or typed
+/// edit a second, ESC backs out one level, the notices on the pane's status line) — or, on a
+/// console without the pane, a themed <see cref="SelectionPrompt{T}"/> over
+/// <see cref="PromptResult{T}"/> at the flow end (one flat list: tabs are a pane thing) with the
+/// fields edited on the <see cref="InputLine"/> and the notices in the transcript. One flow, two
+/// hosts (<see cref="PickSettingAsync"/>, <see cref="PickAsync"/>, <see cref="EditTextAsync"/>,
+/// <see cref="Sink"/>); every accepted change one <see cref="AppSettings.Update"/>.
+///
+/// <para>The menu is rebuilt from <see cref="AppSettings.Current"/> every time it is shown, never
+/// from a snapshot captured earlier.</para>
+///
+/// <para>A field that a variable or flag overrides for this launch is labelled so, and saving it
+/// says the override still wins. The model list is never empty: the current id is always offered,
+/// so a server that lists nothing (or wants a key) still lets the user type one.</para>
+/// </summary>
+internal sealed class SettingsMenu
+{
+    // The labels and the key hints: the pane shows the label as its title and the keys in its hint
+    // row; the prompt host joins them (PromptTitle). Pinned.
+    public const string Title = "Settings";
+    public const string TitleKeys = "Enter = edit · ESC = close";
+
+    /// <summary>The settings list's hint on the pane, where the rows sit under tabs.</summary>
+    public const string TabKeys = "Enter = edit · ←/→ tabs · ESC = close";
+    public const string EditKeys = "Enter = save · ESC = back";
+    public const string PickKeys = "Enter = choose · ESC = back";
+
+    /// <summary>The hint of a picker with a <c>(none)</c> row (<c>TTS voice 2</c>): Backspace moves the cursor to it.</summary>
+    public const string NoneKeys = "Enter = choose · Backspace = none · ESC = back";
+    public const string SwitchKeys = "Enter = switch · ESC = back";
+    public const string KeepKeys = "Enter = choose · ESC = keep";
+
+    /// <summary>The yes/no pane's hint (<see cref="ConfirmAsync"/>). Pinned.</summary>
+    public const string ConfirmKeys = "y / n = pick · Enter = choose · ESC = no";
+
+    /// <summary>The yes/no pane's rows, <c>No</c> first — the row the cursor opens on. Pinned.</summary>
+    public static readonly IReadOnlyList<string> ConfirmRows = ["No", "Yes"];
+
+    /// <summary>The yes/no pane's <see cref="MenuPage.Hotkeys"/>: <c>n</c> moves the cursor to <c>No</c>, <c>y</c> to <c>Yes</c> (Enter still picks). Pinned.</summary>
+    public static readonly IReadOnlyDictionary<char, int> ConfirmHotkeys = new Dictionary<char, int> { ['n'] = 0, ['y'] = 1 };
+
+    /// <summary>The status line for a settings row that cannot change while a reply runs (a reconnect, the profile, the sandbox, the tools flip). Pinned.</summary>
+    public const string NotWhileReplyRunsNotice = "(not while a reply runs)";
+    public const string ModelTitle = "Model";
+
+    /// <summary>The <c>/reasoning</c> picker's label; ESC keeps the level in use. The settings row's level is <see cref="Breadcrumb"/> over <see cref="FieldName"/>.</summary>
+    public const string ReasoningTitle = "LLM reasoning";
+
+    /// <summary>What <c>/reasoning &lt;level&gt;</c> answers to a word that is not one of <see cref="Llm.ReasoningLevel.Levels"/>. Pinned.</summary>
+    public static readonly string ReasoningLevelError = "/reasoning takes " + string.Join(", ", Llm.ReasoningLevel.Levels[..^1]) + " or " + Llm.ReasoningLevel.Levels[^1] + ", or nothing to pick from a list.";
+    public const string MenusNeedTerminalError = "Menus need an interactive ANSI terminal; edit profile.json instead.";
+    public const string NoUrlError = "No LLM endpoint. Set the URL in /settings first.";
+    public const string NoModelsListedError = "The server lists no models; use /model <id>.";
+    public const string UnchangedNotice = "unchanged";
+    public const string TtsSpeedRangeError = "must be a speed multiplier between 0.5 and 2";
+    public const string TtsVoiceMixRangeError = "must be a whole number from 0 to 100 (the primary voice's share)";
+    public const string SttInterruptEchoGuardRangeError = "must be a whole number from 50 to 100 (100 = only the exact phrase counts as an echo)";
+    public const string SttInterruptConfirmRangeError = "must be a whole number of milliseconds from 0 to 2000";
+    public const string ContextLengthRangeError = "must be 0 (the server's figure) or a whole number of tokens";
+    public const string PushToTalkKeyError = "must be one of F1–F10, Insert, Home, End, PageUp or PageDown";
+
+    /// <summary>How the menu shows <see cref="AppSettingsData.LlmContextLength"/> at 0: the server's figure is used.</summary>
+    public const string DetectedContextLengthLabel = "(from the server)";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.ReflectionMinToolCalls"/>. Pinned.</summary>
+    public static readonly string ReflectionMinToolCallsRangeError = "must be " + AppSettingsData.MinReflectionMinToolCalls.ToString(CultureInfo.InvariantCulture) + " to " + AppSettingsData.MaxReflectionMinToolCalls.ToString(CultureInfo.InvariantCulture) + " tool calls";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.ReflectionCooldownMinutes"/>. Pinned.</summary>
+    public static readonly string ReflectionCooldownMinutesRangeError = "must be 0 (off) or 1 to " + AppSettingsData.MaxReflectionCooldownMinutes.ToString(CultureInfo.InvariantCulture) + " minutes";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.ReflectionMaxRequests"/>. Pinned.</summary>
+    public static readonly string ReflectionMaxRequestsRangeError = "must be " + AppSettingsData.MinReflectionMaxRequests.ToString(CultureInfo.InvariantCulture) + " to " + AppSettingsData.MaxReflectionMaxRequests.ToString(CultureInfo.InvariantCulture) + " requests";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.ReflectionWindow"/>. Pinned.</summary>
+    public static readonly string ReflectionWindowRangeError = "must be " + AppSettingsData.MinReflectionWindow.ToString(CultureInfo.InvariantCulture) + " to " + AppSettingsData.MaxReflectionWindow.ToString(CultureInfo.InvariantCulture) + " turns";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.LlmCompactKeepRecent"/>. Pinned.</summary>
+    public static readonly string LlmCompactKeepRecentRangeError = "must be 0 to " + Llm.ConversationHistory.MaxTurns.ToString(CultureInfo.InvariantCulture) + " turns";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.LlmAutoCompactPercent"/>. Pinned.</summary>
+    public const string LlmAutoCompactPercentRangeError = "must be 0 (off) or 1 to 100 percent";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.LlmRequestTimeoutSeconds"/> / <see cref="SettingsField.LlmTurnTimeoutSeconds"/>: each field its own ceiling. Pinned.</summary>
+    public static readonly string LlmRequestTimeoutRangeError = TimeoutRangeError(Llm.LlmTimeouts.MaxRequestSeconds);
+    public static readonly string LlmTurnTimeoutRangeError = TimeoutRangeError(Llm.LlmTimeouts.MaxTurnSeconds);
+
+    private static string TimeoutRangeError(double max) =>
+        "must be a number of seconds in (0, " + max.ToString(CultureInfo.InvariantCulture) + "]";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.LlmMaxToolIterations"/>. Pinned.</summary>
+    public static readonly string MaxToolIterationsRangeError =
+        "must be " + AppSettingsData.MinToolIterations.ToString(CultureInfo.InvariantCulture) + " to " + AppSettingsData.MaxToolIterationsCap.ToString(CultureInfo.InvariantCulture) + " round trips";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.FileTreeMaxLength"/>. Pinned.</summary>
+    public static readonly string TreeMaxLengthRangeError =
+        "must be " + WorkingDirectory.MinTreeLength.ToString(CultureInfo.InvariantCulture) + " to " + WorkingDirectory.MaxTreeLength.ToString(CultureInfo.InvariantCulture) + " entries";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.PastePreviewLines"/>. Pinned.</summary>
+    public static readonly string PastePreviewLinesRangeError =
+        "must be 0 to " + PasteBlocks.MaxPreviewLines.ToString(CultureInfo.InvariantCulture) + " lines";
+
+    /// <summary>How the menu shows <see cref="AppSettingsData.LlmAutoCompactPercent"/> at 0.</summary>
+    public const string CompactAtOffLabel = "off";
+    public const string WorkingDirectoryError = "must be a full path, or empty for the profile's files folder";
+
+    /// <summary>
+    /// How the menu shows an empty <see cref="AppSettingsData.WorkingDirectory"/>: the folder it
+    /// resolves to (<see cref="WorkingDirectory.Resolve"/>) in parentheses, so the row says where
+    /// the files go rather than that it is the default. Pinned.
+    /// </summary>
+    public static string DefaultWorkingDirectoryLabel(string profileDirectory) =>
+        "(" + WorkingDirectory.Resolve("", profileDirectory) + ")";
+
+    /// <summary>The <c>/cwd</c> line's tag on the default (the path is already on the line).</summary>
+    public const string ProfileFolderNote = "(profile folder)";
+    public const string ListingModelsLabel = "listing models";
+    public const string ListingVoicesLabel = "listing voices";
+
+    /// <summary>The first row of the secondary-voice picker, and how the menu shows an empty secondary voice.</summary>
+    public const string NoSecondaryVoice = "(none)";
+
+    /// <summary>What the voice pickers speak in the highlighted voice, and the mix and speed rows in the saved blend at the saved speed, while <see cref="SettingsField.TtsVoicePreview"/> is on. Pinned.</summary>
+    public const string VoicePreviewText = "Hello. I am Neon, your friendly and concise terminal companion.";
+
+    /// <summary><c>/profile</c>'s picker label; ESC keeps the loaded profile. The settings row's level is <see cref="Breadcrumb"/> + <see cref="SwitchKeys"/>.</summary>
+    public const string ProfileTitle = "Profile";
+    public const string ProfileKeys = "Enter = switch · ESC = keep";
+
+    /// <summary>The <c>/server</c> picker's label; ESC keeps the server in use.</summary>
+    public const string ServerTitle = "LLM server";
+
+    /// <summary>The startup picker's label, when several local servers answered; ESC takes the first listed, as before.</summary>
+    public const string StartupServerTitle = "Several LLM servers answered";
+    public const string StartupServerKeys = "Enter = choose · ESC = the first listed";
+
+    private static readonly SettingsField[] Fields = Enum.GetValues<SettingsField>();
+
+    /// <summary>The strip titles, one per <see cref="SettingsTab"/> (five since 2026-09-19: Ask, Files and Web are <c>/tools</c>' tabs, <see cref="ToolsText.TabTitles"/>, and Skills is <c>/skills</c>' Options tab, <see cref="SkillsText.OptionsTabTitle"/>). Pinned.</summary>
+    public static readonly IReadOnlyList<string> TabTitles = ["General", "Sessions", "LLM", "TTS", "STT"];
+
+    /// <summary>
+    /// The rows of each tab on the pane, indexed by <see cref="SettingsTab"/>, in the order shown
+    /// (General, Sessions, LLM, TTS, STT — the user's order, 2026-09-18: Sessions right after General; the Ask,
+    /// Files and Web tabs are <c>/tools</c>' since 2026-09-19, <see cref="ToolsTabFields"/>, and the Skills tab
+    /// <c>/skills</c>' Options tab since later that day, <see cref="SkillsTabFields"/>).
+    /// General is spelled out (the profile and what a new one copies, then where its files live, then the message queue's switch and its cancel mode (2026-09-18, the user's place: right under the working directory), then the switches and pickers, the
+    /// transcript's Markdown and the paste preview, then the two line conveniences of 2026-09-18 — the hidden <c>/exit</c>, the typo intercept —, the welcome splash (the user's order, later that day), the banner's working directory and the draft editor last (2026-09-19)); LLM
+    /// is spelled out too: the scan mode (where a blank URL looks, so it sits above the URL), the
+    /// <see cref="IsLlmField"/> rows, the compact rows, then <see cref="SettingsField.LlmOfferTools"/> ABOVE
+    /// <see cref="SettingsField.LlmToolCompactType"/> (the user's order, 2026-09-15), the round-trip cap and the fun
+    /// verbs last (none of those a reconnect); TTS is spelled out (the user's order, 2026-09-16): the switch, the
+    /// source, the server's URL, the preview toggle (no reconnect), then the voices, the mix and the speed; STT is the <see cref="IsVoiceField"/>
+    /// fields in enum order; Sessions (2026-09-18, last that morning, second since) is the
+    /// logging switch, the retention days, the naming mode, the show-name picker under it (later that day), the tool switch and the search cap (the user's order, 2026-09-18). With <see cref="SkillsTabFields"/> and <see cref="ToolsTabFields"/> they are every <see cref="SettingsField"/> once (pinned).
+    /// </summary>
+    public static readonly IReadOnlyList<IReadOnlyList<SettingsField>> TabFields =
+    [
+        [SettingsField.Profile, SettingsField.NewProfileMode, SettingsField.WorkingDirectory, SettingsField.QueueMessages, SettingsField.QueueCancelMode, SettingsField.Memory, SettingsField.CopyUserPrompt, SettingsField.MouseInMenus, SettingsField.ShowImageThumbnails, SettingsField.ImageThumbnailSize, SettingsField.TranscriptMarkdown, SettingsField.PastePreviewLines, SettingsField.HideExitAutocomplete, SettingsField.CommandTypoIntercept, SettingsField.WelcomeSplash, SettingsField.ShowWorkingDirectory, SettingsField.DraftEditor],
+        [SettingsField.SessionLogging, SettingsField.SessionRetentionDays, SettingsField.SessionNamingMode, SettingsField.SessionShowName, SettingsField.SessionTool, SettingsField.SessionSearchMaxResults],
+        [SettingsField.LlmScanMode, SettingsField.LlmUrl, SettingsField.LlmModel, SettingsField.LlmApiKey, SettingsField.LlmReasoning, SettingsField.LlmRequestTimeoutSeconds, SettingsField.LlmTurnTimeoutSeconds, SettingsField.LlmContextLength, SettingsField.LlmCompactType, SettingsField.LlmCompactKeepRecent, SettingsField.LlmAutoCompactPercent, SettingsField.LlmOfferTools, SettingsField.LlmToolCompactType, SettingsField.LlmMaxToolIterations, SettingsField.LlmUseFunVerbs],
+        [SettingsField.TtsOutput, SettingsField.TtsSource, SettingsField.TtsHttpUrl, SettingsField.TtsVoicePreview, SettingsField.TtsVoice, SettingsField.TtsVoice2, SettingsField.TtsVoiceMix, SettingsField.TtsSpeed],
+        Fields.Where(IsVoiceField).ToArray(),
+    ];
+
+    /// <summary>
+    /// The rows of <c>/skills</c>' Options tab (2026-09-19, moved off <c>/settings</c> — its Skills tab, third since 2026-09-18, last from
+    /// 2026-09-16 until then — the user's call, right after the Ask, Files and Web move), two lists since later on 2026-09-19 (the user's
+    /// ask), indexed by <c>SkillsMenu</c>'s tab one down: the Options tab — the skills switch, the external-folder switch
+    /// it governs, the compact mode, then the # list (2026-09-17; the skill slash commands sat beside it until later on 2026-09-18), the delete switch
+    /// (2026-09-18, the pane's scope picker) — and the Reflection tab — the reflection's eight rows (2026-09-17: the auto-learn switch, its reasoning level,
+    /// window, min calls and max requests; the cooldown, its mode and the sessions switch, 2026-09-19; the verbose switch, 2026-09-17, went later still on 2026-09-19). Edited through <see cref="FieldsTab"/> / <see cref="EditAsync"/>
+    /// under the <c>/skills</c> strip (<see cref="SkillsMenu"/>), the pickers titled <c>Skills › …</c> (<see cref="Root"/>); none of
+    /// them is <see cref="RefusedMidTurn"/>. With <see cref="TabFields"/> and <see cref="ToolsTabFields"/> they are every
+    /// <see cref="SettingsField"/> once (pinned); the flat no-pane list keeps them all.
+    /// </summary>
+    public static readonly IReadOnlyList<IReadOnlyList<SettingsField>> SkillsTabFields =
+    [
+        [SettingsField.AgentSkills, SettingsField.ExternalSkills, SettingsField.SkillCompactMode, SettingsField.SkillHashMention, SettingsField.AllowSkillDelete],
+        [SettingsField.ReflectionAutoLearn, SettingsField.ReflectionReasoning, SettingsField.ReflectionWindow, SettingsField.ReflectionMinToolCalls, SettingsField.ReflectionMaxRequests, SettingsField.ReflectionCooldownMinutes, SettingsField.ReflectionCooldownMode, SettingsField.ReflectionIncludesSessions],
+    ];
+
+    /// <summary>
+    /// The rows of <c>/tools</c>' four settings tabs (2026-09-19, the Ask, Files and Web rows moved off <c>/settings</c> the user's call), indexed by
+    /// <see cref="ToolsText.TabTitles"/> one down (Options, Ask, Files, Web): Options (later on 2026-09-19) is the <c>$</c>-mention switch alone;
+    /// Ask (2026-09-15) is the question tool's switch and its two caps;
+    /// Files (2026-09-15) is the file-tools switch, the Safe edits switch (2026-09-17; Stale line number guard beside it until 2026-09-19, Always return
+    /// line numbers between them until 2026-09-19), the two <c>/tree</c> rows (once General's last two), the @-mention folder mode
+    /// (General's until 2026-09-17) and the <c>view_image</c> cap last (2026-09-19); Web is the seven web rows (2026-09-15, once on General under Memory; the tab read Browser
+    /// until later that day), the search method above the Web SearXNG URL it governs. The group switch stays each tab's first row.
+    /// Since later still on 2026-09-19 (the user's ask) every Files and Web row carries its tab's word (<c>File /tree max length</c>, <c>Web SearXNG URL</c>, …) and the six JSON keys that
+    /// differed followed (<c>FileTreeMaxLength</c>, <c>FileTreeShowSizes</c>, <c>FileMentionFolderMode</c>, <c>FileViewImageMaxPerCall</c>, <c>WebSearxngUrl</c>) — no migration, the old key skipped on load.
+    /// Git (2026-09-20) sits between Files and Web — the strip reads alphabetically — with its switch, the diff cap and the log cap.
+    /// With <see cref="TabFields"/> and <see cref="SkillsTabFields"/> they are every <see cref="SettingsField"/> once (pinned); the flat no-pane list keeps them all.
+    /// </summary>
+    public static readonly IReadOnlyList<IReadOnlyList<SettingsField>> ToolsTabFields =
+    [
+        [SettingsField.ToolsDollarMention],
+        [SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices],
+        [SettingsField.FileTools, SettingsField.FileSafeEdits, SettingsField.FileTreeMaxLength, SettingsField.FileTreeShowSizes, SettingsField.FileMentionFolderMode, SettingsField.FileViewImageMaxPerCall],
+        [SettingsField.GitTools, SettingsField.GitDiffMaxLines, SettingsField.GitLogMaxCommits],
+        [SettingsField.WebTools, SettingsField.WebBrowserMode, SettingsField.WebBrowserPath, SettingsField.WebBrowserNetworkMode, SettingsField.WebSearchMethod, SettingsField.WebSearxngUrl, SettingsField.WebSearchMaxResults],
+    ];
+
+    /// <summary>
+    /// The rows of <c>/mcp</c>' Options tab (2026-09-20), the <see cref="ToolsTabFields"/> shape with one list:
+    /// the master switch <c>MCP servers</c> first, then <c>MCP connect timeout (s)</c>. With <see cref="TabFields"/>,
+    /// <see cref="SkillsTabFields"/> and <see cref="ToolsTabFields"/> they are every <see cref="SettingsField"/> once (pinned);
+    /// the flat no-pane list keeps them all.
+    /// </summary>
+    public static readonly IReadOnlyList<IReadOnlyList<SettingsField>> McpTabFields =
+    [
+        [SettingsField.McpServers, SettingsField.McpConnectTimeoutSeconds],
+    ];
+
+    private readonly IAnsiConsole _console;
+    private readonly AppSettings _settings;
+    private readonly Func<SettingsField, string?> _overriddenBy;
+    private readonly InputLine _input;
+    private readonly TranscriptRenderer _transcript;
+    private readonly SpeechSession _speech;
+    private readonly MenuPane _pane;
+    private readonly Func<string, string?> _locateBrowser;
+    // Set for the visit of a /settings opened while a reply runs (ShowAsync's midTurn): the rows
+    // that would reconnect, switch the profile, move the sandbox or reshape the history answer
+    // NotWhileReplyRunsNotice instead, and no voice preview plays over the reply's speech.
+    private bool _midTurn;
+
+    /// <summary>The voice picker's preview chain (see <see cref="TryPickVoiceAsync"/>): one step per highlight, run one after the other.</summary>
+    private Task _preview = Task.CompletedTask;
+
+    /// <summary>The latest highlight's number; a step whose number is older is superseded and stays silent.</summary>
+    private int _previewSerial;
+
+    /// <param name="overriddenBy">The variable or flag that outranks the saved value of a field this launch, or null.</param>
+    /// <param name="speech">Lists the voices for the picker and speaks its preview.</param>
+    /// <param name="pane">The menu host in the bottom pane; disabled (no pane), every list is a Spectre prompt.</param>
+    /// <param name="locateBrowser">What the empty <c>Web browser path</c> row names: the headless browser auto-detection finds (<see cref="Web.IHeadlessBrowser.Locate"/>); null = the real one.</param>
+    public SettingsMenu(IAnsiConsole console, AppSettings settings, Func<SettingsField, string?> overriddenBy, InputLine input, TranscriptRenderer transcript, SpeechSession speech, MenuPane pane, Func<string, string?>? locateBrowser = null)
+    {
+        _locateBrowser = locateBrowser ?? new Web.HeadlessBrowser().Locate;
+        _console = console ?? throw new ArgumentNullException(nameof(console));
+        _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+        _overriddenBy = overriddenBy ?? throw new ArgumentNullException(nameof(overriddenBy));
+        _input = input ?? throw new ArgumentNullException(nameof(input));
+        _transcript = transcript ?? throw new ArgumentNullException(nameof(transcript));
+        Flow = _transcript;
+        _speech = speech ?? throw new ArgumentNullException(nameof(speech));
+        _pane = pane ?? throw new ArgumentNullException(nameof(pane));
+    }
+
+    /// <summary>Where a notice goes: the pane's status line while a menu is open there, else the transcript.</summary>
+    private INoticeSink Sink => _pane.IsOpen ? _pane : Flow;
+
+    /// <summary>
+    /// Where a line goes when no pane is open to take it: the transcript by default; the screen
+    /// sets its deferring sink, so a picker that closes with its answer (<c>/reasoning</c> from
+    /// a pane opened mid-turn) never writes into a streaming reply from the key-reading task.
+    /// </summary>
+    public INoticeSink Flow { get; set; }
+
+    /// <summary>When the server lists nothing the voice row falls back to a typed name.</summary>
+    public static string VoicesUnavailableNotice(string detail) => $"The TTS server did not list voices ({detail}); type a voice name.";
+
+    // ── Pinned statics ──────────────────────────────────────────────────────
+
+    /// <summary>The prompt host's title: the label and the keys, three spaces apart (<c>Settings   Enter = edit or toggle · ESC = close</c>).</summary>
+    public static string PromptTitle(string label, string keys) => label + "   " + keys;
+
+    /// <summary>A second level's label inside <c>/settings</c>: <c>Settings › TTS voice</c>.</summary>
+    public static string Breadcrumb(string label) => Title + " › " + label;
+
+    /// <summary>
+    /// The pane this menu is editing for, the first word of every second level's label: <see cref="Title"/>
+    /// (<c>Settings › Web browser mode</c>), or <see cref="ToolsText.Label"/> while <see cref="ToolsMenu"/> hosts the
+    /// Ask / Files / Web rows (<c>Tools › Web browser mode</c>, 2026-09-19); that host sets it for its run and restores it.
+    /// </summary>
+    public string Root { get; set; } = Title;
+
+    /// <summary><see cref="Breadcrumb"/> under <see cref="Root"/>.</summary>
+    private string Crumb(string label) => Root + " › " + label;
+
+    /// <summary>Whether a change to <paramref name="field"/> needs the LLM session rebuilt.</summary>
+    public static bool IsLlmField(SettingsField field) =>
+        field is SettingsField.LlmUrl or SettingsField.LlmModel or SettingsField.LlmApiKey
+            or SettingsField.LlmRequestTimeoutSeconds or SettingsField.LlmTurnTimeoutSeconds or SettingsField.LlmContextLength or SettingsField.LlmReasoning;
+
+    /// <summary>Whether a change to <paramref name="field"/> needs the speech session re-probed.</summary>
+    public static bool IsTtsField(SettingsField field) =>
+        field is SettingsField.TtsHttpUrl or SettingsField.TtsVoice or SettingsField.TtsOutput or SettingsField.TtsSpeed
+            or SettingsField.TtsVoice2 or SettingsField.TtsVoiceMix or SettingsField.TtsSource;
+
+    /// <summary>Whether a change to <paramref name="field"/> needs the voice session re-probed (the wake word is part of it).</summary>
+    public static bool IsVoiceField(SettingsField field) =>
+        field is SettingsField.SttInput or SettingsField.SttPushToTalkKey or SettingsField.SttWhisperModel
+            or SettingsField.SttWake or SettingsField.SttWakePhrase or SettingsField.SttInterrupt or SettingsField.SttInterruptEchoGuard
+            or SettingsField.SttInterruptConfirmMs or SettingsField.SttVoskModel;
+
+    /// <summary>Whether a change to <paramref name="field"/> connects or disconnects the MCP servers (2026-09-20): the master switch alone — the timeout is read at the next connect.</summary>
+    public static bool IsMcpField(SettingsField field) => field is SettingsField.McpServers;
+
+    /// <summary>The settings-menu wording for a bad wake phrase. Pinned.</summary>
+    public const string WakePhraseError = "must be one to three words of letters";
+
+    /// <summary>
+    /// Whether <paramref name="phrase"/> can be the wake phrase: one to three words of letters
+    /// only, after <see cref="WakeWordMatch.NormalizePhrase"/>. Digits and punctuation never
+    /// come back from the recogniser as such, so a phrase holding them could never be heard.
+    /// </summary>
+    public static bool IsWakePhraseCandidate(string? phrase)
+    {
+        string normalized = WakeWordMatch.NormalizePhrase(phrase);
+        if (normalized.Length == 0)
+        {
+            return false;
+        }
+
+        var words = normalized.Split(' ');
+        if (words.Length > 3)
+        {
+            return false;
+        }
+
+        foreach (var word in words)
+        {
+            foreach (char c in word)
+            {
+                if (!char.IsLetter(c))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// The keys the push-to-talk picker offers, in row order: the function keys a terminal
+    /// actually passes through (F11 is fullscreen, F12 is taken by most of them) and the
+    /// navigation cluster the input line does nothing with while it is empty. F4 is the default.
+    /// </summary>
+    public static readonly ConsoleKey[] PushToTalkKeys =
+    {
+        ConsoleKey.F1, ConsoleKey.F2, ConsoleKey.F3, ConsoleKey.F4, ConsoleKey.F5,
+        ConsoleKey.F6, ConsoleKey.F7, ConsoleKey.F8, ConsoleKey.F9, ConsoleKey.F10,
+        ConsoleKey.Insert, ConsoleKey.Home, ConsoleKey.End, ConsoleKey.PageUp, ConsoleKey.PageDown,
+    };
+
+    /// <summary>Whether <paramref name="key"/> can be the push-to-talk key: one of <see cref="PushToTalkKeys"/>. A saved name outside the list falls back to F4 (<see cref="VoiceSession.ParsePushToTalk"/>).</summary>
+    public static bool IsPushToTalkCandidate(ConsoleKey key) => Array.IndexOf(PushToTalkKeys, key) >= 0;
+
+    /// <summary>The spaces between the longest label and its value.</summary>
+    private const int LabelGap = 2;
+
+    /// <summary>
+    /// The label column of a settings row: the longest <see cref="FieldName"/> ("LLM request timeout (s)", 23)
+    /// plus <see cref="LabelGap"/> before the value — computed, so a renamed row can never close the gap.
+    /// </summary>
+    public static readonly int LabelWidth = Fields.Max(f => FieldName(f).Length) + LabelGap;
+
+    /// <summary>The label column of one tab on the pane: that tab's longest <see cref="FieldName"/> plus <see cref="LabelGap"/>, so a short tab reads tight.</summary>
+    public static int TabLabelWidth(SettingsTab tab) => LabelWidthOf(TabFields[(int)tab]);
+
+    /// <summary>The label column of any list of rows (a <see cref="TabFields"/> or <see cref="ToolsTabFields"/> tab): the longest <see cref="FieldName"/> plus <see cref="LabelGap"/>.</summary>
+    public static int LabelWidthOf(IReadOnlyList<SettingsField> fields)
+    {
+        ArgumentNullException.ThrowIfNull(fields);
+        return fields.Max(f => FieldName(f).Length) + LabelGap;
+    }
+
+    /// <summary>The first row's label: the loaded profile's name, padded like every other row, its directory dim in parentheses after it. Pinned.</summary>
+    public static string ProfileLabel(string profileName, string profileDirectory) => ProfileLabel(profileName, profileDirectory, LabelWidth);
+
+    /// <summary>The profile row padded to <paramref name="width"/> (a tab's column on the pane).</summary>
+    public static string ProfileLabel(string profileName, string profileDirectory, int width) =>
+        Markup.Escape(FieldName(SettingsField.Profile).PadRight(width))
+        + Theme.ColorMarkup(Theme.Ink, Markup.Escape(profileName))
+        + Theme.DimMarkup(" (" + profileDirectory + ")");
+
+    /// <summary>The list for a console without menus: <c>profiles: default (current), work</c>. Pinned.</summary>
+    public static string ProfileListLine(IReadOnlyList<string> names, string current)
+    {
+        ArgumentNullException.ThrowIfNull(names);
+        return "profiles: " + string.Join(", ", names.Select(n => Profiles.NameEquals(n, current) ? n + " (current)" : n));
+    }
+
+    public static string AlreadyCurrentNotice(string profileName) => $"(already on profile \"{profileName}\")";
+
+    /// <summary>The picker's name column: the longest <see cref="LlmServer.PortNames"/> value ("LM Studio" / "llama.cpp") plus two.</summary>
+    public const int ServerNameWidth = 11;
+
+    /// <summary>A server picker row: the name padded, the URL in ink, the probe's detail dimmed. Pinned.</summary>
+    public static string ServerLabel(LlmServer server)
+    {
+        ArgumentNullException.ThrowIfNull(server);
+        return Markup.Escape(server.Name.PadRight(ServerNameWidth)) + Theme.ColorMarkup(Theme.Ink, Markup.Escape(server.BaseUrl.ToString()))
+            + Theme.DimMarkup("  " + Markup.Escape(server.Result.Detail));
+    }
+
+    /// <summary>The list for a console without menus: <c>LLM servers: LM Studio http://127.0.0.1:1234/v1, Ollama http://127.0.0.1:11434/v1</c>. Pinned.</summary>
+    public static string ServerListLine(IReadOnlyList<LlmServer> servers)
+    {
+        ArgumentNullException.ThrowIfNull(servers);
+        return "LLM servers: " + string.Join(", ", servers.Select(s => s.Name + " " + s.BaseUrl));
+    }
+
+    /// <summary><c>/server &lt;url&gt;</c> with something that is not an absolute http(s) URL. Pinned.</summary>
+    public static string ServerUrlError(string detail) => $"Not a usable server URL: {detail}";
+
+    /// <summary><c>/server &lt;url&gt;</c> naming a server that did not answer; it is saved anyway, like a configured URL. Pinned.</summary>
+    public static string ServerNotAnsweringWarning(Uri baseUrl, string detail) =>
+        $"{baseUrl} did not answer /v1/models ({detail}); using it anyway because you asked.";
+
+    public static string SwitchedNotice(string profileName) => $"(switched to profile \"{profileName}\"; conversation cleared)";
+
+    public static bool IsToggle(SettingsField field) =>
+        field is SettingsField.TtsOutput or SettingsField.SttInput or SettingsField.SttWake or SettingsField.SttInterrupt
+            or SettingsField.Memory or SettingsField.CopyUserPrompt or SettingsField.MouseInMenus or SettingsField.ShowImageThumbnails
+            or SettingsField.FileTreeShowSizes or SettingsField.LlmOfferTools or SettingsField.LlmUseFunVerbs
+            or SettingsField.WebTools or SettingsField.TtsVoicePreview or SettingsField.FileTools or SettingsField.AskUser
+            or SettingsField.AgentSkills or SettingsField.ExternalSkills or SettingsField.TranscriptMarkdown
+            or SettingsField.FileSafeEdits
+            or SettingsField.SkillHashMention or SettingsField.ReflectionAutoLearn
+            or SettingsField.HideExitAutocomplete or SettingsField.CommandTypoIntercept or SettingsField.WelcomeSplash or SettingsField.ShowWorkingDirectory
+            or SettingsField.QueueMessages or SettingsField.AllowSkillDelete or SettingsField.SessionLogging or SettingsField.SessionTool
+            or SettingsField.ToolsDollarMention or SettingsField.ReflectionIncludesSessions or SettingsField.McpServers or SettingsField.GitTools;
+
+    public static string FieldName(SettingsField field) => field switch
+    {
+        SettingsField.Profile => "Profile",
+        SettingsField.LlmUrl => "LLM URL",
+        SettingsField.LlmModel => "LLM model",
+        SettingsField.LlmApiKey => "LLM API key",
+        SettingsField.LlmRequestTimeoutSeconds => "LLM request timeout (s)",
+        SettingsField.LlmTurnTimeoutSeconds => "LLM turn timeout (s)",
+        SettingsField.LlmContextLength => "LLM context length",
+        SettingsField.TtsHttpUrl => "TTS HTTP URL",
+        SettingsField.TtsSource => "TTS source",
+        SettingsField.TtsVoice => "TTS voice",
+        SettingsField.TtsOutput => "TTS output",
+        SettingsField.SttInput => "STT input",
+        SettingsField.SttWake => "STT wake",
+        SettingsField.SttWakePhrase => "STT wake phrase",
+        SettingsField.SttPushToTalkKey => "STT push-to-talk key",
+        SettingsField.TtsSpeed => "TTS speed",
+        SettingsField.SttWhisperModel => "STT whisper model",
+        SettingsField.SttVoskModel => "STT vosk model",
+        SettingsField.SttInterrupt => "STT interrupt",
+        SettingsField.SttInterruptEchoGuard => "STT interrupt echo guard",
+        SettingsField.SttInterruptConfirmMs => "STT interrupt confirm",
+        SettingsField.LlmReasoning => "LLM reasoning",
+        SettingsField.TtsVoice2 => "TTS voice 2",
+        SettingsField.TtsVoiceMix => "TTS voice mix",
+        SettingsField.Memory => "Memory",
+        SettingsField.WorkingDirectory => "Working directory",
+        SettingsField.CopyUserPrompt => "Copy user prompt",
+        SettingsField.DraftEditor => "Draft editor",
+        SettingsField.FileViewImageMaxPerCall => "File view image max (per call)",
+        SettingsField.McpServers => "MCP servers",
+        SettingsField.McpConnectTimeoutSeconds => "MCP connect timeout (s)",
+        SettingsField.MouseInMenus => "Mouse in menus",
+        SettingsField.ShowImageThumbnails => "Show image thumbnails",
+        SettingsField.LlmCompactType => "LLM compact type",
+        SettingsField.LlmCompactKeepRecent => "LLM compact keep recent",
+        SettingsField.LlmAutoCompactPercent => "LLM auto compact (%)",
+        SettingsField.LlmToolCompactType => "LLM tool compact type",
+        SettingsField.LlmMaxToolIterations => "LLM max tool iterations",
+        SettingsField.ImageThumbnailSize => "Image thumbnail size",
+        SettingsField.FileTreeMaxLength => "File /tree max length",
+        SettingsField.FileTreeShowSizes => "File /tree show sizes",
+        SettingsField.NewProfileMode => "New profile mode",
+        SettingsField.LlmOfferTools => "LLM offer tools",
+        SettingsField.LlmUseFunVerbs => "LLM use fun verbs",
+        SettingsField.LlmScanMode => "LLM scan mode",
+        SettingsField.WebTools => "Web tools",
+        SettingsField.GitTools => "Git tools",
+        SettingsField.GitDiffMaxLines => "Git diff max lines",
+        SettingsField.GitLogMaxCommits => "Git log max commits",
+        SettingsField.WebBrowserMode => "Web browser mode",
+        SettingsField.WebBrowserPath => "Web browser path",
+        SettingsField.WebBrowserNetworkMode => "Web browser network mode",
+        SettingsField.WebSearxngUrl => "Web SearXNG URL",
+        SettingsField.WebSearchMaxResults => "Web search max results",
+        SettingsField.TtsVoicePreview => "TTS voice preview",
+        SettingsField.FileTools => "File tools",
+        SettingsField.WebSearchMethod => "Web search method",
+        SettingsField.AskUser => "Ask user",
+        SettingsField.AskMaxQuestions => "Ask max questions",
+        SettingsField.AskMaxChoices => "Ask max choices per question",
+        SettingsField.FileMentionFolderMode => "File @-mention folder mode",
+        SettingsField.AgentSkills => "Agent skills",
+        SettingsField.ExternalSkills => ExternalSkillsName,
+        SettingsField.TranscriptMarkdown => "Transcript markdown",
+        SettingsField.SkillCompactMode => "Skill compact mode",
+        SettingsField.PastePreviewLines => "Paste preview lines",
+        SettingsField.FileSafeEdits => "File safe edits",
+        SettingsField.SkillHashMention => "#-mention enabled",
+        SettingsField.ToolsDollarMention => "$-mention enabled",
+        SettingsField.ReflectionAutoLearn => "Reflection (auto-learn)",
+        SettingsField.ReflectionReasoning => "Reflection reasoning",
+        SettingsField.ReflectionWindow => "Reflection window",
+        SettingsField.ReflectionMinToolCalls => "Reflection min tool calls",
+        SettingsField.ReflectionMaxRequests => "Reflection max requests",
+        SettingsField.ReflectionCooldownMinutes => "Reflection cooldown (minutes)",
+        SettingsField.ReflectionCooldownMode => "Reflection cooldown mode",
+        SettingsField.ReflectionIncludesSessions => "Reflection includes sessions",
+        SettingsField.HideExitAutocomplete => "Hide /exit autocomplete",
+        SettingsField.CommandTypoIntercept => "Command typo intercept",
+        SettingsField.WelcomeSplash => "Welcome splash",
+        SettingsField.ShowWorkingDirectory => "Show working directory",
+        SettingsField.QueueMessages => "Queue messages",
+        SettingsField.QueueCancelMode => "Queue cancel mode",
+        SettingsField.AllowSkillDelete => "Allow skill delete",
+        SettingsField.SessionLogging => "Session logging",
+        SettingsField.SessionNamingMode => "Session naming mode",
+        SettingsField.SessionShowName => "Session show name",
+        SettingsField.SessionRetentionDays => "Session retention (days)",
+        SettingsField.SessionSearchMaxResults => "Session search max results",
+        SettingsField.SessionTool => "Session tool",
+        _ => field.ToString(),
+    };
+
+    /// <summary>
+    /// How the menu shows an empty <see cref="AppSettingsData.LlmUrl"/>: where discovery will look,
+    /// per the scan mode (<see cref="SettingsField.LlmScanMode"/>). Pinned.
+    /// </summary>
+    public static string BlankUrlLabel(ScanScope scope) => scope switch
+    {
+        ScanScope.Disabled => "(not set; scan disabled)",
+        ScanScope.Remote => "(scan the local network)",
+        ScanScope.Both => "(probe local ports and the network)",
+        _ => "(probe local ports)",
+    };
+
+    /// <summary>
+    /// The saved value as the menu shows it; the API key is masked. <paramref name="profileDirectory"/>
+    /// is what an empty working directory resolves under (<see cref="DefaultWorkingDirectoryLabel"/>).
+    /// </summary>
+    public static string FieldValue(SettingsField field, AppSettingsData data, string profileDirectory) => FieldValue(field, data, profileDirectory, null);
+
+    /// <param name="locatedBrowser">What browser auto-detection found, for an empty <see cref="SettingsField.WebBrowserPath"/> row; null = none.</param>
+    public static string FieldValue(SettingsField field, AppSettingsData data, string profileDirectory, string? locatedBrowser)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        ArgumentNullException.ThrowIfNull(profileDirectory);
+        return field switch
+        {
+            SettingsField.LlmUrl => string.IsNullOrWhiteSpace(data.LlmUrl) ? BlankUrlLabel(ScanScopeOf(data)) : data.LlmUrl,
+            SettingsField.LlmModel => string.IsNullOrWhiteSpace(data.LlmModel) ? "(first listed)" : data.LlmModel,
+            SettingsField.LlmApiKey => Mask(data.LlmApiKey),
+            SettingsField.LlmRequestTimeoutSeconds => Seconds(data.LlmRequestTimeoutSeconds),
+            SettingsField.LlmTurnTimeoutSeconds => Seconds(data.LlmTurnTimeoutSeconds),
+            SettingsField.LlmContextLength => data.LlmContextLength > 0 ? Tokens(data.LlmContextLength) : DetectedContextLengthLabel,
+            SettingsField.TtsHttpUrl => data.TtsHttpUrl,
+            SettingsField.TtsVoice => data.TtsVoice,
+            SettingsField.TtsOutput => OnOff(data.TtsOutput),
+            SettingsField.SttInput => OnOff(data.SttInput),
+            SettingsField.SttWake => OnOff(data.SttWake),
+            SettingsField.SttWakePhrase => data.SttWakePhrase,
+            SettingsField.SttPushToTalkKey => data.SttPushToTalkKey,
+            SettingsField.TtsSpeed => Speed(data.TtsSpeed),
+            SettingsField.SttWhisperModel => data.SttWhisperModel,
+            SettingsField.SttVoskModel => data.SttVoskModel,
+            SettingsField.SttInterrupt => OnOff(data.SttInterrupt),
+            SettingsField.SttInterruptEchoGuard => Percent(data.SttInterruptEchoGuard),
+            SettingsField.SttInterruptConfirmMs => Milliseconds(data.SttInterruptConfirmMs),
+            SettingsField.LlmReasoning => data.LlmReasoning,
+            SettingsField.TtsVoice2 => string.IsNullOrWhiteSpace(data.TtsVoice2) ? NoSecondaryVoice : data.TtsVoice2,
+            SettingsField.TtsVoiceMix => Mix(data.TtsVoiceMix),
+            SettingsField.Memory => OnOff(data.Memory),
+            SettingsField.WorkingDirectory => string.IsNullOrWhiteSpace(data.WorkingDirectory) ? DefaultWorkingDirectoryLabel(profileDirectory) : data.WorkingDirectory,
+            SettingsField.CopyUserPrompt => OnOff(data.CopyUserPrompt),
+            SettingsField.MouseInMenus => OnOff(data.MouseInMenus),
+            SettingsField.ShowImageThumbnails => OnOff(data.ShowImageThumbnails),
+            SettingsField.LlmCompactType => data.LlmCompactType,
+            SettingsField.LlmCompactKeepRecent => Turns(data.LlmCompactKeepRecent),
+            SettingsField.LlmAutoCompactPercent => data.LlmAutoCompactPercent > 0 ? Percent(data.LlmAutoCompactPercent) : CompactAtOffLabel,
+            SettingsField.LlmToolCompactType => data.LlmToolCompactType,
+            SettingsField.LlmMaxToolIterations => RoundTrips(data.LlmMaxToolIterations),
+            SettingsField.ImageThumbnailSize => data.ImageThumbnailSize,
+            SettingsField.FileTreeMaxLength => Entries(data.FileTreeMaxLength),
+            SettingsField.FileTreeShowSizes => OnOff(data.FileTreeShowSizes),
+            SettingsField.NewProfileMode => data.NewProfileMode,
+            SettingsField.LlmOfferTools => OnOff(data.LlmOfferTools),
+            SettingsField.LlmUseFunVerbs => OnOff(data.LlmUseFunVerbs),
+            SettingsField.LlmScanMode => data.LlmScanMode,
+            SettingsField.TtsSource => data.TtsSource,
+            SettingsField.WebTools => OnOff(data.WebTools),
+            SettingsField.GitTools => OnOff(data.GitTools),
+            SettingsField.GitDiffMaxLines => Lines(data.GitDiffMaxLines),
+            SettingsField.GitLogMaxCommits => Commits(data.GitLogMaxCommits),
+            SettingsField.WebBrowserMode => data.WebBrowserMode,
+            SettingsField.WebBrowserPath => string.IsNullOrWhiteSpace(data.WebBrowserPath) ? AutoBrowserLabel(locatedBrowser) : data.WebBrowserPath,
+            SettingsField.DraftEditor => string.IsNullOrWhiteSpace(data.DraftEditor) ? DefaultDraftEditorLabel : data.DraftEditor,
+            SettingsField.FileViewImageMaxPerCall => Pictures(data.FileViewImageMaxPerCall),
+            SettingsField.McpServers => OnOff(data.McpServers),
+            SettingsField.McpConnectTimeoutSeconds => Seconds(data.McpConnectTimeoutSeconds),
+            SettingsField.WebBrowserNetworkMode => data.WebBrowserNetworkMode,
+            SettingsField.WebSearxngUrl => string.IsNullOrWhiteSpace(data.WebSearxngUrl) ? NoSearxngUrlLabel : data.WebSearxngUrl,
+            SettingsField.WebSearchMaxResults => Results(data.WebSearchMaxResults),
+            SettingsField.TtsVoicePreview => OnOff(data.TtsVoicePreview),
+            SettingsField.FileTools => OnOff(data.FileTools),
+            SettingsField.WebSearchMethod => data.WebSearchMethod,
+            SettingsField.AskUser => OnOff(data.AskUser),
+            SettingsField.AskMaxQuestions => Questions(data.AskMaxQuestions),
+            SettingsField.AskMaxChoices => Choices(data.AskMaxChoices),
+            SettingsField.FileMentionFolderMode => data.FileMentionFolderMode,
+            SettingsField.AgentSkills => OnOff(data.AgentSkills),
+            SettingsField.ExternalSkills => OnOff(data.ExternalSkills),
+            SettingsField.TranscriptMarkdown => OnOff(data.TranscriptMarkdown),
+            SettingsField.SkillCompactMode => data.SkillCompactMode,
+            SettingsField.PastePreviewLines => Lines(data.PastePreviewLines),
+            SettingsField.FileSafeEdits => OnOff(data.FileSafeEdits),
+            SettingsField.SkillHashMention => OnOff(data.SkillHashMention),
+            SettingsField.ToolsDollarMention => OnOff(data.ToolsDollarMention),
+            SettingsField.ReflectionAutoLearn => OnOff(data.ReflectionAutoLearn),
+            SettingsField.ReflectionReasoning => data.ReflectionReasoning,
+            SettingsField.ReflectionWindow => Turns(data.ReflectionWindow),
+            SettingsField.ReflectionMinToolCalls => ToolCalls(data.ReflectionMinToolCalls),
+            SettingsField.ReflectionMaxRequests => Requests(data.ReflectionMaxRequests),
+            SettingsField.ReflectionCooldownMinutes => Minutes(data.ReflectionCooldownMinutes),
+            SettingsField.ReflectionCooldownMode => data.ReflectionCooldownMode,
+            SettingsField.ReflectionIncludesSessions => OnOff(data.ReflectionIncludesSessions),
+            SettingsField.HideExitAutocomplete => OnOff(data.HideExitAutocomplete),
+            SettingsField.CommandTypoIntercept => OnOff(data.CommandTypoIntercept),
+            SettingsField.WelcomeSplash => OnOff(data.WelcomeSplash),
+            SettingsField.SessionLogging => OnOff(data.SessionLogging),
+            SettingsField.SessionNamingMode => data.SessionNamingMode,
+            SettingsField.SessionShowName => data.SessionShowName,
+            SettingsField.SessionRetentionDays => Days(data.SessionRetentionDays),
+            SettingsField.SessionSearchMaxResults => Results(data.SessionSearchMaxResults),
+            SettingsField.SessionTool => OnOff(data.SessionTool),
+            SettingsField.ShowWorkingDirectory => OnOff(data.ShowWorkingDirectory),
+            SettingsField.QueueMessages => OnOff(data.QueueMessages),
+            SettingsField.QueueCancelMode => data.QueueCancelMode,
+            SettingsField.AllowSkillDelete => OnOff(data.AllowSkillDelete),
+            _ => "",
+        };
+    }
+
+    /// <summary>The label of <see cref="SettingsField.ExternalSkills"/>, naming the folder it reads (the user's wording, 2026-09-16); the longest label there is, so it sets <see cref="LabelWidth"/>. Pinned.</summary>
+    public const string ExternalSkillsName = "Use external skills (.agents\\skills)";
+
+    /// <summary>
+    /// How the menu shows an empty <see cref="AppSettingsData.WebBrowserPath"/>: the browser
+    /// auto-detection found (<c>(auto: msedge.exe)</c>), or that it found none. Pinned.
+    /// </summary>
+    public static string AutoBrowserLabel(string? located) =>
+        located is null ? "(auto: none found)" : "(auto: " + Path.GetFileName(located) + ")";
+
+    /// <summary>How the menu shows an empty <see cref="AppSettingsData.WebSearxngUrl"/> (the engine is <see cref="SettingsField.WebSearchMethod"/>'s row, not this one's). Pinned.</summary>
+    public const string NoSearxngUrlLabel = "(not set)";
+
+    /// <summary>How the menu shows an empty <see cref="AppSettingsData.DraftEditor"/>: <c>/draft</c> hands the file to whatever Windows opens a <c>.txt</c> with. Pinned.</summary>
+    public const string DefaultDraftEditorLabel = "(default .txt editor)";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.WebBrowserPath"/>. Pinned.</summary>
+    public const string BrowserPathError = "must be the full path of an existing executable, or empty to find Edge, Chrome or Brave";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.WebSearxngUrl"/>. Pinned.</summary>
+    public const string SearxngUrlError = "must be an http or https URL, or empty";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.SessionRetentionDays"/>. Pinned.</summary>
+    public static readonly string SessionRetentionDaysRangeError =
+        "must be " + AppSettingsData.MinSessionRetentionDays.ToString(CultureInfo.InvariantCulture) + " to " + AppSettingsData.MaxSessionRetentionDays.ToString(CultureInfo.InvariantCulture) + " days";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.SessionSearchMaxResults"/>. Pinned.</summary>
+    public static readonly string SessionSearchMaxResultsRangeError =
+        "must be " + AppSettingsData.MinSessionSearchMaxResults.ToString(CultureInfo.InvariantCulture) + " to " + AppSettingsData.MaxSessionSearchMaxResults.ToString(CultureInfo.InvariantCulture) + " results";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.FileViewImageMaxPerCall"/>. Pinned.</summary>
+    public static readonly string ViewImageMaxPerCallRangeError =
+        "must be " + AppSettingsData.MinViewImageMaxPerCall.ToString(CultureInfo.InvariantCulture) + " to " + AppSettingsData.MaxViewImageMaxPerCall.ToString(CultureInfo.InvariantCulture) + " pictures";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.McpConnectTimeoutSeconds"/>. Pinned.</summary>
+    public static readonly string McpConnectTimeoutRangeError =
+        "must be " + AppSettingsData.MinMcpConnectTimeout.ToString(CultureInfo.InvariantCulture) + " to " + AppSettingsData.MaxMcpConnectTimeout.ToString(CultureInfo.InvariantCulture) + " seconds";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.GitDiffMaxLines"/>. Pinned.</summary>
+    public static readonly string GitDiffMaxLinesRangeError =
+        "must be " + AppSettingsData.MinGitDiffMaxLines.ToString(CultureInfo.InvariantCulture) + " to " + AppSettingsData.MaxGitDiffMaxLines.ToString(CultureInfo.InvariantCulture) + " lines";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.GitLogMaxCommits"/>. Pinned.</summary>
+    public static readonly string GitLogMaxCommitsRangeError =
+        "must be " + AppSettingsData.MinGitLogMaxCommits.ToString(CultureInfo.InvariantCulture) + " to " + AppSettingsData.MaxGitLogMaxCommits.ToString(CultureInfo.InvariantCulture) + " commits";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.WebSearchMaxResults"/>. Pinned.</summary>
+    public static readonly string WebSearchMaxResultsRangeError =
+        "must be " + AppSettingsData.MinWebSearchMaxResults.ToString(CultureInfo.InvariantCulture) + " to " + AppSettingsData.MaxWebSearchMaxResults.ToString(CultureInfo.InvariantCulture) + " results";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.AskMaxQuestions"/>. Pinned.</summary>
+    public static readonly string AskMaxQuestionsRangeError =
+        "must be " + AppSettingsData.MinAskMaxQuestions.ToString(CultureInfo.InvariantCulture) + " to " + AppSettingsData.MaxAskMaxQuestions.ToString(CultureInfo.InvariantCulture) + " questions";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.AskMaxChoices"/>. Pinned.</summary>
+    public static readonly string AskMaxChoicesRangeError =
+        "must be " + AppSettingsData.MinAskMaxChoices.ToString(CultureInfo.InvariantCulture) + " to " + AppSettingsData.MaxAskMaxChoices.ToString(CultureInfo.InvariantCulture) + " choices";
+
+    /// <summary>One row of the browser-mode picker: the mode and its hint (padded to eleven: <c>httpclient</c> is ten). Pinned.</summary>
+    public static string BrowserModeLabel(string name) =>
+        Markup.Escape(name.PadRight(11)) + Theme.DimMarkup(Web.BrowserMode.Describe(name));
+
+    /// <summary>One row of the network-mode picker: the mode and its hint (padded to nineteen: <c>local_area_network</c> is eighteen). Pinned.</summary>
+    public static string NetworkModeLabel(string name) =>
+        Markup.Escape(name.PadRight(19)) + Theme.DimMarkup(Web.NetworkMode.Describe(name));
+
+    /// <summary>One row of the queue-cancel-mode picker: the mode and its hint (padded to six: <c>drain</c> and <c>empty</c> are five). Pinned.</summary>
+    public static string QueueCancelModeLabel(string name) =>
+        Markup.Escape(name.PadRight(6)) + Theme.DimMarkup(QueueCancelMode.Describe(name));
+
+    /// <summary>One row of the search-method picker: the method and its hint (padded to eleven: <c>duckduckgo</c> is ten). Pinned.</summary>
+    public static string SearchMethodLabel(string name) =>
+        Markup.Escape(name.PadRight(11)) + Theme.DimMarkup(Web.SearchMethod.Describe(name));
+
+    /// <summary>The saved scan mode as a scope for the row labels — silently the default on a hand-edited value (<see cref="Llm.LlmScanMode.Resolve"/> warns where the scan happens).</summary>
+    private static ScanScope ScanScopeOf(AppSettingsData data)
+    {
+        Llm.LlmScanMode.TryParse(data.LlmScanMode, out var scope);
+        return scope;
+    }
+
+    /// <summary>One row of the reasoning picker: the level and its hint. Pinned.</summary>
+    public static string ReasoningLabel(string level) =>
+        Markup.Escape(level.PadRight(8)) + Theme.DimMarkup(Llm.ReasoningLevel.Describe(level));
+
+    /// <summary>One row of the compact-type picker: the type and its hint. Pinned.</summary>
+    public static string CompactTypeLabel(string name) =>
+        Markup.Escape(name.PadRight(8)) + Theme.DimMarkup(Llm.CompactType.Describe(name));
+
+    /// <summary>One row of the tool-compact-type picker: the type and its hint. Pinned.</summary>
+    public static string ToolCompactTypeLabel(string name) =>
+        Markup.Escape(name.PadRight(8)) + Theme.DimMarkup(Llm.ToolCompactType.Describe(name));
+
+    /// <summary>One row of the skill-compact-mode picker: the mode and its hint, padded to twelve (<c>unprotected</c> is eleven). Pinned.</summary>
+    public static string SkillCompactModeLabel(string name) =>
+        Markup.Escape(name.PadRight(12)) + Theme.DimMarkup(Skills.SkillCompactMode.Describe(name));
+
+    /// <summary>One row of the session-naming-mode picker: the word and its hint, padded to fifteen (<c>model-written</c> is thirteen). Pinned.</summary>
+    public static string SessionNamingModeLabel(string name) =>
+        Markup.Escape(name.PadRight(15)) + Theme.DimMarkup(Sessions.SessionNamingMode.Describe(name));
+
+    /// <summary>One row of the session-show-name picker: the word and its hint, padded to fifteen like the naming mode's. Pinned.</summary>
+    public static string SessionShowNameLabel(string name) =>
+        Markup.Escape(name.PadRight(15)) + Theme.DimMarkup(Sessions.SessionShowName.Describe(name));
+
+    /// <summary>One row of the reflection-reasoning picker: the word and its hint, padded to eight like <see cref="ReasoningLabel"/> (sixteen while the word was <c>profile-default</c>, until later on 2026-09-19). Pinned.</summary>
+    public static string ReflectionReasoningLabel(string name) =>
+        Markup.Escape(name.PadRight(8)) + Theme.DimMarkup(Skills.ReflectionReasoning.Describe(name));
+
+    /// <summary>One row of the cooldown-mode picker: the word padded to the longest, the meaning dim. Pinned.</summary>
+    public static string ReflectionCooldownModeLabel(string name) =>
+        Markup.Escape(name.PadRight(20)) + Theme.DimMarkup(Skills.ReflectionCooldownMode.Describe(name));
+
+    /// <summary>One row of the @-mention-folder-mode picker: the mode and its hint, padded to fourteen (<c>folder-remain</c> is thirteen). Pinned.</summary>
+    public static string MentionFolderModeLabel(string name) =>
+        Markup.Escape(name.PadRight(14)) + Theme.DimMarkup(Files.MentionFolderMode.Describe(name));
+
+    /// <summary>One row of the scan-mode picker: the mode and its hint, padded to nine (<c>disabled</c> is eight). Pinned.</summary>
+    public static string LlmScanModeLabel(string name) =>
+        Markup.Escape(name.PadRight(9)) + Theme.DimMarkup(Llm.LlmScanMode.Describe(name));
+
+    /// <summary>One row of the TTS-source picker: the source and its hint, padded to eleven (<c>in-process</c> is ten). Pinned.</summary>
+    public static string TtsSourceLabel(string name) =>
+        Markup.Escape(name.PadRight(11)) + Theme.DimMarkup(Speech.TtsSource.Describe(name));
+
+    /// <summary>One row of the thumbnail-size picker: the size and its box. Pinned.</summary>
+    public static string ImageThumbnailSizeLabel(string name) =>
+        Markup.Escape(name.PadRight(8)) + Theme.DimMarkup(ThumbnailSize.Describe(name));
+
+    /// <summary>One row of the new-profile-mode picker: the mode and its hint (padded to nine: <c>advanced</c> is eight). Pinned.</summary>
+    public static string NewProfileModeLabel(string name) =>
+        Markup.Escape(name.PadRight(9)) + Theme.DimMarkup(NewProfileMode.Describe(name));
+
+    /// <summary>One row of the push-to-talk picker: the key's name, the default marked. Pinned.</summary>
+    public static string PushToTalkLabel(ConsoleKey key) =>
+        Markup.Escape(key.ToString()) + (key == ConsoleKey.F4 ? Theme.DimMarkup("  the default") : "");
+
+    /// <summary>One row of the whisper-model picker: the file name (padded to nineteen: <c>ggml-small.en.bin</c> is seventeen), what it trades, and its download size. Pinned.</summary>
+    public static string WhisperModelLabel(string name, long bytes)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        string hint = name switch
+        {
+            "ggml-tiny.en.bin" => "fastest",
+            "ggml-small.en.bin" => "most accurate",
+            _ => "the default",
+        };
+        return Markup.Escape(name.PadRight(19)) + Theme.DimMarkup($"{hint}, {ModelStore.SizeLabel(bytes)}");
+    }
+
+    /// <summary>One row of the vosk-model picker: the name (padded to thirty: the lgraph name is twenty-eight), what it is for, and its download size. Pinned.</summary>
+    public static string VoskModelLabel(string name, long bytes)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        string hint = name switch
+        {
+            "vosk-model-en-us-0.22-lgraph" => "most accurate",
+            "vosk-model-small-en-in-0.4" => "Indian English",
+            _ => "the default",
+        };
+        return Markup.Escape(name.PadRight(30)) + Theme.DimMarkup($"{hint}, {ModelStore.SizeLabel(bytes)}");
+    }
+
+    /// <summary>The raw text a field edits (unmasked, unformatted).</summary>
+    public static string EditableValue(SettingsField field, AppSettingsData data) => field switch
+    {
+        SettingsField.LlmUrl => data.LlmUrl,
+        SettingsField.LlmModel => data.LlmModel,
+        SettingsField.LlmApiKey => data.LlmApiKey,
+        SettingsField.LlmRequestTimeoutSeconds => Seconds(data.LlmRequestTimeoutSeconds),
+        SettingsField.LlmTurnTimeoutSeconds => Seconds(data.LlmTurnTimeoutSeconds),
+        SettingsField.LlmContextLength => data.LlmContextLength.ToString(CultureInfo.InvariantCulture),
+        SettingsField.TtsHttpUrl => data.TtsHttpUrl,
+        SettingsField.TtsVoice => data.TtsVoice,
+        SettingsField.SttWakePhrase => data.SttWakePhrase,
+        SettingsField.SttPushToTalkKey => data.SttPushToTalkKey,
+        SettingsField.TtsSpeed => Speed(data.TtsSpeed),
+        SettingsField.SttWhisperModel => data.SttWhisperModel,
+        SettingsField.SttVoskModel => data.SttVoskModel,
+        SettingsField.TtsVoice2 => data.TtsVoice2,
+        SettingsField.TtsVoiceMix => data.TtsVoiceMix.ToString(CultureInfo.InvariantCulture),
+        SettingsField.SttInterruptEchoGuard => data.SttInterruptEchoGuard.ToString(CultureInfo.InvariantCulture),
+        SettingsField.SttInterruptConfirmMs => data.SttInterruptConfirmMs.ToString(CultureInfo.InvariantCulture),
+        SettingsField.LlmCompactKeepRecent => data.LlmCompactKeepRecent.ToString(CultureInfo.InvariantCulture),
+        SettingsField.ReflectionWindow => data.ReflectionWindow.ToString(CultureInfo.InvariantCulture),
+        SettingsField.ReflectionMinToolCalls => data.ReflectionMinToolCalls.ToString(CultureInfo.InvariantCulture),
+        SettingsField.ReflectionMaxRequests => data.ReflectionMaxRequests.ToString(CultureInfo.InvariantCulture),
+        SettingsField.ReflectionCooldownMinutes => data.ReflectionCooldownMinutes.ToString(CultureInfo.InvariantCulture),
+        SettingsField.LlmAutoCompactPercent => data.LlmAutoCompactPercent.ToString(CultureInfo.InvariantCulture),
+        SettingsField.LlmMaxToolIterations => data.LlmMaxToolIterations.ToString(CultureInfo.InvariantCulture),
+        SettingsField.FileTreeMaxLength => data.FileTreeMaxLength.ToString(CultureInfo.InvariantCulture),
+        SettingsField.WorkingDirectory => data.WorkingDirectory,
+        SettingsField.WebBrowserPath => data.WebBrowserPath,
+        SettingsField.WebSearxngUrl => data.WebSearxngUrl,
+        SettingsField.DraftEditor => data.DraftEditor,
+        SettingsField.FileViewImageMaxPerCall => data.FileViewImageMaxPerCall.ToString(CultureInfo.InvariantCulture),
+        SettingsField.McpConnectTimeoutSeconds => data.McpConnectTimeoutSeconds.ToString(CultureInfo.InvariantCulture),
+        SettingsField.WebSearchMaxResults => data.WebSearchMaxResults.ToString(CultureInfo.InvariantCulture),
+        SettingsField.GitDiffMaxLines => data.GitDiffMaxLines.ToString(CultureInfo.InvariantCulture),
+        SettingsField.GitLogMaxCommits => data.GitLogMaxCommits.ToString(CultureInfo.InvariantCulture),
+        SettingsField.AskMaxQuestions => data.AskMaxQuestions.ToString(CultureInfo.InvariantCulture),
+        SettingsField.AskMaxChoices => data.AskMaxChoices.ToString(CultureInfo.InvariantCulture),
+        SettingsField.PastePreviewLines => data.PastePreviewLines.ToString(CultureInfo.InvariantCulture),
+        SettingsField.SessionRetentionDays => data.SessionRetentionDays.ToString(CultureInfo.InvariantCulture),
+        SettingsField.SessionSearchMaxResults => data.SessionSearchMaxResults.ToString(CultureInfo.InvariantCulture),
+        _ => "",
+    };
+
+    /// <summary>One menu row as markup: padded name, the value, and the override note when there is one.</summary>
+    public static string FieldLabel(SettingsField field, AppSettingsData data, string profileDirectory, string? overriddenBy) =>
+        FieldLabel(field, data, profileDirectory, overriddenBy, LabelWidth);
+
+    /// <summary>A row padded to <paramref name="width"/> (a tab's column on the pane).</summary>
+    public static string FieldLabel(SettingsField field, AppSettingsData data, string profileDirectory, string? overriddenBy, int width, string? locatedBrowser = null)
+    {
+        string row = Markup.Escape(FieldName(field).PadRight(width)) + Theme.ColorMarkup(Theme.Ink, FieldValue(field, data, profileDirectory, locatedBrowser));
+        return overriddenBy is null ? row : row + Theme.DimMarkup($"  (overridden by {overriddenBy})");
+    }
+
+    public static string Mask(string secret) =>
+        string.IsNullOrEmpty(secret) ? "(none)" : secret.Length <= 4 ? new string('•', secret.Length) : secret[..2] + new string('•', secret.Length - 2);
+
+    public static string OverrideNotice(string overriddenBy) => $"{overriddenBy} still overrides this launch.";
+
+    public static string SavedNotice(SettingsField field, AppSettingsData data, string profileDirectory, string? locatedBrowser = null) =>
+        $"{FieldName(field)}: {FieldValue(field, data, profileDirectory, locatedBrowser)}";
+
+    // ── Screens ─────────────────────────────────────────────────────────────
+
+    /// <summary>The settings menu. Returns which sessions the changed fields belong to.</summary>
+    public Task<SettingsChanges> ShowAsync(CancellationToken cancellationToken) => ShowAsync(cancellationToken, midTurn: false);
+
+    /// <summary>
+    /// <see cref="ShowAsync(CancellationToken)"/> for a pane opened while a reply runs
+    /// (<paramref name="midTurn"/>): the rows whose change would reconnect a session (LLM, TTS,
+    /// STT), switch the profile, move the working directory or reshape the history (<c>LLM offer tools</c>)
+    /// are refused with <see cref="NotWhileReplyRunsNotice"/> on the status line (<see cref="RefusedMidTurn"/>),
+    /// so the result never carries a flag the screen would act on mid-turn; the other rows edit as ever.
+    /// </summary>
+    public async Task<SettingsChanges> ShowAsync(CancellationToken cancellationToken, bool midTurn)
+    {
+        if (!CanShowMenus())
+        {
+            Flow.Error(MenusNeedTerminalError);
+            return SettingsChanges.None;
+        }
+
+        var changes = SettingsChanges.None;
+        int tab = 0;
+        int cursor = 0;
+        _midTurn = midTurn;
+        try
+        {
+            while (true)
+            {
+                var saved = _settings.Current;
+                var picked = await PickSettingAsync(saved, tab, cursor, cancellationToken).ConfigureAwait(false);
+                if (picked is not var (field, page, row))
+                {
+                    return changes;
+                }
+
+                tab = page.Tab;
+                cursor = row;
+                if (midTurn && RefusedMidTurn(field))
+                {
+                    Sink.Notice(NotWhileReplyRunsNotice);
+                    continue;
+                }
+
+                if (field == SettingsField.Profile)
+                {
+                    if (await PickProfileAsync(Crumb(ProfileTitle), SwitchKeys, close: false, cancellationToken).ConfigureAwait(false))
+                    {
+                        changes |= SettingsChanges.Profile;
+                    }
+
+                    continue;
+                }
+
+                if (await EditAsync(field, saved, page, row, cancellationToken).ConfigureAwait(false))
+                {
+                    if (IsLlmField(field))
+                    {
+                        changes |= SettingsChanges.Llm;
+                    }
+
+                    if (IsTtsField(field))
+                    {
+                        changes |= SettingsChanges.Tts;
+                    }
+
+                    if (IsVoiceField(field))
+                    {
+                        changes |= SettingsChanges.Voice;
+                    }
+
+                    if (field == SettingsField.LlmOfferTools)
+                    {
+                        changes |= SettingsChanges.Conversation;
+                    }
+
+                    if (IsMcpField(field))
+                    {
+                        changes |= SettingsChanges.Mcp;
+                    }
+                }
+            }
+        }
+        finally
+        {
+            _midTurn = false;
+            _pane.Close();
+        }
+    }
+
+    /// <summary>Whether <paramref name="field"/> is refused while a reply runs: the profile, the working directory, every reconnecting row and the tools flip. Pure.</summary>
+    public static bool RefusedMidTurn(SettingsField field) =>
+        field is SettingsField.Profile or SettingsField.WorkingDirectory or SettingsField.LlmOfferTools
+        || IsLlmField(field) || IsTtsField(field) || IsVoiceField(field) || IsMcpField(field);
+
+    /// <summary>
+    /// A yes/no question as a pane (or the prompt host without one): <paramref name="question"/> as
+    /// the title, <see cref="ConfirmRows"/> with the cursor on <c>No</c>, <see cref="ConfirmKeys"/> in
+    /// the hint, <see cref="ConfirmHotkeys"/> moving the cursor. True only for an Enter on <c>Yes</c>;
+    /// ESC, the token and no keyboard are no. The pane
+    /// closes with the answer, so what follows goes to the transcript. Callers check <see cref="CanShowMenus"/>
+    /// first and fall back to a typed confirmation where menus cannot open.
+    /// </summary>
+    public async Task<bool> ConfirmAsync(string question, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(question);
+        var page = new MenuPage(question, ConfirmRows, ConfirmKeys) { Hotkeys = ConfirmHotkeys };
+        int? picked = await PickOnceAsync(page, 0, cancellationToken).ConfigureAwait(false);
+        return picked == 1;
+    }
+
+    /// <summary>
+    /// One pick from the settings list: on the pane the tabbed page (<see cref="SettingsTabs"/>)
+    /// opened on <paramref name="tab"/>, elsewhere the flat list (<see cref="SettingsPage"/>) as a
+    /// prompt. The field picked, the page it was picked from (its <see cref="MenuPage.Tab"/> is the
+    /// tab shown at Enter) and the row within that page; null for ESC.
+    /// </summary>
+    private async Task<(SettingsField Field, MenuPage Page, int Row)?> PickSettingAsync(AppSettingsData saved, int tab, int cursor, CancellationToken cancellationToken)
+    {
+        if (_pane.Enabled)
+        {
+            var tabbed = SettingsTabs(saved, _settings.ProfileName, tab);
+            if (await _pane.PickAsync(tabbed, cursor, cancellationToken).ConfigureAwait(false) is not { } pick)
+            {
+                return null;
+            }
+
+            // The page on the tab the pane ended on, so a typed edit under it keeps that tab's rows.
+            var shown = pick.Tab == tabbed.Tab ? tabbed : MenuPage.Tabbed(Title, tabbed.Tabs!, pick.Tab, TabKeys);
+            return (TabFields[pick.Tab][pick.Row], shown, pick.Row);
+        }
+
+        var page = SettingsPage(saved, _settings.ProfileName);
+        if (await PickAsync(page, cursor, cancellationToken).ConfigureAwait(false) is not { } row)
+        {
+            return null;
+        }
+
+        return (Fields[row], page, row);
+    }
+
+    /// <summary>The settings list as the prompt host shows it: one row per field from <paramref name="saved"/>, the profile row from the loaded name.</summary>
+    private MenuPage SettingsPage(AppSettingsData saved, string profile)
+    {
+        string? located = _locateBrowser("");
+        var rows = new string[Fields.Length];
+        for (int i = 0; i < Fields.Length; i++)
+        {
+            var f = Fields[i];
+            rows[i] = f == SettingsField.Profile ? ProfileLabel(profile, _settings.ProfileDirectory) : FieldLabel(f, saved, _settings.ProfileDirectory, _overriddenBy(f), LabelWidth, located);
+        }
+
+        return new MenuPage(Title, rows, TitleKeys);
+    }
+
+    /// <summary>The settings list as the pane shows it: the <see cref="TabFields"/> under the <see cref="TabTitles"/> strip, each tab padded to its own column, opened on <paramref name="tab"/>.</summary>
+    private MenuPage SettingsTabs(AppSettingsData saved, string profile, int tab)
+    {
+        var tabs = new MenuTab[TabTitles.Count];
+        for (int t = 0; t < tabs.Length; t++)
+        {
+            tabs[t] = FieldsTab(TabTitles[t], TabFields[t], saved, profile);
+        }
+
+        return MenuPage.Tabbed(Title, tabs, tab, TabKeys);
+    }
+
+    /// <summary>
+    /// One tab of settings rows for a pane: <paramref name="fields"/> as <see cref="FieldLabel"/> rows padded to
+    /// <see cref="LabelWidthOf"/>, the profile row from <paramref name="profile"/> (the loaded name; null reads it
+    /// from the store). The seam <see cref="ToolsMenu"/> builds its Ask / Files / Web tabs through (2026-09-19).
+    /// </summary>
+    internal MenuTab FieldsTab(string title, IReadOnlyList<SettingsField> fields, AppSettingsData saved, string? profile = null)
+    {
+        string? located = _locateBrowser("");
+        int width = LabelWidthOf(fields);
+        var rows = new string[fields.Count];
+        for (int i = 0; i < rows.Length; i++)
+        {
+            var f = fields[i];
+            rows[i] = f == SettingsField.Profile ? ProfileLabel(profile ?? _settings.ProfileName, _settings.ProfileDirectory, width) : FieldLabel(f, saved, _settings.ProfileDirectory, _overriddenBy(f), width, located);
+        }
+
+        return new MenuTab(title, rows);
+    }
+
+    /// <summary>A row as a plain line, for a console without the pane: <c>Web browser mode: chromium</c> (the <see cref="SavedNotice"/> shape). The seam <see cref="ToolsMenu"/> prints its settings tabs through.</summary>
+    internal string PlainRow(SettingsField field, AppSettingsData saved) =>
+        FieldName(field) + ": " + FieldValue(field, saved, _settings.ProfileDirectory, field == SettingsField.WebBrowserPath ? _locateBrowser("") : null);
+
+    // ── The hosts ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// One level of a list: in the pane when the screen has one, else a Spectre prompt titled
+    /// <see cref="PromptTitle"/> at the flow end. The picked row's index, or null for ESC; a
+    /// <paramref name="cursor"/> outside the rows opens on the first. <paramref name="highlighted"/>
+    /// is the pane's cursor hook (<see cref="MenuPane.PickAsync"/>); the prompt has none.
+    /// </summary>
+    private async Task<int?> PickAsync(MenuPage page, int cursor, CancellationToken cancellationToken, Action<int>? highlighted = null)
+    {
+        if (_pane.Enabled)
+        {
+            return (await _pane.PickAsync(page, cursor, cancellationToken, highlighted).ConfigureAwait(false))?.Row;
+        }
+
+        var rows = page.Rows;
+        var prompt = Theme.Selection(new SelectionPrompt<PromptResult<int>>()
+            .Title(Theme.AccentMarkup(PromptTitle(page.Title, page.Hint)))
+            .AddChoices(Enumerable.Range(0, rows.Count).Select(PromptResult<int>.From))
+            .AddCancelResult(() => PromptResult<int>.Canceled)
+            .UseConverter(r => r.IsCanceled ? "" : rows[r.Value]));
+        if (cursor >= 0 && cursor < rows.Count)
+        {
+            prompt.DefaultValue(PromptResult<int>.From(cursor));
+        }
+
+        var picked = await ScreenPane.ModalAsync(_console, () => prompt.ShowAsync(_console, cancellationToken)).ConfigureAwait(false);
+        return picked.IsCanceled ? null : picked.Value;
+    }
+
+    /// <summary>A single-level picker: the pane is closed as soon as the pick lands, so what follows goes to the transcript.</summary>
+    private async Task<int?> PickOnceAsync(MenuPage page, int cursor, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await PickAsync(page, cursor, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _pane.Close();
+        }
+    }
+
+    /// <summary>
+    /// A typed value: on the pane, the input row under the list with the field's row marked and
+    /// <see cref="EditKeys"/> in the hint; without it, the keys as a notice and the ordinary input
+    /// row. One ESC keeps the saved value on both.
+    /// </summary>
+    private Task<InputResult> EditTextAsync(SettingsField field, MenuPage page, int row, string initial, bool allowEmpty, CancellationToken cancellationToken)
+    {
+        if (_pane.Enabled)
+        {
+            return _pane.EditAsync(page with { Hint = EditKeys }, row, _input, initial, allowEmpty, cancellationToken);
+        }
+
+        Flow.Notice(PromptTitle(FieldName(field), EditKeys));
+        return _input.ReadAsync(initial, remember: false, allowEmpty: allowEmpty, cancellationToken: cancellationToken, escapeCancels: true);
+    }
+
+    /// <summary>
+    /// <c>/model</c>: sets <paramref name="requestedId"/> directly when given, otherwise lists the
+    /// server's models and lets the user pick. Returns true when the saved model changed.
+    /// </summary>
+    public async Task<bool> PickModelAsync(LlmSession session, string requestedId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        if (!string.IsNullOrWhiteSpace(requestedId))
+        {
+            return SaveModel(requestedId.Trim());
+        }
+
+        if (!CanShowMenus())
+        {
+            Flow.Error(MenusNeedTerminalError);
+            return false;
+        }
+
+        var listed = await _transcript.WithSpinnerAsync(ListingModelsLabel, () => session.ListModelsAsync(cancellationToken)).ConfigureAwait(false);
+        if (listed is null)
+        {
+            Flow.Error(NoUrlError);
+            return false;
+        }
+
+        string current = session.Endpoint?.ModelId ?? _settings.Current.LlmModel;
+        return await PickModelFromListAsync(listed.Value, current, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The model picker over a list already in hand (<c>/model</c> after <see cref="LlmSession.ListModelsAsync"/>,
+    /// <c>/server</c> after its probe): <paramref name="current"/> is always offered, first when
+    /// the server does not list it, and the cursor opens on it. Returns true when the saved model
+    /// changed; ESC keeps it (<see cref="UnchangedNotice"/>). Without menus the guard prints.
+    /// </summary>
+    public async Task<bool> PickModelFromListAsync(ProbeResult listed, string current, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        if (!CanShowMenus())
+        {
+            Flow.Error(MenusNeedTerminalError);
+            return false;
+        }
+
+        var ids = listed.ModelIds.ToList();
+        if (!string.IsNullOrWhiteSpace(current) && !ids.Contains(current, StringComparer.Ordinal))
+        {
+            ids.Insert(0, current);
+        }
+
+        if (ids.Count == 0)
+        {
+            // Only reachable with no current id at all; a connected session always has one.
+            Flow.Error(listed.Exists ? NoModelsListedError : $"The server did not answer ({listed.Detail}). {NoModelsListedError}");
+            return false;
+        }
+
+        var page = new MenuPage(ModelTitle, ids.Select(Markup.Escape).ToList(), KeepKeys);
+        int? picked = await PickOnceAsync(page, ids.IndexOf(current), cancellationToken).ConfigureAwait(false);
+        return picked is { } i ? SaveModel(ids[i]) : Unchanged();
+    }
+
+    /// <summary>
+    /// The server picker: one row per server that answered (<see cref="ServerLabel"/>), the cursor
+    /// on <paramref name="current"/> when it is listed. Returns the pick, or null on ESC — with
+    /// <see cref="UnchangedNotice"/> under <see cref="ServerTitle"/>, silently under
+    /// <see cref="StartupServerTitle"/> (the <c>LLM:</c> line that follows says what happened).
+    /// Without menus the list is printed and nothing is picked. Saving is the caller's
+    /// (<see cref="SaveServer"/>): the startup path and <c>/server</c> connect differently.
+    /// </summary>
+    public async Task<LlmServer?> PickServerAsync(IReadOnlyList<LlmServer> servers, Uri? current, string title, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(servers);
+        ArgumentNullException.ThrowIfNull(title);
+        if (!CanShowMenus())
+        {
+            Flow.Notice(ServerListLine(servers));
+            return null;
+        }
+
+        int cursor = -1;
+        for (int i = 0; i < servers.Count && cursor < 0; i++)
+        {
+            if (current is not null && servers[i].BaseUrl == current)
+            {
+                cursor = i;
+            }
+        }
+
+        var page = new MenuPage(title, servers.Select(ServerLabel).ToList(), title == StartupServerTitle ? StartupServerKeys : KeepKeys);
+        int? picked = await PickOnceAsync(page, cursor, cancellationToken).ConfigureAwait(false);
+        if (picked is { } index)
+        {
+            return servers[index];
+        }
+
+        if (title == ServerTitle)
+        {
+            Unchanged();
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Saves <paramref name="baseUrl"/> as the LLM URL in one write — clearing the model id when
+    /// the URL actually changed, because the id belonged to the other server — with one notice
+    /// and the override reminder. Returns true when the URL changed.
+    /// </summary>
+    public bool SaveServer(Uri baseUrl)
+    {
+        ArgumentNullException.ThrowIfNull(baseUrl);
+        string url = baseUrl.ToString();
+        bool changed = !string.Equals(_settings.Current.LlmUrl, url, StringComparison.Ordinal);
+        Apply(SettingsField.LlmUrl, d =>
+        {
+            d.LlmUrl = url;
+            if (changed) d.LlmModel = "";
+        });
+        return changed;
+    }
+
+    /// <summary>
+    /// The profile picker (<c>/profile</c> with nothing, and the first settings row): every
+    /// profile, opened on the loaded one; Enter on another switches it in place
+    /// (<see cref="AppSettings.SwitchProfileAsync"/>) and returns true. The caller rebinds what
+    /// depends on the profile. Without menus the list is printed and nothing switches.
+    /// </summary>
+    public Task<bool> PickProfileAsync(CancellationToken cancellationToken) =>
+        PickProfileAsync(ProfileTitle, ProfileKeys, close: true, cancellationToken);
+
+    /// <summary>The profile picker under <paramref name="label"/>; <paramref name="close"/> false keeps the pane open for the settings list it came from.</summary>
+    private async Task<bool> PickProfileAsync(string label, string keys, bool close, CancellationToken cancellationToken)
+    {
+        string current = _settings.ProfileName;
+        var names = Profiles.List(_settings.StorageDirectory);
+        if (!CanShowMenus())
+        {
+            Flow.Notice(ProfileListLine(names, current));
+            return false;
+        }
+
+        var page = new MenuPage(label, names.Select(Markup.Escape).ToList(), keys);
+        int cursor = names.ToList().IndexOf(current);
+        int? picked = close
+            ? await PickOnceAsync(page, cursor, cancellationToken).ConfigureAwait(false)
+            : await PickAsync(page, cursor, cancellationToken).ConfigureAwait(false);
+        if (picked is not { } i)
+        {
+            return Unchanged();
+        }
+
+        return await SwitchProfileAsync(names[i]).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Switches to a listed profile and returns true; the loaded one prints
+    /// <see cref="AlreadyCurrentNotice"/> and returns false. The caller announces the switch
+    /// (<see cref="SwitchedNotice"/>) on the screen it redraws: printed here, the wipe would take
+    /// it. <paramref name="name"/> must be resolved (<see cref="Profiles.Resolve"/>). A failed
+    /// pointer write is logged, not thrown.
+    /// </summary>
+    public async Task<bool> SwitchProfileAsync(string name)
+    {
+        if (Profiles.NameEquals(name, _settings.ProfileName))
+        {
+            Sink.Notice(AlreadyCurrentNotice(_settings.ProfileName));
+            return false;
+        }
+
+        await _settings.SwitchProfileAsync(name).ConfigureAwait(false);
+        return true;
+    }
+
+    // ── Editing ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// One row's edit: a toggle's on/off page, a picker's list, or a typed value under <paramref name="page"/>'s
+    /// <paramref name="row"/>; true when something was saved. Internal since 2026-09-19 for <see cref="ToolsMenu"/>,
+    /// which hosts the Ask / Files / Web rows under its own strip.
+    /// </summary>
+    internal async Task<bool> EditAsync(SettingsField field, AppSettingsData saved, MenuPage page, int row, CancellationToken cancellationToken)
+    {
+        if (IsToggle(field))
+        {
+            return await PickToggleAsync(field, saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field is SettingsField.TtsVoice or SettingsField.TtsVoice2
+            && await TryPickVoiceAsync(field, saved, cancellationToken).ConfigureAwait(false) is { } pickedVoice)
+        {
+            return pickedVoice;
+        }
+
+        if (field == SettingsField.LlmReasoning)
+        {
+            return await PickReasoningAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.LlmCompactType)
+        {
+            return await PickCompactTypeAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.LlmToolCompactType)
+        {
+            return await PickToolCompactTypeAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.LlmScanMode)
+        {
+            return await PickLlmScanModeAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.TtsSource)
+        {
+            return await PickTtsSourceAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.FileMentionFolderMode)
+        {
+            return await PickMentionFolderModeAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.SkillCompactMode)
+        {
+            return await PickSkillCompactModeAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.ReflectionReasoning)
+        {
+            return await PickReflectionReasoningAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.ReflectionCooldownMode)
+        {
+            return await PickReflectionCooldownModeAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.WebBrowserMode)
+        {
+            return await PickBrowserModeAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.WebBrowserNetworkMode)
+        {
+            return await PickNetworkModeAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.SessionNamingMode)
+        {
+            return await PickSessionNamingModeAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.SessionShowName)
+        {
+            return await PickSessionShowNameAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.QueueCancelMode)
+        {
+            return await PickQueueCancelModeAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.WebSearchMethod)
+        {
+            return await PickSearchMethodAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.ImageThumbnailSize)
+        {
+            return await PickImageThumbnailSizeAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.NewProfileMode)
+        {
+            return await PickNewProfileModeAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.SttPushToTalkKey)
+        {
+            return await PickPushToTalkAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.SttWhisperModel)
+        {
+            return await PickWhisperModelAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.SttVoskModel)
+        {
+            return await PickVoskModelAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        bool allowEmpty = field is SettingsField.LlmUrl or SettingsField.LlmModel or SettingsField.TtsVoice2 or SettingsField.WorkingDirectory or SettingsField.WebBrowserPath or SettingsField.WebSearxngUrl or SettingsField.DraftEditor;
+        var result = await EditTextAsync(field, page, row, EditableValue(field, saved), allowEmpty, cancellationToken).ConfigureAwait(false);
+        if (result is not InputResult.Submitted submitted)
+        {
+            return Unchanged();
+        }
+
+        string text = submitted.Text.Trim();
+        switch (field)
+        {
+            case SettingsField.LlmRequestTimeoutSeconds:
+            case SettingsField.LlmTurnTimeoutSeconds:
+                bool isRequest = field == SettingsField.LlmRequestTimeoutSeconds;
+                if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double seconds)
+                    || double.IsNaN(seconds) || seconds <= 0 || seconds > (isRequest ? Llm.LlmTimeouts.MaxRequestSeconds : Llm.LlmTimeouts.MaxTurnSeconds))
+                {
+                    Sink.Error($"{FieldName(field)} {(isRequest ? LlmRequestTimeoutRangeError : LlmTurnTimeoutRangeError)}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => { if (isRequest) d.LlmRequestTimeoutSeconds = seconds; else d.LlmTurnTimeoutSeconds = seconds; });
+                return true;
+
+            case SettingsField.LlmContextLength:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int tokens) || tokens < 0)
+                {
+                    Sink.Error($"{FieldName(field)} {ContextLengthRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.LlmContextLength = tokens);
+                return true;
+
+            case SettingsField.LlmCompactKeepRecent:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int keep) || keep < 0 || keep > Llm.ConversationHistory.MaxTurns)
+                {
+                    Sink.Error($"{FieldName(field)} {LlmCompactKeepRecentRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.LlmCompactKeepRecent = keep);
+                return true;
+
+            case SettingsField.ReflectionWindow:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int window) || window < AppSettingsData.MinReflectionWindow || window > AppSettingsData.MaxReflectionWindow)
+                {
+                    Sink.Error($"{FieldName(field)} {ReflectionWindowRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.ReflectionWindow = window);
+                return true;
+
+            case SettingsField.ReflectionMinToolCalls:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int calls) || calls < AppSettingsData.MinReflectionMinToolCalls || calls > AppSettingsData.MaxReflectionMinToolCalls)
+                {
+                    Sink.Error($"{FieldName(field)} {ReflectionMinToolCallsRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.ReflectionMinToolCalls = calls);
+                return true;
+
+            case SettingsField.ReflectionMaxRequests:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int requests) || requests < AppSettingsData.MinReflectionMaxRequests || requests > AppSettingsData.MaxReflectionMaxRequests)
+                {
+                    Sink.Error($"{FieldName(field)} {ReflectionMaxRequestsRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.ReflectionMaxRequests = requests);
+                return true;
+
+            case SettingsField.ReflectionCooldownMinutes:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int minutes) || minutes < AppSettingsData.MinReflectionCooldownMinutes || minutes > AppSettingsData.MaxReflectionCooldownMinutes)
+                {
+                    Sink.Error($"{FieldName(field)} {ReflectionCooldownMinutesRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.ReflectionCooldownMinutes = minutes);
+                return true;
+
+            case SettingsField.LlmAutoCompactPercent:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int share) || share < 0 || share > 100)
+                {
+                    Sink.Error($"{FieldName(field)} {LlmAutoCompactPercentRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.LlmAutoCompactPercent = share);
+                return true;
+
+            case SettingsField.LlmMaxToolIterations:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int rounds) || rounds < AppSettingsData.MinToolIterations || rounds > AppSettingsData.MaxToolIterationsCap)
+                {
+                    Sink.Error($"{FieldName(field)} {MaxToolIterationsRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.LlmMaxToolIterations = rounds);
+                return true;
+
+            case SettingsField.FileTreeMaxLength:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int treeLength) || treeLength < WorkingDirectory.MinTreeLength || treeLength > WorkingDirectory.MaxTreeLength)
+                {
+                    Sink.Error($"{FieldName(field)} {TreeMaxLengthRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.FileTreeMaxLength = treeLength);
+                return true;
+
+            case SettingsField.PastePreviewLines:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int previewLines) || previewLines < 0 || previewLines > PasteBlocks.MaxPreviewLines)
+                {
+                    Sink.Error($"{FieldName(field)} {PastePreviewLinesRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.PastePreviewLines = previewLines);
+                return true;
+
+            case SettingsField.WebSearchMaxResults:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int hits) || hits < AppSettingsData.MinWebSearchMaxResults || hits > AppSettingsData.MaxWebSearchMaxResults)
+                {
+                    Sink.Error($"{FieldName(field)} {WebSearchMaxResultsRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.WebSearchMaxResults = hits);
+                return true;
+
+            case SettingsField.GitDiffMaxLines:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int diffLines) || diffLines < AppSettingsData.MinGitDiffMaxLines || diffLines > AppSettingsData.MaxGitDiffMaxLines)
+                {
+                    Sink.Error($"{FieldName(field)} {GitDiffMaxLinesRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.GitDiffMaxLines = diffLines);
+                return true;
+
+            case SettingsField.GitLogMaxCommits:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int logCommits) || logCommits < AppSettingsData.MinGitLogMaxCommits || logCommits > AppSettingsData.MaxGitLogMaxCommits)
+                {
+                    Sink.Error($"{FieldName(field)} {GitLogMaxCommitsRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.GitLogMaxCommits = logCommits);
+                return true;
+
+            case SettingsField.FileViewImageMaxPerCall:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int pictures) || pictures < AppSettingsData.MinViewImageMaxPerCall || pictures > AppSettingsData.MaxViewImageMaxPerCall)
+                {
+                    Sink.Error($"{FieldName(field)} {ViewImageMaxPerCallRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.FileViewImageMaxPerCall = pictures);
+                return true;
+
+            case SettingsField.McpConnectTimeoutSeconds:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int mcpSeconds) || mcpSeconds < AppSettingsData.MinMcpConnectTimeout || mcpSeconds > AppSettingsData.MaxMcpConnectTimeout)
+                {
+                    Sink.Error($"{FieldName(field)} {McpConnectTimeoutRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.McpConnectTimeoutSeconds = mcpSeconds);
+                return true;
+
+            case SettingsField.SessionRetentionDays:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int days) || days < AppSettingsData.MinSessionRetentionDays || days > AppSettingsData.MaxSessionRetentionDays)
+                {
+                    Sink.Error($"{FieldName(field)} {SessionRetentionDaysRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.SessionRetentionDays = days);
+                return true;
+
+            case SettingsField.SessionSearchMaxResults:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int sessionHits) || sessionHits < AppSettingsData.MinSessionSearchMaxResults || sessionHits > AppSettingsData.MaxSessionSearchMaxResults)
+                {
+                    Sink.Error($"{FieldName(field)} {SessionSearchMaxResultsRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.SessionSearchMaxResults = sessionHits);
+                return true;
+
+            case SettingsField.AskMaxQuestions:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int questions) || questions < AppSettingsData.MinAskMaxQuestions || questions > AppSettingsData.MaxAskMaxQuestions)
+                {
+                    Sink.Error($"{FieldName(field)} {AskMaxQuestionsRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.AskMaxQuestions = questions);
+                return true;
+
+            case SettingsField.AskMaxChoices:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int choices) || choices < AppSettingsData.MinAskMaxChoices || choices > AppSettingsData.MaxAskMaxChoices)
+                {
+                    Sink.Error($"{FieldName(field)} {AskMaxChoicesRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.AskMaxChoices = choices);
+                return true;
+
+            case SettingsField.WebBrowserPath:
+                if (text.Length > 0 && !File.Exists(text))
+                {
+                    Sink.Error($"{FieldName(field)} {BrowserPathError}; keeping {FieldValue(field, saved, _settings.ProfileDirectory, _locateBrowser(""))}.");
+                    return false;
+                }
+
+                Apply(field, d => d.WebBrowserPath = text.Length == 0 ? "" : Path.GetFullPath(text));
+                return true;
+
+            case SettingsField.WebSearxngUrl:
+                if (text.Length > 0 && !(Uri.TryCreate(text, UriKind.Absolute, out var searxng) && Web.WebFetcher.IsHttp(searxng)))
+                {
+                    Sink.Error($"{FieldName(field)} {SearxngUrlError}; keeping {FieldValue(field, saved, _settings.ProfileDirectory)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.WebSearxngUrl = text);
+                return true;
+
+            case SettingsField.DraftEditor:
+                // A command line, not a path: nothing to check here — a word cmd cannot find shows at the next /draft.
+                Apply(field, d => d.DraftEditor = text);
+                return true;
+
+            case SettingsField.TtsSpeed:
+                if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double speed)
+                    || double.IsNaN(speed) || speed < AppSettingsData.MinTtsSpeed || speed > AppSettingsData.MaxTtsSpeed)
+                {
+                    Sink.Error($"{FieldName(field)} {TtsSpeedRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.TtsSpeed = speed);
+                await PreviewBlendAsync(saved, saved.TtsVoiceMix, speed, cancellationToken).ConfigureAwait(false);
+                return true;
+
+            case SettingsField.TtsVoiceMix:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int mix)
+                    || mix < AppSettingsData.MinTtsVoiceMix || mix > AppSettingsData.MaxTtsVoiceMix)
+                {
+                    Sink.Error($"{FieldName(field)} {TtsVoiceMixRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.TtsVoiceMix = mix);
+                await PreviewBlendAsync(saved, mix, saved.TtsSpeed, cancellationToken).ConfigureAwait(false);
+                return true;
+
+            case SettingsField.SttInterruptEchoGuard:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int echo)
+                    || echo < AppSettingsData.MinSttInterruptEchoGuard || echo > AppSettingsData.MaxSttInterruptEchoGuard)
+                {
+                    Sink.Error($"{FieldName(field)} {SttInterruptEchoGuardRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.SttInterruptEchoGuard = echo);
+                return true;
+
+            case SettingsField.SttInterruptConfirmMs:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int confirm)
+                    || confirm < AppSettingsData.MinSttInterruptConfirmMs || confirm > AppSettingsData.MaxSttInterruptConfirmMs)
+                {
+                    Sink.Error($"{FieldName(field)} {SttInterruptConfirmRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.SttInterruptConfirmMs = confirm);
+                return true;
+
+            case SettingsField.TtsVoice2:
+                // Typed with no server list: an empty line clears the secondary voice, anything else is saved as typed.
+                Apply(field, d => d.TtsVoice2 = text);
+                return true;
+
+            case SettingsField.WorkingDirectory:
+                return TrySaveWorkingDirectory(text);
+
+            case SettingsField.SttWakePhrase:
+                if (!IsWakePhraseCandidate(text))
+                {
+                    Sink.Error($"{FieldName(field)} {WakePhraseError}; keeping {saved.SttWakePhrase}.");
+                    return false;
+                }
+
+                Apply(field, d => d.SttWakePhrase = WakeWordMatch.NormalizePhrase(text));
+                return true;
+
+            case SettingsField.TtsHttpUrl:
+            case SettingsField.TtsVoice:
+            case SettingsField.LlmApiKey:
+                if (text.Length == 0)
+                {
+                    Sink.Error($"{FieldName(field)} cannot be empty; keeping {FieldValue(field, saved, _settings.ProfileDirectory)}.");
+                    return false;
+                }
+
+                goto case SettingsField.LlmUrl;
+
+            case SettingsField.LlmUrl:
+            case SettingsField.LlmModel:
+                Apply(field, d =>
+                {
+                    switch (field)
+                    {
+                        case SettingsField.LlmUrl: d.LlmUrl = text; break;
+                        case SettingsField.LlmModel: d.LlmModel = text; break;
+                        case SettingsField.LlmApiKey: d.LlmApiKey = text; break;
+                        case SettingsField.TtsHttpUrl: d.TtsHttpUrl = text; break;
+                        case SettingsField.TtsVoice: d.TtsVoice = text; break;
+                    }
+                });
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// The voice picker over the server's list, with the saved voice always offered (first, when
+    /// the server does not list it). For <see cref="SettingsField.TtsVoice2"/> the first row is
+    /// <see cref="NoSecondaryVoice"/>, which clears it. Null means the server listed nothing:
+    /// fall back to typing.
+    ///
+    /// <para>The preview: while <see cref="SettingsField.TtsVoicePreview"/> and <c>TTS output</c>
+    /// are on and the session is ready, every row the cursor lands on (the pane's hook; the
+    /// no-pane prompt has none) speaks <see cref="VoicePreviewText"/> in that voice alone —
+    /// <see cref="NoSecondaryVoice"/> plays nothing; the <see cref="SettingsField.TtsVoiceMix"/> and
+    /// <see cref="SettingsField.TtsSpeed"/> rows speak the blend at the value they just saved the same
+    /// way (<see cref="PreviewBlendAsync"/>, on either host, since a typed edit has no cursor). Every
+    /// preview plays what the rows say — the saved voices and speed, never the session's connect-time
+    /// ones. The steps run one after the other on
+    /// <see cref="_preview"/>: each first awaits <see cref="SpeechSession.StopAsync"/> (two speakers
+    /// never touch the device at once) and then speaks only when no newer highlight has come, so
+    /// scrolling fast sounds only the row the cursor stops on. The picker's return awaits the
+    /// chain, so nothing runs behind the list afterwards but the speaker itself: the row the cursor
+    /// rested on last (Enter's pick, or the one ESC left) finishes as a tail under the input line,
+    /// like a timer alert.</para>
+    /// </summary>
+    private async Task<bool?> TryPickVoiceAsync(SettingsField field, AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var listed = await _transcript.WithSpinnerAsync(ListingVoicesLabel, () => _speech.ListVoicesAsync(_speech.RequestFor(saved), cancellationToken)).ConfigureAwait(false);
+        if (listed is null || !listed.Value.Exists || listed.Value.Voices.Count == 0)
+        {
+            Sink.Notice(VoicesUnavailableNotice(listed?.Detail ?? "not a valid URL"));
+            return null;
+        }
+
+        bool secondary = field == SettingsField.TtsVoice2;
+        string current = secondary ? saved.TtsVoice2 : saved.TtsVoice;
+        var voices = listed.Value.Voices.ToList();
+        if (!string.IsNullOrWhiteSpace(current) && !voices.Contains(current, StringComparer.Ordinal))
+        {
+            voices.Insert(0, current);
+        }
+
+        if (secondary)
+        {
+            voices.Insert(0, NoSecondaryVoice);
+            if (string.IsNullOrWhiteSpace(current))
+            {
+                current = NoSecondaryVoice;
+            }
+        }
+
+        // The secondary picker's "(none)" sits at row 0: Backspace jumps there, Enter still saves.
+        var page = new MenuPage(Crumb(FieldName(field)), voices.Select(Markup.Escape).ToList(), secondary ? NoneKeys : PickKeys)
+        {
+            BackspaceRow = secondary ? 0 : null,
+        };
+        Action<int>? highlighted = PreviewWanted(saved)
+            ? row => QueuePreview(_speech.RequestFor(saved), voices[row] == NoSecondaryVoice ? "" : voices[row], saved.TtsSpeed, cancellationToken)
+            : null;
+        int? picked;
+        try
+        {
+            picked = await PickAsync(page, voices.IndexOf(current), cancellationToken, highlighted).ConfigureAwait(false);
+        }
+        finally
+        {
+            await FinishPreviewAsync().ConfigureAwait(false);
+        }
+
+        if (picked is not { } i)
+        {
+            return Unchanged();
+        }
+
+        string voice = voices[i];
+        if (secondary)
+        {
+            Apply(field, d => d.TtsVoice2 = voice == NoSecondaryVoice ? "" : voice);
+        }
+        else
+        {
+            Apply(field, d => d.TtsVoice = voice);
+        }
+
+        return true;
+    }
+
+    /// <summary>The preview's gate: the toggle, <c>TTS output</c> as saved (a flip in the same visit counts) and the session as of the last connect.</summary>
+    private bool PreviewWanted(AppSettingsData saved) => !_midTurn && saved.TtsVoicePreview && saved.TtsOutput && _speech.IsReady;
+
+    /// <summary>
+    /// The mix and speed rows' preview, when wanted: the blend as the next reply will send it
+    /// (<see cref="VoiceMix.Spec"/> over the saved voices with the session's rule for a blank
+    /// primary — one voice alone when there is no second) at <paramref name="speed"/>, awaited
+    /// before the row returns so nothing runs behind the list.
+    /// </summary>
+    private async Task PreviewBlendAsync(AppSettingsData saved, int mix, double speed, CancellationToken cancellationToken)
+    {
+        if (!PreviewWanted(saved))
+        {
+            return;
+        }
+
+        string primary = string.IsNullOrWhiteSpace(saved.TtsVoice) ? new AppSettingsData().TtsVoice : saved.TtsVoice.Trim();
+        QueuePreview(_speech.RequestFor(saved), VoiceMix.Spec(primary, saved.TtsVoice2, mix), speed, cancellationToken);
+        await FinishPreviewAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>Waits for the chain so nothing runs behind the list; the speaker it started, if any, plays on as the tail.</summary>
+    private async Task FinishPreviewAsync()
+    {
+        var chain = _preview;
+        _preview = Task.CompletedTask;
+        await chain.ConfigureAwait(false);
+    }
+
+    /// <summary>One highlight of the voice picker, or a mix / speed save: the next step of the chain (see <see cref="TryPickVoiceAsync"/>). An empty <paramref name="voice"/> only silences the last one.</summary>
+    private void QueuePreview(SynthesizerRequest? request, string voice, double speed, CancellationToken cancellationToken)
+    {
+        int serial = ++_previewSerial;
+        _preview = PreviewStepAsync(_preview, serial, request, voice, speed, cancellationToken);
+    }
+
+    private async Task PreviewStepAsync(Task previous, int serial, SynthesizerRequest? request, string voice, double speed, CancellationToken cancellationToken)
+    {
+        await previous.ConfigureAwait(false);
+        try
+        {
+            await _speech.StopAsync().ConfigureAwait(false);
+            if (serial != _previewSerial || voice.Length == 0 || cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            if (_speech.BeginPreview(request, voice, speed, cancellationToken) is { } speaker)
+            {
+                speaker.Feed(VoicePreviewText);
+                speaker.CompleteAdding();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The app is closing; the session stops the speaker.
+        }
+    }
+
+    /// <summary>The settings row's reasoning picker: the five levels as a second level of the pane, opened on the saved one. Never falls back to typing.</summary>
+    private async Task<bool> PickReasoningAsync(AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var page = new MenuPage(Crumb(FieldName(SettingsField.LlmReasoning)), ReasoningRows(), PickKeys);
+        int? picked = await PickAsync(page, ReasoningCursor(saved.LlmReasoning), cancellationToken).ConfigureAwait(false);
+        return picked is { } index ? SaveReasoning(Llm.ReasoningLevel.Levels[index]) : Unchanged();
+    }
+
+    /// <summary>
+    /// <c>/reasoning</c>: saves <paramref name="requestedLevel"/> directly when given (one of
+    /// <see cref="Llm.ReasoningLevel.Levels"/>, any case; anything else is <see cref="ReasoningLevelError"/>),
+    /// otherwise the five levels as a one-level list opened on <paramref name="current"/> (the level in
+    /// force, like <c>/model</c> opens on the model in use). Returns true when the saved level changed;
+    /// ESC keeps it (<see cref="UnchangedNotice"/>). Without menus the guard prints.
+    /// </summary>
+    public async Task<bool> PickReasoningAsync(string requestedLevel, string current, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(requestedLevel);
+        ArgumentNullException.ThrowIfNull(current);
+        if (!string.IsNullOrWhiteSpace(requestedLevel))
+        {
+            if (!Llm.ReasoningLevel.TryParse(requestedLevel, out var effort))
+            {
+                Flow.Error(ReasoningLevelError);
+                return false;
+            }
+
+            return SaveReasoning(Llm.ReasoningLevel.Name(effort));
+        }
+
+        if (!CanShowMenus())
+        {
+            Flow.Error(MenusNeedTerminalError);
+            return false;
+        }
+
+        var page = new MenuPage(ReasoningTitle, ReasoningRows(), KeepKeys);
+        int? picked = await PickOnceAsync(page, ReasoningCursor(current), cancellationToken).ConfigureAwait(false);
+        return picked is { } index ? SaveReasoning(Llm.ReasoningLevel.Levels[index]) : Unchanged();
+    }
+
+    /// <summary>One <see cref="ReasoningLabel"/> row per level, in <see cref="Llm.ReasoningLevel.Levels"/> order.</summary>
+    private static List<string> ReasoningRows() => Llm.ReasoningLevel.Levels.Select(ReasoningLabel).ToList();
+
+    /// <summary>The compact-type picker under the settings list: one <see cref="CompactTypeLabel"/> row per <see cref="Llm.CompactType.Names"/> entry, the saved one under the cursor.</summary>
+    private async Task<bool> PickCompactTypeAsync(AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var page = new MenuPage(Crumb(FieldName(SettingsField.LlmCompactType)), Llm.CompactType.Names.Select(CompactTypeLabel).ToList(), PickKeys);
+        int? picked = await PickAsync(page, Array.IndexOf(Llm.CompactType.Names, saved.LlmCompactType), cancellationToken).ConfigureAwait(false);
+        if (picked is not { } index)
+        {
+            return Unchanged();
+        }
+
+        string name = Llm.CompactType.Names[index];
+        Apply(SettingsField.LlmCompactType, d => d.LlmCompactType = name);
+        return true;
+    }
+
+    /// <summary>The tool-compact-type picker under the settings list: one <see cref="ToolCompactTypeLabel"/> row per <see cref="Llm.ToolCompactType.Names"/> entry, the saved one under the cursor.</summary>
+    private async Task<bool> PickToolCompactTypeAsync(AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var page = new MenuPage(Crumb(FieldName(SettingsField.LlmToolCompactType)), Llm.ToolCompactType.Names.Select(ToolCompactTypeLabel).ToList(), PickKeys);
+        int? picked = await PickAsync(page, Array.IndexOf(Llm.ToolCompactType.Names, saved.LlmToolCompactType), cancellationToken).ConfigureAwait(false);
+        if (picked is not { } index)
+        {
+            return Unchanged();
+        }
+
+        string name = Llm.ToolCompactType.Names[index];
+        Apply(SettingsField.LlmToolCompactType, d => d.LlmToolCompactType = name);
+        return true;
+    }
+
+    /// <summary>The @-mention-folder-mode picker under the settings list: one <see cref="MentionFolderModeLabel"/> row per <see cref="Files.MentionFolderMode.Names"/> entry, the saved one under the cursor.</summary>
+    private async Task<bool> PickMentionFolderModeAsync(AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var page = new MenuPage(Crumb(FieldName(SettingsField.FileMentionFolderMode)), Files.MentionFolderMode.Names.Select(MentionFolderModeLabel).ToList(), PickKeys);
+        int? picked = await PickAsync(page, Array.IndexOf(Files.MentionFolderMode.Names, saved.FileMentionFolderMode), cancellationToken).ConfigureAwait(false);
+        if (picked is not { } index)
+        {
+            return Unchanged();
+        }
+
+        string name = Files.MentionFolderMode.Names[index];
+        Apply(SettingsField.FileMentionFolderMode, d => d.FileMentionFolderMode = name);
+        return true;
+    }
+
+    /// <summary>The skill-compact-mode picker under the settings list: one <see cref="SkillCompactModeLabel"/> row per <see cref="Skills.SkillCompactMode.Names"/> entry, the saved one under the cursor.</summary>
+    private async Task<bool> PickSkillCompactModeAsync(AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var page = new MenuPage(Crumb(FieldName(SettingsField.SkillCompactMode)), Skills.SkillCompactMode.Names.Select(SkillCompactModeLabel).ToList(), PickKeys);
+        int? picked = await PickAsync(page, Array.IndexOf(Skills.SkillCompactMode.Names, saved.SkillCompactMode), cancellationToken).ConfigureAwait(false);
+        if (picked is not { } index)
+        {
+            return Unchanged();
+        }
+
+        string name = Skills.SkillCompactMode.Names[index];
+        Apply(SettingsField.SkillCompactMode, d => d.SkillCompactMode = name);
+        return true;
+    }
+
+    /// <summary>The session-naming-mode picker under the settings list: one <see cref="SessionNamingModeLabel"/> row per <see cref="Sessions.SessionNamingMode.Names"/> entry, the saved one under the cursor.</summary>
+    private async Task<bool> PickSessionNamingModeAsync(AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var page = new MenuPage(Crumb(FieldName(SettingsField.SessionNamingMode)), Sessions.SessionNamingMode.Names.Select(SessionNamingModeLabel).ToList(), PickKeys);
+        int? picked = await PickAsync(page, Array.IndexOf(Sessions.SessionNamingMode.Names, saved.SessionNamingMode), cancellationToken).ConfigureAwait(false);
+        if (picked is not { } index)
+        {
+            return Unchanged();
+        }
+
+        string name = Sessions.SessionNamingMode.Names[index];
+        Apply(SettingsField.SessionNamingMode, d => d.SessionNamingMode = name);
+        return true;
+    }
+
+    /// <summary>The session-show-name picker under the settings list: one <see cref="SessionShowNameLabel"/> row per <see cref="Sessions.SessionShowName.Names"/> entry, the saved one under the cursor.</summary>
+    private async Task<bool> PickSessionShowNameAsync(AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var page = new MenuPage(Crumb(FieldName(SettingsField.SessionShowName)), Sessions.SessionShowName.Names.Select(SessionShowNameLabel).ToList(), PickKeys);
+        int? picked = await PickAsync(page, Array.IndexOf(Sessions.SessionShowName.Names, saved.SessionShowName), cancellationToken).ConfigureAwait(false);
+        if (picked is not { } index)
+        {
+            return Unchanged();
+        }
+
+        string name = Sessions.SessionShowName.Names[index];
+        Apply(SettingsField.SessionShowName, d => d.SessionShowName = name);
+        return true;
+    }
+
+    /// <summary>The cooldown-mode picker under the settings list: one <see cref="ReflectionCooldownModeLabel"/> row per <see cref="Skills.ReflectionCooldownMode.Names"/> entry, the saved one under the cursor.</summary>
+    private async Task<bool> PickReflectionCooldownModeAsync(AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var page = new MenuPage(Crumb(FieldName(SettingsField.ReflectionCooldownMode)), Skills.ReflectionCooldownMode.Names.Select(ReflectionCooldownModeLabel).ToList(), PickKeys);
+        int? picked = await PickAsync(page, Array.IndexOf(Skills.ReflectionCooldownMode.Names, saved.ReflectionCooldownMode), cancellationToken).ConfigureAwait(false);
+        if (picked is not { } index)
+        {
+            return Unchanged();
+        }
+
+        string name = Skills.ReflectionCooldownMode.Names[index];
+        Apply(SettingsField.ReflectionCooldownMode, d => d.ReflectionCooldownMode = name);
+        return true;
+    }
+
+    /// <summary>The reflection-reasoning picker under the settings list: one <see cref="ReflectionReasoningLabel"/> row per <see cref="Skills.ReflectionReasoning.Names"/> entry, the saved one under the cursor.</summary>
+    private async Task<bool> PickReflectionReasoningAsync(AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var page = new MenuPage(Crumb(FieldName(SettingsField.ReflectionReasoning)), Skills.ReflectionReasoning.Names.Select(ReflectionReasoningLabel).ToList(), PickKeys);
+        int? picked = await PickAsync(page, Array.IndexOf(Skills.ReflectionReasoning.Names, saved.ReflectionReasoning), cancellationToken).ConfigureAwait(false);
+        if (picked is not { } index)
+        {
+            return Unchanged();
+        }
+
+        string name = Skills.ReflectionReasoning.Names[index];
+        Apply(SettingsField.ReflectionReasoning, d => d.ReflectionReasoning = name);
+        return true;
+    }
+
+    /// <summary>
+    /// An on/off setting under the settings list (2026-09-17, the user's call: every switch a picker
+    /// like the rest, each choice with a sentence on what it does): two <see cref="ToggleLabel"/>
+    /// rows, the saved value under the cursor. ESC, or the saved value picked again, is
+    /// <see cref="UnchangedNotice"/> and no change (no reconnect, no conversation cleared). The
+    /// interrupt needs the wake word: with it off the page never opens
+    /// (<see cref="ChatScreen.InterruptNeedsWakeNotice"/>), and the wake word going off takes the
+    /// interrupt with it (<see cref="ChatScreen.InterruptOffWithWakeNotice"/>).
+    /// </summary>
+    private async Task<bool> PickToggleAsync(SettingsField field, AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        // The interrupt is the wake phrase during a reply: it needs the wake word on, and goes off with it.
+        if (field == SettingsField.SttInterrupt && !saved.SttInterrupt && !saved.SttWake)
+        {
+            Sink.Notice(ChatScreen.InterruptNeedsWakeNotice);
+            return false;
+        }
+
+        bool was = IsOn(field, saved);
+        var page = new MenuPage(Crumb(FieldName(field)), [ToggleLabel(field, true), ToggleLabel(field, false)], PickKeys);
+        int? picked = await PickAsync(page, was ? 0 : 1, cancellationToken).ConfigureAwait(false);
+        if (picked is not { } index || (index == 0) == was)
+        {
+            return Unchanged();
+        }
+
+        bool on = index == 0;
+        bool takesInterrupt = field == SettingsField.SttWake && !on && saved.SttInterrupt;
+        Apply(field, data =>
+        {
+            SetToggle(field, data, on);
+            if (field == SettingsField.SttWake && !on)
+            {
+                data.SttInterrupt = false;
+            }
+        });
+        if (takesInterrupt)
+        {
+            Sink.Notice(ChatScreen.InterruptOffWithWakeNotice);
+        }
+
+        return true;
+    }
+
+    /// <summary>The value of an on/off setting; false for a field that is not one. The one reader, so <see cref="FieldValue"/> and the picker's cursor agree. Pinned.</summary>
+    public static bool IsOn(SettingsField field, AppSettingsData data)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        return field switch
+        {
+            SettingsField.TtsOutput => data.TtsOutput,
+            SettingsField.SttInput => data.SttInput,
+            SettingsField.SttWake => data.SttWake,
+            SettingsField.SttInterrupt => data.SttInterrupt,
+            SettingsField.Memory => data.Memory,
+            SettingsField.CopyUserPrompt => data.CopyUserPrompt,
+            SettingsField.MouseInMenus => data.MouseInMenus,
+            SettingsField.ShowImageThumbnails => data.ShowImageThumbnails,
+            SettingsField.FileTreeShowSizes => data.FileTreeShowSizes,
+            SettingsField.LlmOfferTools => data.LlmOfferTools,
+            SettingsField.LlmUseFunVerbs => data.LlmUseFunVerbs,
+            SettingsField.WebTools => data.WebTools,
+            SettingsField.GitTools => data.GitTools,
+            SettingsField.TtsVoicePreview => data.TtsVoicePreview,
+            SettingsField.FileTools => data.FileTools,
+            SettingsField.AskUser => data.AskUser,
+            SettingsField.AgentSkills => data.AgentSkills,
+            SettingsField.ExternalSkills => data.ExternalSkills,
+            SettingsField.TranscriptMarkdown => data.TranscriptMarkdown,
+            SettingsField.FileSafeEdits => data.FileSafeEdits,
+            SettingsField.SkillHashMention => data.SkillHashMention,
+            SettingsField.ToolsDollarMention => data.ToolsDollarMention,
+            SettingsField.McpServers => data.McpServers,
+            SettingsField.ReflectionAutoLearn => data.ReflectionAutoLearn,
+            SettingsField.ReflectionIncludesSessions => data.ReflectionIncludesSessions,
+            SettingsField.HideExitAutocomplete => data.HideExitAutocomplete,
+            SettingsField.CommandTypoIntercept => data.CommandTypoIntercept,
+            SettingsField.WelcomeSplash => data.WelcomeSplash,
+            SettingsField.ShowWorkingDirectory => data.ShowWorkingDirectory,
+            SettingsField.QueueMessages => data.QueueMessages,
+            SettingsField.AllowSkillDelete => data.AllowSkillDelete,
+            SettingsField.SessionLogging => data.SessionLogging,
+            SettingsField.SessionTool => data.SessionTool,
+            _ => false,
+        };
+    }
+
+    /// <summary>The one writer of an on/off setting (the picker's pick); nothing for a field that is not one.</summary>
+    private static void SetToggle(SettingsField field, AppSettingsData data, bool on)
+    {
+        switch (field)
+        {
+            case SettingsField.TtsOutput: data.TtsOutput = on; break;
+            case SettingsField.SttInput: data.SttInput = on; break;
+            case SettingsField.SttWake: data.SttWake = on; break;
+            case SettingsField.SttInterrupt: data.SttInterrupt = on; break;
+            case SettingsField.Memory: data.Memory = on; break;
+            case SettingsField.CopyUserPrompt: data.CopyUserPrompt = on; break;
+            case SettingsField.MouseInMenus: data.MouseInMenus = on; break;
+            case SettingsField.ShowImageThumbnails: data.ShowImageThumbnails = on; break;
+            case SettingsField.FileTreeShowSizes: data.FileTreeShowSizes = on; break;
+            case SettingsField.LlmOfferTools: data.LlmOfferTools = on; break;
+            case SettingsField.LlmUseFunVerbs: data.LlmUseFunVerbs = on; break;
+            case SettingsField.WebTools: data.WebTools = on; break;
+            case SettingsField.GitTools: data.GitTools = on; break;
+            case SettingsField.TtsVoicePreview: data.TtsVoicePreview = on; break;
+            case SettingsField.FileTools: data.FileTools = on; break;
+            case SettingsField.AskUser: data.AskUser = on; break;
+            case SettingsField.AgentSkills: data.AgentSkills = on; break;
+            case SettingsField.ExternalSkills: data.ExternalSkills = on; break;
+            case SettingsField.TranscriptMarkdown: data.TranscriptMarkdown = on; break;
+            case SettingsField.FileSafeEdits: data.FileSafeEdits = on; break;
+            case SettingsField.SkillHashMention: data.SkillHashMention = on; break;
+            case SettingsField.ToolsDollarMention: data.ToolsDollarMention = on; break;
+            case SettingsField.McpServers: data.McpServers = on; break;
+            case SettingsField.ReflectionAutoLearn: data.ReflectionAutoLearn = on; break;
+            case SettingsField.ReflectionIncludesSessions: data.ReflectionIncludesSessions = on; break;
+            case SettingsField.HideExitAutocomplete: data.HideExitAutocomplete = on; break;
+            case SettingsField.CommandTypoIntercept: data.CommandTypoIntercept = on; break;
+            case SettingsField.WelcomeSplash: data.WelcomeSplash = on; break;
+            case SettingsField.ShowWorkingDirectory: data.ShowWorkingDirectory = on; break;
+            case SettingsField.QueueMessages: data.QueueMessages = on; break;
+            case SettingsField.AllowSkillDelete: data.AllowSkillDelete = on; break;
+            case SettingsField.SessionLogging: data.SessionLogging = on; break;
+            case SettingsField.SessionTool: data.SessionTool = on; break;
+        }
+    }
+
+    /// <summary>One row of an on/off picker: <c>on</c> or <c>off</c>, padded to four, and what it means for the field. Pinned.</summary>
+    public static string ToggleLabel(SettingsField field, bool on) =>
+        Markup.Escape((on ? "on" : "off").PadRight(4)) + Theme.DimMarkup(ToggleDescribe(field, on));
+
+    /// <summary>
+    /// What <c>on</c> and <c>off</c> mean for each on/off setting, one sentence each, after the word on
+    /// the picker's row (2026-09-17); empty for a field that is not a toggle. Pinned.
+    /// </summary>
+    public static string ToggleDescribe(SettingsField field, bool on) => field switch
+    {
+        SettingsField.Memory => on ? "the memories open every conversation; save_memory, recall_memory work" : "no memory call, no memory tool; the file is left as it is",
+        SettingsField.CopyUserPrompt => on ? "/copy copies user prompts and model replies" : "/copy copies model replies only",
+        SettingsField.MouseInMenus => on ? "a double-click picks a row, closes a pane from outside, opens /settings" : "the terminal keeps the mouse under a menu or pane; the keys move",
+        SettingsField.ShowImageThumbnails => on ? "a picture sent is drawn under your line" : "the picture is attached and labelled, nothing drawn",
+        SettingsField.TranscriptMarkdown => on ? "replies are styled as Markdown in the pane" : "replies stream as plain text",
+        SettingsField.LlmOfferTools => on ? "the model gets the tools; a change starts a new conversation" : "no tools at all; a change starts a new conversation",
+        SettingsField.LlmUseFunVerbs => on ? "the thinking spinner reads a random verb" : "the spinner reads thinking",
+        SettingsField.TtsOutput => on ? "replies are read aloud" : "replies are text only",
+        SettingsField.TtsVoicePreview => on ? "the voice pickers speak the highlighted voice" : "the voice pickers are silent",
+        SettingsField.SttInput => on ? "the push-to-talk key records a spoken message" : "the microphone is off",
+        SettingsField.SttWake => on ? "the wake phrase starts a listen at the idle line" : "only the push-to-talk key listens",
+        SettingsField.SttInterrupt => on ? "the wake phrase during a spoken reply stops it" : "a spoken reply plays to its end",
+        SettingsField.AskUser => on ? "the model may ask multiple-choice questions on the pane" : "no ask_user tool",
+        SettingsField.FileTools => on ? "the model reads and edits under the working directory" : "no file tools",
+        SettingsField.FileSafeEdits => on ? "an edit keeps the previous version in .trash first, delete moves there" : "an edit writes in place and delete removes for good",
+        SettingsField.FileTreeShowSizes => on ? "/tree carries each file's size" : "/tree names alone",
+        SettingsField.WebTools => on ? "the model may search and fetch the web" : "no web tools",
+        SettingsField.GitTools => on ? "the model reads and changes the git repository in the working directory" : "no git tools",
+        SettingsField.AgentSkills => on ? "the skills catalog, load_skill and skill_editor are offered" : "no skills, no project notes",
+        SettingsField.ExternalSkills => on ? "%USERPROFILE%\\.agents\\skills is read too" : "profile and global skills only",
+        SettingsField.SkillHashMention => on ? "# and part of a name lists the loaded skills on the line" : "# is ordinary text",
+        SettingsField.ToolsDollarMention => on ? "$ and part of a name lists the offered tools on the line" : "$ is ordinary text",
+        SettingsField.McpServers => on ? "the configured MCP servers connect and their tools are offered" : "no MCP server is started; the pane still lists the config",
+        SettingsField.ReflectionAutoLearn => on ? "enough tool calls, or an error it recovered from, teaches a skill" : "nothing is learned unasked; /learn and skill_editor still work",
+        SettingsField.ReflectionIncludesSessions => on ? "the earlier sessions matching the turn open the reflection, readable too" : "a reflection reads the conversation on screen alone",
+        SettingsField.HideExitAutocomplete => on ? "the / list leaves /exit out; typed in full it still exits" : "/exit is in the / list like every command",
+        SettingsField.CommandTypoIntercept => on ? "a line that is only a command's name offers the command first" : "a line that is only a command's name is sent as typed",
+        SettingsField.WelcomeSplash => on ? "a picture greets you under the banner at startup, until the first line" : "the banner alone at startup",
+        SettingsField.ShowWorkingDirectory => on ? "the working directory sits at the banner's right edge" : "the banner is the title and the version alone",
+        SettingsField.QueueMessages => on ? "a message sent while a reply runs is queued and sent when the reply ends" : "a message sent during a reply stays type-ahead; /queue leaves the / list",
+        SettingsField.AllowSkillDelete => on ? "the scope picker in /skills offers delete, after a confirmation" : "a skill is moved between the profile and global roots only",
+        SettingsField.SessionLogging => on ? "every completed turn is written to this profile's session store" : "nothing is written; what is stored still lists, restores and purges",
+        SettingsField.SessionTool => on ? "the model can search, list and read this profile's earlier sessions" : "the model never sees an earlier session",
+        _ => "",
+    };
+
+    /// <summary>The TTS-source picker under the settings list: one <see cref="TtsSourceLabel"/> row per <see cref="Speech.TtsSource.Names"/> entry, the saved one under the cursor.</summary>
+    private async Task<bool> PickTtsSourceAsync(AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var page = new MenuPage(Crumb(FieldName(SettingsField.TtsSource)), Speech.TtsSource.Names.Select(TtsSourceLabel).ToList(), PickKeys);
+        int? picked = await PickAsync(page, Array.IndexOf(Speech.TtsSource.Names, saved.TtsSource), cancellationToken).ConfigureAwait(false);
+        if (picked is not { } index)
+        {
+            return Unchanged();
+        }
+
+        string name = Speech.TtsSource.Names[index];
+        Apply(SettingsField.TtsSource, d => d.TtsSource = name);
+        return true;
+    }
+
+    /// <summary>The scan-mode picker under the settings list: one <see cref="LlmScanModeLabel"/> row per <see cref="Llm.LlmScanMode.Names"/> entry, the saved one under the cursor.</summary>
+    private async Task<bool> PickLlmScanModeAsync(AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var page = new MenuPage(Crumb(FieldName(SettingsField.LlmScanMode)), Llm.LlmScanMode.Names.Select(LlmScanModeLabel).ToList(), PickKeys);
+        int? picked = await PickAsync(page, Array.IndexOf(Llm.LlmScanMode.Names, saved.LlmScanMode), cancellationToken).ConfigureAwait(false);
+        if (picked is not { } index)
+        {
+            return Unchanged();
+        }
+
+        string name = Llm.LlmScanMode.Names[index];
+        Apply(SettingsField.LlmScanMode, d => d.LlmScanMode = name);
+        return true;
+    }
+
+    /// <summary>The browser-mode picker under the settings list: one <see cref="BrowserModeLabel"/> row per <see cref="Web.BrowserMode.Names"/> entry, the saved one under the cursor.</summary>
+    private async Task<bool> PickBrowserModeAsync(AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var page = new MenuPage(Crumb(FieldName(SettingsField.WebBrowserMode)), Web.BrowserMode.Names.Select(BrowserModeLabel).ToList(), PickKeys);
+        int? picked = await PickAsync(page, Array.IndexOf(Web.BrowserMode.Names, saved.WebBrowserMode), cancellationToken).ConfigureAwait(false);
+        if (picked is not { } index)
+        {
+            return Unchanged();
+        }
+
+        string name = Web.BrowserMode.Names[index];
+        Apply(SettingsField.WebBrowserMode, d => d.WebBrowserMode = name);
+        return true;
+    }
+
+    /// <summary>The network-mode picker under the settings list: one <see cref="NetworkModeLabel"/> row per <see cref="Web.NetworkMode.Names"/> entry, the saved one under the cursor.</summary>
+    private async Task<bool> PickNetworkModeAsync(AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var page = new MenuPage(Crumb(FieldName(SettingsField.WebBrowserNetworkMode)), Web.NetworkMode.Names.Select(NetworkModeLabel).ToList(), PickKeys);
+        int? picked = await PickAsync(page, Array.IndexOf(Web.NetworkMode.Names, saved.WebBrowserNetworkMode), cancellationToken).ConfigureAwait(false);
+        if (picked is not { } index)
+        {
+            return Unchanged();
+        }
+
+        string name = Web.NetworkMode.Names[index];
+        Apply(SettingsField.WebBrowserNetworkMode, d => d.WebBrowserNetworkMode = name);
+        return true;
+    }
+
+    /// <summary>The queue-cancel-mode picker under the settings list: one <see cref="QueueCancelModeLabel"/> row per <see cref="QueueCancelMode.Names"/> entry, the saved one under the cursor.</summary>
+    private async Task<bool> PickQueueCancelModeAsync(AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var page = new MenuPage(Crumb(FieldName(SettingsField.QueueCancelMode)), QueueCancelMode.Names.Select(QueueCancelModeLabel).ToList(), PickKeys);
+        int? picked = await PickAsync(page, Array.IndexOf(QueueCancelMode.Names, saved.QueueCancelMode), cancellationToken).ConfigureAwait(false);
+        if (picked is not { } index)
+        {
+            return Unchanged();
+        }
+
+        string name = QueueCancelMode.Names[index];
+        Apply(SettingsField.QueueCancelMode, d => d.QueueCancelMode = name);
+        return true;
+    }
+
+    /// <summary>The search-method picker under the settings list: one <see cref="SearchMethodLabel"/> row per <see cref="Web.SearchMethod.Names"/> entry, the saved one under the cursor.</summary>
+    private async Task<bool> PickSearchMethodAsync(AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var page = new MenuPage(Crumb(FieldName(SettingsField.WebSearchMethod)), Web.SearchMethod.Names.Select(SearchMethodLabel).ToList(), PickKeys);
+        int? picked = await PickAsync(page, Array.IndexOf(Web.SearchMethod.Names, saved.WebSearchMethod), cancellationToken).ConfigureAwait(false);
+        if (picked is not { } index)
+        {
+            return Unchanged();
+        }
+
+        string name = Web.SearchMethod.Names[index];
+        Apply(SettingsField.WebSearchMethod, d => d.WebSearchMethod = name);
+        return true;
+    }
+
+    /// <summary>The thumbnail-size picker under the settings list: one <see cref="ImageThumbnailSizeLabel"/> row per <see cref="ThumbnailSize.Names"/> entry, the saved one under the cursor.</summary>
+    private async Task<bool> PickImageThumbnailSizeAsync(AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var page = new MenuPage(Crumb(FieldName(SettingsField.ImageThumbnailSize)), ThumbnailSize.Names.Select(ImageThumbnailSizeLabel).ToList(), PickKeys);
+        int? picked = await PickAsync(page, Array.IndexOf(ThumbnailSize.Names, saved.ImageThumbnailSize), cancellationToken).ConfigureAwait(false);
+        if (picked is not { } index)
+        {
+            return Unchanged();
+        }
+
+        string name = ThumbnailSize.Names[index];
+        Apply(SettingsField.ImageThumbnailSize, d => d.ImageThumbnailSize = name);
+        return true;
+    }
+
+    /// <summary>The new-profile-mode picker under the settings list: one <see cref="NewProfileModeLabel"/> row per <see cref="NewProfileMode.Names"/> entry, the saved one under the cursor.</summary>
+    private async Task<bool> PickNewProfileModeAsync(AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var page = new MenuPage(Crumb(FieldName(SettingsField.NewProfileMode)), NewProfileMode.Names.Select(NewProfileModeLabel).ToList(), PickKeys);
+        int? picked = await PickAsync(page, Array.IndexOf(NewProfileMode.Names, saved.NewProfileMode), cancellationToken).ConfigureAwait(false);
+        if (picked is not { } index)
+        {
+            return Unchanged();
+        }
+
+        string name = NewProfileMode.Names[index];
+        Apply(SettingsField.NewProfileMode, d => d.NewProfileMode = name);
+        return true;
+    }
+
+    /// <summary>The row of <paramref name="level"/> in <see cref="Llm.ReasoningLevel.Levels"/>, or -1 when it is not one.</summary>
+    private static int ReasoningCursor(string level) => Array.IndexOf(Llm.ReasoningLevel.Levels, level);
+
+    private bool SaveReasoning(string level)
+    {
+        Apply(SettingsField.LlmReasoning, d => d.LlmReasoning = level);
+        return true;
+    }
+
+    /// <summary>The settings row's push-to-talk picker: <see cref="PushToTalkKeys"/> as a second level of the pane, opened on the saved key. Never falls back to typing.</summary>
+    private async Task<bool> PickPushToTalkAsync(AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var page = new MenuPage(Crumb(FieldName(SettingsField.SttPushToTalkKey)), PushToTalkRows(), PickKeys);
+        int? picked = await PickAsync(page, PushToTalkCursor(saved.SttPushToTalkKey), cancellationToken).ConfigureAwait(false);
+        if (picked is not { } index)
+        {
+            return Unchanged();
+        }
+
+        Apply(SettingsField.SttPushToTalkKey, d => d.SttPushToTalkKey = PushToTalkKeys[index].ToString());
+        return true;
+    }
+
+    /// <summary>One <see cref="PushToTalkLabel"/> row per key, in <see cref="PushToTalkKeys"/> order.</summary>
+    private static List<string> PushToTalkRows() => PushToTalkKeys.Select(PushToTalkLabel).ToList();
+
+    /// <summary>The row of the saved key name in <see cref="PushToTalkKeys"/>, or -1 (the first row) when it is not one.</summary>
+    private static int PushToTalkCursor(string? saved) =>
+        Enum.TryParse<ConsoleKey>((saved ?? "").Trim(), ignoreCase: true, out var key) ? Array.IndexOf(PushToTalkKeys, key) : -1;
+
+    /// <summary>The settings row's whisper-model picker: <see cref="ModelStore.WhisperModelNames"/> as a second level of the pane, opened on the saved name. Never falls back to typing.</summary>
+    private async Task<bool> PickWhisperModelAsync(AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var page = new MenuPage(Crumb(FieldName(SettingsField.SttWhisperModel)), WhisperModelRows(), PickKeys);
+        int? picked = await PickAsync(page, WhisperModelCursor(saved.SttWhisperModel), cancellationToken).ConfigureAwait(false);
+        if (picked is not { } index)
+        {
+            return Unchanged();
+        }
+
+        Apply(SettingsField.SttWhisperModel, d => d.SttWhisperModel = ModelStore.WhisperModelNames[index]);
+        return true;
+    }
+
+    /// <summary>One <see cref="WhisperModelLabel"/> row per name, in <see cref="ModelStore.WhisperModelNames"/> order, sized from the download table.</summary>
+    private List<string> WhisperModelRows() =>
+        ModelStore.WhisperModelNames.Select(name => WhisperModelLabel(name, ModelStore.ResolveWhisper(name, _settings.StorageDirectory)?.ApproxBytes ?? 0)).ToList();
+
+    /// <summary>The row of the saved name in <see cref="ModelStore.WhisperModelNames"/> (any case), or -1 (the first row) for a path or anything else.</summary>
+    private static int WhisperModelCursor(string? saved) =>
+        Array.FindIndex(ModelStore.WhisperModelNames, name => string.Equals(name, (saved ?? "").Trim(), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>The settings row's vosk-model picker: <see cref="ModelStore.VoskModelNames"/> as a second level of the pane, opened on the saved name. Never falls back to typing.</summary>
+    private async Task<bool> PickVoskModelAsync(AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var page = new MenuPage(Crumb(FieldName(SettingsField.SttVoskModel)), VoskModelRows(), PickKeys);
+        int? picked = await PickAsync(page, VoskModelCursor(saved.SttVoskModel), cancellationToken).ConfigureAwait(false);
+        if (picked is not { } index)
+        {
+            return Unchanged();
+        }
+
+        Apply(SettingsField.SttVoskModel, d => d.SttVoskModel = ModelStore.VoskModelNames[index]);
+        return true;
+    }
+
+    /// <summary>One <see cref="VoskModelLabel"/> row per name, in <see cref="ModelStore.VoskModelNames"/> order, sized from the download table.</summary>
+    private List<string> VoskModelRows() =>
+        ModelStore.VoskModelNames.Select(name => VoskModelLabel(name, ModelStore.ResolveVosk(name, _settings.StorageDirectory)?.ApproxBytes ?? 0)).ToList();
+
+    /// <summary>The row of the saved name in <see cref="ModelStore.VoskModelNames"/> (any case), or -1 (the first row) for anything else.</summary>
+    private static int VoskModelCursor(string? saved) =>
+        Array.FindIndex(ModelStore.VoskModelNames, name => string.Equals(name, (saved ?? "").Trim(), StringComparison.OrdinalIgnoreCase));
+
+    private bool SaveModel(string id)
+    {
+        Apply(SettingsField.LlmModel, d => d.LlmModel = id);
+        return true;
+    }
+
+    private bool Unchanged()
+    {
+        Sink.Notice(UnchangedNotice);
+        return false;
+    }
+
+    /// <summary>A working directory the row and <c>/cwd</c> accept: a full (rooted) path, or nothing at all.</summary>
+    public static bool IsWorkingDirectoryCandidate(string? text) =>
+        text is not null && (text.Trim().Length == 0 || Path.IsPathRooted(text.Trim()));
+
+    /// <summary>
+    /// The ONE way the working directory is saved, shared by the settings row and <c>/cwd</c>:
+    /// empty clears back to the profile's folder; otherwise a full path, created now so a bad one
+    /// fails here rather than in a tool, and saved in its full spelling. False = nothing saved.
+    /// </summary>
+    public bool TrySaveWorkingDirectory(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        string trimmed = text.Trim();
+        string current = FieldValue(SettingsField.WorkingDirectory, _settings.Current, _settings.ProfileDirectory);
+        if (!IsWorkingDirectoryCandidate(trimmed))
+        {
+            Sink.Error($"{FieldName(SettingsField.WorkingDirectory)} {WorkingDirectoryError}; keeping {current}.");
+            return false;
+        }
+
+        string value = "";
+        if (trimmed.Length > 0)
+        {
+            try
+            {
+                value = Path.TrimEndingDirectorySeparator(Path.GetFullPath(trimmed));
+                Directory.CreateDirectory(value);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
+            {
+                Sink.Error(WorkingDirectoryCreateError(trimmed, ex.Message, current));
+                return false;
+            }
+        }
+
+        Apply(SettingsField.WorkingDirectory, d => d.WorkingDirectory = value);
+        return true;
+    }
+
+    public static string WorkingDirectoryCreateError(string path, string detail, string keeping) =>
+        $"Could not create {path} ({detail}); keeping {keeping}.";
+
+    /// <summary>One save, one notice, and the override reminder when the value will not be the one in force.</summary>
+    private void Apply(SettingsField field, Action<AppSettingsData> mutate)
+    {
+        _settings.Update(mutate);
+        Sink.Notice(SavedNotice(field, _settings.Current, _settings.ProfileDirectory, field == SettingsField.WebBrowserPath ? _locateBrowser("") : null));
+        if (_overriddenBy(field) is { } overriddenBy)
+        {
+            Sink.Warning(OverrideNotice(overriddenBy));
+        }
+    }
+
+    /// <summary>Whether a menu can be shown at all: the screen asks before offering a startup pick.</summary>
+    public bool CanShowMenus() =>
+        _console.Profile.Capabilities.Interactive && _console.Profile.Capabilities.Ansi;
+
+    private static string Seconds(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+
+    /// <summary>A speed multiplier as shown everywhere: <c>1.0</c>, <c>1.25</c>. Invariant.</summary>
+    public static string Speed(double value) => value.ToString("0.0#", CultureInfo.InvariantCulture);
+
+    /// <summary>A millisecond value as the menu shows it: <c>0 ms</c>, <c>150 ms</c>. Invariant.</summary>
+    public static string Milliseconds(int milliseconds) => milliseconds.ToString(CultureInfo.InvariantCulture) + " ms";
+
+    /// <summary>A voice mix as the menu shows it, primary share first: <c>70 % / 30 %</c>. Invariant.</summary>
+    public static string Mix(int primaryPercent) =>
+        primaryPercent.ToString(CultureInfo.InvariantCulture) + " % / " + (100 - primaryPercent).ToString(CultureInfo.InvariantCulture) + " %";
+
+    /// <summary>A percent as the menu shows it: <c>65 %</c>. Invariant.</summary>
+    public static string Percent(int value) => value.ToString(CultureInfo.InvariantCulture) + " %";
+
+    /// <summary>A token count as the menu shows it: <c>32,768 tokens</c>. Invariant.</summary>
+    public static string Tokens(int value) => value.ToString("N0", CultureInfo.InvariantCulture) + " tokens";
+
+    /// <summary><c>2 turns</c>, <c>1 turn</c>, <c>0 turns</c>.</summary>
+    public static string Turns(int value) => value.ToString(CultureInfo.InvariantCulture) + (value == 1 ? " turn" : " turns");
+
+    /// <summary><c>5 tool calls</c>, <c>1 tool call</c>: the reflection threshold as the row shows it.</summary>
+    public static string ToolCalls(int value) => value.ToString(CultureInfo.InvariantCulture) + (value == 1 ? " tool call" : " tool calls");
+
+    /// <summary><c>4 requests</c>, <c>1 request</c>: the reflection's request cap as the row shows it (2026-09-17).</summary>
+    public static string Requests(int value) => value.ToString(CultureInfo.InvariantCulture) + (value == 1 ? " request" : " requests");
+
+    /// <summary><c>100 round trips</c>, <c>1 round trip</c>: the tool-iteration cap as the row shows it.</summary>
+    public static string RoundTrips(int value) => value.ToString(CultureInfo.InvariantCulture) + (value == 1 ? " round trip" : " round trips");
+
+    /// <summary><c>500 entries</c>, <c>1 entry</c>: the <c>/tree</c> cap as the row shows it.</summary>
+    public static string Entries(int value) => value.ToString(CultureInfo.InvariantCulture) + (value == 1 ? " entry" : " entries");
+
+    /// <summary><c>25 lines</c>, <c>1 line</c>, <c>off</c> at 0: the paste preview count as the row shows it. Pinned.</summary>
+    public static string Lines(int value) => value == 0 ? "off" : value.ToString(CultureInfo.InvariantCulture) + (value == 1 ? " line" : " lines");
+
+    /// <summary><c>30 days</c>, <c>1 day</c>, <c>forever</c> at 0: the session retention as the row shows it. Pinned.</summary>
+    public static string Days(int value) => value == 0 ? "forever" : value.ToString(CultureInfo.InvariantCulture) + (value == 1 ? " day" : " days");
+
+    /// <summary><c>30 minutes</c>, <c>1 minute</c>, <c>off</c> at 0: the reflection cooldown as the row shows it. Pinned.</summary>
+    public static string Minutes(int value) => value == 0 ? "off" : value.ToString(CultureInfo.InvariantCulture) + (value == 1 ? " minute" : " minutes");
+
+    /// <summary>A hit count as the menu shows it: <c>8 results</c>, <c>1 result</c>. Pinned.</summary>
+    public static string Results(int value) => value.ToString(CultureInfo.InvariantCulture) + (value == 1 ? " result" : " results");
+
+    /// <summary><c>20 commits</c> (the Git log cap, 2026-09-20).</summary>
+    public static string Commits(int value) => value.ToString(CultureInfo.InvariantCulture) + (value == 1 ? " commit" : " commits");
+
+    /// <summary>The <c>Ask max questions</c> row's value: <c>10 questions</c>, <c>1 question</c>. Pinned.</summary>
+    public static string Questions(int value) => value.ToString(CultureInfo.InvariantCulture) + (value == 1 ? " question" : " questions");
+
+    /// <summary>The <c>File view image max (per call)</c> row's value: <c>10 pictures</c>, <c>1 picture</c>. Pinned.</summary>
+    public static string Pictures(int value) => value.ToString(CultureInfo.InvariantCulture) + (value == 1 ? " picture" : " pictures");
+
+    /// <summary>The <c>Ask max choices per question</c> row's value: <c>10 choices</c>, <c>1 choice</c>. Pinned.</summary>
+    public static string Choices(int value) => value.ToString(CultureInfo.InvariantCulture) + (value == 1 ? " choice" : " choices");
+
+    private static string OnOff(bool on) => on ? "on" : "off";
+}

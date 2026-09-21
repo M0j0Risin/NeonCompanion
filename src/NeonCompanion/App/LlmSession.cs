@@ -1,0 +1,335 @@
+using Microsoft.Extensions.AI;
+using NeonCompanion.Diagnostics;
+using NeonCompanion.Llm;
+using NeonCompanion.Settings;
+using NeonCompanion.Skills;
+
+namespace NeonCompanion.App;
+
+/// <summary>
+/// The endpoint, chat client and <see cref="Llm.Assistant"/> for one process, and the one
+/// <see cref="ConversationHistory"/> that outlives them: changing the URL or model reconnects,
+/// the conversation stays. Shared by the headless REPL and the chat screen so the two modes
+/// cannot drift in how they find a server.
+/// </summary>
+internal sealed class LlmSession : IDisposable
+{
+    private const string Category = "App";
+
+    /// <summary>
+    /// Printed once when discovery under <paramref name="scope"/> found nothing — or, under
+    /// <see cref="ScanScope.Disabled"/>, when nothing was looked for: that line stands alone in
+    /// headless, so it names every way out itself. Pinned by tests.
+    /// </summary>
+    public static string NoServerLine(ScanScope scope) => scope switch
+    {
+        ScanScope.Disabled => $"LLM: no URL is set and LLM scan mode is disabled; set {EnvironmentOverrides.LlmUrlVariable}, or the URL or the scan mode in /settings.",
+        ScanScope.Remote => $"LLM: no server found on the local network (ports {LlmEndpointProbe.CandidatePortList}); set {EnvironmentOverrides.LlmUrlVariable}.",
+        ScanScope.Both => $"LLM: no server found on 127.0.0.1 or the local network (ports {LlmEndpointProbe.CandidatePortList}); set {EnvironmentOverrides.LlmUrlVariable}.",
+        _ => $"LLM: no server found on 127.0.0.1 ports {LlmEndpointProbe.CandidatePortList}; set {EnvironmentOverrides.LlmUrlVariable}.",
+    };
+
+    private readonly LlmEndpointProbe _probe;
+    private readonly ContextLengthProbe _contextProbe;
+    private readonly Func<LlmEndpoint, LlmTimeouts, IChatClient> _factory;
+    private readonly TimeProvider _time;
+    private IChatClient? _client;
+    private string _apiKey = LlmEndpoint.DefaultApiKey;
+    private string _configuredUrl = "";
+    private int _configuredContextLength;
+    private ContextLength? _detectedContextLength;
+    private CancellationTokenSource? _learningCts;
+    private CancellationTokenSource? _titlingCts;
+
+    /// <param name="contextProbe">Asks the connected server for the loaded model's context window after each connect.</param>
+    /// <param name="time">The clock behind the assistant's turn deadline and its usage timings; tests pass a manual one.</param>
+    public LlmSession(LlmEndpointProbe probe, ContextLengthProbe contextProbe, Func<LlmEndpoint, LlmTimeouts, IChatClient> factory, TimeProvider? time = null)
+    {
+        _probe = probe ?? throw new ArgumentNullException(nameof(probe));
+        _contextProbe = contextProbe ?? throw new ArgumentNullException(nameof(contextProbe));
+        _factory = factory ?? throw new ArgumentNullException(nameof(factory));
+        _time = time ?? TimeProvider.System;
+    }
+
+    /// <summary>The conversation; survives <see cref="ConnectAsync"/>.</summary>
+    public ConversationHistory History { get; } = new(Llm.Assistant.DefaultSystemPrompt);
+
+    /// <summary>The token tally; survives a reconnect as the conversation does, and its session scope outlives <c>/clear</c>.</summary>
+    public TokenTally Usage { get; } = new();
+
+    /// <summary>Where the last connect landed, even when the server did not answer; null when nothing was found.</summary>
+    public LlmEndpoint? Endpoint { get; private set; }
+
+    /// <summary>Non-null when a chat client exists.</summary>
+    public Assistant? Assistant { get; private set; }
+
+    public LlmTimeouts Timeouts { get; private set; } = LlmTimeouts.Default;
+
+    /// <summary>
+    /// The loaded model's context window: the settings' figure when they name one
+    /// (<see cref="AppSettingsData.LlmContextLength"/>, no request made), else what the server's model
+    /// list published (<see cref="LlmEndpoint.PublishedContextLength"/>) or the last connect's
+    /// <see cref="ContextLengthProbe"/> found; null while unknown or disconnected.
+    /// </summary>
+    public ContextLength? ContextLength =>
+        _configuredContextLength > 0 ? Llm.ContextLength.Configured(_configuredContextLength) : _detectedContextLength;
+
+    /// <summary>The status line for a resolved endpoint.</summary>
+    public static string ConnectedLine(LlmEndpoint endpoint)
+    {
+        ArgumentNullException.ThrowIfNull(endpoint);
+        return $"LLM: {endpoint.BaseUrl} model={endpoint.ModelId} ({endpoint.Source})";
+    }
+
+    /// <summary>
+    /// Drops the current client, resolves the endpoint for <paramref name="effective"/> (the
+    /// configured URL, or the first local port that answers) and builds a new client and
+    /// assistant. Returns true when an assistant is ready. A factory failure is logged as an
+    /// error and leaves <see cref="Endpoint"/> set with no <see cref="Assistant"/>.
+    /// </summary>
+    public async Task<bool> ConnectAsync(AppSettingsData effective, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(effective);
+        Reconnecting();
+        Remember(effective);
+
+        Endpoint = await _probe.ResolveAsync(effective, cancellationToken).ConfigureAwait(false);
+        return Endpoint is not null && await ConnectAsync(effective, Endpoint, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// <see cref="Connect"/> over an endpoint already resolved, then — when neither the settings
+    /// nor the server's model list named the window — the context probe's native tiers. What the
+    /// screen's server pick and the session's own <see cref="ConnectAsync(AppSettingsData, CancellationToken)"/> both end in.
+    /// </summary>
+    public async Task<bool> ConnectAsync(AppSettingsData effective, LlmEndpoint endpoint, CancellationToken cancellationToken)
+    {
+        if (!Connect(effective, endpoint))
+        {
+            return false;
+        }
+
+        DiagnosticLog.Info(Category, ConnectedLogLine(endpoint));
+        if (_configuredContextLength <= 0 && _detectedContextLength is null)
+        {
+            _detectedContextLength = await _contextProbe.DetectAsync(endpoint.BaseUrl, endpoint.ModelId, _apiKey, cancellationToken).ConfigureAwait(false);
+        }
+
+        DiagnosticLog.Info(Category, ContextLength is { } window
+            ? $"Context window: {window.Tokens.ToString("N0", System.Globalization.CultureInfo.InvariantCulture)} tokens ({window.Source})."
+            : "Context window: unknown; /usage shows no percentage.");
+        return true;
+    }
+
+    /// <summary>
+    /// The discovery half of a connect for a blank URL, for a screen that lets the user choose:
+    /// drops the current client and returns every server that answered under the settings' scan
+    /// mode, in list order (<see cref="LlmEndpointProbe.DiscoverAllAsync"/>). <see cref="Endpoint"/>
+    /// is null until <see cref="Connect"/> lands one.
+    /// </summary>
+    public Task<IReadOnlyList<LlmServer>> DiscoverAsync(AppSettingsData effective, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(effective);
+        Reconnecting();
+        Endpoint = null;
+        Remember(effective);
+        return _probe.DiscoverAllAsync(effective.LlmApiKey, extra: null, LlmScanMode.Resolve(effective), cancellationToken);
+    }
+
+    /// <summary>
+    /// <c>/server</c>'s look-around: the servers that answer under the settings' scan mode plus
+    /// <paramref name="extra"/> (the endpoint in use, when it is on a port the list does not name).
+    /// The session stays as it is until a pick lands.
+    /// </summary>
+    public Task<IReadOnlyList<LlmServer>> ProbeServersAsync(AppSettingsData effective, Uri? extra, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(effective);
+        return _probe.DiscoverAllAsync(effective.LlmApiKey, extra, LlmScanMode.Resolve(effective), cancellationToken);
+    }
+
+    /// <summary>One server asked by URL (<c>/server &lt;url&gt;</c>); the result says whether it answered.</summary>
+    public async Task<LlmServer> ProbeServerAsync(Uri baseUrl, AppSettingsData effective, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(effective);
+        var v1 = LlmEndpoint.NormalizeBaseUrl(baseUrl);
+        var result = await _probe.ProbeAsync(v1, effective.LlmApiKey, cancellationToken).ConfigureAwait(false);
+        return LlmServer.From(v1, result);
+    }
+
+    /// <summary>
+    /// The client half: builds the client and assistant over an endpoint already resolved (a
+    /// picked or the first discovered server, through <see cref="LlmEndpointProbe.Endpoint"/>).
+    /// Returns true when an assistant is ready; a factory failure is logged and leaves
+    /// <see cref="Endpoint"/> set with no <see cref="Assistant"/>.
+    /// </summary>
+    public bool Connect(AppSettingsData effective, LlmEndpoint endpoint)
+    {
+        ArgumentNullException.ThrowIfNull(effective);
+        ArgumentNullException.ThrowIfNull(endpoint);
+        Reconnecting();
+        Remember(effective);
+        Endpoint = endpoint;
+        _detectedContextLength = endpoint.PublishedContextLength;
+
+        try
+        {
+            _client = _factory(Endpoint, Timeouts);
+            Assistant = new Assistant(_client, History, Timeouts, time: _time, reasoning: ReasoningLevel.Resolve(effective));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLog.Error(Category, "Could not create the chat client: " + Llm.Assistant.Explain(ex));
+            Disconnect();
+            return false;
+        }
+    }
+
+    /// <summary>What every later call needs from the settings a connect was made with.</summary>
+    private void Remember(AppSettingsData effective)
+    {
+        Timeouts = LlmTimeouts.Resolve(effective);
+        _apiKey = string.IsNullOrWhiteSpace(effective.LlmApiKey) ? LlmEndpoint.DefaultApiKey : effective.LlmApiKey;
+        _configuredUrl = effective.LlmUrl ?? "";
+        _configuredContextLength = effective.LlmContextLength;
+    }
+
+    /// <summary>
+    /// Asks the current endpoint (or the configured URL when nothing is connected) for its model
+    /// list. Null when there is no URL to ask.
+    /// </summary>
+    public Task<ProbeResult?> ListModelsAsync(CancellationToken cancellationToken)
+    {
+        Uri? url = Endpoint?.BaseUrl;
+        if (url is null && !string.IsNullOrWhiteSpace(_configuredUrl))
+        {
+            try
+            {
+                url = LlmEndpoint.NormalizeBaseUrl(_configuredUrl);
+            }
+            catch (Exception ex) when (ex is ArgumentException or UriFormatException)
+            {
+                url = null;
+            }
+        }
+
+        return url is null ? Task.FromResult<ProbeResult?>(null) : ProbeAsync(url, cancellationToken);
+    }
+
+    private async Task<ProbeResult?> ProbeAsync(Uri url, CancellationToken cancellationToken) =>
+        await _probe.ProbeAsync(url, _apiKey, cancellationToken).ConfigureAwait(false);
+
+    /// <summary>The skill-learning reflection now running, if one is (<see cref="StartLearning"/>); the screen never awaits it here.</summary>
+    public Task<SkillLearnResult>? Learning { get; private set; }
+
+    /// <summary>Whether a reflection is still running: one at a time, the next qualifying turn skips.</summary>
+    public bool IsLearning => Learning is { IsCompleted: false };
+
+    /// <summary>
+    /// Starts <paramref name="job"/> over the current assistant in the background, under a token
+    /// linked to <paramref name="appToken"/> that <see cref="Disconnect"/> (every reconnect, the
+    /// dispose) cancels first — so a request never races the client's disposal. Null with no
+    /// assistant or while one still runs (<see cref="IsLearning"/>). The task never faults:
+    /// <see cref="SkillLearner.RunAsync"/> answers <see cref="SkillLearnOutcome.Cancelled"/> or
+    /// <see cref="SkillLearnOutcome.Failed"/> instead.
+    /// </summary>
+    public Task<SkillLearnResult>? StartLearning(Func<Assistant, CancellationToken, Task<SkillLearnResult>> job, CancellationToken appToken)
+    {
+        ArgumentNullException.ThrowIfNull(job);
+        if (Assistant is not { } assistant || IsLearning)
+        {
+            return null;
+        }
+
+        _learningCts?.Dispose();
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(appToken);
+        _learningCts = cts;
+        Learning = Task.Run(() => job(assistant, cts.Token), CancellationToken.None);
+        return Learning;
+    }
+
+    /// <summary>Cancels the running reflection, if any, without waiting for it: the request aborts and the job answers cancelled.</summary>
+    public void CancelLearning()
+    {
+        if (_learningCts is { } cts && IsLearning)
+        {
+            VoiceSession.SafeCancel(cts);
+        }
+    }
+
+    /// <summary>The session-title request now running, if one is (<see cref="StartTitling"/>).</summary>
+    public Task? Titling { get; private set; }
+
+    /// <summary>Whether a title request is still running: one at a time, its own slot beside the reflection's.</summary>
+    public bool IsTitling => Titling is { IsCompleted: false };
+
+    /// <summary>
+    /// <see cref="StartLearning"/>'s shape for the model-written session title (2026-09-18): the
+    /// job runs over the current assistant under a token <see cref="Disconnect"/> cancels first,
+    /// in its own slot so a reflection never blocks it or is blocked by it. Null with no assistant
+    /// or while one still runs. The job must never fault: it writes the store or leaves the first
+    /// line standing.
+    /// </summary>
+    public Task? StartTitling(Func<Assistant, CancellationToken, Task> job, CancellationToken appToken)
+    {
+        ArgumentNullException.ThrowIfNull(job);
+        if (Assistant is not { } assistant || IsTitling)
+        {
+            return null;
+        }
+
+        _titlingCts?.Dispose();
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(appToken);
+        _titlingCts = cts;
+        Titling = Task.Run(() => job(assistant, cts.Token), CancellationToken.None);
+        return Titling;
+    }
+
+    private void CancelTitling()
+    {
+        if (_titlingCts is { } cts && IsTitling)
+        {
+            VoiceSession.SafeCancel(cts);
+        }
+    }
+
+    /// <summary>
+    /// A connect or a discovery drops the client it had: logged, then <see cref="Disconnect"/>. The
+    /// exit's dispose drops one too, silently — the run's closing lines are the loop's, and headless
+    /// has its console echo back by then.
+    /// </summary>
+    private void Reconnecting()
+    {
+        if (_client is not null && Endpoint is { } previous)
+        {
+            DiagnosticLog.Debug(Category, DisconnectedLogLine(previous));
+        }
+
+        Disconnect();
+    }
+
+    private void Disconnect()
+    {
+        CancelLearning();
+        CancelTitling();
+        Assistant = null;
+        _client?.Dispose();
+        _client = null;
+        _detectedContextLength = null;
+    }
+
+    /// <summary>The connect's line in the log: <c>Connected: LLM: http://… model=… (probed)</c> — <see cref="ConnectedLine"/> after the word. Pinned.</summary>
+    public static string ConnectedLogLine(LlmEndpoint endpoint) => "Connected: " + ConnectedLine(endpoint);
+
+    /// <summary>The client a reconnect drops (a profile switch, <c>/server</c>, a switch that reconnects): <c>Disconnected from http://… model=…</c>; the exit's dispose says nothing. Pinned.</summary>
+    public static string DisconnectedLogLine(LlmEndpoint endpoint) => $"Disconnected from {endpoint.BaseUrl} model={endpoint.ModelId}";
+
+    public void Dispose()
+    {
+        Disconnect();
+        _learningCts?.Dispose();
+        _learningCts = null;
+        _titlingCts?.Dispose();
+        _titlingCts = null;
+    }
+}

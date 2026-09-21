@@ -1,0 +1,64 @@
+namespace NeonCompanion.UI;
+
+/// <summary>
+/// The key contract, in one place: <b>ESC cancels or backs out and never quits.</b> No single key quits: <c>/exit</c>,
+/// Ctrl+C twice within two seconds at an idle line (<see cref="IsInterrupt"/>, since 2026-09-17)
+/// and the app token (Ctrl+Break) do. The factories exist so tests and the input line build the
+/// same <see cref="ConsoleKeyInfo"/> shapes.
+/// </summary>
+public static class Keys
+{
+    /// <summary>ESC: stop the speech, clear the line, cancel the turn, back out of a menu.</summary>
+    public static bool IsCancel(ConsoleKeyInfo key) => key.Key == ConsoleKey.Escape;
+
+    /// <summary>
+    /// Ctrl+C: copy the line's selection, else stop the speech, else cancel the turn, else back out
+    /// of a menu — and at an idle line with nothing to do, twice to exit, never once. Control held,
+    /// Alt not (Ctrl+Alt+C is AltGr+C, a character on some layouts), Shift not looked at, and no
+    /// character but the console's own ETX (<c>'\x03'</c>; a test <see cref="Ctrl"/> builds <c>'\0'</c>):
+    /// a key that types a character is never the chord — Spectre's test input marks every
+    /// upper-case letter with Control, and a typed "C" must stay a "C".
+    /// </summary>
+    public static bool IsInterrupt(ConsoleKeyInfo key) =>
+        key.Key == ConsoleKey.C
+        && key.KeyChar is '\0' or '\x03'
+        && (key.Modifiers & ConsoleModifiers.Control) != 0
+        && (key.Modifiers & ConsoleModifiers.Alt) == 0;
+
+    /// <summary>A printable character with no <see cref="ConsoleKey"/> (what a pasted or typed glyph looks like).</summary>
+    public static ConsoleKeyInfo Char(char c) => new(c, ConsoleKey.None, false, false, false);
+
+    /// <summary>A bare special key.</summary>
+    public static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);
+
+    /// <summary>A key with Control held.</summary>
+    public static ConsoleKeyInfo Ctrl(ConsoleKey key) => new('\0', key, false, false, true);
+
+    /// <summary>A key with Shift held (Shift+arrow extends the input line's selection).</summary>
+    public static ConsoleKeyInfo Shift(ConsoleKey key) => new('\0', key, true, false, false);
+
+    public static ConsoleKeyInfo Enter => Key(ConsoleKey.Enter);
+    public static ConsoleKeyInfo Escape => Key(ConsoleKey.Escape);
+    public static ConsoleKeyInfo Backspace => Key(ConsoleKey.Backspace);
+    public static ConsoleKeyInfo Delete => Key(ConsoleKey.Delete);
+    public static ConsoleKeyInfo Left => Key(ConsoleKey.LeftArrow);
+    public static ConsoleKeyInfo Right => Key(ConsoleKey.RightArrow);
+    public static ConsoleKeyInfo Up => Key(ConsoleKey.UpArrow);
+    public static ConsoleKeyInfo Down => Key(ConsoleKey.DownArrow);
+    public static ConsoleKeyInfo Home => Key(ConsoleKey.Home);
+    public static ConsoleKeyInfo End => Key(ConsoleKey.End);
+    public static ConsoleKeyInfo PageUp => Key(ConsoleKey.PageUp);
+    public static ConsoleKeyInfo PageDown => Key(ConsoleKey.PageDown);
+
+    /// <summary>The default push-to-talk key, as a terminal delivers it: no character.</summary>
+    public static ConsoleKeyInfo F4 => Key(ConsoleKey.F4);
+
+    /// <summary>Ctrl+C as the console delivers it: the ETX character with the key and Control.</summary>
+    public static ConsoleKeyInfo CtrlC => new('\x03', ConsoleKey.C, false, false, true);
+
+    /// <summary>Tab, as a terminal delivers it: the tab character with the key (the info pane's next tab).</summary>
+    public static ConsoleKeyInfo Tab => new('\t', ConsoleKey.Tab, false, false, false);
+
+    /// <summary>Shift+Tab (the info pane's previous tab).</summary>
+    public static ConsoleKeyInfo ShiftTab => new('\t', ConsoleKey.Tab, true, false, false);
+}

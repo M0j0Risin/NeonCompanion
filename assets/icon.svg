@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!--
+    NeonCompanion icon: a neon speech bubble with a voice waveform inside.
+    A magenta neon-tube speech bubble on the deep-space tile, holding five cyan bars: a companion
+    that talks and listens. Colours are the synthwave palette in src/NeonCompanion/UI/SynthwaveTheme.cs
+    (Bg #0B0416, Magenta #FF2E97, Cyan #33E0FF). Each tube is drawn twice: a blurred copy
+    (feGaussianBlur, which Svg.Skia renders) for the glow, then the crisp tube on top.
+    Keep shapes bold: the 16 px frame must still read as "pink box with cyan bars".
+    tools/IconGen.cs renders this to src/NeonCompanion/Assets/app.ico; commit both.
+  -->
+  <defs>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="7"/>
+    </filter>
+  </defs>
+  <rect x="0" y="0" width="256" height="256" rx="56" fill="#0B0416"/>
+
+  <!-- bubble: glow, then the tube -->
+  <path d="M74 44 H182 A30 30 0 0 1 212 74 V150 A30 30 0 0 1 182 180 H118 L76 214 L86 180 H74 A30 30 0 0 1 44 150 V74 A30 30 0 0 1 74 44 Z"
+        fill="none" stroke="#FF2E97" stroke-width="16" opacity="0.7" stroke-linejoin="round" filter="url(#glow)"/>
+  <path d="M74 44 H182 A30 30 0 0 1 212 74 V150 A30 30 0 0 1 182 180 H118 L76 214 L86 180 H74 A30 30 0 0 1 44 150 V74 A30 30 0 0 1 74 44 Z"
+        fill="none" stroke="#FF2E97" stroke-width="11" stroke-linejoin="round"/>
+
+  <!-- waveform: glow, then the tubes -->
+  <g stroke="#33E0FF" stroke-width="18" stroke-linecap="round" opacity="0.7" filter="url(#glow)">
+    <line x1="80" y1="100" x2="80" y2="124"/>
+    <line x1="104" y1="82" x2="104" y2="142"/>
+    <line x1="128" y1="66" x2="128" y2="158"/>
+    <line x1="152" y1="86" x2="152" y2="138"/>
+    <line x1="176" y1="102" x2="176" y2="122"/>
+  </g>
+  <g stroke="#33E0FF" stroke-width="14" stroke-linecap="round">
+    <line x1="80" y1="100" x2="80" y2="124"/>
+    <line x1="104" y1="82" x2="104" y2="142"/>
+    <line x1="128" y1="66" x2="128" y2="158"/>
+    <line x1="152" y1="86" x2="152" y2="138"/>
+    <line x1="176" y1="102" x2="176" y2="122"/>
+  </g>
+</svg>
