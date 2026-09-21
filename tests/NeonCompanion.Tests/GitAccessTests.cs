@@ -52,7 +52,7 @@ public sealed class GitAccessTests : IDisposable
         }
     }
 
-    /// <summary>A repository at <paramref name="folder"/> (the root by default) with a local identity, so the machine's git config never matters.</summary>
+    /// <summary>A repository at <paramref name="folder"/> (the root by default) with a local identity and <c>main</c> as its branch, so the machine's git config never matters.</summary>
     internal static string Init(string folder)
     {
         Directory.CreateDirectory(folder);
@@ -61,8 +61,17 @@ public sealed class GitAccessTests : IDisposable
         repo.Config.Set("user.name", "Test User", ConfigurationLevel.Local);
         repo.Config.Set("user.email", "test@example.invalid", ConfigurationLevel.Local);
         repo.Config.Set("core.autocrlf", false, ConfigurationLevel.Local);   // the machine's global autocrlf would rewrite every checkout
+        PinUnbornHead(repo);
         return folder;
     }
+
+    /// <summary>
+    /// Points the unborn HEAD at <c>refs/heads/main</c>. libgit2 names the first branch after
+    /// <c>init.defaultBranch</c> and falls back to <c>master</c>; a developer's machine sets it to
+    /// <c>main</c>, a CI runner sets nothing, and every "On branch main" assertion in the suite
+    /// failed on the first release run (2026-09-21). Set here, the name is the test's, not the host's.
+    /// </summary>
+    internal static void PinUnbornHead(Repository repo) => repo.Refs.UpdateTarget("HEAD", "refs/heads/main");
 
     private static int _commits;
 
@@ -94,6 +103,25 @@ public sealed class GitAccessTests : IDisposable
     public void NativeLibraryFileName_MatchesTheBundledLibgit2()
     {
         Assert.Equal(GitAccess.NativeLibraryFileName, "git2-" + GlobalSettings.Version.LibGit2CommitSha + ".dll");
+    }
+
+    [Fact]
+    public void Init_PinsTheUnbornHeadToMain_WhateverTheMachineDefault()
+    {
+        Directory.CreateDirectory(_root);
+        Repository.Init(_root);
+        using (var repo = new Repository(_root))
+        {
+            repo.Refs.UpdateTarget("HEAD", "refs/heads/master");   // what a runner with no init.defaultBranch produces
+            Assert.Equal("master", repo.Head.FriendlyName);
+        }
+
+        Init();   // a second Init over an existing repository leaves HEAD alone; only the pin renames it
+
+        Assert.Equal("main", _git.Status("").Branch);
+        Write("a.txt", "one\n");
+        _git.Stage("", ["a.txt"], unstage: false);
+        Assert.Equal("main", _git.Commit("", "first", amend: false, allowEmpty: false).Branch);
     }
 
     [Fact]

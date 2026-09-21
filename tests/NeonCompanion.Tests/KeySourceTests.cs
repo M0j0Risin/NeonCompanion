@@ -569,6 +569,21 @@ public class KeySourceTests
         Assert.Throws<InvalidOperationException>(() => keys.IsKeyAvailable());
     }
 
+    [Fact]
+    public async Task AScriptThatRanDry_FailsTheRead_WithItsMessage()
+    {
+        // The read of a screen whose script expected something that never came fails, never waits
+        // for ever (2026-09-21): a TimeoutException, which nothing on the idle read's path takes
+        // for the end of input, so the test fails with this message rather than exiting quietly.
+        var input = new ScriptedInput { DryTimeout = TimeSpan.FromMilliseconds(50) };
+        var keys = new KeySource(input, FastPoll);
+
+        var ex = await Assert.ThrowsAsync<TimeoutException>(() => keys.ReadInputAsync(CancellationToken.None));
+
+        Assert.Equal(ScriptedInput.DryMessage(TimeSpan.FromMilliseconds(50)), ex.Message);
+        Assert.Equal("The script ran dry: the read waited 0 s for a key nothing pushed. What the script expected next (a turn, a wake hit, a pane) did not happen.", ex.Message);
+    }
+
     // ── The mid-turn line hook ──────────────────────────────────────────────
 
     [Fact]

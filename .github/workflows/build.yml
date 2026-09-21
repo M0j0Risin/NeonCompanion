@@ -14,6 +14,9 @@ jobs:
   build:
     runs-on: windows-latest
     name: Build, Test, Publish, Smoke, Package
+    # A cold restore, build, coverage run and NativeAOT publish is 20-30 minutes on a hosted
+    # runner; anything past this is a hang, not a slow run, and GitHub's default is six hours.
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
@@ -52,6 +55,19 @@ jobs:
         with:
           name: coverage
           path: publish/coverage/**/coverage.cobertura.xml
+          retention-days: 7
+          if-no-files-found: ignore
+
+      # --blame-hang (build.ps1) writes Sequence_*.xml (the tests run, last one the culprit) and a
+      # process dump beside the coverage output when a test stops making progress.
+      - name: Upload hang diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hang-diagnostics
+          path: |
+            publish/coverage/**/Sequence_*.xml
+            publish/coverage/**/*.dmp
           retention-days: 7
           if-no-files-found: ignore
 

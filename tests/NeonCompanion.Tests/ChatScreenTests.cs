@@ -2544,6 +2544,30 @@ public class ChatScreenTests : IDisposable
         }
     };
 
+    /// <summary>
+    /// One 50 ms buffer to the phrase listener, delivered again until the detector was fed it: a
+    /// sentence flushed at the turn's end is synthesised around the turn's disarm and the idle
+    /// read's arm, and the fake drops a buffer that lands in that gap. The test that let both of
+    /// its hits fall there waited for a second turn that never came, the release run's six-hour
+    /// hang (2026-09-21). Up to 5 s; after that the caller's assertions say what was missed.
+    /// </summary>
+    private async Task DeliverHeardAsync()
+    {
+        int fed = _wake.Counts.Count;
+        for (int i = 0; i < 500 && _wake.Counts.Count == fed; i++)
+        {
+            if (_capture.IsCapturing && _voice.WakeArmed)
+            {
+                _capture.Deliver(_capture.Silence(50), 1600);
+            }
+
+            if (_wake.Counts.Count == fed)
+            {
+                await Task.Delay(10, CancellationToken.None);
+            }
+        }
+    }
+
     /// <summary>The follow-up listen (a Start with the phrase listener disarmed: the pipeline's, never a listener's) hears two buffers and the VAD ends it.</summary>
     private void FollowUpHears(string text, Action<FakeAudioCapture>? then = null)
     {
@@ -2749,7 +2773,7 @@ public class ChatScreenTests : IDisposable
             if (text == "I'm Neon.")
             {
                 await Task.Delay(200, CancellationToken.None);
-                _capture.Deliver(_capture.Silence(50), 1600);   // the recogniser hears the assistant: guarded
+                await DeliverHeardAsync();   // the recogniser hears the assistant: guarded
             }
             else if (text == "Nice to meet you.")
             {
@@ -2761,7 +2785,7 @@ public class ChatScreenTests : IDisposable
                     }
 
                     _playback.Release();                          // both sentences have been heard; the name is out of earshot
-                    _capture.Deliver(_capture.Silence(50), 1600); // now the user says it
+                    await DeliverHeardAsync(); // now the user says it
                 });
             }
         };
@@ -2795,7 +2819,7 @@ public class ChatScreenTests : IDisposable
             if (text == "The veil or a mask.")
             {
                 await Task.Delay(200, CancellationToken.None);
-                _capture.Deliver(_capture.Silence(50), 1600);   // the recogniser hears the assistant: guarded (65 %: "veilora" is one edit from "velora")
+                await DeliverHeardAsync();   // the recogniser hears the assistant: guarded (65 %: "veilora" is one edit from "velora")
             }
             else if (text == "Nice to meet you.")
             {
@@ -2807,7 +2831,7 @@ public class ChatScreenTests : IDisposable
                     }
 
                     _playback.Release();                          // both sentences have been heard; the near-match is out of earshot
-                    _capture.Deliver(_capture.Silence(50), 1600); // now the user says it
+                    await DeliverHeardAsync(); // now the user says it
                 });
             }
         };
@@ -2841,7 +2865,7 @@ public class ChatScreenTests : IDisposable
             if (text == "The veil or a mask.")
             {
                 await Task.Delay(200, CancellationToken.None);
-                _capture.Deliver(_capture.Silence(50), 1600);
+                await DeliverHeardAsync();
                 for (int i = 0; i < 500 && !token.IsCancellationRequested; i++)
                 {
                     await Task.Delay(10, CancellationToken.None);
@@ -2888,13 +2912,13 @@ public class ChatScreenTests : IDisposable
                     await Task.Delay(10, CancellationToken.None);
                 }
 
-                _capture.Deliver(_capture.Silence(50), 1600);
+                await DeliverHeardAsync();
 
                 // The first sentence (4.2 s) has now been heard: the mark is more than 3 s behind the play
                 // head, so the next hit is the user's. Synthesis is held open until the hit has cancelled
                 // the turn, so the reply cannot count as fully drained first.
                 _playback.Release();
-                _capture.Deliver(_capture.Silence(50), 1600);
+                await DeliverHeardAsync();
                 for (int i = 0; i < 500 && !token.IsCancellationRequested; i++)
                 {
                     await Task.Delay(10, CancellationToken.None);
@@ -2933,7 +2957,7 @@ public class ChatScreenTests : IDisposable
             if (text == "And on a Friday no less.")
             {
                 await Task.Delay(200, CancellationToken.None);
-                _capture.Deliver(_capture.Silence(50), 1600);
+                await DeliverHeardAsync();
                 for (int i = 0; i < 500 && !token.IsCancellationRequested; i++)
                 {
                     await Task.Delay(10, CancellationToken.None);

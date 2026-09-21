@@ -88,8 +88,14 @@ if (-not $Publish) {
     # CI-like local run (the live-server and model-gated facts skipping: 88.7 % on 2026-09-11)
     # minus a 5-point margin, rounded down to a multiple of 5; a full local run with the
     # servers and models present reads a few points higher. -CoverageFloor 0 reports only.
+    # --blame-hang: a test that stops making progress for 10 minutes is named (Sequence_*.xml,
+    # its last entry), its host mini-dumped (threads and stacks; a full dump of the host is
+    # gigabytes) under $CoverageDir, and the run failed. Without it the first release run
+    # (2026-09-21) sat for GitHub's six-hour job maximum with nothing in the log after the last
+    # failure.
     if (Test-Path $CoverageDir) { Remove-Item -Recurse -Force $CoverageDir }
     dotnet test $TestProject -c Release --no-build --verbosity minimal `
+        --blame-hang --blame-hang-timeout 10m --blame-hang-dump-type mini `
         --collect:"XPlat Code Coverage" --settings $RunSettings --results-directory $CoverageDir
     if ($LASTEXITCODE -ne 0) { Fail "Tests FAILED" }
     Write-Host "  Tests passed." -ForegroundColor Green

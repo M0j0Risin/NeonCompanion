@@ -28,6 +28,22 @@ public sealed class ScriptedInput : IAnsiConsoleInput, IInputEvents
     public bool Completed { get; set; }
 
     /// <summary>
+    /// How long <see cref="ReadAsync"/> waits on an empty queue before it throws
+    /// <see cref="TimeoutException"/>: a script that ran dry. A screen test whose expected turn,
+    /// hit or pane never came used to wait here for ever — the first release run sat in one for
+    /// GitHub's six-hour maximum (2026-09-21). A <see cref="TimeoutException"/> rather than the
+    /// <see cref="InvalidOperationException"/> of <see cref="Completed"/>, which the input line
+    /// takes for the end of input and exits on quietly: this one fails the test with its message.
+    /// Thirty seconds is above every wait a test makes on purpose (the longest, the interrupt
+    /// tests' held syntheses, are five).
+    /// </summary>
+    public TimeSpan DryTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>The message of the <see cref="TimeoutException"/> a dry script throws. Pinned.</summary>
+    public static string DryMessage(TimeSpan waited) => string.Create(System.Globalization.CultureInfo.InvariantCulture,
+        $"The script ran dry: the read waited {waited.TotalSeconds:F0} s for a key nothing pushed. What the script expected next (a turn, a wake hit, a pane) did not happen.");
+
+    /// <summary>
     /// Runs once each time <see cref="ReadKeyAsync"/> finds the queue empty, before it waits: the
     /// timer tests advance the manual clock here (the screen is blocked on the read, as it would be
     /// on a real keyboard) or push the keys that come next.
@@ -109,6 +125,7 @@ public sealed class ScriptedInput : IAnsiConsoleInput, IInputEvents
             OnWait?.Invoke();
         }
 
+        var dry = System.Diagnostics.Stopwatch.StartNew();
         while (_events.Count == 0)
         {
             if (cancellationToken.IsCancellationRequested)
@@ -119,6 +136,11 @@ public sealed class ScriptedInput : IAnsiConsoleInput, IInputEvents
                 }
 
                 throw new TaskCanceledException("A task was canceled.");
+            }
+
+            if (dry.Elapsed >= DryTimeout)
+            {
+                throw new TimeoutException(DryMessage(DryTimeout));
             }
 
             await Task.Delay(5, CancellationToken.None);

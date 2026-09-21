@@ -36,6 +36,9 @@ public static partial class SmokeChecks
                 repo.Config.Set("user.name", "Smoke", ConfigurationLevel.Local);
                 repo.Config.Set("user.email", "smoke@example.invalid", ConfigurationLevel.Local);
                 repo.Config.Set("core.autocrlf", false, ConfigurationLevel.Local);
+                // The unborn branch is named by the machine's init.defaultBranch, master without one
+                // (a CI runner); the probe's upstream and switch legs name main, so it is pinned (2026-09-21).
+                repo.Refs.UpdateTarget("HEAD", "refs/heads/main");
             }
 
             var files = new WorkingDirectory(() => root, TimeProvider.System);
