@@ -300,7 +300,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/reasoning [level]` | Pick the reasoning effort (`none`, `low`, `medium`, `high`, `xhigh`). |
 | `/remember <text>` | Add a memory. |
 | `/server [url]` | Pick an LLM server found on the usual ports, or set one. |
-| `/session [id \| purge <id> \| purge older <days> \| purge all \| title <text>]` | List, restore, rename and purge the stored sessions. |
+| `/session [id \| purge <id> \| purge older <age> \| purge all \| title <text>]` | List, restore, rename and purge the stored sessions. An age is days as a bare number (`30`, `0`), or a duration with units: `12h`, `90m`, `2 hours`, `1d 6h`. |
 | `/settings`, `//` | Edit and save the settings. |
 | `/skills` | List the skills and edit the skill, reflection and project-file settings. |
 | `/speak [file [n] \| n]` | Read a text file from the working directory aloud as a reply; alone resumes, a number starts from that sentence. |

@@ -76,6 +76,69 @@ public class SessionTextTests
         Assert.Equal("(untitled)", SessionText.Untitled);
     }
 
+    // ---- ages (2026-09-21) ----
+
+    [Theory]
+    [InlineData("30", 30 * 86400)]
+    [InlineData("0", 0)]
+    [InlineData("  7  ", 7 * 86400)]
+    [InlineData("2d", 2 * 86400)]
+    [InlineData("2 days", 2 * 86400)]
+    [InlineData("1 day", 86400)]
+    [InlineData("12h", 12 * 3600)]
+    [InlineData("12 hours", 12 * 3600)]
+    [InlineData("1hr", 3600)]
+    [InlineData("90m", 5400)]
+    [InlineData("45 min", 2700)]
+    [InlineData("5 minutes", 300)]
+    [InlineData("1d 6h", 30 * 3600)]
+    [InlineData("1h30m", 5400)]
+    [InlineData("2d12h30m", 2 * 86400 + 12 * 3600 + 1800)]
+    [InlineData("30s", 30)]
+    [InlineData("1D", 86400)]
+    public void TryParseAge_Accepts(string text, int seconds)
+    {
+        Assert.True(SessionText.TryParseAge(text, out var age));
+        Assert.Equal(TimeSpan.FromSeconds(seconds), age);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("-1")]
+    [InlineData("ten")]
+    [InlineData("0h")]
+    [InlineData("0d")]
+    [InlineData("1h 1h")]
+    [InlineData("1d 1 day")]
+    [InlineData("1x")]
+    [InlineData("1.5d")]
+    [InlineData("1234567")]
+    [InlineData("1234567d")]
+    [InlineData("2 days now")]
+    public void TryParseAge_Refuses(string text)
+    {
+        Assert.False(SessionText.TryParseAge(text, out var age));
+        Assert.Equal(TimeSpan.Zero, age);
+    }
+
+    [Theory]
+    [InlineData(30 * 86400, "30 days")]
+    [InlineData(86400, "1 day")]
+    [InlineData(0, "0 days")]
+    [InlineData(12 * 3600, "12 hours")]
+    [InlineData(3600, "1 hour")]
+    [InlineData(30 * 3600, "1 day 6 hours")]
+    [InlineData(2700, "45 minutes")]
+    [InlineData(60, "1 minute")]
+    [InlineData(5410, "1 hour 30 minutes 10 seconds")]
+    [InlineData(1, "1 second")]
+    [InlineData(86400 + 1, "1 day 1 second")]
+    public void Age_IsPinned(int seconds, string expected)
+    {
+        Assert.Equal(expected, SessionText.Age(TimeSpan.FromSeconds(seconds)));
+    }
+
     [Fact]
     public void SearchResults_AreTheHeaderThenALabelAndASnippetPerHit()
     {

@@ -71,7 +71,15 @@ public static class TimerText
     /// <c>10m</c>, <c>90s</c>, <c>1h30m</c>, <c>1h 30m</c>, <c>2 hours</c>, <c>5 min</c>; a bare
     /// number is minutes. Each unit at most once, in any order; nothing else, and never zero.
     /// </summary>
-    public static bool TryParseDuration(string text, out TimeSpan duration)
+    public static bool TryParseDuration(string text, out TimeSpan duration) => TryParseDuration(text, withDays: false, out duration);
+
+    /// <summary>
+    /// <see cref="TryParseDuration(string, out TimeSpan)"/> with a day unit (<c>2d</c>, <c>1 day</c>,
+    /// <c>1d 6h</c>) when <paramref name="withDays"/> is set: the form <c>/session purge older</c>
+    /// takes (2026-09-21), kept off for <c>/timer</c>, whose ceiling is 24 hours and whose bare
+    /// number is still minutes.
+    /// </summary>
+    public static bool TryParseDuration(string text, bool withDays, out TimeSpan duration)
     {
         duration = TimeSpan.Zero;
         if (text is null)
@@ -97,7 +105,7 @@ public static class TimerText
         }
 
         long seconds = 0;
-        bool sawHours = false, sawMinutes = false, sawSeconds = false;
+        bool sawDays = false, sawHours = false, sawMinutes = false, sawSeconds = false;
         int i = 0;
         while (i < s.Length)
         {
@@ -132,6 +140,15 @@ public static class TimerText
 
             switch (s[unitStart..i].ToLowerInvariant())
             {
+                case "d" or "day" or "days" when withDays:
+                    if (sawDays)
+                    {
+                        return false;
+                    }
+
+                    sawDays = true;
+                    seconds += amount * 86400L;
+                    break;
                 case "h" or "hr" or "hrs" or "hour" or "hours":
                     if (sawHours)
                     {

@@ -43,9 +43,35 @@ public class TimerTextTests
     [InlineData("-5m")]
     [InlineData("1234567")]
     [InlineData("10m cooking")]
+    [InlineData("2d")]
+    [InlineData("1 day")]
     public void TryParseDuration_Refuses(string text)
     {
         Assert.False(TimerText.TryParseDuration(text, out var duration));
+        Assert.Equal(TimeSpan.Zero, duration);
+    }
+
+    /// <summary>Days are opt-in (2026-09-21, for <c>/session purge older</c>); a bare number is still minutes and zero still refused.</summary>
+    [Theory]
+    [InlineData("2d", 172800)]
+    [InlineData("1 day", 86400)]
+    [InlineData("1d 6h", 108000)]
+    [InlineData("1D2H3M4S", 93784)]
+    [InlineData("10", 600)]
+    public void TryParseDuration_WithDays_Accepts(string text, int seconds)
+    {
+        Assert.True(TimerText.TryParseDuration(text, withDays: true, out var duration));
+        Assert.Equal(TimeSpan.FromSeconds(seconds), duration);
+    }
+
+    [Theory]
+    [InlineData("0d")]
+    [InlineData("1d 1d")]
+    [InlineData("1w")]
+    [InlineData("d")]
+    public void TryParseDuration_WithDays_Refuses(string text)
+    {
+        Assert.False(TimerText.TryParseDuration(text, withDays: true, out var duration));
         Assert.Equal(TimeSpan.Zero, duration);
     }
 

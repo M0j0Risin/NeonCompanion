@@ -534,7 +534,7 @@ public class SlashCommandsTests
         Assert.Equal("connect external MCP servers and switch their tools on or off on a pane", SlashCommands.HelpEntries[2].Summary);
         Assert.Equal("/profile", SlashCommands.HelpEntries[3].Command);
         Assert.Equal("/session", SlashCommands.HelpEntries[4].Command);
-        Assert.Equal("list, restore and purge sessions: /session [<id> | purge <id> | purge older <days> | purge all | title <text>]", SlashCommands.HelpEntries[4].Summary);
+        Assert.Equal("list, restore and purge sessions: /session [<id> | purge <id> | purge older <age> | purge all | title <text>]", SlashCommands.HelpEntries[4].Summary);
         Assert.Equal("/skills", SlashCommands.HelpEntries[5].Command);
         Assert.Equal("list the skills, edit the skill settings and the project file on a pane", SlashCommands.HelpEntries[5].Summary);   // the /skill <name> [message] form went later on 2026-09-18; the Roots tab later on 2026-09-19
         Assert.Equal("/learn", SlashCommands.HelpEntries[6].Command);

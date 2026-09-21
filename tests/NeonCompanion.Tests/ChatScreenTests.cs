@@ -7077,7 +7077,7 @@ public class ChatScreenTests : IDisposable
         Assert.StartsWith(HelpRow("/settings, //", "edit and save settings"), lines[0]);
         Assert.StartsWith(HelpRow("/tools", "switch the model's tools on or off and edit the Options, Ask, Files and Web settings on a pane"), lines[1]);   // 2026-09-19
         Assert.StartsWith(HelpRow("/mcp", "connect external MCP servers and switch their tools on or off on a pane"), lines[2]);   // 2026-09-20
-        Assert.StartsWith(HelpRow("/session", "list, restore and purge sessions: /session [<id> | purge <id> | purge older <days> | purge all | title <text>]"), lines[4]);   // under /profile since later on 2026-09-18
+        Assert.StartsWith(HelpRow("/session", "list, restore and purge sessions: /session [<id> | purge <id> | purge older <age> | purge all | title <text>]"), lines[4]);   // under /profile since later on 2026-09-18
         Assert.StartsWith(HelpRow("/skills", "list the skills, edit the skill settings and the project file on a pane"), lines[5]);   // under /session since later on 2026-09-19 (/ask /files /web ahead of it until 2026-09-18)
         Assert.StartsWith(HelpRow("/learn", "write or improve a skill from the last turn or the stored sessions, in the background: /learn [what to keep] | sessions [N | what to search]"), lines[6]);   // 2026-09-17; the sessions form 2026-09-19
         Assert.True(string.IsNullOrWhiteSpace(lines[7]));
@@ -12833,9 +12833,32 @@ public class ChatScreenTests : IDisposable
         using var store = OpenSessions();
         Assert.Contains("\n" + Titled(ChatScreen.PurgeAllPrompt(2)) + "\n \n▸ No\n  Yes\n", output);
         Assert.Contains("  · " + ChatScreen.KeptNotice, output);
-        Assert.Contains("\n" + Titled(ChatScreen.PurgeOlderPrompt(2, 1)) + "\n \n▸ No\n  Yes\n", output);
-        Assert.Contains("  · " + ChatScreen.SessionsPurgedOlderNotice(1, 2), output);
-        Assert.Contains("  · " + ChatScreen.NoSessionsOlderNotice(30), output);
+        Assert.Contains("\n" + Titled(ChatScreen.PurgeOlderPrompt(TimeSpan.FromDays(2), 1)) + "\n \n▸ No\n  Yes\n", output);
+        Assert.Contains("  · " + ChatScreen.SessionsPurgedOlderNotice(1, TimeSpan.FromDays(2)), output);
+        Assert.Contains("  · " + ChatScreen.NoSessionsOlderNotice(TimeSpan.FromDays(30)), output);
+        Assert.Equal(recent, Assert.Single(store.List(0)).Id);
+        Assert.Null(store.Load(old));
+    }
+
+    /// <summary>The 2026-09-21 grain: <c>purge older 2h</c> goes by the hours, and the wording says so.</summary>
+    [Fact]
+    public async Task Session_PurgeOlder_GoesByTheHoursAndMinutes()
+    {
+        _settings.Update(d => d.TtsOutput = false);
+        _geometry = new ScreenGeometry(() => null);
+        long old = SeedSession("old one");
+        _time.Advance(TimeSpan.FromHours(3));
+        long recent = SeedSession("recent one");
+        StepsWhenIdle(Line("/session purge older 1d"), Line("/session purge older 2h"), Key(Keys.Down), Key(Keys.Enter), Line("/session purge older 90m"), Line("/exit"));
+
+        string output = await RunAsync();
+
+        using var store = OpenSessions();
+        Assert.Contains("  · (no sessions older than 1 day)", output);
+        Assert.Equal("Purge 1 session older than 2 hours?", ChatScreen.PurgeOlderPrompt(TimeSpan.FromHours(2), 1));
+        Assert.Contains("\n" + Titled(ChatScreen.PurgeOlderPrompt(TimeSpan.FromHours(2), 1)) + "\n \n▸ No\n  Yes\n", output);
+        Assert.Contains("  · (🗑️ purged 1 session older than 2 hours)", output);
+        Assert.Contains("  · (no sessions older than 1 hour 30 minutes)", output);
         Assert.Equal(recent, Assert.Single(store.List(0)).Id);
         Assert.Null(store.Load(old));
     }
@@ -12989,8 +13012,13 @@ public class ChatScreenTests : IDisposable
     [InlineData("#12", SessionActionKind.Restore, 12, 0, "")]
     [InlineData("purge 12", SessionActionKind.Purge, 12, 0, "")]
     [InlineData("PURGE #3", SessionActionKind.Purge, 3, 0, "")]
-    [InlineData("purge older 30", SessionActionKind.PurgeOlder, 0, 30, "")]
+    [InlineData("purge older 30", SessionActionKind.PurgeOlder, 0, 30 * 1440, "")]
     [InlineData("purge Older 0", SessionActionKind.PurgeOlder, 0, 0, "")]
+    [InlineData("purge older 12h", SessionActionKind.PurgeOlder, 0, 12 * 60, "")]
+    [InlineData("purge older 90m", SessionActionKind.PurgeOlder, 0, 90, "")]
+    [InlineData("purge older 1d 6h", SessionActionKind.PurgeOlder, 0, 30 * 60, "")]
+    [InlineData("purge older 2 hours", SessionActionKind.PurgeOlder, 0, 120, "")]
+    [InlineData("purge older 1h30m", SessionActionKind.PurgeOlder, 0, 90, "")]
     [InlineData("purge all", SessionActionKind.PurgeAll, 0, 0, "")]
     [InlineData("title My notes  here", SessionActionKind.Title, 0, 0, "My notes  here")]
     [InlineData("TITLE x", SessionActionKind.Title, 0, 0, "x")]
@@ -13002,11 +13030,14 @@ public class ChatScreenTests : IDisposable
     [InlineData("purge older", SessionActionKind.Invalid, 0, 0, "")]
     [InlineData("purge older -1", SessionActionKind.Invalid, 0, 0, "")]
     [InlineData("purge older ten", SessionActionKind.Invalid, 0, 0, "")]
+    [InlineData("purge older 0h", SessionActionKind.Invalid, 0, 0, "")]
+    [InlineData("purge older 1h 1h", SessionActionKind.Invalid, 0, 0, "")]
+    [InlineData("purge older 2 days now", SessionActionKind.Invalid, 0, 0, "")]
     [InlineData("purge all now", SessionActionKind.Invalid, 0, 0, "")]
     [InlineData("12 13", SessionActionKind.Invalid, 0, 0, "")]
-    public void ParseSessionArgs_IsPinned(string args, SessionActionKind kind, long id, int days, string text)
+    public void ParseSessionArgs_IsPinned(string args, SessionActionKind kind, long id, int ageMinutes, string text)
     {
-        Assert.Equal(new SessionAction(kind, id, days, text), ChatScreen.ParseSessionArgs(args));
+        Assert.Equal(new SessionAction(kind, id, TimeSpan.FromMinutes(ageMinutes), text), ChatScreen.ParseSessionArgs(args));
     }
 
     [Fact]
@@ -13031,15 +13062,18 @@ public class ChatScreenTests : IDisposable
     public void SessionSentences_ArePinned()
     {
         var summary = new SessionSummary(12, ManualTimeProvider.DefaultUtcNow, ManualTimeProvider.DefaultUtcNow, "Vosk wiring", TitleSource.FirstLine, "llama", 12);
-        Assert.Equal("/session lists the sessions, or /session <id> | purge <id> | purge older <days> | purge all | title <text>", ChatScreen.SessionUsageError);
+        Assert.Equal("/session lists the sessions, or /session <id> | purge <id> | purge older <age> | purge all | title <text>", ChatScreen.SessionUsageError);
         Assert.Equal("No session #12; /session lists them.", ChatScreen.SessionMissingError(12));
         Assert.Equal("Could not restore session #12: bad json", ChatScreen.SessionRestoreFailedError(12, "bad json"));
         Assert.Equal("(restored session #12 \"Vosk wiring\" · 12 turns · 2026-09-11 14:05)", ChatScreen.SessionRestoredNotice(summary, ManualTimeProvider.DefaultZone));
-        Assert.Equal("Purge 3 sessions older than 30 days?", ChatScreen.PurgeOlderPrompt(30, 3));
+        Assert.Equal("Purge 3 sessions older than 30 days?", ChatScreen.PurgeOlderPrompt(TimeSpan.FromDays(30), 3));
+        Assert.Equal("Purge 3 sessions older than 12 hours?", ChatScreen.PurgeOlderPrompt(TimeSpan.FromHours(12), 3));
         Assert.Equal("Purge all 1 session?", ChatScreen.PurgeAllPrompt(1));
         Assert.Equal("(🗑️ purged 3 sessions)", ChatScreen.SessionsPurgedNotice(3));
-        Assert.Equal("(🗑️ purged 1 session older than 30 days)", ChatScreen.SessionsPurgedOlderNotice(1, 30));
-        Assert.Equal("(no sessions older than 30 days)", ChatScreen.NoSessionsOlderNotice(30));
+        Assert.Equal("(🗑️ purged 1 session older than 30 days)", ChatScreen.SessionsPurgedOlderNotice(1, TimeSpan.FromDays(30)));
+        Assert.Equal("(🗑️ purged 1 session older than 45 minutes)", ChatScreen.SessionsPurgedOlderNotice(1, TimeSpan.FromMinutes(45)));
+        Assert.Equal("(no sessions older than 30 days)", ChatScreen.NoSessionsOlderNotice(TimeSpan.FromDays(30)));
+        Assert.Equal("(no sessions older than 0 days)", ChatScreen.NoSessionsOlderNotice(TimeSpan.Zero));
         Assert.Equal("(no session yet: send a message first)", ChatScreen.SessionNoneYetNotice);
         Assert.Equal("purge", ChatScreen.SessionPurgeWord);
         Assert.Equal("older", ChatScreen.SessionOlderWord);

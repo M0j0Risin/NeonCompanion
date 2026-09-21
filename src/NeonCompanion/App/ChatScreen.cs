@@ -71,7 +71,7 @@ public enum SessionActionKind
     /// <summary><c>purge &lt;id&gt;</c>.</summary>
     Purge,
 
-    /// <summary><c>purge older &lt;days&gt;</c>: <c>Days</c> the count, 0 and up.</summary>
+    /// <summary><c>purge older &lt;age&gt;</c>: <c>Age</c> how long since the last turn, zero and up (<see cref="Sessions.SessionText.TryParseAge"/>).</summary>
     PurgeOlder,
 
     /// <summary><c>purge all</c>.</summary>
@@ -84,8 +84,8 @@ public enum SessionActionKind
     Invalid,
 }
 
-/// <summary>The parsed <c>/session</c> argument; <paramref name="Id"/> for a restore or a purge, <paramref name="Days"/> for <see cref="SessionActionKind.PurgeOlder"/>, <paramref name="Text"/> for <see cref="SessionActionKind.Title"/>.</summary>
-public readonly record struct SessionAction(SessionActionKind Kind, long Id = 0, int Days = 0, string Text = "");
+/// <summary>The parsed <c>/session</c> argument; <paramref name="Id"/> for a restore or a purge, <paramref name="Age"/> for <see cref="SessionActionKind.PurgeOlder"/>, <paramref name="Text"/> for <see cref="SessionActionKind.Title"/>.</summary>
+public readonly record struct SessionAction(SessionActionKind Kind, long Id = 0, TimeSpan Age = default, string Text = "");
 
 /// <summary>What a <c>/timer</c> argument asks for. Top-level like <see cref="ProfileAction"/>, so the test project can pin the grammar.</summary>
 public enum TimerActionKind
@@ -1810,7 +1810,7 @@ internal sealed partial class ChatScreen
     public const string SessionAllWord = "all";
     public const string SessionTitleWord = "title";
     public const string SessionPurgeAllNote = "purge every session: /session purge all";
-    public const string SessionPurgeOlderNote = "purge the sessions older than a number of days: /session purge older <days>";
+    public const string SessionPurgeOlderNote = "purge the sessions older than an age: /session purge older <age> (30 = days, 12h, 90m, 1d 6h)";
 
     /// <summary>The verbs the <c>/session</c> argument list offers after the ids; the ids' rows come first (<see cref="SessionChoices"/>).</summary>
     public static readonly IReadOnlyList<CompletionItem> SessionVerbs =
@@ -1901,7 +1901,7 @@ internal sealed partial class ChatScreen
                 var sessions = sources.Sessions?.Invoke() ?? [];
                 if (argText.StartsWith(SessionPurgeWord + " ", StringComparison.OrdinalIgnoreCase))
                 {
-                    // The second level: purge with all, older, or an id; older's day count is free text.
+                    // The second level: purge with all, older, or an id; older's age is free text.
                     var purges = new List<CompletionItem> { new(SessionPurgeWord + " " + SessionAllWord, SessionPurgeAllNote), new(SessionPurgeWord + " " + SessionOlderWord, SessionPurgeOlderNote) };
                     purges.AddRange(sessions.Select(item => new CompletionItem(SessionPurgeWord + " " + item.Text, item.Note)));
                     return MentionCompleter.Matches(purges, argText);
@@ -2805,7 +2805,7 @@ internal sealed partial class ChatScreen
     /// </summary>
     // ── /session (2026-09-18) ──────────────────────────────────────────────
 
-    public const string SessionUsageError = "/session lists the sessions, or /session <id> | purge <id> | purge older <days> | purge all | title <text>";
+    public const string SessionUsageError = "/session lists the sessions, or /session <id> | purge <id> | purge older <age> | purge all | title <text>";
 
     public static string SessionMissingError(long id) => $"No session {SessionText.Id(id)}; /session lists them.";
 
@@ -2818,22 +2818,23 @@ internal sealed partial class ChatScreen
         return $"(restored session {SessionText.Id(session.Id)} \"{session.Title}\" · {SessionText.Turns(session.Turns)} · {SessionText.Moment(session.UpdatedAt, zone)})";
     }
 
-    public static string PurgeOlderPrompt(int days, int count) => $"Purge {SessionText.Sessions(count)} older than {days.ToString(CultureInfo.InvariantCulture)} days?";
+    public static string PurgeOlderPrompt(TimeSpan age, int count) => $"Purge {SessionText.Sessions(count)} older than {SessionText.Age(age)}?";
 
     public static string PurgeAllPrompt(int count) => $"Purge all {SessionText.Sessions(count)}?";
 
     public static string SessionsPurgedNotice(int count) => $"({TrashGlyph}purged {SessionText.Sessions(count)})";
 
-    public static string SessionsPurgedOlderNotice(int count, int days) => $"({TrashGlyph}purged {SessionText.Sessions(count)} older than {days.ToString(CultureInfo.InvariantCulture)} days)";
+    public static string SessionsPurgedOlderNotice(int count, TimeSpan age) => $"({TrashGlyph}purged {SessionText.Sessions(count)} older than {SessionText.Age(age)})";
 
-    public static string NoSessionsOlderNotice(int days) => $"(no sessions older than {days.ToString(CultureInfo.InvariantCulture)} days)";
+    public static string NoSessionsOlderNotice(TimeSpan age) => $"(no sessions older than {SessionText.Age(age)})";
 
     public const string SessionNoneYetNotice = "(no session yet: send a message first)";
 
     /// <summary>
     /// The <c>/session</c> grammar: nothing = the pane; <c>12</c> or <c>#12</c> = restore; <c>purge 12</c>,
-    /// <c>purge older 30</c>, <c>purge all</c>; <c>title</c> and the rest of the line. Case-insensitive
-    /// words; an id is a positive whole number. Pure; pinned by tests.
+    /// <c>purge older 30</c> (or <c>12h</c>, <c>90m</c>, <c>1d 6h</c>: the rest of the line is one
+    /// <see cref="SessionText.TryParseAge"/> age, 2026-09-21), <c>purge all</c>; <c>title</c> and the
+    /// rest of the line. Case-insensitive words; an id is a positive whole number. Pure; pinned by tests.
     /// </summary>
     public static SessionAction ParseSessionArgs(string args)
     {
@@ -2866,9 +2867,9 @@ internal sealed partial class ChatScreen
                 return new(SessionActionKind.PurgeAll);
             case 2 when TryParseSessionId(tokens[1], out long id):
                 return new(SessionActionKind.Purge, id);
-            case 3 when tokens[1].Equals(SessionOlderWord, StringComparison.OrdinalIgnoreCase)
-                && int.TryParse(tokens[2], NumberStyles.None, CultureInfo.InvariantCulture, out int days):
-                return new(SessionActionKind.PurgeOlder, Days: days);
+            case >= 3 when tokens[1].Equals(SessionOlderWord, StringComparison.OrdinalIgnoreCase)
+                && SessionText.TryParseAge(string.Join(' ', tokens.Skip(2)), out var age):
+                return new(SessionActionKind.PurgeOlder, Age: age);
             default:
                 return new(SessionActionKind.Invalid);
         }
@@ -2906,7 +2907,7 @@ internal sealed partial class ChatScreen
                 await PurgeSessionAsync(action.Id, cancellationToken).ConfigureAwait(false);
                 break;
             case SessionActionKind.PurgeOlder:
-                await PurgeOlderSessionsAsync(action.Days, cancellationToken).ConfigureAwait(false);
+                await PurgeOlderSessionsAsync(action.Age, cancellationToken).ConfigureAwait(false);
                 break;
             case SessionActionKind.PurgeAll:
                 await PurgeAllSessionsAsync(cancellationToken).ConfigureAwait(false);
@@ -3024,19 +3025,24 @@ internal sealed partial class ChatScreen
         }
     }
 
-    /// <summary><c>/session purge older &lt;days&gt;</c>: every session last updated longer ago, after a yes/no naming the count; 0 days is every session but one updated this instant.</summary>
-    private async Task PurgeOlderSessionsAsync(int days, CancellationToken cancellationToken)
+    /// <summary>
+    /// <c>/session purge older &lt;age&gt;</c>: every session last updated longer ago, after a yes/no
+    /// naming the count; an age of 0 is every session but one updated this instant. An age past the
+    /// start of the calendar (a six-digit day count) means everything, not a throw from the subtraction.
+    /// </summary>
+    private async Task PurgeOlderSessionsAsync(TimeSpan age, CancellationToken cancellationToken)
     {
-        var cutoff = _time.GetUtcNow().AddDays(-days);
+        var now = _time.GetUtcNow();
+        var cutoff = age > now - DateTimeOffset.MinValue ? DateTimeOffset.MinValue : now - age;
         var sessions = _sessions.List(0);
         int count = sessions.Count(session => session.UpdatedAt < cutoff);
         if (count == 0)
         {
-            _transcript.Notice(NoSessionsOlderNotice(days));
+            _transcript.Notice(NoSessionsOlderNotice(age));
             return;
         }
 
-        if (!await ConfirmAsync(PurgeOlderPrompt(days, count), cancellationToken).ConfigureAwait(false))
+        if (!await ConfirmAsync(PurgeOlderPrompt(age, count), cancellationToken).ConfigureAwait(false))
         {
             _flow.Notice(KeptNotice);
             return;
@@ -3048,7 +3054,7 @@ internal sealed partial class ChatScreen
             ForgetSession();
         }
 
-        _transcript.Notice(SessionsPurgedOlderNotice(purged, days));
+        _transcript.Notice(SessionsPurgedOlderNotice(purged, age));
     }
 
     /// <summary><c>/session purge all</c>: every session, after a yes/no naming the count; the conversation on screen goes on and starts a new row at its next turn.</summary>

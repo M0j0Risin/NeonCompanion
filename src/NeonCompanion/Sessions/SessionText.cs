@@ -186,6 +186,71 @@ public static class SessionText
     /// <summary><c>1 session</c> / <c>12 sessions</c>.</summary>
     public static string Sessions(int count) => count.ToString(CultureInfo.InvariantCulture) + (count == 1 ? " session" : " sessions");
 
+    // ---- ages (2026-09-21) ----
+
+    /// <summary>
+    /// The age <c>/session purge older</c> takes: a bare number is days (the 2026-09-18 grammar,
+    /// <c>purge older 30</c>, kept so the README and habit still hold; <c>0</c> stays legal, every
+    /// session but one updated this instant), otherwise a <see cref="Timers.TimerText.TryParseDuration(string, bool, out TimeSpan)"/>
+    /// duration with days on: <c>12h</c>, <c>90m</c>, <c>2 hours</c>, <c>1d 6h</c>, <c>1h30m</c>,
+    /// each unit at most once and never zero. Up to six digits a number, as the timers allow.
+    /// </summary>
+    public static bool TryParseAge(string text, out TimeSpan age)
+    {
+        age = TimeSpan.Zero;
+        if (text is null)
+        {
+            return false;
+        }
+
+        string s = text.Trim();
+        if (s.Length > 0 && s.All(char.IsAsciiDigit))
+        {
+            if (s.Length > 6)
+            {
+                return false;
+            }
+
+            age = TimeSpan.FromDays(int.Parse(s, CultureInfo.InvariantCulture));
+            return true;
+        }
+
+        return Timers.TimerText.TryParseDuration(s, withDays: true, out age);
+    }
+
+    /// <summary>
+    /// <c>30 days</c>, <c>12 hours</c>, <c>1 day 6 hours</c>, <c>45 minutes</c>, <c>1 hour 30 minutes 10 seconds</c>;
+    /// the non-zero parts largest first, and <c>0 days</c> for nothing at all. Its own formatter, not
+    /// <see cref="Timers.TimerText.Describe"/>: a timer has no day unit and says <c>26 hours</c>.
+    /// </summary>
+    public static string Age(TimeSpan age)
+    {
+        long total = (long)Math.Round(age.TotalSeconds);
+        long d = total / 86400, h = total % 86400 / 3600, m = total % 3600 / 60, s = total % 60;
+        var parts = new List<string>(4);
+        if (d > 0)
+        {
+            parts.Add(Llm.Tools.ClockText.Count((int)d, "day"));
+        }
+
+        if (h > 0)
+        {
+            parts.Add(Llm.Tools.ClockText.Count((int)h, "hour"));
+        }
+
+        if (m > 0)
+        {
+            parts.Add(Llm.Tools.ClockText.Count((int)m, "minute"));
+        }
+
+        if (s > 0)
+        {
+            parts.Add(Llm.Tools.ClockText.Count((int)s, "second"));
+        }
+
+        return parts.Count == 0 ? Llm.Tools.ClockText.Count(0, "day") : string.Join(' ', parts);
+    }
+
     /// <summary>The one-line label of a session the tool and the pane share: <c>#12 · 2026-09-18 14:05 · 12 turns · Title</c>. Pinned.</summary>
     public static string Label(SessionSummary session, TimeZoneInfo zone)
     {

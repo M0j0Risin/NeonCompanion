@@ -111,7 +111,7 @@ public enum SlashCommand
     /// <summary><c>/queue</c>: the messages queued while a reply runs, on a pane where Enter removes one (2026-09-18, behind <c>Queue messages</c>).</summary>
     Queue,
 
-    /// <summary><c>/session</c>: this profile's stored sessions on a pane (restore, rename, purge), or <c>/session &lt;id&gt; | purge &lt;id&gt; | purge older &lt;days&gt; | purge all | title &lt;text&gt;</c> typed (2026-09-18).</summary>
+    /// <summary><c>/session</c>: this profile's stored sessions on a pane (restore, rename, purge), or <c>/session &lt;id&gt; | purge &lt;id&gt; | purge older &lt;age&gt; | purge all | title &lt;text&gt;</c> typed (2026-09-18).</summary>
     Session,
 
     /// <summary><c>/exit</c>: leave the app (<c>/quit</c> until 2026-09-17, the user's call; the old word is unknown now, as the aliases are).</summary>
@@ -158,7 +158,7 @@ public static class SlashCommands
             new("/tools", "switch the model's tools on or off and edit the Options, Ask, Files and Web settings on a pane"),
             new("/mcp", "connect external MCP servers and switch their tools on or off on a pane"),
             new("/profile", "switch profiles, or /profile <name> | add <name> | delete <name> | rename <name> <new-name> | reset [name]"),
-            new("/session", "list, restore and purge sessions: /session [<id> | purge <id> | purge older <days> | purge all | title <text>]"),
+            new("/session", "list, restore and purge sessions: /session [<id> | purge <id> | purge older <age> | purge all | title <text>]"),
             new("/skills", "list the skills, edit the skill settings and the project file on a pane"),
             new("/learn", "write or improve a skill from the last turn or the stored sessions, in the background: /learn [what to keep] | sessions [N | what to search]"),
         ],
