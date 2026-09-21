@@ -5,7 +5,7 @@ namespace NeonCompanion.App;
 
 /// <summary>
 /// What <c>/tools</c>' Offered tab shows, read when it opens and again after every flip: the groups
-/// as <c>/sysprompt</c> lists them (<see cref="SystemPromptSummary.ToolGroups"/>, over the whole web
+/// as <c>/sys</c> lists them (<see cref="SystemPromptSummary.ToolGroups"/>, over the whole web
 /// list and with <c>load_skill</c> noted when no skill is installed), the setting <c>LLM offer tools</c>,
 /// and the names switched off on the tab (<c>ToolsDisabled</c>, as a set).
 /// </summary>

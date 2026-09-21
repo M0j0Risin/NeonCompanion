@@ -13,7 +13,7 @@ using Spectre.Console.Rendering;
 namespace NeonCompanion.App;
 
 /// <summary>
-/// What <c>/sysprompt</c> shows: the live state a turn is prepared from, read the way
+/// What <c>/sys</c> shows: the live state a turn is prepared from, read the way
 /// <see cref="ChatScreen.PrepareTurn"/> and <see cref="Assistant.RunTurnAsync"/> read it.
 /// </summary>
 /// <param name="Persona">The <c>persona.md</c> text, null for the default persona.</param>
@@ -142,7 +142,7 @@ public sealed record ToolGroup(string Name, string Note, IReadOnlyList<AIFunctio
 }
 
 /// <summary>
-/// The <c>/sysprompt</c> content: pure builders with pinned wording over <see cref="SystemPromptFacts"/>
+/// The <c>/sys</c> content: pure builders with pinned wording over <see cref="SystemPromptFacts"/>
 /// and the tool lists. The Prompt tab is the system message the next turn sends, section by section
 /// under a status heading, in the order <see cref="Assistant.SystemPrompt(bool, IReadOnlyList{string}, string, string, string)"/>
 /// joins them — the bodies of the sections marked in the prompt, joined by a blank line, ARE that
@@ -532,7 +532,7 @@ public static class SystemPromptSummary
     /// own reason first). Since 2026-09-19 a tool switched off by name (<paramref name="disabled"/>,
     /// <c>/tools</c>) is noted on its row (<see cref="ToolGroup.ToolNotes"/>) and the group's name counts
     /// what is left — <c>Files (13 of 15)</c>; <paramref name="skillInstalled"/> false notes <c>load_skill</c>
-    /// as dropped (the <c>/tools</c> list passes it; <c>/sysprompt</c> keeps the plain names), and <paramref name="safeEdits"/>
+    /// as dropped (the <c>/tools</c> list passes it; <c>/sys</c> keeps the plain names), and <paramref name="safeEdits"/>
     /// false notes <c>restore</c> the same way (later still on 2026-09-20, the <c>download_file</c> shape). Pinned.
     /// </summary>
     public static IReadOnlyList<ToolGroup> ToolGroups(
@@ -572,7 +572,7 @@ public static class SystemPromptSummary
         string webNote = !webEnabled ? NotOffered("web is off") : standing;
         string filesNote = !filesEnabled ? NotOffered(FilesOffSuffix) : standing;
         string questionsNote = !askEnabled ? NotOffered(AskOffSuffix) : !paneOn ? NotOffered(NoPaneSuffix) : standing;
-        // restore rides only with File safe edits on (later still on 2026-09-20): a whole file list under the setting off notes it (the /tools list; /sysprompt passes the list already cut).
+        // restore rides only with File safe edits on (later still on 2026-09-20): a whole file list under the setting off notes it (the /tools list; /sys passes the list already cut).
         var fileNotes = !safeEdits && files.Any(t => t is RestoreTool) ? new Dictionary<string, string>(StringComparer.Ordinal) { [RestoreTool.ToolName] = NotOffered(SafeEditsOffSuffix) } : null;
         var groups = new List<ToolGroup>(8)
         {
@@ -598,7 +598,7 @@ public static class SystemPromptSummary
 
         if (web is not null)
         {
-            // download_file rides only with the file tools (2026-09-18): a whole web list under File tools off notes it (the /tools list; /sysprompt passes the list already cut).
+            // download_file rides only with the file tools (2026-09-18): a whole web list under File tools off notes it (the /tools list; /sys passes the list already cut).
             var notes = !filesEnabled && web.Any(t => t is DownloadFileTool) ? new Dictionary<string, string>(StringComparer.Ordinal) { [DownloadFileTool.ToolName] = NotOffered(FilesOffSuffix) } : null;
             groups.Add(Group("Web", web, webNote, webEnabled && toolsEnabled, SettingsField.WebTools, disabled, notes));
         }
@@ -652,7 +652,7 @@ public static class SystemPromptSummary
             }
         }
 
-        // The name counts the /tools list alone: a tool dropped for another reason (download_file, load_skill) keeps its group's plain count, as /sysprompt has always shown it.
+        // The name counts the /tools list alone: a tool dropped for another reason (download_file, load_skill) keeps its group's plain count, as /sys has always shown it.
         int left = disabled is null ? tools.Count : tools.Count(t => !disabled.Contains(t.Name));
         return new ToolGroup(GroupName(name, left, tools.Count), note, tools, offered)
         {

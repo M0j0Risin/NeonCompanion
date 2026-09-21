@@ -36,7 +36,7 @@ public sealed class ConversationHistory
 
     private readonly List<ChatMessage> _messages = new();
     // Kept by Recount after every write that can change it, so a reader on another task (the
-    // /sysprompt pane opened mid-turn) gets a number and never walks the list the turn appends to.
+    // /sys pane opened mid-turn) gets a number and never walks the list the turn appends to.
     private volatile int _turnCount;
 
     public ConversationHistory(string systemPrompt)

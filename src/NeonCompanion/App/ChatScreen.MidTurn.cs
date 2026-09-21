@@ -102,7 +102,7 @@ internal sealed partial class ChatScreen
     public static MidTurnClass MidTurnPolicy(SlashCommand command, bool hasArgs) => command switch
     {
         SlashCommand.None => MidTurnClass.Message,
-        SlashCommand.Help or SlashCommand.Settings or SlashCommand.Sysprompt or SlashCommand.Memory
+        SlashCommand.Help or SlashCommand.Settings or SlashCommand.Sys or SlashCommand.Memory
             or SlashCommand.Usage or SlashCommand.About or SlashCommand.Forget or SlashCommand.EmptyTrash or SlashCommand.Queue or SlashCommand.Tools or SlashCommand.Mcp => MidTurnClass.Pane,
         SlashCommand.Reasoning => hasArgs ? MidTurnClass.Quick : MidTurnClass.Pane,
         SlashCommand.Skills => hasArgs ? MidTurnClass.Refused : MidTurnClass.Pane,
@@ -193,7 +193,7 @@ internal sealed partial class ChatScreen
             case SlashCommand.Help:
                 await _info.ShowAsync(InfoPane.Title, HelpTabs(), 0, cancellationToken).ConfigureAwait(false);
                 break;
-            case SlashCommand.Sysprompt:
+            case SlashCommand.Sys:
                 await _info.ShowAsync(SystemPromptSummary.Label, SysPromptTabs(), 0, cancellationToken).ConfigureAwait(false);
                 break;
             case SlashCommand.Usage:

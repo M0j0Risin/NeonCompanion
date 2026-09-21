@@ -1470,7 +1470,7 @@ public class CompanionAppTests : IDisposable
     }
 
     [Fact]
-    public async Task Interactive_ServerPick_ThenModel_ReconnectsOnce_AndKeepsTheConversation()
+    public async Task Interactive_ServerPick_ThenModel_ThenReasoning_ReconnectsOnce_AndKeepsTheConversation()
     {
         ServerOn1234("alpha");
         _http.Map("http://127.0.0.1:11434/v1/models", HttpStatusCode.OK, StubHttpMessageHandler.ModelsJson("phi", "gemma"));
@@ -1490,17 +1490,24 @@ public class CompanionAppTests : IDisposable
         _console.Input.PushKey(Keys.Enter);
         _console.Input.PushKey(Keys.Down);      // gemma
         _console.Input.PushKey(Keys.Enter);
+        _console.Input.PushKey(Keys.Down);      // the reasoning menu follows (2026-09-21): none -> low
+        _console.Input.PushKey(Keys.Enter);
         PushLine("again");
         PushLine("/exit");
 
         string output = await InteractiveAsync(chat: factory);
 
         Assert.Contains(SettingsMenu.StartupServerTitle, output);
+        Assert.Contains(SettingsMenu.ReasoningTitle, output);
         Assert.Contains("LLM: http://127.0.0.1:1234/v1 model=alpha (probed http://127.0.0.1:1234/v1)", output);
         Assert.Contains("LLM: http://127.0.0.1:11434/v1 model=gemma (configured)", output);
+        Assert.Equal(2, clients.Count);                                                     // one reconnect carried the model and the effort
         Assert.Equal(new[] { "alpha", "gemma" }, endpoints.Select(e => e.ModelId));
         Assert.Equal("http://127.0.0.1:11434/v1", _settings.Current.LlmUrl);
         Assert.Equal("gemma", _settings.Current.LlmModel);
+        Assert.Equal("low", _settings.Current.LlmReasoning);
+        Assert.Equal(ReasoningEffort.None, clients[0].Options[0]!.Reasoning!.Effort);
+        Assert.Equal(ReasoningEffort.Low, clients[1].Options[0]!.Reasoning!.Effort);
         Assert.True(clients[0].Disposed);
         // The conversation survived the switch: the second client saw the first exchange.
         Assert.Equal(new[] { ChatRole.System, ChatRole.User, ChatRole.Assistant, ChatRole.Tool, ChatRole.Assistant, ChatRole.Tool, ChatRole.Assistant, ChatRole.Tool, ChatRole.Assistant, ChatRole.User }, clients[1].Requests[0].Select(m => m.Role));

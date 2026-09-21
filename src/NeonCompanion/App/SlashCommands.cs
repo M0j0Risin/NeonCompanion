@@ -58,8 +58,8 @@ public enum SlashCommand
     /// <summary><c>/vocalia</c>: open <c>vocalia.md</c> (the spoken-reply directive) in the editor Windows associates with it, or <c>/vocalia reset</c> to remove it (2026-09-16).</summary>
     Vocalia,
 
-    /// <summary><c>/sysprompt</c>: the system prompt the next turn sends and the tools it offers, in the info pane.</summary>
-    Sysprompt,
+    /// <summary><c>/sys</c>: the system prompt the next turn sends and the tools it offers, in the info pane. Named <c>/sysprompt</c> until 2026-09-21, when the retired short alias became the one word.</summary>
+    Sys,
 
     /// <summary><c>/usage</c>: the tokens used and the speed — the last reply, this conversation, since launch.</summary>
     Usage,
@@ -173,7 +173,7 @@ public static class SlashCommands
             new("/model", "pick a model from the LLM server, or /model <id>"),
             new("/reasoning", "pick the LLM reasoning effort, or /reasoning <level>"),
             new("/compact", "shrink the current context, or /compact <focus> to steer the summary"),
-            new("/sysprompt", "show the system prompt and tools sent to the model"),
+            new("/sys", "show the system prompt and tools sent to the model"),
             new("/usage", "show token usage and performance statistics"),
         ],
         [
@@ -278,7 +278,7 @@ public static class SlashCommands
     }
 
     /// <summary>Every command word, for help and completion.</summary>
-    public static readonly string[] Words = { "/help", "/clear", "/new", "/splash", "/queue", "/session", "/compact", "/server", "/model", "/reasoning", "/settings", "//", "/tools", "///", "/mcp", "/tts", "/stt", "/wake", "/interrupt", "/speak", "/remember", "/memory", "/forget", "/memcopy", "/persona", "/operata", "/vocalia", "/sysprompt", "/usage", "/profile", "/timer", "/cwd", "/tree", "/explore", "/view", "/echo", "/emptytrash", "/git", "/copy", "/draft", "/loop", "/window", "/skills", "////", "/learn", "/about", "/exit" };
+    public static readonly string[] Words = { "/help", "/clear", "/new", "/splash", "/queue", "/session", "/compact", "/server", "/model", "/reasoning", "/settings", "//", "/tools", "///", "/mcp", "/tts", "/stt", "/wake", "/interrupt", "/speak", "/remember", "/memory", "/forget", "/memcopy", "/persona", "/operata", "/vocalia", "/sys", "/usage", "/profile", "/timer", "/cwd", "/tree", "/explore", "/view", "/echo", "/emptytrash", "/git", "/copy", "/draft", "/loop", "/window", "/skills", "////", "/learn", "/about", "/exit" };
 
     /// <summary>The <c>/queue</c> word: what a double-click on the hint row's queued part sends through the mid-turn line hook, so the pane opens exactly as the typed command's does (2026-09-18). Pinned.</summary>
     public const string QueueWord = "/queue";
@@ -322,7 +322,7 @@ public static class SlashCommands
             "/persona" => SlashCommand.Persona,
             "/operata" => SlashCommand.Operata,
             "/vocalia" => SlashCommand.Vocalia,
-            "/sysprompt" => SlashCommand.Sysprompt,
+            "/sys" => SlashCommand.Sys,
             "/usage" => SlashCommand.Usage,
             "/profile" => SlashCommand.Profile,
             "/timer" => SlashCommand.Timer,

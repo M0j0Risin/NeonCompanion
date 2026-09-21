@@ -296,7 +296,7 @@ public partial class ChatScreenTests
         Assert.DoesNotContain("neon_tools", _chat.Requests[0][0].Text!, StringComparison.Ordinal);
     }
 
-    /// <summary>The policy off: no shell tool offered, the rule gone, the group noted on /sysprompt and /tools (2026-09-21).</summary>
+    /// <summary>The policy off: no shell tool offered, the rule gone, the group noted on /sys and /tools (2026-09-21).</summary>
     [Fact]
     public async Task Turn_PolicyOff_OffersNoShellTool_AndTheRulesLoseTheShellSentence()
     {
@@ -306,7 +306,7 @@ public partial class ChatScreenTests
         _geometry = new ScreenGeometry(() => null);
         StepsWhenIdle(
             Line("hi"),
-            Line("/sysprompt"),
+            Line("/sys"),
             input => input.Push(Keys.Right, Keys.Escape),
             Line("/exit"));
 

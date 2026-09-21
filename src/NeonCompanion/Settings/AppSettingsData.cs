@@ -77,7 +77,7 @@ public sealed class AppSettingsData
     public bool Memory { get; set; } = true;
 
     /// <summary>
-    /// Whether the app keeps the mouse while a menu, <c>/help</c> or <c>/sysprompt</c> is open
+    /// Whether the app keeps the mouse while a menu, <c>/help</c> or <c>/sys</c> is open
     /// (a click highlights a row, a double-click picks it, a click picks a tab, the wheel scrolls
     /// the pane; the terminal's selection needs Shift), or hands it to the terminal there (plain
     /// drag-select and copy over the pane's text; the keys do the moving) and takes it back when the

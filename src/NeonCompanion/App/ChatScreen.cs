@@ -728,7 +728,7 @@ internal sealed partial class ChatScreen
         };
         _info = new InfoPane(_pane, keys, menuMouse);
         _menuPane = new MenuPane(_pane, keys, menuMouse);
-        // The question tool's pane and the tool itself: built always (the /sysprompt Tools tab
+        // The question tool's pane and the tool itself: built always (the /sys Tools tab
         // lists it either way), offered only while the setting Ask user and the pane say so (RunTurnAsync).
         _questionMenu = new QuestionMenu(_menuPane, _input);
         _approvalMenu = new CommandApprovalMenu(_menuPane);
@@ -1016,7 +1016,7 @@ internal sealed partial class ChatScreen
     internal static Grid TwoColumns() =>
         new Grid().AddColumn(new GridColumn().NoWrap().PadRight(SlashCommands.HelpColumnGap)).AddColumn(new GridColumn().PadRight(0));
 
-    /// <summary>The tabs <c>/sysprompt</c> opens: the system message the next turn sends, and the tools it offers; both from the live state.</summary>
+    /// <summary>The tabs <c>/sys</c> opens: the system message the next turn sends, and the tools it offers; both from the live state.</summary>
     private IReadOnlyList<InfoTab> SysPromptTabs() =>
     [
         new(SystemPromptSummary.PromptTabTitle, () => SystemPromptSummary.PromptTab(SystemPromptFacts())),
@@ -2176,7 +2176,7 @@ internal sealed partial class ChatScreen
     {
         var effective = _effective();
         var disabled = ToolsText.DisabledSet(effective.ToolsDisabled);
-        var fileTools = FileToolsFor(_fileTools, effective.FileSafeEdits);   // restore only with File safe edits on (later still on 2026-09-20): /sysprompt shows the list cut, Files (14)
+        var fileTools = FileToolsFor(_fileTools, effective.FileSafeEdits);   // restore only with File safe edits on (later still on 2026-09-20): /sys shows the list cut, Files (14)
         bool files = effective.FileTools && Without(fileTools, disabled).Count > 0;   // the turn's rule (PrepareTurn): an emptied file group is the switch off
         return SystemPromptSummary.ToolGroups(_clockTools, _timerTools, fileTools, _memoryTools, effective.Memory, effective.LlmOfferTools, WebToolsFor(_webTools, files), effective.WebTools, effective.FileTools, _askTools, effective.AskUser, _pane.Enabled, _skillTools, effective.AgentSkills, _sessionTools, effective.SessionTool, disabled, mcp: _mcp.ServerTools, mcpEnabled: effective.McpServers, git: _gitTools, gitEnabled: effective.GitTools, shell: _shellTools, shellEnabled: ShellOffered(effective), codeAvailable: CodeAvailable());
     }
@@ -5161,8 +5161,11 @@ internal sealed partial class ChatScreen
     /// under a spinner, a pick from the ones that answered — or <c>/server &lt;url&gt;</c>, one URL
     /// probed and taken even when it does not answer, the configured-URL contract — saved as the
     /// LLM URL (the model id cleared when the server changed), then the model picker over the
-    /// list the probe already holds, then ONE reconnect. When a variable or flag overrides the URL
-    /// the save and its warning are all that happens: nothing changed for this launch.
+    /// list the probe already holds, then the reasoning picker (2026-09-21, the user's call: a
+    /// server switch sets URL, model and effort in one pass; ESC keeps the level, and it is offered
+    /// whether or not the model step picked, like the model menu itself), then ONE reconnect that
+    /// carries both saves. When a variable or flag overrides the URL the save and its warning are
+    /// all that happens: nothing changed for this launch.
     /// </summary>
     private async Task HandleServerAsync(string args, CancellationToken cancellationToken)
     {
@@ -5224,6 +5227,7 @@ internal sealed partial class ChatScreen
         }
 
         await _menu.PickModelFromListAsync(picked.Result, _settings.Current.LlmModel, cancellationToken).ConfigureAwait(false);
+        await _menu.PickReasoningAsync("", _effective().LlmReasoning, cancellationToken).ConfigureAwait(false);
         await ConnectLlmAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -5604,7 +5608,7 @@ internal sealed partial class ChatScreen
                 await HandlePromptFileAsync(_vocalia, "/vocalia", args, VocaliaCreatedNotice, VocaliaOpenedNotice, VocaliaOpenFailedError, spoken: true, cancellationToken).ConfigureAwait(false);
                 return false;
 
-            case SlashCommand.Sysprompt:
+            case SlashCommand.Sys:
                 if (_pane.Enabled)
                 {
                     await _info.ShowAsync(SystemPromptSummary.Label, SysPromptTabs(), 0, cancellationToken).ConfigureAwait(false);

@@ -183,7 +183,12 @@ public sealed class ExecuteCodeToolTests : IDisposable
 
         Assert.StartsWith("exit 1 in 0.0 s (powershell, 2 tool calls): try { Invoke-NeonTool nope @{} }", result);   // every request the bridge dispatched counts, an unknown tool's too
         Assert.Contains("\ncaught: Error: unknown tool nope\n", result);
-        Assert.Contains("--- stderr ---\nError: unknown tool ask_user", result);
+        // Both shells put the uncaught throw on stderr with exit 1, but frame it differently: Windows
+        // PowerShell 5.1 prints the message first, pwsh 7's ConciseView (plain under NO_COLOR) leads
+        // with "Exception: <script>:<line>" and a caret block and puts the message last (2026-09-21).
+        int stderr = result.IndexOf(ShellText.StderrSeparator, StringComparison.Ordinal);
+        Assert.True(stderr >= 0, result);
+        Assert.Contains("Error: unknown tool ask_user", result[stderr..]);
     }
 
     [Fact]

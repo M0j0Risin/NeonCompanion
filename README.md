@@ -17,12 +17,12 @@ On the Roadmap: Full terminal execution, coding capabilities, and official macOS
 - [Why "Neon"](#why-neon)
 
 ## License
-[↑ Back to top](#neon-companion)
+[⬆ Back to Top](#readme)
 
 Neon Companion is released under the GPLv3 license.
 
 ## Features
-[↑ Back to top](#neon-companion)
+[⬆ Back to Top](#readme)
 
 ### Core Architecture & UI
 * Built on **.NET 10 NativeAOT** for lightweight, high-performance execution.
@@ -44,15 +44,14 @@ Neon Companion is released under the GPLv3 license.
 * **Self-Learning:** An automatic self-reflection system that dynamically updates and creates new skills based on interactions and tool outcomes.
 
 ### Built-In Tooling & Voice
-* **Essential Tools:** Sandboxed file I/O, web search (DuckDuckGo/SearXNG), web browsing (httpClient/Chromium), graphical clarification prompts, and clock/timer functions.
-* **Local Git Management:** Built-in capabilities to seamlessly inspect, manage, and interact with local Git repositories.
+**Essential Tools:** Sandboxed file I/O, web search (DuckDuckGo/SearXNG), web browsing (httpClient/Chromium), graphical clarification prompts, clock/timer functions, and built-in local Git management capabilities to seamlessly inspect, manage, and interact with repositories.
 * **Shell Commands & Scripts:** `run_command` runs a command line in PowerShell, cmd or Git Bash from the working directory (foreground, or in the background with a `process` tool to poll, feed and kill it), and `execute_code` runs a Python, Node or PowerShell script that can call the other tools — all behind an approval pane (allow once, for the session, or for good) and a `yolo` mode for trusted setups.
 * **MCP Server Support:** Seamless integration with Model Context Protocol (MCP) servers to expand tool capabilities and connect to external data sources.
 * **Native Voice Stack:** Features in-process Whisper STT, push-to-talk, and Vosk wake-word integration.
 * **Text-to-Speech:** Includes in-process Kokoro TTS, with support for an external HTTP Kokoro endpoint.
 
 ## Components & Libraries
-[↑ Back to top](#neon-companion)
+[⬆ Back to Top](#readme)
 
 * `.NET 10 (NativeAOT)`
 * `Spectre.Console`
@@ -69,9 +68,9 @@ Neon Companion is released under the GPLv3 license.
 * `LibGit2Sharp`
 
 ## Settings & menus
-[↑ Back to top](#neon-companion)
+[⬆ Back to Top](#readme)
 
-Every setting lives in a profile and is edited from a pane inside the app — `←`/`→` switch tabs, `↑`/`↓` move, Enter edits or flips a row, ESC backs out. Five panes carry them: `/settings` for the app, the sessions, the LLM and the voice stack; `/skills` for the agent skills and the self-reflection; `/tools` for what the model may call; `/mcp` for external MCP servers; and `/sysprompt`, a read-only view of what the model is about to be sent.
+Every setting lives in a profile and is edited from a pane inside the app — `←`/`→` switch tabs, `↑`/`↓` move, Enter edits or flips a row, ESC backs out. Five panes carry them: `/settings` for the app, the sessions, the LLM and the voice stack; `/skills` for the agent skills and the self-reflection; `/tools` for what the model may call; `/mcp` for external MCP servers; and `/sys`, a read-only view of what the model is about to be sent.
 
 ### Settings (`/settings`)
 
@@ -274,7 +273,7 @@ Every connected server's tools as `<server>__<tool>` with the description the se
 | MCP servers | The master switch: on, every enabled server is started at launch and after a profile switch and its tools are offered; off, nothing is started. | off |
 | MCP connect timeout (s) | How long one server gets to answer the handshake and list its tools before it is marked failed (5–300). | 30 |
 
-### System prompt (`/sysprompt`)
+### System prompt (`/sys`)
 
 Read-only: exactly what the next reply will be sent, nothing paraphrased.
 
@@ -287,7 +286,7 @@ The system prompt section by section, each with its status — **Persona** (defa
 Every tool the reply may call, grouped — Clock, Timers, Files, Git, Web, Memory, Skills, Sessions, one group per connected MCP server, Questions — each with the description the model reads, and a note on any that is switched off and why.
 
 ## Slash commands
-[↑ Back to top](#neon-companion)
+[⬆ Back to Top](#readme)
 
 Type `/` and the list opens with every command and its summary; after the command and a space, the argument list follows for any argument that can be listed. `//`, `///` and `////` are the aliases (for `/settings`, `/tools` and `/skills`); they are never listed.
 
@@ -320,7 +319,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/queue` | List and prune the messages queued while a reply runs. |
 | `/reasoning [level]` | Pick the reasoning effort (`none`, `low`, `medium`, `high`, `xhigh`). |
 | `/remember <text>` | Add a memory. |
-| `/server [url]` | Pick an LLM server found on the usual ports, or set one. |
+| `/server [url]` | Pick an LLM server found on the usual ports, or set one; the model picker and then the reasoning picker follow, and one reconnect carries all three. |
 | `/session [id \| purge <id> \| purge older <age> \| purge all \| title <text>]` | List, restore, rename and purge the stored sessions. An age is days as a bare number (`30`, `0`), or a duration with units: `12h`, `90m`, `2 hours`, `1d 6h`. |
 | `/settings`, `//` | Edit and save the settings. |
 | `/skills`, `////` | List the skills and edit the skill, reflection and project-file settings. |
@@ -328,7 +327,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/speak [file [n] \| n]` | Read a text file from the working directory aloud as a reply; alone resumes, a number starts from that sentence. |
 | `/splash` | Start a new conversation and show the splash screen. |
 | `/stt [on\|off]` | Toggle speech input. |
-| `/sysprompt` | Show the system prompt and the tools sent to the model. |
+| `/sys` | Show the system prompt and the tools sent to the model. |
 | `/timer [duration [name] \| stop <name> \| stop all]` | List the timers, or start one (`10m`, `90s`, `1h30m`), or stop one. |
 | `/tools`, `///` | Switch the model's tools on or off and edit the Ask, Files, Git and Web settings. |
 | `/tree [path]` | Print a tree of the working directory. |
@@ -340,9 +339,9 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/window` | Show the terminal window's width and height. |
 
 ## Tools
-[↑ Back to top](#neon-companion)
+[⬆ Back to Top](#readme)
 
-What the model can call, in the groups `/tools` and `/sysprompt` show. A group's switch (`File tools`, `Git tools`, `Shell command policy`, `Web tools`, `Memory`, `Agent skills`, `Session tool`, `Ask user`, `MCP servers`) offers or withholds the whole group; a single tool goes on or off on `/tools`' Offered tab. Required arguments come first; `?` marks an optional one.
+What the model can call, in the groups `/tools` and `/sys` show. A group's switch (`File tools`, `Git tools`, `Shell command policy`, `Web tools`, `Memory`, `Agent skills`, `Session tool`, `Ask user`, `MCP servers`) offers or withholds the whole group; a single tool goes on or off on `/tools`' Offered tab. Required arguments come first; `?` marks an optional one.
 
 ### Clock
 
@@ -450,7 +449,7 @@ A command line on your machine. It **starts** in the working directory (`workdir
 Every connected MCP server is a group of its own, its tools offered as `<server>__<tool>` with the descriptions the server publishes — a gateway's `get_current_time` never collides with the app's. They come and go with the server: switch one off on `/mcp`' Servers tab and its group is gone; switch a single tool off on the Tools tab and the rest stay. No approval step stands before a call — enabling the server is the consent.
 
 ## Screenshots
-[↑ Back to top](#neon-companion)
+[⬆ Back to Top](#readme)
 
 ### Markdown rendering
 ![markdon](./assets/screenshots/screenshot_markdown.png)
@@ -558,6 +557,6 @@ Every connected MCP server is a group of its own, its tools offered as `<server>
 ![splash](./assets/screenshots/screenshot_splash.png)
 
 ## Why "Neon"
-[↑ Back to top](#neon-companion)
+[⬆ Back to Top](#readme)
 
 During early development, I was experimenting with synthwave-style themes in Spectre.Console while simultaneously testing the Vosk voice integration. I needed a short, punchy wake word, and "Neon" fit the aesthetic perfectly. The name stuck for the project. Today, while the default profile is still named "Neon," the system is completely configurable—allowing you to create as many custom profiles, personas, and wake words as you like.

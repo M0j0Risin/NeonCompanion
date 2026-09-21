@@ -1426,7 +1426,7 @@ public partial class ChatScreenTests : IDisposable
     }
 
     [Fact]
-    public async Task Server_Reprobes_PicksAnother_ThenItsModel_ThenReconnectsOnce()
+    public async Task Server_Reprobes_PicksAnother_ThenItsModel_ThenItsReasoning_ThenReconnectsOnce()
     {
         ServerOn(11434, "phi", "gemma");
         var clients = new List<FakeChatClient>();
@@ -1438,6 +1438,8 @@ public partial class ChatScreenTests : IDisposable
         _console.Input.PushKey(Keys.Enter);
         _console.Input.PushKey(Keys.Down);      // gemma
         _console.Input.PushKey(Keys.Enter);
+        _console.Input.PushKey(Keys.Down);      // the reasoning menu follows the model (2026-09-21): none -> low
+        _console.Input.PushKey(Keys.Enter);
         PushLine("/exit");
 
         Assert.Equal(0, await screen.RunAsync(CancellationToken.None));
@@ -1445,13 +1447,16 @@ public partial class ChatScreenTests : IDisposable
 
         Assert.Contains(SettingsMenu.ServerTitle, output);
         Assert.Contains(SettingsMenu.ModelTitle, output);
+        Assert.Contains(SettingsMenu.ReasoningTitle, output);
         Assert.Contains("  · LLM URL: http://127.0.0.1:11434/v1", output);
         Assert.Contains("  · LLM model: gemma", output);
+        Assert.Contains("  · LLM reasoning: low", output);
         Assert.Equal("http://127.0.0.1:11434/v1", _settings.Current.LlmUrl);
         Assert.Equal("gemma", _settings.Current.LlmModel);
+        Assert.Equal("low", _settings.Current.LlmReasoning);
         Assert.Equal(1, Count(output, "LLM: http://127.0.0.1:1234/v1 model=llama (first listed)"));  // the startup pick: URL saved, model still auto
         Assert.Equal(1, Count(output, "LLM: http://127.0.0.1:11434/v1 model=gemma (configured)"));   // one reconnect: the picked model is now configured
-        Assert.Equal(2, Count(output, "LLM: "));
+        Assert.Equal(2, Count(output, "LLM: "));                                                    // the reasoning pick rode the same reconnect
         Assert.Equal(2 * LlmEndpointProbe.CandidatePorts.Length + 1, ModelProbes);        // startup + /server's look-around + the reconnect's probe
         Assert.Equal(2, clients.Count);
         Assert.True(clients[0].Disposed);
@@ -1459,19 +1464,22 @@ public partial class ChatScreenTests : IDisposable
     }
 
     [Fact]
-    public async Task Server_SameServer_KeepsTheModel_StillOffersTheModelMenu()
+    public async Task Server_SameServer_KeepsTheModel_StillOffersTheModelAndReasoningMenus()
     {
-        _settings.Update(d => { d.LlmUrl = "http://127.0.0.1:1234/v1"; d.LlmModel = "llama"; });
+        _settings.Update(d => { d.LlmUrl = "http://127.0.0.1:1234/v1"; d.LlmModel = "llama"; d.LlmReasoning = "high"; });
         PushLine("/server");
         _console.Input.PushKey(Keys.Enter);     // the cursor opens on the server in use
         _console.Input.PushKey(Keys.Escape);    // keep the model
+        _console.Input.PushKey(Keys.Escape);    // keep the reasoning
         PushLine("/exit");
 
         string output = await RunAsync();
 
         Assert.Contains(SettingsMenu.ModelTitle, output);
-        Assert.Contains("  · " + SettingsMenu.UnchangedNotice, output);
+        Assert.Contains(SettingsMenu.ReasoningTitle, output);
+        Assert.Equal(2, Count(output, "  · " + SettingsMenu.UnchangedNotice));   // one per menu kept
         Assert.Equal("llama", _settings.Current.LlmModel);
+        Assert.Equal("high", _settings.Current.LlmReasoning);
         Assert.Equal(1, Count(output, "LLM: http://127.0.0.1:1234/v1 model=llama (configured)"));   // the reconnect; startup printed nothing (the settings name both)
         Assert.Equal(1 + LlmEndpointProbe.CandidatePorts.Length + 1, ModelProbes);        // the configured URL is a candidate: no extra probe
     }
@@ -1489,6 +1497,7 @@ public partial class ChatScreenTests : IDisposable
 
         Assert.Contains("  · " + SettingsMenu.UnchangedNotice, output);
         Assert.DoesNotContain(SettingsMenu.ModelTitle, output);
+        Assert.DoesNotContain(SettingsMenu.ReasoningTitle, output);
         Assert.Equal("http://127.0.0.1:1234/v1", _settings.Current.LlmUrl);
         Assert.Equal(1, Count(output, "LLM: "));
     }
@@ -1500,11 +1509,13 @@ public partial class ChatScreenTests : IDisposable
         PushLine("/server http://127.0.0.1:5000");
         _console.Input.PushKey(Keys.Down);
         _console.Input.PushKey(Keys.Enter);
+        _console.Input.PushKey(Keys.Escape);    // keep the reasoning
         PushLine("/exit");
 
         string output = await RunAsync();
 
         Assert.DoesNotContain(SettingsMenu.PromptTitle(SettingsMenu.ServerTitle, SettingsMenu.KeepKeys), output);
+        Assert.Contains(SettingsMenu.ReasoningTitle, output);
         Assert.Contains("  · LLM URL: http://127.0.0.1:5000/v1", output);
         Assert.Contains("  · LLM model: odd-b", output);
         Assert.Contains("LLM: http://127.0.0.1:5000/v1 model=odd-b (configured)", output);
@@ -1515,6 +1526,7 @@ public partial class ChatScreenTests : IDisposable
     public async Task Server_WithDeadUrl_WarnsAndTakesItAnyway()
     {
         PushLine("/server http://127.0.0.1:9");
+        _console.Input.PushKey(Keys.Escape);    // the reasoning menu still follows the model step's error line
         PushLine("/exit");
 
         string output = await RunAsync();
@@ -1524,6 +1536,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains("  · LLM URL: http://127.0.0.1:9/v1", output);
         Assert.DoesNotContain(SettingsMenu.ModelTitle, output);                             // nothing listed and no current id: the error line instead
         Assert.Contains("The server did not answer (", output);
+        Assert.Contains(SettingsMenu.ReasoningTitle, output);                               // the effort is not the server's to know
         Assert.Contains("LLM: http://127.0.0.1:9/v1 model=local-model (configured, not answering)", output);
     }
 
@@ -1606,6 +1619,8 @@ public partial class ChatScreenTests : IDisposable
         // /server <url> probes one URL, no scan: the way in when the scan is off.
         _settings.Update(d => d.LlmScanMode = "disabled");
         PushLine("/server http://127.0.0.1:1234");
+        _console.Input.PushKey(Keys.Enter);     // llama, the one listed
+        _console.Input.PushKey(Keys.Escape);    // keep the reasoning
         PushLine("/exit");
 
         string output = await RunAsync();
@@ -1658,6 +1673,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains("  · LLM URL: http://127.0.0.1:11434/v1", output);
         Assert.Contains("  ! " + SettingsMenu.OverrideNotice(EnvironmentOverrides.LlmUrlVariable), output);
         Assert.DoesNotContain(SettingsMenu.ModelTitle, output);
+        Assert.DoesNotContain(SettingsMenu.ReasoningTitle, output);
         Assert.Equal(1, Count(output, "LLM: "));                                           // no reconnect
         Assert.Equal("http://127.0.0.1:11434/v1", _settings.Current.LlmUrl);
     }
@@ -3456,7 +3472,7 @@ public partial class ChatScreenTests : IDisposable
         _settings.Update(d => { d.TtsOutput = false; d.FileTools = false; });
         _console.Profile.Height = 110;   // the Git group (2026-09-20) makes the Tools tab eleven rows taller
         _geometry = new ScreenGeometry(() => null);
-        PushLine("/sysprompt");
+        PushLine("/sys");
         _console.Input.PushKey(Keys.Right);
         _console.Input.PushKey(Keys.Escape);
         PushLine("/exit");
@@ -3476,7 +3492,7 @@ public partial class ChatScreenTests : IDisposable
         _settings.Update(d => { d.TtsOutput = false; d.AskUser = false; });
         _console.Profile.Height = 110;   // the Git group (2026-09-20) makes the Tools tab eleven rows taller
         _geometry = new ScreenGeometry(() => null);
-        PushLine("/sysprompt");
+        PushLine("/sys");
         _console.Input.PushKey(Keys.Right);
         _console.Input.PushKey(Keys.Escape);
         PushLine("/exit");
@@ -3515,7 +3531,7 @@ public partial class ChatScreenTests : IDisposable
         _settings.Update(d => { d.TtsOutput = false; d.WebTools = false; });
         _console.Profile.Height = 110;   // the Git group (2026-09-20) makes the Tools tab eleven rows taller
         _geometry = new ScreenGeometry(() => null);
-        PushLine("/sysprompt");
+        PushLine("/sys");
         _console.Input.PushKey(Keys.Right);
         _console.Input.PushKey(Keys.Escape);
         PushLine("/exit");
@@ -3637,7 +3653,7 @@ public partial class ChatScreenTests : IDisposable
         _geometry = new ScreenGeometry(() => null);
         StepsWhenIdle(
             Line("hi"),
-            Line("/sysprompt"),
+            Line("/sys"),
             input => input.Push(Keys.Right, Keys.Escape),
             Line("/exit"));
 
@@ -3742,7 +3758,7 @@ public partial class ChatScreenTests : IDisposable
         _console.Profile.Height = 200;   // room for the whole tab
         _console.Profile.Width = 400;    // the long descriptions and the note on one row
         _geometry = new ScreenGeometry(() => null);
-        PushLine("/sysprompt");
+        PushLine("/sys");
         _console.Input.PushKey(Keys.Right);
         _console.Input.PushKey(Keys.Escape);
         PushLine("/exit");
@@ -3837,7 +3853,7 @@ public partial class ChatScreenTests : IDisposable
         McpServer();
         _chat.EnqueueText("hi");
         PushLine("hi");
-        PushLine("/sysprompt");
+        PushLine("/sys");
         PushLine("/exit");
 
         string output = await RunAsync();
@@ -5050,7 +5066,7 @@ public partial class ChatScreenTests : IDisposable
         _settings.Update(d => { d.TtsOutput = false; d.LlmOfferTools = false; });
         _console.Profile.Height = 110;   // the Git group (2026-09-20) makes the Tools tab eleven rows taller
         _geometry = new ScreenGeometry(() => null);
-        PushLine("/sysprompt");
+        PushLine("/sys");
         _console.Input.PushKey(Keys.Right);
         _console.Input.PushKey(Keys.Escape);
         PushLine("/exit");
@@ -5073,7 +5089,7 @@ public partial class ChatScreenTests : IDisposable
         _chat.EnqueueText("Hello.").EnqueueText("Moved.");
         PushLine("hi");
         PushLine("/cwd " + elsewhere);
-        PushLine("/sysprompt");
+        PushLine("/sys");
         PushLine("where now?");
         PushLine("/exit");
 
@@ -6940,7 +6956,7 @@ public partial class ChatScreenTests : IDisposable
         _settings.Update(d => d.TtsOutput = false);
         _console.Profile.Height = 110;   // the Git group (2026-09-20) makes the Tools tab eleven rows taller
         _geometry = new ScreenGeometry(() => null);
-        PushLine("/sysprompt");
+        PushLine("/sys");
         _console.Input.PushKey(Keys.Right);
         _console.Input.PushKey(Keys.Escape);
         PushLine("/exit");
@@ -6982,7 +6998,7 @@ public partial class ChatScreenTests : IDisposable
         _memory.Add("Their name is Chris.");
         _console.Profile.Height = 12;
         _geometry = new ScreenGeometry(() => null);
-        PushLine("/sysprompt");
+        PushLine("/sys");
         for (int i = 0; i < 12; i++)
         {
             _console.Input.PushKey(Keys.PageDown);  // five lines a page, past the end (the Shell tools heading made it 12 pages, 2026-09-21): the extra presses are swallowed
@@ -7013,7 +7029,7 @@ public partial class ChatScreenTests : IDisposable
         _settings.Update(d => { d.TtsOutput = false; d.Memory = false; });
         _console.Profile.Height = 110;   // the Git group (2026-09-20) makes the Tools tab eleven rows taller
         _geometry = new ScreenGeometry(() => null);
-        PushLine("/sysprompt");
+        PushLine("/sys");
         _console.Input.PushKey(Keys.Right);
         _console.Input.PushKey(Keys.Escape);
         PushLine("/exit");
@@ -7032,7 +7048,7 @@ public partial class ChatScreenTests : IDisposable
     public async Task WithoutGeometry_SysPromptPrintsTheSummary()
     {
         _settings.Update(d => d.TtsOutput = false);
-        PushLine("/sysprompt");
+        PushLine("/sys");
         PushLine("/exit");
 
         string output = await RunAsync();
@@ -8481,7 +8497,7 @@ public partial class ChatScreenTests : IDisposable
     [InlineData(SlashCommand.Settings, false, MidTurnClass.Pane)]
     [InlineData(SlashCommand.Tools, false, MidTurnClass.Pane)]
     [InlineData(SlashCommand.Mcp, false, MidTurnClass.Pane)]
-    [InlineData(SlashCommand.Sysprompt, false, MidTurnClass.Pane)]
+    [InlineData(SlashCommand.Sys, false, MidTurnClass.Pane)]
     [InlineData(SlashCommand.Memory, false, MidTurnClass.Pane)]
     [InlineData(SlashCommand.Usage, false, MidTurnClass.Pane)]
     [InlineData(SlashCommand.About, false, MidTurnClass.Pane)]
@@ -11448,9 +11464,9 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(SkilledPrompt(false, [], web: true, project: new ProjectNotes("AGENTS.md", "Another project.")), _chat.Requests[1][0].Text);
     }
 
-    /// <summary>The Project file toggle (later on 2026-09-19): off, the notes are not read though the file is there, and /sysprompt says why; on again the next turn carries them.</summary>
+    /// <summary>The Project file toggle (later on 2026-09-19): off, the notes are not read though the file is there, and /sys says why; on again the next turn carries them.</summary>
     [Fact]
-    public async Task ProjectNotes_NotReadWhileProjectFileIsOff_SyspromptSaysSo()
+    public async Task ProjectNotes_NotReadWhileProjectFileIsOff_SysSaysSo()
     {
         _settings.Update(d => { d.TtsOutput = false; d.ProjectFile = false; });
         string files = Path.Combine(_settings.ProfileDirectory, WorkingDirectory.DefaultFolderName);
@@ -11459,7 +11475,7 @@ public partial class ChatScreenTests : IDisposable
         _chat.EnqueueText("Hi.");
         _chat.EnqueueText("Again.");
         PushLine("hi");
-        PushLine("/sysprompt");
+        PushLine("/sys");
         PushLine("/exit");
 
         string output = await RunAsync();
@@ -13463,7 +13479,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains(Assistant.GitRule, _chat.Requests[0][0].Text!, StringComparison.Ordinal);
     }
 
-    /// <summary>The Git tools switch off: no git tool offered, the rule gone, the group noted on /sysprompt (2026-09-20).</summary>
+    /// <summary>The Git tools switch off: no git tool offered, the rule gone, the group noted on /sys (2026-09-20).</summary>
     [Fact]
     public async Task Turn_GitToolsOff_OffersNoGitTool_AndTheRulesLoseTheGitSentence()
     {
@@ -13473,7 +13489,7 @@ public partial class ChatScreenTests : IDisposable
         _geometry = new ScreenGeometry(() => null);
         StepsWhenIdle(
             Line("hi"),
-            Line("/sysprompt"),
+            Line("/sys"),
             input => input.Push(Keys.Right, Keys.Escape),
             Line("/exit"));
 

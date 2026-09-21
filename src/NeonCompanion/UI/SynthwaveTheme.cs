@@ -69,7 +69,7 @@ public static class Theme
     public static readonly Style GoodText = new(foreground: Good, decoration: Decoration.Bold);
     /// <summary>A warning line.</summary>
     public static readonly Style WarnText = new(foreground: Warn, decoration: Decoration.Bold);
-    /// <summary>A section heading over cyan row labels in an info pane (<c>/usage</c>'s Context / Last reply, <c>/sysprompt</c>'s Persona / Clock (3) …): violet bold, so the heading and its rows read as two tiers — the user's call, 2026-09-16.</summary>
+    /// <summary>A section heading over cyan row labels in an info pane (<c>/usage</c>'s Context / Last reply, <c>/sys</c>'s Persona / Clock (3) …): violet bold, so the heading and its rows read as two tiers — the user's call, 2026-09-16.</summary>
     public static readonly Style SectionHeading = AccentPurple;
 
     /// <summary>Sunset border for panels.</summary>

@@ -39,8 +39,8 @@ public class SlashCommandsTests
     [InlineData("/OPERATA", SlashCommand.Operata)]
     [InlineData("/vocalia", SlashCommand.Vocalia)]
     [InlineData("/VOCALIA", SlashCommand.Vocalia)]
-    [InlineData("/sysprompt", SlashCommand.Sysprompt)]
-    [InlineData("/SysPrompt", SlashCommand.Sysprompt)]
+    [InlineData("/sys", SlashCommand.Sys)]   // the name since 2026-09-21; /sysprompt before
+    [InlineData("/SYS", SlashCommand.Sys)]
     [InlineData("/window", SlashCommand.Window)]
     [InlineData("/windowsize", SlashCommand.Unknown)]   // the old word, later on 2026-09-19
     [InlineData("/usage", SlashCommand.Usage)]
@@ -312,7 +312,7 @@ public class SlashCommandsTests
 
     [Theory]
     [InlineData("/cls everything")]
-    [InlineData("/sys tools")]
+    [InlineData("/sysprompt tools")]   // renamed /sys on 2026-09-21
     [InlineData("/mem 2")]
     [InlineData("/win 80x24")]
     [InlineData("/windowsize")]   // /window took the word later on 2026-09-19
@@ -339,7 +339,7 @@ public class SlashCommandsTests
     [InlineData("/forget 3", "3")]
     [InlineData("/memory 2", "2")]
     [InlineData("/memory list", "list")]
-    [InlineData("/sysprompt tools", "tools")]
+    [InlineData("/sys tools", "tools")]
     [InlineData("/usage reset", "reset")]
     [InlineData("/about x", "x")]
     [InlineData("/help me", "me")]
@@ -400,7 +400,7 @@ public class SlashCommandsTests
         Assert.DoesNotContain(items, i => i.Text is "//" or "///" or "////");   // the three aliases (2026-09-21) are never rows
         Assert.Contains(items, i => i.Text == "/loop");   // 2026-09-21
         Assert.All(SlashCommands.HelpEntries, e => Assert.Contains(new NeonCompanion.UI.CompletionItem(e.Command, e.Summary), items));
-        Assert.Equal(["/server", "/session", "/settings", "/skills", "/speak", "/splash", "/stt", "/sysprompt"], items.Where(i => i.Text.StartsWith("/s", StringComparison.Ordinal)).Select(i => i.Text));
+        Assert.Equal(["/server", "/session", "/settings", "/skills", "/speak", "/splash", "/stt", "/sys"], items.Where(i => i.Text.StartsWith("/s", StringComparison.Ordinal)).Select(i => i.Text));
         Assert.Equal(["/timer", "/tools", "/tree", "/tts"], items.Where(i => i.Text.StartsWith("/t", StringComparison.Ordinal)).Select(i => i.Text));   // /tools among them since 2026-09-19
     }
 
@@ -427,7 +427,6 @@ public class SlashCommandsTests
     [InlineData("/int on")]
     [InlineData("/rem x")]
     [InlineData("/mem")]
-    [InlineData("/sys")]
     [InlineData("/use")]
     [InlineData("/prof")]
     [InlineData("/tim 5m")]
@@ -478,7 +477,7 @@ public class SlashCommandsTests
         Assert.Contains(Row("/server", "pick an LLM server found on the usual ports, or /server <url>"), SlashCommands.HelpText);
         Assert.Contains(Row("/model", "pick a model from the LLM server, or /model <id>"), SlashCommands.HelpText);
         Assert.Contains(Row("/reasoning", "pick the LLM reasoning effort, or /reasoning <level>"), SlashCommands.HelpText);
-        Assert.Contains(Row("/sysprompt", "show the system prompt and tools sent to the model"), SlashCommands.HelpText);
+        Assert.Contains(Row("/sys", "show the system prompt and tools sent to the model"), SlashCommands.HelpText);
         Assert.Contains(Row("/usage", "show token usage and performance statistics"), SlashCommands.HelpText);
         Assert.Contains(Row("/compact", "shrink the current context, or /compact <focus> to steer the summary"), SlashCommands.HelpText);
         Assert.Contains(Row("/clear", "start a new conversation and clear the screen"), SlashCommands.HelpText);

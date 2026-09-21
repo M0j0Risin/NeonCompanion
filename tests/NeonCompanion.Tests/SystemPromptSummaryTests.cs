@@ -393,7 +393,7 @@ public class SystemPromptSummaryTests : IDisposable
         Assert.True(noted[4].Offers(SkillEditorTool.ToolName));
         Assert.Empty(plain[4].ToolNotes);
         Assert.Equal("no skill installed", SystemPromptSummary.NoSkillSuffix);
-        // download_file under File tools off, over the whole web list (the /tools list; /sysprompt passes the list already cut).
+        // download_file under File tools off, over the whole web list (the /tools list; /sys passes the list already cut).
         var web = ChatScreen.WebTools(new WebAccess(new HttpClient(new StubHttpMessageHandler()), new FakeHeadlessBrowser(), _time), new Files.WorkingDirectory(() => Path.Combine(Path.GetTempPath(), "NeonCompanion.Tests", "unused"), _time), () => new AppSettingsData());
         var filesOff = SystemPromptSummary.ToolGroups(clock, timers, files, memory, memoryEnabled: true, web: web, filesEnabled: false);
         Assert.Equal("Web (4)", filesOff[3].Title);
@@ -409,7 +409,7 @@ public class SystemPromptSummaryTests : IDisposable
         Assert.Equal("File safe edits is off", SystemPromptSummary.SafeEditsOffSuffix);
         // The safe-edits reason wins over the /tools one on the same row, as download_file's does.
         Assert.Equal("not offered: File safe edits is off", SystemPromptSummary.ToolGroups(clock, timers, files, memory, memoryEnabled: true, disabled: new HashSet<string>(StringComparer.Ordinal) { RestoreTool.ToolName }, safeEdits: false)[2].ToolNotes[RestoreTool.ToolName]);
-        // The list already cut (what /sysprompt and the $ list pass): no note, Files (14).
+        // The list already cut (what /sys and the $ list pass): no note, Files (14).
         var cut = SystemPromptSummary.ToolGroups(clock, timers, ChatScreen.FileToolsFor(files, safeEdits: false), memory, memoryEnabled: true, safeEdits: false);
         Assert.Equal("Files (14)", cut[2].Title);
         Assert.Empty(cut[2].ToolNotes);
