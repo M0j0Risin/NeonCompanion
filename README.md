@@ -1,6 +1,6 @@
 # Neon Companion
 
-Neon Companion is a streamlined agentic TUI for local LLMs, built on .NET 10. It attempts to combines many of my favorite features from tools like Claude Code, Hermes Agent, and Cline with a local-first workflow and native toolsets.
+Neon Companion is a streamlined agentic TUI for local LLMs, built on .NET 10. It attempts to combine many of my favorite features from tools like Claude Code, Hermes Agent, and Cline with a local-first workflow and native toolsets.
 
 Current State: A foundational shell for tool development (Windows-first).
 On the Roadmap: Full terminal execution, coding capabilities, and official macOS/Linux support.
