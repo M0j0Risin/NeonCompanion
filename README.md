@@ -122,6 +122,7 @@ Every setting lives in a profile and is edited from a pane inside the app — `�
 | LLM context length | The model's context window in tokens, for the usage percentage; 0 takes the server's own figure. | 0 (server) |
 | LLM compact type | What `/compact` does: `summary` folds the older turns into one model-written summary; `prune` stubs their bulky tool results and keeps every turn. | `summary` |
 | LLM compact keep recent | How many recent user turns a compact keeps word for word (0–24). | 2 |
+| LLM compact show summary | After a compact, shows what it did under the notice: the summary's text as dim lines, or one line per pruned tool result (tool and size). | off |
 | LLM auto compact (%) | The share of the context window at which the next message compacts first (1–100; 0 = off). | 85 |
 | LLM offer tools | Whether the model gets any tools at all. Off makes every turn tool-free, for chat templates with no tool role; flipping it starts a new conversation. | on |
 | LLM tool compact type | What happens when a single turn's tool calls approach the window: `prune` stubs this turn's older results and carries on, `stop` ends the turn with a notice, `nothing`. | `prune` |
@@ -159,7 +160,7 @@ Every setting lives in a profile and is edited from a pane inside the app — `�
 
 #### Offered
 
-The loaded skills, one row each with its scope (`profile`, `global` or `external`) and description, then any shadowed duplicates and any folders that were skipped and why. Enter on a skill opens its scope page: move it between the profile and global roots, or delete it when *Allow skill delete* is on.
+The loaded skills, one row each with its scope (`profile`, `global` or `external`) and description, then any shadowed duplicates and any folders that were skipped and why. Enter on a skill opens its scope page: move it between the profile and global roots, rename it (what you type is forced to a skill name — lower case, hyphens between the words — and a name another skill already has is refused), or delete it when *Allow skill delete* is on.
 
 #### Options
 
@@ -192,7 +193,7 @@ One row, **Project file**: whether `NEON.md` (or `AGENTS.md`) in the working dir
 
 #### Offered
 
-Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Web, Memory, Skills, Sessions, Questions) with the description the model reads. Enter or Space flips a single tool on or off; a group whose switch is off is shown dim. `delete`, `git_discard` and `git_delete` — the tools that lose work — start off.
+Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Web, Memory, Skills, Sessions, Questions) with the description the model reads. Enter or Space flips a single tool on or off; a group whose switch is off is shown dim. `delete`, `git_discard` and `git_delete` — the tools that lose work — and `zip` / `unzip` — the bulk pack and extract — start off (a profile saved earlier keeps its own list).
 
 #### Options
 
@@ -226,6 +227,8 @@ Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Web, Memory, 
 | Git tools | Offers the git tools (status, log, show, diff, blame, branch, stage, commit, stash, discard, delete) over the repository in the working directory — in-process, no `git.exe`. | on |
 | Git diff max lines | Where a `git_diff` patch is cut (20–5000). | 500 |
 | Git log max commits | How many commits `git_log` returns unless the call says otherwise (1–200). | 20 |
+| Git email | The `user.email` that `/git user` writes into the working directory's repository config. Never read by the git tools. | (not set) |
+| Git name | The `user.name` that `/git user` writes beside it. | (not set) |
 
 #### Shell
 
@@ -300,6 +303,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/exit` | Exit the app. |
 | `/explore [path]` | Open the working directory in your file browser. |
 | `/forget` | Forget every memory (asks first). |
+| `/git user [force]` | Write the *Git email* and *Git name* settings into the working directory's repository config as `user.email` / `user.name`; a `[user]` section already there is kept unless `force`. |
 | `/help` | Show the commands and the keys. |
 | `/interrupt [on\|off]` | Toggle the wake-word interrupt during a spoken reply. |
 | `/learn [note \| sessions [N \| text]]` | Write or improve a skill in the background from the last turn, or from the stored sessions. |
@@ -310,7 +314,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/new` | Start a new conversation without clearing the screen. |
 | `/operata [reset]` | Edit `operata.md` (the operating rules) in your editor, or go back to the default. |
 | `/persona [reset]` | Edit `persona.md` (the personality) in your editor, or go back to the default. |
-| `/profile [name \| add <name> \| delete <name> \| rename <name> <new> \| reset [name]]` | Switch, create, delete, rename or reset a profile. |
+| `/profile [name \| add <name> \| delete <name> \| rename <name> <new> \| reset [name] \| edit \| reload]` | Switch, create, delete, rename or reset a profile; `edit` opens the loaded profile's `profile.json` in your editor and `reload` reads it back from disk, reconnecting only what changed. |
 | `/queue` | List and prune the messages queued while a reply runs. |
 | `/reasoning [level]` | Pick the reasoning effort (`none`, `low`, `medium`, `high`, `xhigh`). |
 | `/remember <text>` | Add a memory. |
@@ -355,7 +359,7 @@ What the model can call, in the groups `/tools` and `/sysprompt` show. A group's
 
 ### Files
 
-All paths are relative to the working directory; nothing outside it is reachable. `restore` is offered only while *File safe edits* is on; `delete` starts switched off.
+All paths are relative to the working directory; nothing outside it is reachable. `restore` is offered only while *File safe edits* is on; `delete`, `zip` and `unzip` start switched off.
 
 | Tool | Arguments | What it does |
 |---|---|---|

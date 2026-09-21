@@ -845,6 +845,21 @@ public class CompanionAppTests : IDisposable
     }
 
     [Fact]
+    public async Task Headless_Compact_ShowSummary_PrintsTheSummarysLines_AsNotices()
+    {
+        // LLM compact show summary headless (2026-09-21): the detail lines follow the reply line, each a [notice] row.
+        ServerOn1234("llama");
+        _settings.Update(d => { d.LlmCompactKeepRecent = 1; d.LlmCompactShowSummary = true; });
+        _chat.EnqueueText("one").EnqueueText("two");
+        _chat.Enqueue(FakeChatClient.Text("A summary.\nOf two lines."), FakeChatClient.Usage(300, 20));
+        _chat.EnqueueText("three");
+
+        string output = await Headless("first\nsecond\n/compact\nthird\n");
+
+        Assert.Contains("Neon: (🗜️ compacted: 10 messages → 9 · 300 → 20 tokens)" + Environment.NewLine + "[notice] A summary." + Environment.NewLine + "[notice] Of two lines." + Environment.NewLine, output);
+    }
+
+    [Fact]
     public async Task Headless_Compact_NothingOlder_AndAFailure_AreReplyLines()
     {
         ServerOn1234("llama");

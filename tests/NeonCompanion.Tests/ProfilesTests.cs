@@ -43,7 +43,9 @@ public class ProfilesTests : IDisposable
         Assert.Equal("profiles", Profiles.DirectoryName);
         Assert.Equal("default", Profiles.DefaultName);
         Assert.Equal("profile.json", Profiles.FileName);
-        Assert.Equal("must be 1 to 32 letters, digits, - or _ (and not add, delete, rename or reset)", Profiles.NameError);
+        Assert.Equal("must be 1 to 32 letters, digits, - or _ (and not add, delete, edit, reload, rename or reset)", Profiles.NameError);   // edit and reload reserved since 2026-09-21
+        Assert.False(Profiles.IsValidName("edit"));
+        Assert.False(Profiles.IsValidName("Reload"));
         Assert.Equal("The default profile cannot be deleted.", Profiles.DefaultUndeletable);
         Assert.Equal("\"work\" is the current profile; switch to another (/profile <name>) before deleting it.", Profiles.CurrentUndeletable("work"));
         Assert.Equal("The default profile cannot be renamed.", Profiles.DefaultUnrenamable);

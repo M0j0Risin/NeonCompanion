@@ -235,6 +235,14 @@ public sealed class AppSettingsData
     public int LlmCompactKeepRecent { get; set; } = 2;
 
     /// <summary>
+    /// After a compact the transcript shows what it did (2026-09-21, the user's call): in summary mode
+    /// the summary's lines dim under the compact notice, in prune mode one line per pruned result
+    /// (the tool's name and the size). Off = the one notice line, as before. The LLM tab's row right
+    /// under <c>LLM compact keep recent</c>; read at each compact, no reconnect. No variable.
+    /// </summary>
+    public bool LlmCompactShowSummary { get; set; }
+
+    /// <summary>
     /// What <c>/compact</c> does: <c>summary</c> (the older turns become one summary the model
     /// writes) or <c>prune</c> (their bulky tool results become stubs). One of
     /// <see cref="Llm.CompactType.Names"/>; anything else reads as <see cref="Llm.CompactType.Default"/>. No variable.
@@ -632,10 +640,11 @@ public sealed class AppSettingsData
     /// conversation clear. Not a settings row — the one list in the file. No variable.
     /// <c>delete</c> from the start (2026-09-20, the user's call: the trash tool is opt-in, flipped on
     /// <c>/tools</c>' Offered tab), and <c>git_delete</c> / <c>git_discard</c> with it (later on 2026-09-20, the
-    /// same call: the two git tools that lose work); a saved list stands — a profile that holds <c>[]</c> or
-    /// <c>["delete"]</c> keeps the rest on.
+    /// same call: the two git tools that lose work), and <c>unzip</c> / <c>zip</c> since 2026-09-21 (the
+    /// same call again: a bulk extract and a bulk pack are opt-in too); a saved list stands — a profile
+    /// that holds <c>[]</c> or <c>["delete"]</c> keeps the rest on, so a profile from before keeps zip and unzip.
     /// </summary>
-    public List<string> ToolsDisabled { get; set; } = [Llm.Tools.DeleteTool.ToolName, Llm.Tools.GitDeleteTool.ToolName, Llm.Tools.GitDiscardTool.ToolName];
+    public List<string> ToolsDisabled { get; set; } = [Llm.Tools.DeleteTool.ToolName, Llm.Tools.GitDeleteTool.ToolName, Llm.Tools.GitDiscardTool.ToolName, Llm.Tools.UnzipTool.ToolName, Llm.Tools.ZipTool.ToolName];
 
     /// <summary>
     /// Whether <c>$</c> and part of a name on the chat line lists the tools the next turn offers
@@ -760,6 +769,17 @@ public sealed class AppSettingsData
     /// off by name in a fresh profile's <see cref="ToolsDisabled"/> besides. No variable.
     /// </summary>
     public bool GitTools { get; set; } = true;
+
+    /// <summary>
+    /// The <c>user.email</c> that <c>/git user</c> writes into the working directory's repository config
+    /// (2026-09-21), with <see cref="GitName"/>; empty = not set, and the command refuses. Never read by
+    /// the git tools — a commit signs with whatever git's own config holds. The Git tab of <c>/tools</c>,
+    /// fourth row. No variable.
+    /// </summary>
+    public string GitEmail { get; set; } = "";
+
+    /// <summary>The <c>user.name</c> <c>/git user</c> writes beside <see cref="GitEmail"/> (2026-09-21); empty = not set. The Git tab's last row. No variable.</summary>
+    public string GitName { get; set; } = "";
 
     // ─── Shell ──────────────────────────────────────────────────────────────────
 

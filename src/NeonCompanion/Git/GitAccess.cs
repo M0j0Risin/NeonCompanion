@@ -928,6 +928,31 @@ public sealed class GitAccess
         });
     }
 
+    /// <summary>
+    /// <c>/git user [force]</c> (2026-09-21): <c>user.email</c> and <c>user.name</c> written into the
+    /// repository at the working directory's root — its <c>.git/config</c>, <see cref="ConfigurationLevel.Local"/>,
+    /// never the global file. Either key already set there and no <paramref name="force"/> is left as it
+    /// is (<c>Written</c> false, the values found carried back for the notice); <paramref name="force"/>
+    /// replaces both. The frame's refusals as ever: no repository at or above the root is
+    /// <see cref="GitOutcome.NoRepository"/>. Logged at Info.
+    /// </summary>
+    public GitIdentityResult SetLocalIdentity(string email, string name, bool force) => Run("", GitIdentityResult.Refused, (repo, location, full) =>
+    {
+        ArgumentNullException.ThrowIfNull(email);
+        ArgumentNullException.ThrowIfNull(name);
+        string? haveEmail = repo.Config.Get<string>("user.email", ConfigurationLevel.Local)?.Value;
+        string? haveName = repo.Config.Get<string>("user.name", ConfigurationLevel.Local)?.Value;
+        if (!force && (haveEmail is not null || haveName is not null))
+        {
+            return new GitIdentityResult(GitOutcome.Ok, "", haveEmail ?? "", haveName ?? "", Written: false);
+        }
+
+        repo.Config.Set("user.email", email, ConfigurationLevel.Local);
+        repo.Config.Set("user.name", name, ConfigurationLevel.Local);
+        DiagnosticLog.Info(Category, IdentitySetLogLine(name, email));
+        return new GitIdentityResult(GitOutcome.Ok, "", email, name, Written: true);
+    });
+
     /// <summary>Removes a local branch (never the one checked out), a tag, or <c>stash@{index}</c>. Logged at Info.</summary>
     public GitDeleteResult Delete(string relative, GitDeleteKind kind, string name, int index) => Run(relative, (o, d) => GitDeleteResult.Refused(kind, o, d), (repo, location, full) =>
     {
@@ -1556,6 +1581,8 @@ public sealed class GitAccess
     }
 
     // ---- log lines (pinned) ----
+
+    public static string IdentitySetLogLine(string name, string email) => "Set user.name " + name + " and user.email " + email + " in the repository's config";
 
     public static string StagedLogLine(int count, bool unstage) => (unstage ? "Unstaged " : "Staged ") + count.ToString(CultureInfo.InvariantCulture) + (count == 1 ? " path" : " paths");
     public static string CommittedLogLine(string sha, string branch, bool amend) => (amend ? "Amended " : "Committed ") + sha + " on " + branch;

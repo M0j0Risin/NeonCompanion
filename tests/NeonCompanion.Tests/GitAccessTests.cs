@@ -646,6 +646,38 @@ public sealed class GitAccessTests : IDisposable
         }
     }
 
+    // ---- identity (/git user, 2026-09-21) ----
+
+    [Fact]
+    public void SetLocalIdentity_WritesTheTwoKeys_KeepsASectionAlreadyThere_UnlessForced_AndNeedsARepository()
+    {
+        Assert.Equal(GitOutcome.NoRepository, _git.SetLocalIdentity("a@x", "A", force: false).Outcome);
+
+        Repository.Init(_root);   // no local identity
+        var written = _git.SetLocalIdentity("a@x", "A", force: false);
+        Assert.Equal(GitOutcome.Ok, written.Outcome);
+        Assert.True(written.Written);
+        Assert.Equal(("a@x", "A"), (written.Email, written.Name));
+
+        var kept = _git.SetLocalIdentity("b@x", "B", force: false);
+        Assert.Equal(GitOutcome.Ok, kept.Outcome);
+        Assert.False(kept.Written);
+        Assert.Equal(("a@x", "A"), (kept.Email, kept.Name));   // what is there, for the notice
+
+        var forced = _git.SetLocalIdentity("b@x", "B", force: true);
+        Assert.True(forced.Written);
+        using var repo = new Repository(_root);
+        Assert.Equal("b@x", repo.Config.Get<string>("user.email", ConfigurationLevel.Local)!.Value);
+        Assert.Equal("B", repo.Config.Get<string>("user.name", ConfigurationLevel.Local)!.Value);
+        Assert.Equal("Set user.name B and user.email b@x in the repository's config", GitAccess.IdentitySetLogLine("B", "b@x"));
+
+        // Half a section (the name alone) counts as one: kept until forced.
+        repo.Config.Unset("user.email", ConfigurationLevel.Local);
+        var half = _git.SetLocalIdentity("c@x", "C", force: false);
+        Assert.False(half.Written);
+        Assert.Equal(("", "B"), (half.Email, half.Name));
+    }
+
     // ---- stash ----
 
     [Fact]

@@ -53,12 +53,31 @@ public enum ProfileActionKind
     /// <summary><c>rename &lt;name&gt; &lt;new-name&gt;</c>: <c>Name</c> the profile, <c>NewName</c> what it becomes.</summary>
     Rename,
 
+    /// <summary><c>edit</c> (2026-09-21): the loaded profile's <c>profile.json</c> in the editor, the pending save written first.</summary>
+    Edit,
+
+    /// <summary><c>reload</c> (2026-09-21): the loaded profile's <c>profile.json</c> read back from disk, the sessions whose settings changed reconnected.</summary>
+    Reload,
+
     /// <summary>Anything the grammar does not cover; <c>ChatScreen.ProfileUsageError</c>.</summary>
     Invalid,
 }
 
 /// <summary>The parsed <c>/profile</c> argument; <paramref name="NewName"/> is set by <see cref="ProfileActionKind.Rename"/> alone.</summary>
 public readonly record struct ProfileAction(ProfileActionKind Kind, string Name, string NewName = "");
+
+/// <summary>What a <c>/git</c> argument asks for (2026-09-21). Top-level like <see cref="ProfileActionKind"/>, so the test project can pin the grammar.</summary>
+public enum GitActionKind
+{
+    /// <summary><c>user</c> or <c>user force</c>: the identity settings into the repository's config.</summary>
+    User,
+
+    /// <summary>Anything else, a bare <c>/git</c> included; <c>ChatScreen.GitUsageError</c>.</summary>
+    Invalid,
+}
+
+/// <summary>The parsed <c>/git</c> argument; <paramref name="Force"/> is the <c>force</c> word after <c>user</c>.</summary>
+public readonly record struct GitAction(GitActionKind Kind, bool Force = false);
 
 /// <summary>What a <c>/session</c> argument asks for (2026-09-18). Top-level like <see cref="ProfileAction"/>, so the test project can pin the grammar.</summary>
 public enum SessionActionKind
@@ -237,7 +256,14 @@ internal sealed partial class ChatScreen
     public const string MemoryFailedError = "Could not save the memory; the log has the reason.";
     public const string NothingToForgetNotice = "(nothing to forget)";
     public const string KeptNotice = "(kept)";
-    public const string ProfileUsageError = "/profile takes nothing (pick), a name, add <name>, delete <name>, rename <name> <new-name> or reset [name].";
+    public const string ProfileUsageError = "/profile takes nothing (pick), a name, add <name>, delete <name>, rename <name> <new-name>, reset [name], edit or reload.";
+
+    // The /git words (2026-09-21). Pinned.
+    public const string GitUserWord = "user";
+    public const string GitForceWord = "force";
+    public const string GitUsageError = "/git takes user [force].";
+    public const string GitUserNote = "write the Git email and Git name settings into this repository's .git/config";
+    public const string GitUserForceNote = "the same, replacing a [user] section already there";
     public const string TimerUsageError = "/timer takes nothing (list), <duration> [name], stop <name> or stop all; a duration is 10m, 90s, 1h30m, or minutes as a number.";
     public const string NoTimersNotice = "(no timers)";
 
@@ -663,7 +689,7 @@ internal sealed partial class ChatScreen
             Flow = _flow,
         };
         // Built once: the roots ride the facts, so a profile switch needs no rebind; the Options rows through the settings menu (2026-09-19).
-        _skillsMenu = new SkillsMenu(SkillsFacts, () => _effective().AllowSkillDelete, settings, _menu, _flow, _menuPane, name => SkillsMenu.UsageCaption(_sessions, name, _effective().SessionLogging, _time.LocalTimeZone));
+        _skillsMenu = new SkillsMenu(SkillsFacts, () => _effective().AllowSkillDelete, settings, _menu, _flow, _menuPane, _input, name => SkillsMenu.UsageCaption(_sessions, name, _effective().SessionLogging, _time.LocalTimeZone));
         // The /tools pane (2026-09-19): the tool list over the live facts, the Ask / Files / Web rows through the settings menu.
         _toolsMenu = new ToolsMenu(ToolsFacts, settings, _menu, _flow, _menuPane);
         // The /mcp pane (2026-09-20): the servers and their tools over the session's snapshot, the Options rows through the settings menu.
@@ -867,7 +893,7 @@ internal sealed partial class ChatScreen
         {
             ("Enter", "send the line · change/update a setting"),
             ("ESC", "stop the speech · clear the line · cancel the reply · back out of a menu"),
-            ("Up / Down", "earlier lines · scroll in menus"),
+            ("Up / Down", "earlier lines · the draft's rows when it wraps · scroll in menus"),
             ("Left / Right", "change tabs in menus · hold Shift to select text"),
             ("Home / End", "hold Shift to select text to the beginning or end of the line starting from the cursor"),
             ("PgUp / PgDn", "scroll the transcript a page at a time"),
@@ -1815,11 +1841,20 @@ internal sealed partial class ChatScreen
         _ => "",
     };
 
-    /// <summary>The <c>/profile</c> verbs on its list, each with its note. Pinned.</summary>
+    /// <summary>The <c>/git</c> list (2026-09-21): <c>user</c>, and <c>user force</c> once the word is typed. Pinned.</summary>
+    public static readonly IReadOnlyList<CompletionItem> GitVerbs =
+    [
+        new(GitUserWord, GitUserNote),
+        new(GitUserWord + " " + GitForceWord, GitUserForceNote),
+    ];
+
+    /// <summary>The <c>/profile</c> verbs on its list, each with its note (<c>edit</c> and <c>reload</c> since 2026-09-21). Pinned.</summary>
     public static readonly IReadOnlyList<CompletionItem> ProfileVerbs =
     [
         new("add", "add a profile: /profile add <name>"),
         new("delete", "delete a profile: /profile delete <name>"),
+        new("edit", "open this profile's profile.json in your editor: /profile edit"),
+        new("reload", "read this profile's profile.json back from disk: /profile reload"),
         new("rename", "rename a profile: /profile rename <name> <new-name>"),
         new("reset", "reset a profile to the defaults: /profile reset [name]"),
     ];
@@ -1903,8 +1938,9 @@ internal sealed partial class ChatScreen
             {
                 foreach (var verb in ProfileVerbs)
                 {
-                    if (verb.Text is "add")
+                    if (verb.Text is "add" or "edit" or "reload")
                     {
+                        // No name follows: a new one is free text, edit and reload take none.
                         continue;
                     }
 
@@ -1918,6 +1954,10 @@ internal sealed partial class ChatScreen
                 var items = sources.Profiles().Select(name => new CompletionItem(name, ProfileNote(name, sources.LoadedProfile))).Concat(ProfileVerbs).ToList();
                 return MentionCompleter.Matches(items, argText);
             }
+
+            case SlashCommand.Git:
+                // The one verb, its force form once "user " is typed (2026-09-21).
+                return MentionCompleter.Matches(argText.StartsWith(GitUserWord + " ", StringComparison.OrdinalIgnoreCase) ? [GitVerbs[1]] : [GitVerbs[0]], argText);
 
             case SlashCommand.Session:
             {
@@ -3427,6 +3467,77 @@ internal sealed partial class ChatScreen
         }
     }
 
+    // ── /git ────────────────────────────────────────────────────────────────
+
+    /// <summary>The <c>/git</c> grammar (2026-09-21): <c>user</c>, <c>user force</c> (either case), anything else invalid. Pure.</summary>
+    public static GitAction ParseGitArgs(string args)
+    {
+        var tokens = (args ?? "").Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+        return tokens switch
+        {
+            [var user] when user.Equals(GitUserWord, StringComparison.OrdinalIgnoreCase) => new(GitActionKind.User),
+            [var user, var force] when user.Equals(GitUserWord, StringComparison.OrdinalIgnoreCase) && force.Equals(GitForceWord, StringComparison.OrdinalIgnoreCase) => new(GitActionKind.User, Force: true),
+            _ => new(GitActionKind.Invalid),
+        };
+    }
+
+    /// <summary>Which of the two settings is empty: <c>Git email and Git name are not set; set them on the Git tab of /tools.</c>, or the one. Pinned.</summary>
+    public static string GitIdentityUnsetError(bool email, bool name) =>
+        (email && name ? "Git email and Git name are" : email ? "Git email is" : "Git name is") + " not set; set " + (email && name ? "them" : "it") + " on the Git tab of /tools.";
+
+    public static string GitIdentityWrittenNotice(string name, string email) => $"(git user set for this repository: {name} <{email}>)";
+
+    /// <summary>A <c>[user]</c> section was there and <c>force</c> was not given: what it holds, and the way past it.</summary>
+    public static string GitIdentityPresentNotice(string name, string email) => $"(this repository already has a [user] section: {name} <{email}>; /git user force replaces it)";
+
+    public static string GitNoRepositoryError(string root) => $"'{root}' is not inside a git repository; /cwd into one first.";
+
+    public static string GitIdentityFailedError(string detail) => $"Could not write the git identity: {detail}";
+
+    /// <summary>
+    /// <c>/git user [force]</c> (2026-09-21): the <c>Git email</c> and <c>Git name</c> settings into the
+    /// working directory's repository config (<see cref="GitAccess.SetLocalIdentity"/>). Either setting
+    /// empty is an error naming it; no repository at the root is an error; a <c>[user]</c> section already
+    /// there is a notice that names it and the <c>force</c> word, and nothing is written. Refused mid-turn.
+    /// </summary>
+    private void HandleGit(string args)
+    {
+        var action = ParseGitArgs(args);
+        if (action.Kind != GitActionKind.User)
+        {
+            _transcript.Error(GitUsageError);
+            return;
+        }
+
+        var effective = _effective();
+        string email = effective.GitEmail.Trim();
+        string name = effective.GitName.Trim();
+        if (email.Length == 0 || name.Length == 0)
+        {
+            _transcript.Error(GitIdentityUnsetError(email.Length == 0, name.Length == 0));
+            return;
+        }
+
+        var result = _git.SetLocalIdentity(email, name, action.Force);
+        switch (result.Outcome)
+        {
+            case GitOutcome.Ok when result.Written:
+                _transcript.Notice(GitIdentityWrittenNotice(result.Name, result.Email));
+                break;
+            case GitOutcome.Ok:
+                _transcript.Notice(GitIdentityPresentNotice(result.Name, result.Email));
+                break;
+            case GitOutcome.NoRepository:
+                _transcript.Error(GitNoRepositoryError(_files.Root));
+                break;
+            default:
+                _transcript.Error(GitIdentityFailedError(result.Detail.Length > 0 ? result.Detail : GitText.Error(result.Outcome, result.Detail)));
+                break;
+        }
+
+        DrainDiagnostics();
+    }
+
     // ── /explore ────────────────────────────────────────────────────────────
 
     /// <summary>The <c>/explore</c> notice: the folder as the file tools name it (blank = the working directory). Pinned.</summary>
@@ -3834,6 +3945,10 @@ internal sealed partial class ChatScreen
                 return new(ProfileActionKind.Pick, "");
             case 1 when tokens[0].Equals("reset", StringComparison.OrdinalIgnoreCase):
                 return new(ProfileActionKind.Reset, "");
+            case 1 when tokens[0].Equals("edit", StringComparison.OrdinalIgnoreCase):
+                return new(ProfileActionKind.Edit, "");
+            case 1 when tokens[0].Equals("reload", StringComparison.OrdinalIgnoreCase):
+                return new(ProfileActionKind.Reload, "");
             case 1:
                 return Profiles.ReservedNames.Contains(tokens[0], StringComparer.OrdinalIgnoreCase)
                     ? new(ProfileActionKind.Invalid, "")
@@ -3852,6 +3967,62 @@ internal sealed partial class ChatScreen
     }
 
     public static string ProfileMissingError(string name) => $"No profile named \"{name}\"; /profile lists them.";
+
+    // /profile edit and /profile reload (2026-09-21). Pinned.
+    public static string ProfileEditOpenedNotice(string name) => $"(opened profile \"{name}\"'s profile.json in your editor; /profile reload reads it back)";
+    public static string ProfileEditCreatedNotice(string name) => $"(created and opened profile \"{name}\"'s profile.json in your editor; /profile reload reads it back)";
+    public static string ProfileEditFailedError(string detail) => $"Could not open profile.json: {detail}";
+    public static string ProfileReloadedNotice(string name, int changed) =>
+        $"(reloaded profile \"{name}\"; " + (changed == 0 ? "nothing changed" : UsageText.Plural(changed, "setting", "settings") + " changed") + ")";
+
+    /// <summary>
+    /// What a reload's changes ask the screen to rebuild (2026-09-21): each <see cref="SettingsDiff.Changes"/>
+    /// line names the property before its colon, and the properties are named as their
+    /// <see cref="SettingsField"/> is, so the menu's own groupings say which session a change belongs
+    /// to — the LLM, TTS and voice fields, the MCP switch, and <c>LLM offer tools</c> for the
+    /// conversation. A property with no field (a list, a limit read at each call) asks nothing. Pure.
+    /// </summary>
+    public static SettingsChanges ReloadChanges(IReadOnlyList<string> changes)
+    {
+        ArgumentNullException.ThrowIfNull(changes);
+        var result = SettingsChanges.None;
+        foreach (string change in changes)
+        {
+            int colon = change.IndexOf(':', StringComparison.Ordinal);
+            string name = colon < 0 ? change : change[..colon];
+            if (!Enum.TryParse<SettingsField>(name, ignoreCase: false, out var field))
+            {
+                continue;
+            }
+
+            if (SettingsMenu.IsLlmField(field))
+            {
+                result |= SettingsChanges.Llm;
+            }
+
+            if (SettingsMenu.IsTtsField(field))
+            {
+                result |= SettingsChanges.Tts;
+            }
+
+            if (SettingsMenu.IsVoiceField(field))
+            {
+                result |= SettingsChanges.Voice;
+            }
+
+            if (SettingsMenu.IsMcpField(field))
+            {
+                result |= SettingsChanges.Mcp;
+            }
+
+            if (field == SettingsField.LlmOfferTools)
+            {
+                result |= SettingsChanges.Conversation;
+            }
+        }
+
+        return result;
+    }
 
     public static string ProfileExistsError(string name) => $"A profile named \"{name}\" already exists; /profile {name} switches to it.";
 
@@ -4521,6 +4692,15 @@ internal sealed partial class ChatScreen
             string notice = CompactionText.Notice(result, autoPercent);
             DiagnosticLog.Info("Llm", notice);
             _transcript.Notice(notice);
+            if (effective.LlmCompactShowSummary)
+            {
+                // LLM compact show summary (2026-09-21): what the compact did, dim under its notice —
+                // the summary's lines, or one line per pruned result. The log keeps the notice alone.
+                foreach (string line in CompactionText.DetailLines(result))
+                {
+                    _transcript.Notice(line);
+                }
+            }
             // The last turn is a summary or a stubbed shape now: nothing for /learn to read.
             _lastTrace = null;
             // The store follows: the rewritten history replaces the row's (2026-09-18).
@@ -5177,7 +5357,17 @@ internal sealed partial class ChatScreen
             return;
         }
 
-        // The pane just closed was the feedback: a reconnect here prints only what went wrong.
+        await ApplySettingsChangesAsync(changes, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The reconnects a settings change asks for, short of a profile switch: the LLM, speech, voice
+    /// and MCP sessions each when their fields changed, quietly (the pane that closed — or the
+    /// <c>/profile reload</c> notice, 2026-09-21 — was the feedback, so a reconnect prints only what
+    /// went wrong), and the conversation forgotten when the tools switch flipped.
+    /// </summary>
+    private async Task ApplySettingsChangesAsync(SettingsChanges changes, CancellationToken cancellationToken)
+    {
         if (changes.HasFlag(SettingsChanges.Llm))
         {
             await ConnectLlmAsync(cancellationToken, quiet: true).ConfigureAwait(false);
@@ -5374,6 +5564,10 @@ internal sealed partial class ChatScreen
 
             case SlashCommand.Explore:
                 HandleExplore(args);
+                return false;
+
+            case SlashCommand.Git:
+                HandleGit(args);
                 return false;
 
             case SlashCommand.Speak:
@@ -5689,6 +5883,37 @@ internal sealed partial class ChatScreen
                 case ProfileActionKind.Rename:
                     RenameProfile(action.Name, action.NewName);
                     return;
+
+                case ProfileActionKind.Edit:
+                {
+                    // The pending save written first, so the editor opens the current values; a file
+                    // not there yet (a profile never saved) is created by that same write.
+                    bool existed = File.Exists(_settings.FilePath);
+                    await _settings.FlushAsync().ConfigureAwait(false);
+                    try
+                    {
+                        _openFile(_settings.FilePath);
+                        _transcript.Notice(existed ? ProfileEditOpenedNotice(_settings.ProfileName) : ProfileEditCreatedNotice(_settings.ProfileName));
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or InvalidOperationException)
+                    {
+                        _transcript.Error(ProfileEditFailedError(ex.Message));
+                    }
+
+                    return;
+                }
+
+                case ProfileActionKind.Reload:
+                {
+                    // The file over the memory, then only what changed is rebuilt — a settings edit,
+                    // not a switch: the conversation, the screen and the usage stay.
+                    var before = _settings.Current;
+                    _settings.Reload();
+                    var changes = SettingsDiff.Changes(before, _settings.Current);
+                    _transcript.Notice(ProfileReloadedNotice(_settings.ProfileName, changes.Count));
+                    await ApplySettingsChangesAsync(ReloadChanges(changes), cancellationToken).ConfigureAwait(false);
+                    return;
+                }
 
                 default:
                     _transcript.Error(ProfileUsageError);

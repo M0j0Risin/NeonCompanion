@@ -138,7 +138,7 @@ public class ToolsMenuTests : IDisposable
         Assert.Equal([SettingsField.ToolsDollarMention], SettingsMenu.ToolsTabFields[0]);
         Assert.Equal([SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices], SettingsMenu.ToolsTabFields[1]);
         Assert.Equal([SettingsField.FileTools, SettingsField.FileSafeEdits, SettingsField.FileTreeMaxLength, SettingsField.FileTreeShowSizes, SettingsField.FileMentionFolderMode, SettingsField.FileViewImageMaxPerCall], SettingsMenu.ToolsTabFields[2]);   // the view_image cap last, 2026-09-19
-        Assert.Equal([SettingsField.GitTools, SettingsField.GitDiffMaxLines, SettingsField.GitLogMaxCommits], SettingsMenu.ToolsTabFields[3]);   // the switch first, then alphabetical (2026-09-20)
+        Assert.Equal([SettingsField.GitTools, SettingsField.GitDiffMaxLines, SettingsField.GitLogMaxCommits, SettingsField.GitEmail, SettingsField.GitName], SettingsMenu.ToolsTabFields[3]);   // the switch first, then the limits, then the identity pair (2026-09-21)
         Assert.Equal([SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellCodeMaxToolCalls], SettingsMenu.ToolsTabFields[4]);   // the policy (the switch) first, then the list, the shell, the caps, then execute_code's three (2026-09-21)
         Assert.Equal([SettingsField.WebTools, SettingsField.WebBrowserMode, SettingsField.WebBrowserPath, SettingsField.WebBrowserNetworkMode, SettingsField.WebSearchMethod, SettingsField.WebSearxngUrl, SettingsField.WebSearchMaxResults], SettingsMenu.ToolsTabFields[5]);
         Assert.Equal(Enum.GetValues<SettingsField>().Order(), SettingsMenu.TabFields.Concat(SettingsMenu.SkillsTabFields).Concat(SettingsMenu.ToolsTabFields).Concat(SettingsMenu.McpTabFields).SelectMany(t => t).Order());
@@ -318,7 +318,7 @@ public class ToolsMenuTests : IDisposable
         Assert.Equal(1000, _settings.Current.GitDiffMaxLines);
         Assert.Equal(20, _settings.Current.GitLogMaxCommits);
         // The three rows padded to the tab's own column (21), the diff cap's notice then the log cap's refusal on the status line.
-        Assert.Contains("\n" + Titled(Strip) + "\n \n▸ Git tools            on\n  Git diff max lines   500 lines\n  Git log max commits  20 commits\n" + Rule(100), _console.Output);
+        Assert.Contains("\n" + Titled(Strip) + "\n \n▸ Git tools            on\n  Git diff max lines   500 lines\n  Git log max commits  20 commits\n  Git email            (not set)\n  Git name             (not set)\n" + Rule(100), _console.Output);
         Assert.Contains("\n  Git diff max lines   1000 lines\n", _console.Output);
         Assert.Contains("Git log max commits must be 1 to 200 commits; keeping 20.", _console.Output);
         pane.Dispose();

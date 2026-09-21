@@ -87,4 +87,52 @@ public sealed record InputLayout(IReadOnlyList<string> Rows, IReadOnlyList<int> 
 
         return new InputLayout(rows, starts, row, TextCells.Width(text[starts[row]..cursor]));
     }
+
+    /// <summary>
+    /// The UTF-16 index for cell column <paramref name="col"/> on row <paramref name="row"/> (2026-09-21,
+    /// the Up/Down row moves): the element under the column, or the row's end past its last cell —
+    /// one element back on a row the wrap broke by cells, whose end IS the next row's start and
+    /// would show up there (the rule a click follows in <c>ScreenPane.TryHitInput</c>). The row is
+    /// clamped to the rows there are; a negative column is the row's start. Pure.
+    /// </summary>
+    public int IndexAt(int row, int col)
+    {
+        row = Math.Clamp(row, 0, Rows.Count - 1);
+        string text = Rows[row];
+        int start = Starts[row];
+        int? next = row + 1 < Starts.Count ? Starts[row + 1] : null;
+        return start + IndexInRow(text, col, next is { } n && start + text.Length == n);
+    }
+
+    /// <summary>
+    /// Where cell column <paramref name="col"/> lands in <paramref name="row"/>: the element under it,
+    /// or the row's length past its last cell — less one element when <paramref name="cellBroken"/>
+    /// (the row's end is the next row's start). Shared with the pane's click mapping.
+    /// </summary>
+    public static int IndexInRow(string row, int col, bool cellBroken)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        int cells = 0;
+        int i = 0;
+        while (i < row.Length)
+        {
+            int w = TextCells.ElementWidth(row, i, out int length);
+            if (col < cells + w)
+            {
+                break;
+            }
+
+            cells += w;
+            i += Math.Max(1, length);
+        }
+
+        // Past a row that was broken by cells, its end IS the next row's start and the cursor
+        // would show up there; the last character of this row is what was meant.
+        if (i == row.Length && row.Length > 0 && cellBroken)
+        {
+            i -= TextCells.ElementLengthBefore(row, row.Length);
+        }
+
+        return i;
+    }
 }

@@ -1871,28 +1871,41 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
 
             string row = _shownRows[r];
             int col = Math.Max(0, x - TextCells.Width(InputLine.PromptGlyph));
-            int cells = 0;
-            int i = 0;
-            while (i < row.Length)
-            {
-                int w = TextCells.ElementWidth(row, i, out int length);
-                if (col < cells + w)
-                {
-                    break;
-                }
+            // The walk is InputLayout's (shared with the Up/Down row moves since 2026-09-21): past a
+            // row broken by cells, the last character of this row is what the click meant.
+            index = _shownStarts[r] + InputLayout.IndexInRow(row, col, _shownNext[r] >= 0 && _shownStarts[r] + row.Length == _shownNext[r]);
+            return true;
+        }
+    }
 
-                cells += w;
-                i += Math.Max(1, length);
+    /// <summary>
+    /// The draft's caret one row up or down (2026-09-21, <paramref name="delta"/> −1 / +1) at cell
+    /// column <paramref name="preferredCol"/> (−1 = the caret's own column): the display index it lands
+    /// on (<see cref="InputLayout.IndexAt"/>) and the column used, which the line keeps as its goal
+    /// column across a run of arrows. False — the key is history — when the pane is off, the draft
+    /// is one row, or the target row is outside it. Laid out from the held text at the current width
+    /// under the gate, as the draw does; nothing drawn.
+    /// </summary>
+    public bool TryStepInputRow(int delta, int preferredCol, out int index, out int col)
+    {
+        index = 0;
+        col = 0;
+        if (!Enabled)
+        {
+            return false;
+        }
+
+        lock (_gate)
+        {
+            var layout = InputLayout.Wrap(_text, _cursor, InputLine.AvailableCells(Width));
+            int target = layout.CursorRow + delta;
+            if (layout.Rows.Count < 2 || target < 0 || target >= layout.Rows.Count)
+            {
+                return false;
             }
 
-            // Past a row that was broken by cells, its end IS the next row's start and the cursor
-            // would show up there; the last character of this row is what the click meant.
-            if (i == row.Length && row.Length > 0 && _shownNext[r] >= 0 && _shownStarts[r] + row.Length == _shownNext[r])
-            {
-                i -= TextCells.ElementLengthBefore(row, row.Length);
-            }
-
-            index = _shownStarts[r] + i;
+            col = preferredCol < 0 ? layout.CursorCol : preferredCol;
+            index = layout.IndexAt(target, col);
             return true;
         }
     }

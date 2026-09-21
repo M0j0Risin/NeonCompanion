@@ -314,6 +314,72 @@ public class SkillEditorTests : IDisposable
         Assert.Equal(SkillEditOutcome.Missing, SkillEditor.Move(_roots, new Skill("gone", "d", SkillScope.Profile, Path.Combine(_roots.Profile, "gone")), SkillScope.Global).Outcome);
     }
 
+    /// <summary>The pane's rename (2026-09-21): the folder under its own root and the frontmatter's name line, the other lines and the files carried; the catalog follows.</summary>
+    [Fact]
+    public void Rename_MovesTheFolder_RewritesTheNameLine_KeepsTheRest_AndTheCatalogFollows()
+    {
+        Directory.CreateDirectory(Path.Combine(_roots.Profile, "haiku", "scripts"));
+        File.WriteAllText(Path.Combine(_roots.Profile, "haiku", SkillCatalog.FileName), "---\nname: haiku\ndescription: Writes haiku.\nlicense: MIT\n---\n\nbody\n");
+        File.WriteAllText(Path.Combine(_roots.Profile, "haiku", "scripts", "run.py"), "p");
+        var catalog = new SkillCatalog(() => _roots);
+        catalog.Scan(external: false);
+        var skill = catalog.Skills.Single();
+
+        var result = SkillEditor.Rename(_roots, skill, " my-haiku ");
+
+        Assert.Equal(SkillEditOutcome.Renamed, result.Outcome);
+        Assert.Equal(("my-haiku", SkillScope.Profile), (result.Name, result.Scope));
+        Assert.False(Directory.Exists(Path.Combine(_roots.Profile, "haiku")));
+        Assert.Equal("---\nname: my-haiku\ndescription: Writes haiku.\nlicense: MIT\n---\n\nbody\n", File.ReadAllText(FileOf(SkillScope.Profile, "my-haiku")));
+        Assert.Equal("p", File.ReadAllText(Path.Combine(_roots.Profile, "my-haiku", "scripts", "run.py")));
+        catalog.Scan(external: false);
+        Assert.Equal([("my-haiku", SkillScope.Profile)], catalog.Skills.Select(s => (s.Name, s.Scope)));
+        Assert.Empty(catalog.Skills.Single().Warning ?? "");
+
+        // A skill whose name differs from its folder: renamed to the name, the mismatch gone with it.
+        Directory.CreateDirectory(Path.Combine(_roots.Global, "pdf"));
+        File.WriteAllText(Path.Combine(_roots.Global, "pdf", SkillCatalog.FileName), "---\nname: pdf-processing\ndescription: d\n---\n\ni\n");
+        Assert.Equal(SkillEditOutcome.Renamed, SkillEditor.Rename(_roots, Scanned(SkillScope.Global, "pdf-processing"), "pdf-processing").Outcome);
+        Assert.True(File.Exists(FileOf(SkillScope.Global, "pdf-processing")));
+        Assert.False(Directory.Exists(Path.Combine(_roots.Global, "pdf")));
+    }
+
+    [Fact]
+    public void Rename_RefusesExternal_ABadName_TheSameName_AnExistingFolder_ANameElsewhere_AFolderNotUnderItsRoot_AndAnUnparseableFile()
+    {
+        Put(SkillScope.Profile, "haiku");
+        Put(SkillScope.Profile, "taken");
+        Put(SkillScope.Global, "pdf");
+        Put(SkillScope.External, "ext");
+        var haiku = Scanned(SkillScope.Profile, "haiku", external: true);
+
+        Assert.Equal(SkillEditOutcome.ExternalReadOnly, SkillEditor.Rename(_roots, Scanned(SkillScope.External, "ext", external: true), "other").Outcome);
+        Assert.Equal(SkillEditOutcome.BadName, SkillEditor.Rename(_roots, haiku, "My Haiku").Outcome);
+        Assert.Equal(SkillEditOutcome.BadName, SkillEditor.Rename(_roots, haiku, "").Outcome);
+        Assert.Equal(SkillEditOutcome.NothingToChange, SkillEditor.Rename(_roots, haiku, "haiku").Outcome);
+        var exists = SkillEditor.Rename(_roots, haiku, "taken");
+        Assert.Equal((SkillEditOutcome.Exists, SkillScope.Profile), (exists.Outcome, exists.Scope));
+        var elsewhere = SkillEditor.Rename(_roots, haiku, "pdf");
+        Assert.Equal((SkillEditOutcome.ExistsElsewhere, SkillScope.Global), (elsewhere.Outcome, elsewhere.Scope));
+        var external = SkillEditor.Rename(_roots, haiku, "ext");   // the external root read whatever the setting says
+        Assert.Equal((SkillEditOutcome.ExternalReadOnly, SkillScope.External), (external.Outcome, external.Scope));
+        Assert.True(File.Exists(FileOf(SkillScope.Profile, "haiku")));
+
+        var stray = new Skill("stray", "d", SkillScope.Profile, Path.Combine(_dir, "elsewhere", "stray"));
+        Directory.CreateDirectory(stray.Directory);
+        File.WriteAllText(stray.FilePath, "x");
+        Assert.Equal(SkillEditOutcome.Missing, SkillEditor.Rename(_roots, stray, "moved").Outcome);
+        Assert.True(File.Exists(stray.FilePath));
+
+        // A file whose frontmatter cannot be read: refused, nothing moved.
+        File.WriteAllText(FileOf(SkillScope.Profile, "haiku"), "no frontmatter here\n");
+        var unparseable = SkillEditor.Rename(_roots, haiku, "fresh");
+        Assert.Equal(SkillEditOutcome.Unparseable, unparseable.Outcome);
+        Assert.NotEmpty(unparseable.Detail);
+        Assert.True(File.Exists(FileOf(SkillScope.Profile, "haiku")));
+        Assert.False(Directory.Exists(Path.Combine(_roots.Profile, "fresh")));
+    }
+
     /// <summary>The pane's delete (2026-09-18): the folder and everything in it; refused for the external root and for a folder not right under its root, so a hand-built record can never take a folder elsewhere.</summary>
     [Fact]
     public void Delete_RemovesTheFolderAndItsFiles_RefusesExternal_AndAFolderNotUnderItsRoot()

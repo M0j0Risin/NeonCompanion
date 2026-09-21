@@ -64,7 +64,7 @@ public enum SlashCommand
     /// <summary><c>/usage</c>: the tokens used and the speed — the last reply, this conversation, since launch.</summary>
     Usage,
 
-    /// <summary><c>/profile</c>: pick, switch to, add, delete, rename or reset a profile.</summary>
+    /// <summary><c>/profile</c>: pick, switch to, add, delete, rename or reset a profile; since 2026-09-21 <c>edit</c> opens its <c>profile.json</c> and <c>reload</c> reads it back.</summary>
     Profile,
 
     /// <summary><c>/timer</c>: list the timers, start one, stop one or all.</summary>
@@ -87,6 +87,9 @@ public enum SlashCommand
 
     /// <summary><c>/emptytrash</c>: delete everything in the working directory's <c>.trash</c> for good, after a confirmation.</summary>
     EmptyTrash,
+
+    /// <summary><c>/git user [force]</c> (2026-09-21): the <c>Git email</c> and <c>Git name</c> settings written into the working directory's repository config as <c>user.email</c> / <c>user.name</c>; a <c>[user]</c> section already there is kept unless <c>force</c>. Nothing else yet.</summary>
+    Git,
 
     /// <summary><c>/window</c> (<c>/windowsize</c> until later on 2026-09-19): the terminal window's width and height, for information.</summary>
     Window,
@@ -126,7 +129,7 @@ public enum SlashCommand
 /// The slash-command classifier. A line is a command only when it starts with <c>/</c>, and the
 /// first token must match exactly: <c>/exit the program please</c> is not <c>/exit</c>, and
 /// <c>what does /clear do?</c> is a question for the model. <c>//</c> is <c>/settings</c> — the one alias left: every other one (<c>/?</c>, <c>/cls</c>, <c>/exit</c>, <c>/srv</c>, <c>/prof</c> …) went on 2026-09-16 with the argument completion, the user's call, and reads as an unknown command now (<c>/config</c> had gone the same day). <c>/new</c> is its own command (a new conversation, the screen kept) since 2026-09-16; <c>/splash</c> (a new conversation, the screen wiped and the welcome splash shown) since 2026-09-19. Only <c>/server</c>, <c>/model</c>, <c>/reasoning</c>, <c>/tts</c>,
-/// <c>/stt</c>, <c>/wake</c>, <c>/interrupt</c>, <c>/speak</c>, <c>/echo</c>, <c>/view</c>, <c>/learn</c>, <c>/remember</c>, <c>/memcopy</c>, <c>/profile</c>, <c>/timer</c>, <c>/cwd</c>, <c>/tree</c>, <c>/explore</c>, <c>/copy</c>, <c>/compact</c> and (since 2026-09-16, <c>reset</c>) <c>/persona</c>, <c>/operata</c>, <c>/vocalia</c> take an argument (<see cref="TakesArgument"/>); any other command given one is <see cref="SlashCommand.Overloaded"/>, so <c>/about me</c> is told the command takes nothing rather than called unknown (2026-09-17). <c>/draft</c> takes nothing (2026-09-19: the editor is the argument). <c>/skills</c> takes nothing and opens the Skills pane (the plural since 2026-09-19, beside <c>/tools</c>; a bare <c>/skill</c> from later on 2026-09-18, in place of <c>/skill list</c>; <c>/skills</c> before that; <c>/skill &lt;name&gt; [message]</c> took a name until later that day; <c>/skill</c> is unknown now). The three tool switches <c>/web</c>, <c>/files</c>, <c>/ask</c> went later on 2026-09-18 (the user's call: the settings rows <c>Web tools</c>, <c>File tools</c>, <c>Ask user</c> are the one place now) and read as unknown commands.
+/// <c>/stt</c>, <c>/wake</c>, <c>/interrupt</c>, <c>/speak</c>, <c>/echo</c>, <c>/view</c>, <c>/learn</c>, <c>/remember</c>, <c>/memcopy</c>, <c>/profile</c>, <c>/timer</c>, <c>/cwd</c>, <c>/tree</c>, <c>/explore</c>, <c>/copy</c>, <c>/compact</c>, <c>/git</c> (2026-09-21) and (since 2026-09-16, <c>reset</c>) <c>/persona</c>, <c>/operata</c>, <c>/vocalia</c> take an argument (<see cref="TakesArgument"/>); any other command given one is <see cref="SlashCommand.Overloaded"/>, so <c>/about me</c> is told the command takes nothing rather than called unknown (2026-09-17). <c>/draft</c> takes nothing (2026-09-19: the editor is the argument). <c>/skills</c> takes nothing and opens the Skills pane (the plural since 2026-09-19, beside <c>/tools</c>; a bare <c>/skill</c> from later on 2026-09-18, in place of <c>/skill list</c>; <c>/skills</c> before that; <c>/skill &lt;name&gt; [message]</c> took a name until later that day; <c>/skill</c> is unknown now). The three tool switches <c>/web</c>, <c>/files</c>, <c>/ask</c> went later on 2026-09-18 (the user's call: the settings rows <c>Web tools</c>, <c>File tools</c>, <c>Ask user</c> are the one place now) and read as unknown commands.
 /// </summary>
 public static class SlashCommands
 {
@@ -157,7 +160,7 @@ public static class SlashCommands
             new("/settings", "edit and save settings", "//"),
             new("/tools", "switch the model's tools on or off and edit the Options, Ask, Files and Web settings on a pane"),
             new("/mcp", "connect external MCP servers and switch their tools on or off on a pane"),
-            new("/profile", "switch profiles, or /profile <name> | add <name> | delete <name> | rename <name> <new-name> | reset [name]"),
+            new("/profile", "switch profiles, or /profile <name> | add <name> | delete <name> | rename <name> <new-name> | reset [name] | edit | reload"),
             new("/session", "list, restore and purge sessions: /session [<id> | purge <id> | purge older <age> | purge all | title <text>]"),
             new("/skills", "list the skills, edit the skill settings and the project file on a pane"),
             new("/learn", "write or improve a skill from the last turn or the stored sessions, in the background: /learn [what to keep] | sessions [N | what to search]"),
@@ -195,6 +198,7 @@ public static class SlashCommands
             new("/tree", "print a tree of the working directory's folders and files, or /tree <path>"),
             new("/explore", "open the working directory in your file browser, or /explore <path>"),
             new("/emptytrash", "empty the working directory's .trash for good (asks first)"),
+            new("/git", "write the Git email and Git name settings into the working directory's repository: /git user [force]"),
         ],
         [
             new("/speak", "read a text file from the working directory aloud, as a reply: /speak <file> [n], or /speak to resume, or /speak <n> from sentence n"),
@@ -245,7 +249,7 @@ public static class SlashCommands
     public static readonly int LabelWidth = HelpEntries.Max(entry => entry.Label.Length);
 
     /// <summary>The key line of <see cref="HelpText"/>. Pinned by tests.</summary>
-    public const string KeysLine = "Keys: Enter = send   ESC = stop the speech / clear the line / cancel the reply   Up/Down = history   F4 = talk (push-to-talk key)";
+    public const string KeysLine = "Keys: Enter = send   ESC = stop the speech / clear the line / cancel the reply   Up/Down = history, or the draft's rows when it wraps   F4 = talk (push-to-talk key)";
 
     /// <summary>Printed by <c>/help</c> when there is no pane to open (a redirected console): the groups with a blank line between them. Pinned by tests.</summary>
     public static readonly string HelpText = BuildHelpText();
@@ -270,7 +274,7 @@ public static class SlashCommands
     }
 
     /// <summary>Every command word, for help and completion.</summary>
-    public static readonly string[] Words = { "/help", "/clear", "/new", "/splash", "/queue", "/session", "/compact", "/server", "/model", "/reasoning", "/settings", "//", "/tools", "/mcp", "/tts", "/stt", "/wake", "/interrupt", "/speak", "/remember", "/memory", "/forget", "/memcopy", "/persona", "/operata", "/vocalia", "/sysprompt", "/usage", "/profile", "/timer", "/cwd", "/tree", "/explore", "/view", "/echo", "/emptytrash", "/copy", "/draft", "/window", "/skills", "/learn", "/about", "/exit" };
+    public static readonly string[] Words = { "/help", "/clear", "/new", "/splash", "/queue", "/session", "/compact", "/server", "/model", "/reasoning", "/settings", "//", "/tools", "/mcp", "/tts", "/stt", "/wake", "/interrupt", "/speak", "/remember", "/memory", "/forget", "/memcopy", "/persona", "/operata", "/vocalia", "/sysprompt", "/usage", "/profile", "/timer", "/cwd", "/tree", "/explore", "/view", "/echo", "/emptytrash", "/git", "/copy", "/draft", "/window", "/skills", "/learn", "/about", "/exit" };
 
     /// <summary>The <c>/queue</c> word: what a double-click on the hint row's queued part sends through the mid-turn line hook, so the pane opens exactly as the typed command's does (2026-09-18). Pinned.</summary>
     public const string QueueWord = "/queue";
@@ -328,6 +332,7 @@ public static class SlashCommands
             "/copy" => SlashCommand.Copy,
             "/draft" => SlashCommand.Draft,
             "/emptytrash" => SlashCommand.EmptyTrash,
+            "/git" => SlashCommand.Git,
             "/window" => SlashCommand.Window,
             "/about" => SlashCommand.About,
             "/skills" => SlashCommand.Skills,
@@ -355,5 +360,5 @@ public static class SlashCommands
         or SlashCommand.Learn
         or SlashCommand.Persona or SlashCommand.Operata or SlashCommand.Vocalia
         or SlashCommand.Remember or SlashCommand.MemCopy or SlashCommand.Profile or SlashCommand.Timer
-        or SlashCommand.Cwd or SlashCommand.Tree or SlashCommand.Explore or SlashCommand.Copy or SlashCommand.Session;
+        or SlashCommand.Cwd or SlashCommand.Tree or SlashCommand.Explore or SlashCommand.Copy or SlashCommand.Session or SlashCommand.Git;
 }

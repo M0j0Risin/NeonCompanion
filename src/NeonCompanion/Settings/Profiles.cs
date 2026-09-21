@@ -39,11 +39,11 @@ public static class Profiles
     /// </summary>
     public static readonly string[] BasicCompanionFiles = { "memory.json" };
 
-    /// <summary>The <c>/profile</c> subcommand words; a profile cannot be called any of them, so <c>/profile add</c> is never a switch and <c>/profile reset</c> is always the loaded one.</summary>
-    public static readonly string[] ReservedNames = { "add", "delete", "rename", "reset" };
+    /// <summary>The <c>/profile</c> subcommand words (<c>edit</c> and <c>reload</c> since 2026-09-21); a profile cannot be called any of them, so <c>/profile add</c> is never a switch and <c>/profile reset</c> is always the loaded one.</summary>
+    public static readonly string[] ReservedNames = { "add", "delete", "edit", "reload", "rename", "reset" };
 
     /// <summary>The wording for a name <see cref="IsValidName"/> refuses. Pinned.</summary>
-    public const string NameError = "must be 1 to 32 letters, digits, - or _ (and not add, delete, rename or reset)";
+    public const string NameError = "must be 1 to 32 letters, digits, - or _ (and not add, delete, edit, reload, rename or reset)";
 
     /// <summary>Why <c>default</c> cannot be deleted. Pinned.</summary>
     public const string DefaultUndeletable = "The default profile cannot be deleted.";

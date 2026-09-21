@@ -21,11 +21,16 @@ namespace NeonCompanion.App;
 /// shape: Enter or Space flips it in place (<c>AppSettingsData.ProjectFile</c>, <see cref="SkillsText.ProjectFlippedNotice"/>
 /// on the status line, the facts read again, the cursor kept), mid-turn too — the next turn reads it. Enter or a double-click on
 /// a skill's row (a loaded one, or a shadowed one — the duplicate is the thing to clean up) opens the
-/// scope page under the list: <c>profile</c>, <c>global</c> and, while <c>Allow skill delete</c> is
-/// on, <c>delete</c>, the cursor on the scope it is in. Picking the other root moves the folder
+/// scope page under the list: <c>profile</c>, <c>global</c>, <c>rename</c> (2026-09-21, the user's ask) and,
+/// while <c>Allow skill delete</c> is on, <c>delete</c>, the cursor on the scope it is in. Picking the other root moves the folder
 /// (<see cref="SkillEditor.Move"/>) after a yes/no confirmation kept under the list; picking
 /// <c>delete</c> removes it (<see cref="SkillEditor.Delete"/>) after one; the scope it is in already
-/// is <see cref="SettingsMenu.UnchangedNotice"/>. A destination that already holds the folder's name
+/// is <see cref="SettingsMenu.UnchangedNotice"/>. Picking <c>rename</c> opens the typed slot under the
+/// page with the name pre-filled (the <see cref="SessionsMenu"/> rename's shape): what is typed is
+/// forced to a skill name (<see cref="KebabName"/>: lower case, hyphens between the words), refused
+/// when it is already a skill's name in any root (<see cref="RenameExistsError"/>) or nothing survives
+/// (<see cref="RenameEmptyError"/>), and the folder and its <c>name</c> line follow
+/// (<see cref="SkillEditor.Rename"/>) with no confirmation — nothing is lost. A destination that already holds the folder's name
 /// is refused ahead of the confirmation (<see cref="ExistsError"/>), an external skill is read-only
 /// (<see cref="ExternalReadOnlyNotice"/>), and mid-turn — the pane opens on the watcher task while a
 /// reply runs — the pick is refused (<see cref="SettingsMenu.NotWhileReplyRunsNotice"/>: a move under
@@ -38,12 +43,15 @@ namespace NeonCompanion.App;
 internal sealed class SkillsMenu
 {
     // The key hints. Pinned.
-    public const string LoadedKeys = "Enter = move or delete · ←/→ tabs · ESC = close";
+    public const string LoadedKeys = "Enter = move, rename or delete · ←/→ tabs · ESC = close";
     public const string OtherKeys = "←/→ tabs · ESC = close";
     public const string ScopeKeys = SettingsMenu.PickKeys;
 
     /// <summary>The scope page's last row while <c>Allow skill delete</c> is on. Pinned.</summary>
     public const string DeleteWord = "delete";
+
+    /// <summary>The scope page's row after the two roots (2026-09-21). Pinned.</summary>
+    public const string RenameWord = "rename";
 
     /// <summary>What a declined confirmation says on the status line: the transcript's word.</summary>
     public const string KeptNotice = ChatScreen.KeptNotice;
@@ -59,6 +67,7 @@ internal sealed class SkillsMenu
     private readonly SettingsMenu _menu;
     private readonly INoticeSink _transcript;
     private readonly MenuPane _pane;
+    private readonly InputLine _input;
     private readonly Func<string, string?> _usage;
 
     /// <param name="facts">The catalog as of a fresh scan and the rest the tabs show; read when the list opens and again after every change.</param>
@@ -67,8 +76,9 @@ internal sealed class SkillsMenu
     /// <param name="menu">The settings menu whose rows the Options tab is.</param>
     /// <param name="transcript">Where the lines outside the pane go: the screen's deferring sink, since the list may open while a reply runs.</param>
     /// <param name="pane">The menu host in the bottom pane.</param>
+    /// <param name="input">The line the rename's new name is typed on, under the page (2026-09-21).</param>
     /// <param name="usage">The scope page's caption for a skill by name (<see cref="UsageCaption"/>; the session store's usage line, 2026-09-19), null for none — read when the page opens; tests pass nothing.</param>
-    public SkillsMenu(Func<SkillsFacts> facts, Func<bool> allowDelete, AppSettings settings, SettingsMenu menu, INoticeSink transcript, MenuPane pane, Func<string, string?>? usage = null)
+    public SkillsMenu(Func<SkillsFacts> facts, Func<bool> allowDelete, AppSettings settings, SettingsMenu menu, INoticeSink transcript, MenuPane pane, InputLine input, Func<string, string?>? usage = null)
     {
         _facts = facts ?? throw new ArgumentNullException(nameof(facts));
         _allowDelete = allowDelete ?? throw new ArgumentNullException(nameof(allowDelete));
@@ -76,6 +86,7 @@ internal sealed class SkillsMenu
         _menu = menu ?? throw new ArgumentNullException(nameof(menu));
         _transcript = transcript ?? throw new ArgumentNullException(nameof(transcript));
         _pane = pane ?? throw new ArgumentNullException(nameof(pane));
+        _input = input ?? throw new ArgumentNullException(nameof(input));
         _usage = usage ?? (_ => null);
     }
 
@@ -115,8 +126,52 @@ internal sealed class SkillsMenu
         return Markup.Escape(SkillScopes.Name(scope).PadRight(9)) + Theme.DimMarkup(roots.Of(scope));
     }
 
+    /// <summary>The rename row (2026-09-21): the word padded to nine, what it does dim after it.</summary>
+    public static string RenameRow => Markup.Escape(RenameWord.PadRight(9)) + Theme.DimMarkup("give it a new name (letters, digits and hyphens)");
+
     /// <summary>The delete row: the word padded to nine, what it does dim after it.</summary>
     public static string DeleteRow => Markup.Escape(DeleteWord.PadRight(9)) + Theme.DimMarkup("remove the folder and everything in it");
+
+    public static string RenamedNotice(string name, string newName) => $"(renamed: {name} → {newName})";
+
+    /// <summary>The name typed is a skill's already, in <paramref name="where"/>'s root — the catalog's or the disk's word.</summary>
+    public static string RenameExistsError(string name, string newName, SkillScope where) => $"Could not rename skill '{name}' to '{newName}': the {SkillScopes.Name(where)} skills already hold it";
+
+    public const string RenameEmptyError = "Could not rename the skill: the name needs at least one letter or digit";
+
+    public static string RenameFailedError(string detail) => $"Could not rename the skill: {detail}";
+
+    /// <summary>
+    /// The typed name as a skill name (2026-09-21): lower case, every run of anything but a–z and 0–9
+    /// one hyphen, no hyphen at either end, cut to <see cref="SkillFrontmatter.MaxNameLength"/> (and
+    /// trimmed again). Empty when nothing survives; otherwise always <see cref="SkillFrontmatter.IsValidName"/>. Pure.
+    /// </summary>
+    public static string KebabName(string typed)
+    {
+        ArgumentNullException.ThrowIfNull(typed);
+        var kebab = new System.Text.StringBuilder(typed.Length);
+        bool gap = false;
+        foreach (char c in typed.ToLowerInvariant())
+        {
+            if (c is >= 'a' and <= 'z' or >= '0' and <= '9')
+            {
+                if (gap && kebab.Length > 0)
+                {
+                    kebab.Append('-');
+                }
+
+                kebab.Append(c);
+                gap = false;
+            }
+            else
+            {
+                gap = true;
+            }
+        }
+
+        string name = kebab.ToString();
+        return name.Length > SkillFrontmatter.MaxNameLength ? name[..SkillFrontmatter.MaxNameLength].TrimEnd('-') : name;
+    }
 
     public static string MovePrompt(string name, SkillScope from, SkillScope to) => $"Move skill '{name}' from the {SkillScopes.Name(from)} skills to the {SkillScopes.Name(to)} skills?";
 
@@ -284,7 +339,7 @@ internal sealed class SkillsMenu
                     continue;
                 }
 
-                if (await PickScopeAsync(skill, facts.Roots, cancellationToken).ConfigureAwait(false))
+                if (await PickScopeAsync(skill, facts, cancellationToken).ConfigureAwait(false))
                 {
                     facts = _facts();
                     cursor = Math.Max(0, Math.Min(cursor, SkillsText.LoadedRows(facts).Count - 1));
@@ -298,11 +353,13 @@ internal sealed class SkillsMenu
         }
     }
 
-    /// <summary>The scope page under the list, the confirmation under that, then the act; true when the folder changed (the facts are stale).</summary>
-    private async Task<bool> PickScopeAsync(Skill skill, SkillRoots roots, CancellationToken cancellationToken)
+    /// <summary>The scope page under the list — the two roots, rename, delete when allowed —, the confirmation or the typed slot under that, then the act; true when the folder changed (the facts are stale).</summary>
+    private async Task<bool> PickScopeAsync(Skill skill, SkillsFacts facts, CancellationToken cancellationToken)
     {
+        var roots = facts.Roots;
         bool delete = _allowDelete();
         var rows = ScopeRows.Select(scope => ScopeRow(scope, roots)).ToList();
+        rows.Add(RenameRow);
         if (delete)
         {
             rows.Add(DeleteRow);
@@ -315,7 +372,12 @@ internal sealed class SkillsMenu
             return false;
         }
 
-        if (row >= ScopeRows.Count)
+        if (row == ScopeRows.Count)
+        {
+            return await RenameAsync(skill, facts, page, row, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (row > ScopeRows.Count)
         {
             if (!await ConfirmAsync(DeletePrompt(skill.Name, skill.Scope), cancellationToken).ConfigureAwait(false))
             {
@@ -374,6 +436,56 @@ internal sealed class SkillsMenu
             default:
                 Sink.Error(MoveFailedError(moved.Detail));
                 return false;
+        }
+    }
+
+    /// <summary>The rename's slot under the page, the name checked and the act (2026-09-21); true when the folder changed.</summary>
+    private async Task<bool> RenameAsync(Skill skill, SkillsFacts facts, MenuPage page, int row, CancellationToken cancellationToken)
+    {
+        var typed = await _pane.EditAsync(page with { Hint = SettingsMenu.EditKeys }, row, _input, skill.Name, allowEmpty: false, cancellationToken).ConfigureAwait(false);
+        if (typed is not InputResult.Submitted { Text: var text } || string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        string name = KebabName(text);
+        if (name.Length == 0)
+        {
+            Sink.Error(RenameEmptyError);
+            return false;
+        }
+
+        if (string.Equals(name, skill.Name, StringComparison.Ordinal) && string.Equals(name, skill.FolderName, StringComparison.Ordinal))
+        {
+            Sink.Notice(SettingsMenu.UnchangedNotice);
+            return false;
+        }
+
+        // Refused ahead of the act when the catalog knows the name already — a loaded skill or a shadowed one, in any root.
+        if (facts.Skills.Concat(facts.Shadowed).FirstOrDefault(s => string.Equals(s.Name, name, StringComparison.Ordinal)) is { } taken)
+        {
+            Sink.Error(RenameExistsError(skill.Name, name, taken.Scope));
+            return false;
+        }
+
+        var renamed = SkillEditor.Rename(facts.Roots, skill, name);
+        switch (renamed.Outcome)
+        {
+            case SkillEditOutcome.Renamed:
+                Sink.Notice(RenamedNotice(skill.Name, name));
+                return true;
+            case SkillEditOutcome.Exists or SkillEditOutcome.ExistsElsewhere or SkillEditOutcome.ExternalReadOnly:
+                Sink.Error(RenameExistsError(skill.Name, name, renamed.Scope));
+                return true;
+            case SkillEditOutcome.Missing:
+                Sink.Error(MissingError(skill.Name));
+                return true;
+            case SkillEditOutcome.BadName:
+                Sink.Error(RenameEmptyError);
+                return false;
+            default:
+                Sink.Error(RenameFailedError(renamed.Detail));
+                return renamed.Outcome != SkillEditOutcome.Unparseable;   // a failed write after the move: the list shows the renamed folder
         }
     }
 

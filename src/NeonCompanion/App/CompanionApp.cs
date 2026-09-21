@@ -537,7 +537,13 @@ public sealed class CompanionApp
                 var (command, args) = SlashCommands.Parse(text);
                 if (command == SlashCommand.Compact)
                 {
-                    await HeadlessLineAsync(HeadlessReplyPrefix + await CompactHeadlessAsync(session, assistant, args.Length > 0 ? args : null, autoPercent: null, cancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
+                    var (outcome, details) = await CompactHeadlessAsync(session, assistant, args.Length > 0 ? args : null, autoPercent: null, cancellationToken).ConfigureAwait(false);
+                    await HeadlessLineAsync(HeadlessReplyPrefix + outcome).ConfigureAwait(false);
+                    foreach (string detail in details)
+                    {
+                        await HeadlessNoticeLineAsync("[notice] " + detail).ConfigureAwait(false);
+                    }
+
                     continue;
                 }
 
@@ -546,10 +552,14 @@ public sealed class CompanionApp
                 if (ConversationCompactor.ShouldAutoCompact(session.Usage.LastRequest, session.ContextLength, share))
                 {
                     int percent = UsageText.Percent(session.Usage.LastRequest.Total, session.ContextLength) ?? share;
-                    string outcome = await CompactHeadlessAsync(session, assistant, null, percent, cancellationToken).ConfigureAwait(false);
+                    var (outcome, details) = await CompactHeadlessAsync(session, assistant, null, percent, cancellationToken).ConfigureAwait(false);
                     if (outcome != CompactionText.NothingToCompact)
                     {
                         await HeadlessNoticeLineAsync("[notice] " + outcome).ConfigureAwait(false);
+                        foreach (string detail in details)
+                        {
+                            await HeadlessNoticeLineAsync("[notice] " + detail).ConfigureAwait(false);
+                        }
                     }
                 }
 
@@ -585,15 +595,23 @@ public sealed class CompanionApp
     /// <summary>
     /// <c>/compact</c> headless, and the automatic one: the same <see cref="ConversationCompactor"/>
     /// as the screen, no spinner, Ctrl+C the only cancel; the outcome as one line of
-    /// <see cref="CompactionText"/>, the failure line included.
+    /// <see cref="CompactionText"/>, the failure line included, and — under <c>LLM compact show
+    /// summary</c> (2026-09-21) — the detail lines the screen prints under its notice
+    /// (<see cref="CompactionText.DetailLines"/>), empty otherwise.
     /// </summary>
-    private async Task<string> CompactHeadlessAsync(LlmSession session, Assistant assistant, string? focus, int? autoPercent, CancellationToken cancellationToken)
+    private async Task<(string Outcome, IReadOnlyList<string> Details)> CompactHeadlessAsync(LlmSession session, Assistant assistant, string? focus, int? autoPercent, CancellationToken cancellationToken)
     {
         string outcome;
+        IReadOnlyList<string> details = [];
         try
         {
-            var result = await ConversationCompactor.RunAsync(assistant, session.Usage, CompactType.Resolve(EffectiveSettings), EffectiveSettings.LlmCompactKeepRecent, focus, cancellationToken, pruneRecent: autoPercent is not null, protectSkills: SkillCompactMode.Resolve(EffectiveSettings)).ConfigureAwait(false);
+            var effective = EffectiveSettings;
+            var result = await ConversationCompactor.RunAsync(assistant, session.Usage, CompactType.Resolve(effective), effective.LlmCompactKeepRecent, focus, cancellationToken, pruneRecent: autoPercent is not null, protectSkills: SkillCompactMode.Resolve(effective)).ConfigureAwait(false);
             outcome = result is null ? CompactionText.NothingToCompact : CompactionText.Notice(result, autoPercent);
+            if (result is not null && effective.LlmCompactShowSummary)
+            {
+                details = CompactionText.DetailLines(result);
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -606,7 +624,7 @@ public sealed class CompanionApp
 
         // The same line the screen logs for its compacts (2026-09-19).
         DiagnosticLog.Info("Llm", outcome);
-        return outcome;
+        return (outcome, details);
     }
 
     /// <summary>

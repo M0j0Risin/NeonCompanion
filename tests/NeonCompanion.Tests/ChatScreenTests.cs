@@ -20,6 +20,7 @@ using NeonCompanion.Tests.Fakes;
 using NeonCompanion.Timers;
 using NeonCompanion.UI;
 using NeonCompanion.Web;
+using LibGit2Sharp;
 using Spectre.Console;
 using Spectre.Console.Testing;
 
@@ -3625,12 +3626,12 @@ public partial class ChatScreenTests : IDisposable
     }
 
     [Fact]
-    public async Task Turn_FreshProfile_DeleteIsOff_TheRuleLosesItsClause_AndSysPromptCountsFourteen()
+    public async Task Turn_FreshProfile_DeleteIsOff_TheRuleLosesItsClause_AndSysPromptCountsTwelve()
     {
         // 2026-09-20, the user's call: the trash tool is opt-in — a fresh profile's ToolsDisabled holds delete, the file rule drops its
         // delete / restore clause (the DownloadRule shape), the group and every other file tool stand; the fixture had opted every tool on.
         _settings.Update(d => { d.TtsOutput = false; d.ToolsDisabled = [.. new AppSettingsData().ToolsDisabled]; });
-        Assert.Equal([DeleteTool.ToolName, GitDeleteTool.ToolName, GitDiscardTool.ToolName], _settings.Current.ToolsDisabled);   // the two git tools with it, later on 2026-09-20
+        Assert.Equal([DeleteTool.ToolName, GitDeleteTool.ToolName, GitDiscardTool.ToolName, UnzipTool.ToolName, ZipTool.ToolName], _settings.Current.ToolsDisabled);   // the two git tools with it, later on 2026-09-20; zip and unzip on 2026-09-21
         _chat.EnqueueText("Hello.");
         _console.Profile.Height = 90;
         _geometry = new ScreenGeometry(() => null);
@@ -3645,7 +3646,9 @@ public partial class ChatScreenTests : IDisposable
         var offered = _chat.Options[0]!.Tools!.Cast<AIFunction>().Select(t => t.Name).ToArray();
         Assert.DoesNotContain(DeleteTool.ToolName, offered);
         Assert.Contains(RestoreTool.ToolName, offered);
-        Assert.Equal(StandingAndFileTools.Length + 3 - 3, offered.Length);   // skill_editor, session_manager and (the pane on) ask_user ride; delete, git_discard and git_delete gone
+        Assert.Equal(StandingAndFileTools.Length + 3 - 5, offered.Length);   // skill_editor, session_manager and (the pane on) ask_user ride; delete, zip, unzip, git_discard and git_delete gone
+        Assert.DoesNotContain(ZipTool.ToolName, offered);
+        Assert.DoesNotContain(UnzipTool.ToolName, offered);
         Assert.DoesNotContain(GitDiscardTool.ToolName, offered);
         Assert.DoesNotContain(GitDeleteTool.ToolName, offered);
         Assert.Contains(GitCommitTool.ToolName, offered);
@@ -3654,7 +3657,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.DoesNotContain(Assistant.FileRule, prompt, StringComparison.Ordinal);
         Assert.DoesNotContain("delete only moves", prompt);
         Assert.Contains(_chat.Requests[0], m => m.Contents.OfType<FunctionCallContent>().Any(c => c.CallId == Assistant.OpeningCwdCallId));   // the group stands: the cwd call rides
-        Assert.Matches(ToolsHeading("Files (14 of 15)", null, "get_working_directory"), output);
+        Assert.Matches(ToolsHeading("Files (12 of 15)", null, "get_working_directory"), output);
         Assert.Contains("Operating rules — default\n", output);
         Assert.DoesNotContain("delete only moves", output);
         // The pane wraps the rules, so the Prompt tab's text is pinned in SystemPromptSummaryTests.DeleteOff_TheRulesLoseTheDeleteClause_ThePromptAgrees.
@@ -4003,7 +4006,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains("\n▸ $-mention enabled  on\n", output);
         Assert.Contains("\n▸ Ask user                      on\n", output);
         Assert.Contains("\n▸ File tools                      on\n", output);
-        Assert.Contains("\n▸ Git tools            on\n  Git diff max lines   500 lines\n  Git log max commits  20 commits\n", output);
+        Assert.Contains("\n▸ Git tools            on\n  Git diff max lines   500 lines\n  Git log max commits  20 commits\n  Git email            (not set)\n  Git name             (not set)\n", output);
         Assert.Contains("\n▸ Shell command policy       ask\n  Shell allowed commands     none\n  Shell default              powershell\n  Shell timeout (s)          180\n  Shell foreground cap (s)   600\n  Shell output max chars     30,000 chars\n  Shell code languages       powershell, python, node\n  Shell code timeout (s)     300\n  Shell code max tool calls  50 tool calls\n", output);
         Assert.Contains("\n▸ Web tools                 on\n", output);
         Assert.Contains("\n" + SettingsMenu.TabKeys, output);
@@ -5016,7 +5019,7 @@ public partial class ChatScreenTests : IDisposable
                 case 1: PushLine(input, "/settings"); break;
                 case 2:
                     input.Push(Keys.Right, Keys.Right);   // the LLM tab (third since 2026-09-19; fourth from 2026-09-18 until then)
-                    input.Push(Enumerable.Repeat(Keys.Down, 11).ToArray());   // LLM offer tools, the twelfth LLM row (the scan mode first, the tool compact type just under it since 2026-09-15)
+                    input.Push(Enumerable.Repeat(Keys.Down, 12).ToArray());   // LLM offer tools, the thirteenth LLM row (the scan mode first, the show-summary toggle above it since 2026-09-21, the tool compact type just under it since 2026-09-15)
                     input.Push(Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape);   // the on/off page, off picked, closed
                     break;
                 case 3: PushLine(input, "hi again"); break;
@@ -5248,8 +5251,15 @@ public partial class ChatScreenTests : IDisposable
     [Fact]
     public void ProfileStrings_ArePinned()
     {
-        Assert.Equal("/profile takes nothing (pick), a name, add <name>, delete <name>, rename <name> <new-name> or reset [name].", ChatScreen.ProfileUsageError);
-        Assert.Equal("Profile name must be 1 to 32 letters, digits, - or _ (and not add, delete, rename or reset).", ChatScreen.ProfileNameError);
+        Assert.Equal("/profile takes nothing (pick), a name, add <name>, delete <name>, rename <name> <new-name>, reset [name], edit or reload.", ChatScreen.ProfileUsageError);
+        Assert.Equal("Profile name must be 1 to 32 letters, digits, - or _ (and not add, delete, edit, reload, rename or reset).", ChatScreen.ProfileNameError);
+        // /profile edit and /profile reload (2026-09-21).
+        Assert.Equal("(opened profile \"x\"'s profile.json in your editor; /profile reload reads it back)", ChatScreen.ProfileEditOpenedNotice("x"));
+        Assert.Equal("(created and opened profile \"x\"'s profile.json in your editor; /profile reload reads it back)", ChatScreen.ProfileEditCreatedNotice("x"));
+        Assert.Equal("Could not open profile.json: why", ChatScreen.ProfileEditFailedError("why"));
+        Assert.Equal("(reloaded profile \"x\"; nothing changed)", ChatScreen.ProfileReloadedNotice("x", 0));
+        Assert.Equal("(reloaded profile \"x\"; 1 setting changed)", ChatScreen.ProfileReloadedNotice("x", 1));
+        Assert.Equal("(reloaded profile \"x\"; 3 settings changed)", ChatScreen.ProfileReloadedNotice("x", 3));
         Assert.Equal("No profile named \"x\"; /profile lists them.", ChatScreen.ProfileMissingError("x"));
         Assert.Equal("A profile named \"x\" already exists; /profile x switches to it.", ChatScreen.ProfileExistsError("x"));
         Assert.Equal("(created profile \"x\" from the current settings)", ChatScreen.ProfileCreatedNotice("x"));
@@ -5290,9 +5300,122 @@ public partial class ChatScreenTests : IDisposable
     [InlineData("rename a b c", ProfileActionKind.Invalid, "")]
     [InlineData("rename work office", ProfileActionKind.Rename, "work", "office")]
     [InlineData("RENAME\twork  office", ProfileActionKind.Rename, "work", "office")]
+    [InlineData("edit", ProfileActionKind.Edit, "")]
+    [InlineData("EDIT", ProfileActionKind.Edit, "")]
+    [InlineData("reload", ProfileActionKind.Reload, "")]
+    [InlineData("Reload", ProfileActionKind.Reload, "")]
+    [InlineData("edit x", ProfileActionKind.Invalid, "")]
+    [InlineData("reload now", ProfileActionKind.Invalid, "")]
     public void ParseProfileArgs_IsPinned(string args, ProfileActionKind kind, string name, string newName = "")
     {
         Assert.Equal(new ProfileAction(kind, name, newName), ChatScreen.ParseProfileArgs(args));
+    }
+
+    [Theory]
+    [InlineData("user", GitActionKind.User, false)]
+    [InlineData("USER", GitActionKind.User, false)]
+    [InlineData("user force", GitActionKind.User, true)]
+    [InlineData("User\tFORCE", GitActionKind.User, true)]
+    [InlineData("", GitActionKind.Invalid, false)]
+    [InlineData("force", GitActionKind.Invalid, false)]
+    [InlineData("user now", GitActionKind.Invalid, false)]
+    [InlineData("user force now", GitActionKind.Invalid, false)]
+    [InlineData("init", GitActionKind.Invalid, false)]
+    public void ParseGitArgs_IsPinned(string args, GitActionKind kind, bool force)
+    {
+        Assert.Equal(new GitAction(kind, force), ChatScreen.ParseGitArgs(args));
+    }
+
+    [Fact]
+    public void GitLabels_ArePinned()
+    {
+        Assert.Equal("/git takes user [force].", ChatScreen.GitUsageError);
+        Assert.Equal("Git email and Git name are not set; set them on the Git tab of /tools.", ChatScreen.GitIdentityUnsetError(true, true));
+        Assert.Equal("Git email is not set; set it on the Git tab of /tools.", ChatScreen.GitIdentityUnsetError(true, false));
+        Assert.Equal("Git name is not set; set it on the Git tab of /tools.", ChatScreen.GitIdentityUnsetError(false, true));
+        Assert.Equal("(git user set for this repository: Some User <user@email.com>)", ChatScreen.GitIdentityWrittenNotice("Some User", "user@email.com"));
+        Assert.Equal("(this repository already has a [user] section: Old <old@x>; /git user force replaces it)", ChatScreen.GitIdentityPresentNotice("Old", "old@x"));
+        Assert.Equal(@"'D:\x' is not inside a git repository; /cwd into one first.", ChatScreen.GitNoRepositoryError(@"D:\x"));
+        Assert.Equal("Could not write the git identity: why", ChatScreen.GitIdentityFailedError("why"));
+        Assert.Equal(["user", "user force"], ChatScreen.GitVerbs.Select(v => v.Text));
+        Assert.Equal("write the Git email and Git name settings into this repository's .git/config", ChatScreen.GitUserNote);
+        Assert.Equal("the same, replacing a [user] section already there", ChatScreen.GitUserForceNote);
+        Assert.Equal(["user"], ChatScreen.ArgumentItems("/git", "", Sources()).Select(i => i.Text));
+        Assert.Equal(["user"], ChatScreen.ArgumentItems("/git", "us", Sources()).Select(i => i.Text));
+        Assert.Equal(["user force"], ChatScreen.ArgumentItems("/git", "user ", Sources()).Select(i => i.Text));
+        Assert.Equal(["user force"], ChatScreen.ArgumentItems("/git", "user f", Sources()).Select(i => i.Text));
+        Assert.Empty(ChatScreen.ArgumentItems("/git", "x", Sources()));
+    }
+
+    [Fact]
+    public async Task GitUser_WritesTheIdentity_KeepsOneAlreadyThere_UnlessForced()
+    {
+        // /git user (2026-09-21): the two settings into the sandbox repository's .git/config; a second run finds the section and says so; force replaces it.
+        _settings.Update(d => { d.TtsOutput = false; d.GitEmail = "user@email.com"; d.GitName = "Some User"; });
+        string files = Path.Combine(_settings.ProfileDirectory, "files");
+        Directory.CreateDirectory(files);
+        Repository.Init(files);   // not GitAccessTests.Init: that one writes a local identity already
+        PushLine("/git user");
+        PushLine("/git user");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains("  · " + ChatScreen.GitIdentityWrittenNotice("Some User", "user@email.com"), output);
+        Assert.Contains("  · " + ChatScreen.GitIdentityPresentNotice("Some User", "user@email.com"), output);
+        using (var repo = new Repository(files))
+        {
+            Assert.Equal("user@email.com", repo.Config.Get<string>("user.email", ConfigurationLevel.Local)!.Value);
+            Assert.Equal("Some User", repo.Config.Get<string>("user.name", ConfigurationLevel.Local)!.Value);
+        }
+
+        string config = File.ReadAllText(Path.Combine(files, ".git", "config"));
+        Assert.Contains("[user]", config);
+        Assert.Equal(1, config.Split("email = user@email.com").Length - 1);   // once, not twice
+        Assert.Equal(1, config.Split("name = Some User").Length - 1);
+
+        // Forced: the new pair over the old.
+        _settings.Update(d => { d.GitEmail = "new@email.com"; d.GitName = "New User"; });
+        PushLine("/git user force");
+        PushLine("/exit");
+        output = await RunAsync();
+        Assert.Contains("  · " + ChatScreen.GitIdentityWrittenNotice("New User", "new@email.com"), output);
+        using var forced = new Repository(files);
+        Assert.Equal("new@email.com", forced.Config.Get<string>("user.email", ConfigurationLevel.Local)!.Value);
+        Assert.Equal("New User", forced.Config.Get<string>("user.name", ConfigurationLevel.Local)!.Value);
+    }
+
+    [Fact]
+    public async Task GitUser_WithoutTheSettings_OrARepository_OrTheWord_IsTheError()
+    {
+        _settings.Update(d => d.TtsOutput = false);
+        string files = Path.Combine(_settings.ProfileDirectory, "files");
+        Directory.CreateDirectory(files);
+        PushLine("/git user");                  // neither set
+        PushLine("/git");                       // no word
+        PushLine("/git init");                  // the wrong word
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains("  ✗ " + ChatScreen.GitIdentityUnsetError(true, true), output);
+        Assert.Equal(2, output.Split("  ✗ " + ChatScreen.GitUsageError).Length - 1);
+        Assert.False(Directory.Exists(Path.Combine(files, ".git")));
+
+        // One set: named alone (the settings are read when the line runs, so one run per state).
+        _settings.Update(d => d.GitEmail = "user@email.com");
+        PushLine("/git user");
+        PushLine("/exit");
+        output = await RunAsync();
+        Assert.Contains("  ✗ " + ChatScreen.GitIdentityUnsetError(false, true), output);
+
+        // Both set, no repository: the root named, and never an init.
+        _settings.Update(d => d.GitName = "Some User");
+        PushLine("/git user");
+        PushLine("/exit");
+        output = await RunAsync();
+        Assert.Contains("  ✗ " + ChatScreen.GitNoRepositoryError(files), output);
+        Assert.False(Directory.Exists(Path.Combine(files, ".git")));
     }
 
     [Fact]
@@ -5579,6 +5702,67 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         Assert.Equal(4, output.Split("  ✗ " + ChatScreen.ProfileUsageError).Length - 1);
+    }
+
+    [Fact]
+    public async Task Profile_Edit_FlushesThenOpensTheFile_AndAFailedEditorIsTheError()
+    {
+        // /profile edit (2026-09-21): the pending save lands first, then the editor gets profile.json — created by that save when it was not there yet.
+        _settings.Update(d => { d.TtsOutput = false; d.LlmModel = "just-typed"; });
+        Assert.False(File.Exists(_settings.FilePath));   // the fixture's edits sit in the debounce
+        PushLine("/profile edit");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains("  · " + ChatScreen.ProfileEditCreatedNotice(_settings.ProfileName), output);
+        Assert.Equal([_settings.FilePath], _openedFiles);
+        Assert.Contains("just-typed", File.ReadAllText(_settings.FilePath));
+
+        // There already: opened, the pending value written first.
+        _settings.Update(d => d.LlmModel = "typed-again");
+        PushLine("/profile edit");
+        PushLine("/exit");
+        output = await RunAsync();
+        Assert.Contains("  · " + ChatScreen.ProfileEditOpenedNotice(_settings.ProfileName), output);
+        Assert.Equal([_settings.FilePath, _settings.FilePath], _openedFiles);
+        Assert.Contains("typed-again", File.ReadAllText(_settings.FilePath));
+
+        _openFile = _ => throw new System.ComponentModel.Win32Exception("no editor");
+        PushLine("/profile edit");
+        PushLine("/exit");
+        output = await RunAsync();
+        Assert.Contains("  ✗ " + ChatScreen.ProfileEditFailedError("no editor"), output);
+    }
+
+    [Fact]
+    public async Task Profile_Reload_ReadsTheFile_ReconnectsWhatChanged_AndKeepsTheConversation()
+    {
+        // /profile reload (2026-09-21): a hand edit of profile.json applied in place — the LLM reconnects for its model, the conversation stays.
+        _settings.Update(d => { d.TtsOutput = false; d.LlmModel = "before"; });
+        _chat.EnqueueText("one").EnqueueText("two");
+        PushLine("hi");
+        PushLine("/profile reload");
+        PushLine("again");
+        PushLine("/exit");
+        var edited = AppSettings.Copy(_settings.Current);
+        edited.LlmModel = "by-hand";
+        edited.GitLogMaxCommits = 33;
+        await _settings.FlushAsync();
+        File.WriteAllText(_settings.FilePath, JsonSerializer.Serialize(edited, SettingsJsonContext.Default.AppSettingsData));
+
+        string output = await RunAsync();
+
+        Assert.Contains("  · " + ChatScreen.ProfileReloadedNotice(_settings.ProfileName, 2), output);
+        Assert.DoesNotContain(SettingsMenu.SwitchedNotice(_settings.ProfileName), output);
+        Assert.Equal("by-hand", _settings.Current.LlmModel);
+        Assert.Equal(33, _settings.Current.GitLogMaxCommits);
+        Assert.Equal(2, _chat.Requests.Count);
+        Assert.Equal("hi", _chat.Requests[1][1].Text);   // the conversation kept through the reload
+        Assert.Equal("again", _chat.Requests[1][^1].Text);
+        Assert.Equal(SettingsChanges.Llm, ChatScreen.ReloadChanges(["LlmModel: before → by-hand", "GitLogMaxCommits: 20 → 33"]));
+        Assert.Equal(SettingsChanges.Tts | SettingsChanges.Voice | SettingsChanges.Mcp | SettingsChanges.Conversation, ChatScreen.ReloadChanges(["TtsSpeed: 1 → 1.2", "SttInput: false → true", "McpServers: true → false", "LlmOfferTools: true → false", "NoSuchField: 1 → 2"]));
+        Assert.Equal(SettingsChanges.None, ChatScreen.ReloadChanges([]));
     }
 
     [Fact]
@@ -7026,7 +7210,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(count, rows.Length);
         Assert.Equal(("Enter", "send the line · change/update a setting"), rows[0]);
         Assert.Equal(("ESC", "stop the speech · clear the line · cancel the reply · back out of a menu"), rows[1]);
-        Assert.Equal(("Up / Down", "earlier lines · scroll in menus"), rows[2]);
+        Assert.Equal(("Up / Down", "earlier lines · the draft's rows when it wraps · scroll in menus"), rows[2]);   // the row moves 2026-09-21
         Assert.Equal(("Left / Right", "change tabs in menus · hold Shift to select text"), rows[3]);
         Assert.Equal(("Home / End", "hold Shift to select text to the beginning or end of the line starting from the cursor"), rows[4]);
         Assert.Equal(("PgUp / PgDn", "scroll the transcript a page at a time"), rows[5]);
@@ -7076,7 +7260,7 @@ public partial class ChatScreenTests : IDisposable
         }
 
         Assert.Equal(lines.Length, line);
-        Assert.Equal(50, lines.Length);   // 42 commands + 8 blank rows: /mcp under /tools 2026-09-20; /splash under /new later still on 2026-09-19; /draft under /copy since 2026-09-19; nine groups since later on 2026-09-19 (/skills + /learn under /session, /window under /view, /timer under /help); 39 + 10 with /tools under /settings that morning (38 + 10 since the three tool switches went, 2026-09-18)
+        Assert.Equal(51, lines.Length);   // 43 commands + 8 blank rows: /git under /emptytrash 2026-09-21; /mcp under /tools 2026-09-20; /splash under /new later still on 2026-09-19; /draft under /copy since 2026-09-19; nine groups since later on 2026-09-19 (/skills + /learn under /session, /window under /view, /timer under /help); 39 + 10 with /tools under /settings that morning (38 + 10 since the three tool switches went, 2026-09-18)
         Assert.StartsWith(HelpRow("/settings, //", "edit and save settings"), lines[0]);
         Assert.StartsWith(HelpRow("/tools", "switch the model's tools on or off and edit the Options, Ask, Files and Web settings on a pane"), lines[1]);   // 2026-09-19
         Assert.StartsWith(HelpRow("/mcp", "connect external MCP servers and switch their tools on or off on a pane"), lines[2]);   // 2026-09-20
@@ -7103,18 +7287,19 @@ public partial class ChatScreenTests : IDisposable
         Assert.StartsWith(HelpRow("/memcopy", "copy this profile's memory into another: /memcopy <profile> [overwrite]"), lines[30]);   // 2026-09-17
         Assert.StartsWith(HelpRow("/tree", "print a tree of the working directory's folders and files, or /tree <path>"), lines[33]);
         Assert.StartsWith(HelpRow("/emptytrash", "empty the working directory's .trash for good (asks first)"), lines[35]);
-        Assert.True(string.IsNullOrWhiteSpace(lines[36]));
+        Assert.StartsWith(HelpRow("/git", "write the Git email and Git name settings into the working directory's repository: /git user [force]"), lines[36]);   // 2026-09-21
+        Assert.True(string.IsNullOrWhiteSpace(lines[37]));
         // /speak and /view: a group of their own (the user's call, 2026-09-17); /window (/windowsize until then) under /view since later on 2026-09-19.
-        Assert.StartsWith(HelpRow("/speak", "read a text file from the working directory aloud, as a reply: /speak <file> [n], or /speak to resume, or /speak <n> from sentence n"), lines[37]);
-        Assert.StartsWith(HelpRow("/echo", "print a line as a reply and read it aloud when speech is on: /echo <text>"), lines[38]);
-        Assert.StartsWith(HelpRow("/view", "show an image from the working directory in the transcript, as large as the window allows: /view <image>"), lines[39]);
-        Assert.StartsWith(HelpRow("/window", "show the terminal window's width and height"), lines[40]);
-        Assert.True(string.IsNullOrWhiteSpace(lines[41]));
-        Assert.StartsWith(HelpRow("/persona", "export and manage persona.md (the personality) in your editor, or /persona reset to go back to the default"), lines[42]);
-        Assert.True(string.IsNullOrWhiteSpace(lines[45]));
-        Assert.StartsWith(HelpRow("/timer", "list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all"), lines[46]);   // the bottom group's first row since later still on 2026-09-19 (under /help from earlier that day)
-        Assert.StartsWith(HelpRow("/help", "show help"), lines[47]);   // the bottom group since 2026-09-16, above /about; under /timer since later still on 2026-09-19
-        Assert.StartsWith(HelpRow("/about", "show general information about the app and profile"), lines[48]);
+        Assert.StartsWith(HelpRow("/speak", "read a text file from the working directory aloud, as a reply: /speak <file> [n], or /speak to resume, or /speak <n> from sentence n"), lines[38]);
+        Assert.StartsWith(HelpRow("/echo", "print a line as a reply and read it aloud when speech is on: /echo <text>"), lines[39]);
+        Assert.StartsWith(HelpRow("/view", "show an image from the working directory in the transcript, as large as the window allows: /view <image>"), lines[40]);
+        Assert.StartsWith(HelpRow("/window", "show the terminal window's width and height"), lines[41]);
+        Assert.True(string.IsNullOrWhiteSpace(lines[42]));
+        Assert.StartsWith(HelpRow("/persona", "export and manage persona.md (the personality) in your editor, or /persona reset to go back to the default"), lines[43]);
+        Assert.True(string.IsNullOrWhiteSpace(lines[46]));
+        Assert.StartsWith(HelpRow("/timer", "list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all"), lines[47]);   // the bottom group's first row since later still on 2026-09-19 (under /help from earlier that day)
+        Assert.StartsWith(HelpRow("/help", "show help"), lines[48]);   // the bottom group since 2026-09-16, above /about; under /timer since later still on 2026-09-19
+        Assert.StartsWith(HelpRow("/about", "show general information about the app and profile"), lines[49]);
         Assert.StartsWith(HelpRow("/exit", "exit/quit the application"), lines[^1]);   // the very last row since 2026-09-16
         Assert.DoesNotContain("/windowsize", _console.Output);
         Assert.DoesNotContain("(also", _console.Output);
@@ -7611,7 +7796,7 @@ public partial class ChatScreenTests : IDisposable
 
         // The notice: the counts either side (the first turn's eight messages became one), the summariser's read → wrote.
         Assert.Contains("  · (🗜️ compacted: 10 messages → 9 · 300 → 20 tokens)", output);
-        Assert.DoesNotContain("The user said a and b.", output);   // the summary itself is never shown
+        Assert.DoesNotContain("The user said a and b.", output);   // the summary itself is not shown unless LLM compact show summary is on (2026-09-21)
         Assert.Equal(4, _chat.Requests.Count);
 
         // The summariser's request: the instruction, the older turn as it was sent (the pairs included), the request last; no tools, thinking off.
@@ -7677,6 +7862,45 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal("c", next[^1].Text);
         // The pairs' results were left: the working directory is still found and kept current.
         Assert.Contains(next, m => m.Role == ChatRole.Tool && m.Contents.OfType<FunctionResultContent>().Any(r => r.CallId == Assistant.OpeningCwdCallId));
+    }
+
+    [Fact]
+    public async Task Compact_ShowSummary_PrintsTheSummarysLines_UnderTheNotice()
+    {
+        // LLM compact show summary (2026-09-21): the summary's lines dim under the notice, one row each, blank ones dropped.
+        TwoTurnsThenASummary("The user said a.\n\nThen b.");
+        _settings.Update(d => d.LlmCompactShowSummary = true);
+        _chat.EnqueueText("three");
+        PushLine("a");
+        PushLine("b");
+        PushLine("/compact");
+        PushLine("c");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains("  · (🗜️ compacted: 10 messages → 9 · 300 → 20 tokens)\n  · The user said a.\n  · Then b.\n", output);
+    }
+
+    [Fact]
+    public async Task Compact_ShowSummary_Prune_ListsEachPrunedResult_ByToolAndSize()
+    {
+        _settings.Update(d => { d.TtsOutput = false; d.LlmCompactKeepRecent = 1; d.LlmCompactType = "prune"; d.LlmCompactShowSummary = true; });
+        string files = Path.Combine(_settings.ProfileDirectory, WorkingDirectory.DefaultFolderName);
+        Directory.CreateDirectory(files);
+        File.WriteAllText(Path.Combine(files, "big.txt"), new string('x', 600));
+        _chat.Enqueue(FakeChatClient.Call("c1", ReadFileTool.ToolName, new Dictionary<string, object?> { ["path"] = "big.txt" }));
+        _chat.EnqueueText("read it").EnqueueText("two").EnqueueText("three");
+        PushLine("a");
+        PushLine("b");
+        PushLine("/compact");
+        PushLine("c");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        // The result's length is the tool's text (the file's 600 x's under the header line), so the line is matched by its shape.
+        Assert.Matches(@"  · \(✂️ compacted: 1 tool result pruned\)\n  · \(✂️ read_file · \d{3} characters\)\n", output);
     }
 
     [Fact]
@@ -8079,6 +8303,7 @@ public partial class ChatScreenTests : IDisposable
     [InlineData(SlashCommand.About, false, MidTurnClass.Pane)]
     [InlineData(SlashCommand.Forget, false, MidTurnClass.Pane)]
     [InlineData(SlashCommand.EmptyTrash, false, MidTurnClass.Pane)]
+    [InlineData(SlashCommand.Git, true, MidTurnClass.Refused)]
     [InlineData(SlashCommand.Queue, false, MidTurnClass.Pane)]
     [InlineData(SlashCommand.Reasoning, false, MidTurnClass.Pane)]
     [InlineData(SlashCommand.Reasoning, true, MidTurnClass.Quick)]
@@ -13133,7 +13358,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal([new CompletionItem("high", ReasoningLevel.Describe("high"))], ChatScreen.ArgumentItems("/reasoning", "h", sources));
 
         // /profile: the names (the loaded one marked) then the verbs; a verb typed opens the names behind it.
-        Assert.Equal(["chef", "default", "work", "add", "delete", "rename", "reset"], Texts(ChatScreen.ArgumentItems("/profile", "", sources)));
+        Assert.Equal(["chef", "default", "work", "add", "delete", "edit", "reload", "rename", "reset"], Texts(ChatScreen.ArgumentItems("/profile", "", sources)));   // edit and reload 2026-09-21
         Assert.Equal(ChatScreen.LoadedProfileNote, ChatScreen.ArgumentItems("/profile", "", sources)[1].Note);
         Assert.Equal(ChatScreen.SwitchToProfileNote, ChatScreen.ArgumentItems("/profile", "", sources)[2].Note);
         Assert.Equal(ChatScreen.ProfileVerbs[1], ChatScreen.ArgumentItems("/profile", "del", sources)[0]);
@@ -13141,6 +13366,8 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(["rename work"], Texts(ChatScreen.ArgumentItems("/profile", "rename w", sources)));
         Assert.Equal(["reset chef"], Texts(ChatScreen.ArgumentItems("/profile", "reset c", sources)));
         Assert.Empty(ChatScreen.ArgumentItems("/profile", "add ", sources));          // a new name is free text
+        Assert.Empty(ChatScreen.ArgumentItems("/profile", "edit ", sources));         // edit and reload take nothing
+        Assert.Empty(ChatScreen.ArgumentItems("/profile", "reload ", sources));
         Assert.Empty(ChatScreen.ArgumentItems("/profile", "rename work ", sources));  // so is the new name
         Assert.Empty(ChatScreen.ArgumentItems("/profile", "work", sources));
 
@@ -13221,8 +13448,10 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal("copy this profile's memory into it", ChatScreen.MemCopyTargetNote);
         Assert.Equal("replace its memory instead of adding to it", ChatScreen.MemCopyOverwriteNote);
         Assert.Equal("remove persona.md and go back to the default", ChatScreen.PromptFileResetNote("persona.md"));
-        Assert.Equal(["add", "delete", "rename", "reset"], ChatScreen.ProfileVerbs.Select(v => v.Text));
+        Assert.Equal(["add", "delete", "edit", "reload", "rename", "reset"], ChatScreen.ProfileVerbs.Select(v => v.Text));
         Assert.Equal("add a profile: /profile add <name>", ChatScreen.ProfileVerbs[0].Note);
+        Assert.Equal("open this profile's profile.json in your editor: /profile edit", ChatScreen.ProfileVerbs[2].Note);
+        Assert.Equal("read this profile's profile.json back from disk: /profile reload", ChatScreen.ProfileVerbs[3].Note);
         Assert.Equal("", ChatScreen.SwitchSubject(SlashCommand.Help));
     }
 

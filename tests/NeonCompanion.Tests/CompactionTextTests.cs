@@ -43,4 +43,32 @@ public class CompactionTextTests
         Assert.Equal("(✂️ auto-compacted at 35%: 1 tool result pruned)", CompactionText.Notice(new ConversationCompactor.Result(14, 14, 1, null), 35));
         Assert.StartsWith("(" + Assistant.PruneGlyph, CompactionText.Notice(new ConversationCompactor.Result(14, 14, 1, null), 35));
     }
+
+    [Fact]
+    public void SummaryLines_SplitsAtBreaks_TrimsEach_DropsTheBlanks()
+    {
+        Assert.Equal(["The user asked for a haiku.", "It was written."], CompactionText.SummaryLines("  The user asked for a haiku.\n\n\r\n It was written. \n"));
+        Assert.Empty(CompactionText.SummaryLines(" \n "));
+    }
+
+    [Fact]
+    public void PrunedLine_NamesTheTool_AndTheSize_OrThePictures()
+    {
+        Assert.Equal("(✂️ read_file · 4,312 characters)", CompactionText.PrunedLine(new ConversationCompactor.PrunedEntry("read_file", 4312)));
+        Assert.Equal("(✂️ run_command · 1 character)", CompactionText.PrunedLine(new ConversationCompactor.PrunedEntry("run_command", 1)));
+        Assert.Equal("(✂️ 2 pictures from view_image)", CompactionText.PrunedLine(new ConversationCompactor.PrunedEntry("view_image", 0, 2)));
+        Assert.Equal("(✂️ 1 picture from view_image)", CompactionText.PrunedLine(new ConversationCompactor.PrunedEntry("view_image", 0, 1)));
+        Assert.Equal("tool", ConversationCompactor.UnknownTool);
+    }
+
+    [Fact]
+    public void DetailLines_TheSummaryFirst_ThenEachPrunedResult_NothingForABareResult()
+    {
+        var entries = new[] { new ConversationCompactor.PrunedEntry("read_file", 500), new ConversationCompactor.PrunedEntry("view_image", 0, 1) };
+        Assert.Equal(
+            ["A summary.", "Two lines.", "(✂️ read_file · 500 characters)", "(✂️ 1 picture from view_image)"],
+            CompactionText.DetailLines(new ConversationCompactor.Result(38, 7, 2, null, Summarised: true) { Summary = "A summary.\nTwo lines.", Entries = entries }));
+        Assert.Equal(["(✂️ read_file · 500 characters)"], CompactionText.DetailLines(new ConversationCompactor.Result(12, 12, 1, null) { Entries = [entries[0]] }));
+        Assert.Empty(CompactionText.DetailLines(new ConversationCompactor.Result(38, 7, 0, null, Summarised: true)));
+    }
 }

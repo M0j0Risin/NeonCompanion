@@ -30,6 +30,9 @@ public enum SkillEditOutcome
 
     /// <summary>The pane removed the folder and everything in it (<see cref="SkillEditor.Delete"/>, 2026-09-18), after a confirmation.</summary>
     Deleted,
+
+    /// <summary>The pane renamed the folder and rewrote the frontmatter's <c>name</c> line (<see cref="SkillEditor.Rename"/>, 2026-09-21); the result's name is the new one.</summary>
+    Renamed,
 }
 
 /// <summary>
@@ -41,7 +44,7 @@ public sealed record SkillEditResult(SkillEditOutcome Outcome, string Name, Skil
 
 /// <summary>
 /// The write side of the skills, used by <c>skill_editor</c> (<see cref="Create"/>, <see cref="Update"/>)
-/// and, since 2026-09-18, by the <c>/skill</c> pane (<see cref="Move"/>, <see cref="Delete"/>):
+/// and, since 2026-09-18, by the <c>/skill</c> pane (<see cref="Move"/>, <see cref="Delete"/>, and <see cref="Rename"/> since 2026-09-21):
 /// <see cref="Create"/> makes <c>&lt;root&gt;\&lt;name&gt;\SKILL.md</c> from a description and the
 /// instructions, <see cref="Update"/> rewrites one or both in an existing file and carries its other
 /// frontmatter lines through, <see cref="Move"/> renames the folder under the other writable root and
@@ -286,6 +289,88 @@ public static class SkillEditor
         {
             return new SkillEditResult(SkillEditOutcome.Failed, skill.Name, skill.Scope, Detail: ex.Message);
         }
+    }
+
+    /// <summary>
+    /// The <c>/skills</c> pane's rename (2026-09-21, the user's ask): <paramref name="skill"/>'s folder
+    /// renamed to <paramref name="newName"/> under its own root and the frontmatter's <c>name</c> line
+    /// rewritten to match, the description, the other lines and the body carried through. Refused for
+    /// the external root (<see cref="SkillEditOutcome.ExternalReadOnly"/>), a name that is not a skill
+    /// name (<see cref="SkillEditOutcome.BadName"/> — the pane kebab-cases what was typed first), the
+    /// name it has (<see cref="SkillEditOutcome.NothingToChange"/>), a folder not right under its root
+    /// or without a <c>SKILL.md</c> (<see cref="SkillEditOutcome.Missing"/>), a folder of that name in
+    /// its root already (<see cref="SkillEditOutcome.Exists"/>; on a case-insensitive disk a change of
+    /// case alone is that too, and a kebab name is lower case anyway), a skill of that name in any root
+    /// (<see cref="SkillEditOutcome.ExistsElsewhere"/>, the external one read whatever the setting says —
+    /// the rename would shadow it the moment the switch flips) and a <c>SKILL.md</c> whose frontmatter
+    /// cannot be read (<see cref="SkillEditOutcome.Unparseable"/>: the name line could not be rewritten).
+    /// The folder moves first — the likely failure (a locked file) fails whole; a write failure after
+    /// it leaves the folder renamed with the old <c>name</c> line, which the catalog still loads under
+    /// its name-mismatch warning, so the list shows what happened. A file failure is
+    /// <see cref="SkillEditOutcome.Failed"/> with the detail.
+    /// </summary>
+    public static SkillEditResult Rename(SkillRoots roots, Skill skill, string newName)
+    {
+        ArgumentNullException.ThrowIfNull(roots);
+        ArgumentNullException.ThrowIfNull(skill);
+        ArgumentNullException.ThrowIfNull(newName);
+        newName = newName.Trim();
+        if (skill.Scope == SkillScope.External)
+        {
+            return new SkillEditResult(SkillEditOutcome.ExternalReadOnly, skill.Name, SkillScope.External);
+        }
+
+        if (!SkillFrontmatter.IsValidName(newName))
+        {
+            return new SkillEditResult(SkillEditOutcome.BadName, newName, skill.Scope);
+        }
+
+        if (string.Equals(newName, skill.Name, StringComparison.Ordinal) && string.Equals(newName, skill.FolderName, StringComparison.Ordinal))
+        {
+            return new SkillEditResult(SkillEditOutcome.NothingToChange, skill.Name, skill.Scope);
+        }
+
+        if (!IsUnderItsRoot(roots, skill))
+        {
+            return new SkillEditResult(SkillEditOutcome.Missing, skill.Name, skill.Scope);
+        }
+
+        string destination = Path.Combine(roots.Of(skill.Scope), newName);
+        if (Directory.Exists(destination) || File.Exists(destination))
+        {
+            return new SkillEditResult(SkillEditOutcome.Exists, newName, skill.Scope);
+        }
+
+        if (Find(roots, newName, external: true) is { } elsewhere)
+        {
+            return new SkillEditResult(elsewhere == SkillScope.External ? SkillEditOutcome.ExternalReadOnly : SkillEditOutcome.ExistsElsewhere, newName, elsewhere);
+        }
+
+        string text;
+        try
+        {
+            text = WorkingDirectory.Decode(File.ReadAllBytes(skill.FilePath), out _);
+        }
+        catch (Exception ex) when (IsFileFailure(ex))
+        {
+            return new SkillEditResult(SkillEditOutcome.Failed, skill.Name, skill.Scope, Detail: ex.Message);
+        }
+
+        if (!SkillFrontmatter.TryParse(text, out var frontmatter, out string body, out string? problem))
+        {
+            return new SkillEditResult(SkillEditOutcome.Unparseable, skill.Name, skill.Scope, Detail: problem ?? "");
+        }
+
+        try
+        {
+            Directory.Move(skill.Directory, destination);
+        }
+        catch (Exception ex) when (IsFileFailure(ex))
+        {
+            return new SkillEditResult(SkillEditOutcome.Failed, skill.Name, skill.Scope, Detail: ex.Message);
+        }
+
+        return Write(destination, newName, skill.Scope, SkillFrontmatter.Write(newName, frontmatter!.Description, frontmatter.OtherLines, body), SkillEditOutcome.Renamed);
     }
 
     /// <summary>Whether <paramref name="skill"/>'s folder holds a <c>SKILL.md</c> and sits right under the root of its scope — what a move or a delete acts on, never a folder a hand-built record points elsewhere.</summary>

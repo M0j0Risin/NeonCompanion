@@ -446,6 +446,115 @@ public class InputLineTests : IDisposable
         Assert.Equal("ab", await SubmitAsync());
     }
 
+    // ── Up/Down over a wrapped draft (2026-09-21) ───────────────────────────
+
+    /// <summary>Twelve words at 37 cells: two rows, the caret at the end of the second.</summary>
+    private static string TwoRows => string.Join(' ', Enumerable.Repeat("word", 12));
+
+    [Fact]
+    public async Task OnThePane_UpMovesTheCaretARow_AndHistoryOnlyFromTheFirstRow()
+    {
+        var (line, keys) = PaneLine();
+        keys.Push(Chars("earlier")).Push(Keys.Enter);
+        Assert.Equal("earlier", Assert.IsType<InputResult.Submitted>(await line.ReadAsync()).Text);
+
+        string text = TwoRows;
+        var layout = InputLayout.Wrap(text, text.Length, InputLine.AvailableCells(40));
+        Assert.Equal(2, layout.Rows.Count);
+        // Up from the end of row 1 lands on row 0 at the same column; X typed there marks it. A second Up, on row 0, is the history.
+        int at = layout.IndexAt(0, layout.CursorCol);
+        Assert.InRange(at, 1, layout.Starts[1] - 1);
+        keys.Push(Chars(text)).Push(Keys.Up).Push(Chars("X")).Push(Keys.Enter);
+        Assert.Equal(text[..at] + "X" + text[at..], Assert.IsType<InputResult.Submitted>(await line.ReadAsync()).Text);
+
+        // The row move, then the history: the marked line just sent, then "earlier" (a recalled line walks on).
+        keys.Push(Chars(text)).Push(Keys.Up, Keys.Up).Push(Keys.Enter);
+        Assert.Equal(text[..at] + "X" + text[at..], Assert.IsType<InputResult.Submitted>(await line.ReadAsync()).Text);
+        keys.Push(Chars(text)).Push(Keys.Up, Keys.Up, Keys.Up).Push(Keys.Enter);
+        Assert.Equal("earlier", Assert.IsType<InputResult.Submitted>(await line.ReadAsync()).Text);
+    }
+
+    [Fact]
+    public async Task OnThePane_DownMovesTheCaretARow_AndFromTheLastRow_IsHistory()
+    {
+        var (line, keys) = PaneLine();
+        keys.Push(Chars("earlier")).Push(Keys.Enter);
+        await line.ReadAsync();
+
+        string text = TwoRows;
+        // Home puts the caret on row 0; Down lands on row 1 at column 0 (the row's start); a second Down at the last row is the history walk — at the draft already, nothing.
+        keys.Push(Chars(text)).Push(Keys.Home, Keys.Down).Push(Chars("X")).Push(Keys.Enter);
+        var layout = InputLayout.Wrap(text, 0, InputLine.AvailableCells(40));
+        Assert.Equal(text[..layout.Starts[1]] + "X" + text[layout.Starts[1]..], Assert.IsType<InputResult.Submitted>(await line.ReadAsync()).Text);
+
+        keys.Push(Chars(text)).Push(Keys.Home, Keys.Down, Keys.Down).Push(Chars("Y")).Push(Keys.Enter);
+        Assert.Equal(text[..layout.Starts[1]] + "Y" + text[layout.Starts[1]..], Assert.IsType<InputResult.Submitted>(await line.ReadAsync()).Text);
+
+        // Up from the draft's first row recalls; Down from the recalled line's last row returns to the draft, kept whole.
+        keys.Push(Chars(text)).Push(Keys.Home, Keys.Up, Keys.Down).Push(Keys.Enter);
+        Assert.Equal(text, Assert.IsType<InputResult.Submitted>(await line.ReadAsync()).Text);
+    }
+
+    [Fact]
+    public async Task OnThePane_ShiftUp_SelectsAcrossTheRows()
+    {
+        var (line, keys) = PaneLine();
+        string text = TwoRows;
+        var layout = InputLayout.Wrap(text, text.Length, InputLine.AvailableCells(40));
+        int at = layout.IndexAt(0, layout.CursorCol);
+        // Shift+Up from the end: row 0 at the caret's column to the end selected; Delete removes it.
+        keys.Push(Chars(text)).Push(Keys.Shift(ConsoleKey.UpArrow), Keys.Delete).Push(Keys.Enter);
+        Assert.Equal(text[..at], Assert.IsType<InputResult.Submitted>(await line.ReadAsync()).Text);
+    }
+
+    [Fact]
+    public async Task OnThePane_TheGoalColumn_SurvivesAShortRow()
+    {
+        var (line, keys) = PaneLine();
+        string first = new('a', 30);
+        string last = new('b', 30);
+        // Three rows by hard breaks (one inline paste): 30 a's, "x", 30 b's. From the end (row 2, column 30): Up lands on the short row's end, Up again on row 0 at column 30 — the goal column, not the short row's 1.
+        keys.PushPaste(first + "\nx\n" + last).Push(Keys.Up, Keys.Up).Push(Chars("X")).Push(Keys.Enter);
+        Assert.Equal(first + "X\nx\n" + last, Assert.IsType<InputResult.Submitted>(await line.ReadAsync(multiline: true)).Text);
+
+        // A Left between the arrows ends the run: the column is the caret's again (the short row's start after the Left).
+        keys.PushPaste(first + "\nx\n" + last).Push(Keys.Up, Keys.Left, Keys.Up).Push(Chars("Y")).Push(Keys.Enter);
+        Assert.Equal("Y" + first + "\nx\n" + last, Assert.IsType<InputResult.Submitted>(await line.ReadAsync(multiline: true)).Text);
+    }
+
+    [Fact]
+    public async Task OnThePane_ARecalledWrappedLine_KeepsWalkingTheHistory_UntilEdited()
+    {
+        var (line, keys) = PaneLine();
+        string text = TwoRows;
+        keys.Push(Chars("first")).Push(Keys.Enter);
+        await line.ReadAsync();
+        keys.Push(Chars(text)).Push(Keys.Enter);
+        await line.ReadAsync();
+
+        // Up recalls the two-row line (the caret on its last row); Up again walks on to "first" rather than climbing a row.
+        keys.Push(Keys.Up, Keys.Up).Push(Keys.Enter);
+        Assert.Equal("first", Assert.IsType<InputResult.Submitted>(await line.ReadAsync()).Text);
+
+        // The two-row line recalled (past "first", sent again just now), then a Left: the walk is over and Up climbs a row.
+        var layout = InputLayout.Wrap(text, text.Length - 1, InputLine.AvailableCells(40));
+        int at = layout.IndexAt(0, layout.CursorCol);
+        keys.Push(Keys.Up, Keys.Up, Keys.Left, Keys.Up).Push(Chars("X")).Push(Keys.Enter);
+        Assert.Equal(text[..at] + "X" + text[at..], Assert.IsType<InputResult.Submitted>(await line.ReadAsync()).Text);
+    }
+
+    [Fact]
+    public async Task WithoutThePane_UpIsHistory_OnALongLine()
+    {
+        // Off the pane the draft is one scrolling row: nothing to climb, Up recalls as ever.
+        Type("earlier");
+        Push(Keys.Enter);
+        await SubmitAsync();
+        Type(TwoRows);
+        Push(Keys.Up, Keys.Enter);
+        Assert.Equal("earlier", await SubmitAsync());
+    }
+
     [Fact]
     public async Task UpDown_WalkHistory_AndRestoreTheDraft()
     {

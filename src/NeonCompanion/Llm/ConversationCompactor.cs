@@ -52,9 +52,28 @@ public static class ConversationCompactor
     /// What a compact did: the message counts either side, the results stubbed (a prune, or the
     /// recent turns' under the automatic compact), the summariser's usage when the server reported
     /// one, and whether the older turns became a summary at all (false for a prune, and for the
-    /// automatic compact that found nothing older and stubbed the recent turns alone).
+    /// automatic compact that found nothing older and stubbed the recent turns alone). Since
+    /// 2026-09-21 (<c>LLM compact show summary</c>) it also carries what the transcript may show:
+    /// the summary's text and one <see cref="PrunedEntry"/> per stubbed result.
     /// </summary>
-    public sealed record Result(int MessagesBefore, int MessagesAfter, int Pruned, TokenUsage? Usage, bool Summarised = false);
+    public sealed record Result(int MessagesBefore, int MessagesAfter, int Pruned, TokenUsage? Usage, bool Summarised = false)
+    {
+        /// <summary>The summariser's text, trimmed, when <see cref="Summarised"/>; null otherwise.</summary>
+        public string? Summary { get; init; }
+
+        /// <summary>One entry per stubbed result — the older turns' first, then the recent turns' under the automatic compact — in message order; <see cref="Pruned"/> is their count (a carrier's pictures counted each). Empty when none.</summary>
+        public IReadOnlyList<PrunedEntry> Entries { get; init; } = [];
+    }
+
+    /// <summary>
+    /// One stubbed result (2026-09-21): the tool that produced it (<see cref="UnknownTool"/> when no
+    /// call in the history carries its id) and its length in characters, or — for a carrier's
+    /// pictures — <c>view_image</c> with <paramref name="Pictures"/> above zero and no length.
+    /// </summary>
+    public sealed record PrunedEntry(string Tool, int Characters, int Pictures = 0);
+
+    /// <summary>The tool name an entry carries when the result's call is not in the history (a hand-built list). Pinned.</summary>
+    public const string UnknownTool = "tool";
 
     /// <summary>The summariser's closing user message: <see cref="SummaryRequestLine"/>, the focus appended when given. Pinned.</summary>
     public static string SummaryRequest(string? focus) =>
@@ -119,12 +138,13 @@ public static class ConversationCompactor
     /// (<see cref="ConversationHistory.IsImageCarrier"/>) go the same way — a new tagged message with
     /// <see cref="PrunedImageStub"/> for its text and no image parts, each picture counted as one
     /// result — since a picture is the bulkiest result there is. The count is how many were.
+    /// <paramref name="entries"/>, when given, receives one <see cref="PrunedEntry"/> per stub (2026-09-21).
     /// </summary>
-    public static (List<ChatMessage> Messages, int Pruned) Prune(Plan plan, bool protectSkills = true)
+    public static (List<ChatMessage> Messages, int Pruned) Prune(Plan plan, bool protectSkills = true, List<PrunedEntry>? entries = null)
     {
         ArgumentNullException.ThrowIfNull(plan);
         var messages = new List<ChatMessage>(plan.Older.Count + plan.Recent.Count);
-        int pruned = Stub(plan.Older, 0, plan.Older.Count, messages, protectSkills);
+        int pruned = Stub(plan.Older, 0, plan.Older.Count, messages, protectSkills, entries, entries is null ? null : CallNames(plan.Older));
         messages.AddRange(plan.Recent);
         return (messages, pruned);
     }
@@ -137,8 +157,9 @@ public static class ConversationCompactor
     /// copied as it is. The tool loop's mid-turn guard (<see cref="Assistant.ContextGuard"/>) and,
     /// over the recent turns it keeps, the automatic compact (<see cref="RunAsync"/>) both use this
     /// rule. Nothing to stub (no turn, no earlier iteration, no result long enough) is a copy and zero.
+    /// <paramref name="entries"/>, when given, receives one <see cref="PrunedEntry"/> per stub (2026-09-21).
     /// </summary>
-    public static (List<ChatMessage> Messages, int Pruned) PruneRecent(IReadOnlyList<ChatMessage> messages, bool protectSkills = true)
+    public static (List<ChatMessage> Messages, int Pruned) PruneRecent(IReadOnlyList<ChatMessage> messages, bool protectSkills = true, List<PrunedEntry>? entries = null)
     {
         ArgumentNullException.ThrowIfNull(messages);
         int start = -1;
@@ -163,7 +184,7 @@ public static class ConversationCompactor
             result.Add(messages[i]);
         }
 
-        int pruned = StubBeforeLastIteration(messages, start, result, protectSkills);
+        int pruned = StubBeforeLastIteration(messages, start, result, protectSkills, entries, entries is null ? null : CallNames(messages));
         return (result, pruned);
     }
 
@@ -172,7 +193,7 @@ public static class ConversationCompactor
     /// the tool results and carriers before the last iteration stubbed: the last <see cref="ChatRole.Tool"/>
     /// message at or after <paramref name="from"/> and what follows it are copied. Returns the count stubbed.
     /// </summary>
-    private static int StubBeforeLastIteration(IReadOnlyList<ChatMessage> messages, int from, List<ChatMessage> into, bool protectSkills)
+    private static int StubBeforeLastIteration(IReadOnlyList<ChatMessage> messages, int from, List<ChatMessage> into, bool protectSkills, List<PrunedEntry>? entries = null, IReadOnlyDictionary<string, string>? names = null)
     {
         int keep = from;
         for (int i = messages.Count - 1; i >= from; i--)
@@ -184,7 +205,7 @@ public static class ConversationCompactor
             }
         }
 
-        int pruned = Stub(messages, from, keep, into, protectSkills);
+        int pruned = Stub(messages, from, keep, into, protectSkills, entries, names);
         for (int i = keep; i < messages.Count; i++)
         {
             into.Add(messages[i]);
@@ -198,8 +219,9 @@ public static class ConversationCompactor
     /// the tool results over the threshold and the carriers' pictures stubbed; returns the count stubbed.
     /// The opening pairs' results never are; a loaded skill's (<see cref="ConversationHistory.IsSkillResult"/>)
     /// is not while <paramref name="protectSkills"/> — the <c>Skill compact mode</c> setting.
+    /// With <paramref name="entries"/> each stub is logged there, its tool looked up in <paramref name="names"/> (<see cref="CallNames"/>).
     /// </summary>
-    private static int Stub(IReadOnlyList<ChatMessage> messages, int from, int to, List<ChatMessage> into, bool protectSkills)
+    private static int Stub(IReadOnlyList<ChatMessage> messages, int from, int to, List<ChatMessage> into, bool protectSkills, List<PrunedEntry>? entries, IReadOnlyDictionary<string, string>? names)
     {
         int pruned = 0;
         for (int index = from; index < to; index++)
@@ -219,6 +241,7 @@ public static class ConversationCompactor
                     AdditionalProperties = new AdditionalPropertiesDictionary { [ConversationHistory.CarrierKey] = true },
                 });
                 pruned += pictures;
+                entries?.Add(new PrunedEntry(Tools.ViewImageTool.ToolName, 0, pictures));
                 continue;
             }
 
@@ -238,6 +261,7 @@ public static class ConversationCompactor
                     rebuilt ??= new List<AIContent>(message.Contents);
                     rebuilt[i] = new FunctionResultContent(result.CallId, PrunedStub(text.Length));
                     pruned++;
+                    entries?.Add(new PrunedEntry(names is not null && names.TryGetValue(result.CallId, out string? tool) ? tool : UnknownTool, text.Length));
                 }
             }
 
@@ -245,6 +269,34 @@ public static class ConversationCompactor
         }
 
         return pruned;
+    }
+
+    /// <summary>
+    /// Every tool call's id → the tool's name, over the assistant messages of <paramref name="messages"/>
+    /// (2026-09-21): what a stubbed result is named by in its <see cref="PrunedEntry"/>, since a result
+    /// carries only the call's id. A repeated id keeps the first.
+    /// </summary>
+    public static Dictionary<string, string> CallNames(IReadOnlyList<ChatMessage> messages)
+    {
+        ArgumentNullException.ThrowIfNull(messages);
+        var names = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var message in messages)
+        {
+            if (message.Role != ChatRole.Assistant)
+            {
+                continue;
+            }
+
+            foreach (var content in message.Contents)
+            {
+                if (content is FunctionCallContent call && !string.IsNullOrEmpty(call.CallId))
+                {
+                    names.TryAdd(call.CallId, call.Name);
+                }
+            }
+        }
+
+        return names;
     }
 
     /// <summary>The list after a summary: <see cref="SummaryPreamble"/> + <paramref name="summary"/> as one user message, then the opening pairs, then the recent turns.</summary>
@@ -289,10 +341,11 @@ public static class ConversationCompactor
         var plan = Split(history.Messages, keepRecent);
         int before = history.Messages.Count;
         int recentPruned = 0;
+        var recentEntries = new List<PrunedEntry>();
         if (pruneRecent && plan.Recent.Count > 0)
         {
             var kept = new List<ChatMessage>(plan.Recent.Count);
-            recentPruned = StubBeforeLastIteration(plan.Recent, 0, kept, protectSkills);
+            recentPruned = StubBeforeLastIteration(plan.Recent, 0, kept, protectSkills, recentEntries, CallNames(plan.Recent));
             if (recentPruned > 0)
             {
                 plan = plan with { Recent = kept };
@@ -311,12 +364,13 @@ public static class ConversationCompactor
             shrunk.AddRange(plan.Recent);
             history.Replace(shrunk);
             tally.AddCompaction(null);
-            return new Result(before, shrunk.Count, recentPruned, null);
+            return new Result(before, shrunk.Count, recentPruned, null) { Entries = recentEntries };
         }
 
         if (mode == CompactMode.Prune)
         {
-            var (pruned, count) = Prune(plan, protectSkills);
+            var olderEntries = new List<PrunedEntry>();
+            var (pruned, count) = Prune(plan, protectSkills, olderEntries);
             count += recentPruned;
             if (count == 0)
             {
@@ -325,14 +379,14 @@ public static class ConversationCompactor
 
             history.Replace(pruned);
             tally.AddCompaction(null);
-            return new Result(before, pruned.Count, count, null);
+            return new Result(before, pruned.Count, count, null) { Entries = [.. olderEntries, .. recentEntries] };
         }
 
         var (summary, usage) = await assistant.SummarizeAsync(plan.Older, focus, cancellationToken).ConfigureAwait(false);
         var messages = Summarised(summary, plan);
         history.Replace(messages);
         tally.AddCompaction(usage);
-        return new Result(before, messages.Count, recentPruned, usage, Summarised: true);
+        return new Result(before, messages.Count, recentPruned, usage, Summarised: true) { Summary = summary.Trim(), Entries = recentEntries };
     }
 
     /// <summary>The opening call id an assistant message carries, or null.</summary>

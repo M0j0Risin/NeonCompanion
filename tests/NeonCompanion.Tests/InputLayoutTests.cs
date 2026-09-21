@@ -38,6 +38,36 @@ public class InputLayoutTests
     }
 
     [Fact]
+    public void IndexAt_MapsARowAndAColumn_BackToTheDraft()
+    {
+        // The Up/Down row moves (2026-09-21): a space-broken row, the dropped space past its end.
+        var layout = InputLayout.Wrap("aaaa bbbb cccc", 0, 10);   // "aaaa bbbb" | "cccc"
+        Assert.Equal(2, layout.IndexAt(0, 2));       // under the element
+        Assert.Equal(9, layout.IndexAt(0, 9));       // past the row's last cell: the breaking space
+        Assert.Equal(9, layout.IndexAt(0, 30));      // and any column beyond
+        Assert.Equal(12, layout.IndexAt(1, 2));
+        Assert.Equal(14, layout.IndexAt(1, 9));      // the last row's end is the text's end
+        Assert.Equal(0, layout.IndexAt(0, -1));      // a negative column is the row's start
+        Assert.Equal(12, layout.IndexAt(5, 2));      // the row clamped
+        Assert.Equal(2, layout.IndexAt(-1, 2));
+
+        // A cell-broken row: past its end is one element back, since its end IS the next row's start.
+        layout = InputLayout.Wrap("abcdefgh", 0, 5);   // "abcde" | "fgh"
+        Assert.Equal(4, layout.IndexAt(0, 9));
+        Assert.Equal(4, layout.IndexAt(0, 4));
+        Assert.Equal(8, layout.IndexAt(1, 9));
+
+        // A wide character straddled: the column inside it lands on it; a hard break's row.
+        layout = InputLayout.Wrap("a漢b\ncd", 0, 10);   // "a漢b" | "cd"
+        Assert.Equal(1, layout.IndexAt(0, 1));
+        Assert.Equal(1, layout.IndexAt(0, 2));
+        Assert.Equal(2, layout.IndexAt(0, 3));
+        Assert.Equal(3, layout.IndexAt(0, 4));       // past the end: before the '\n'
+        Assert.Equal(5, layout.IndexAt(1, 1));
+        Assert.Equal(0, InputLayout.Wrap("", 0, 5).IndexAt(0, 3));
+    }
+
+    [Fact]
     public void Starts_AreEachRowsFirstIndex()
     {
         var layout = InputLayout.Wrap("aaaa bbbb cccc", 0, 10);

@@ -118,6 +118,29 @@ public class ConversationCompactorTests
         Assert.Same(messages[10], pruned[10]); // the recent turn as it was
     }
 
+    [Fact]
+    public void Prune_LogsAnEntryPerStub_NamedByItsCall_PicturesCounted()
+    {
+        // The entries (2026-09-21, LLM compact show summary): the tool from the call that shares the result's id, the length; a carrier's pictures as one entry.
+        var entries = new List<ConversationCompactor.PrunedEntry>();
+        var (_, count) = ConversationCompactor.Prune(ConversationCompactor.Split(ThreeTurns(), keepRecent: 1), entries: entries);
+        Assert.Equal(1, count);
+        Assert.Equal([new ConversationCompactor.PrunedEntry("read_file", 500)], entries);
+
+        entries.Clear();
+        (_, count) = ConversationCompactor.Prune(ConversationCompactor.Split(TurnsWithACarrier(), keepRecent: 1), entries: entries);
+        Assert.Equal(2, count);
+        Assert.Equal([new ConversationCompactor.PrunedEntry("view_image", 0, 2)], entries);
+
+        // A result whose call is not in the list is named the unknown tool; nothing logged without a list.
+        entries.Clear();
+        var orphan = ConversationCompactor.Split([User("one"), Assistant("r"), Result("c9", Long(300)), User("two"), Assistant("r")], keepRecent: 1);
+        (_, count) = ConversationCompactor.Prune(orphan, entries: entries);
+        Assert.Equal(1, count);
+        Assert.Equal([new ConversationCompactor.PrunedEntry(ConversationCompactor.UnknownTool, 300)], entries);
+        Assert.Equal(new Dictionary<string, string> { ["c1"] = "read_file", [NeonCompanion.Llm.Assistant.OpeningClockCallId] = "get_current_time", [NeonCompanion.Llm.Assistant.OpeningCwdCallId] = "get_working_directory" }, ConversationCompactor.CallNames(ThreeTurns()));
+    }
+
     /// <summary>Two turns, the first with a viewed picture: the carrier sits between the result and the reply.</summary>
     private static List<ChatMessage> TurnsWithACarrier()
     {
@@ -305,6 +328,8 @@ public class ConversationCompactorTests
         Assert.Equal(0, result.Pruned);
         Assert.Equal(3900, result.Usage!.Value.Input);
         Assert.Equal(50, result.Usage.Value.Output);
+        Assert.Equal("A summary.", result.Summary);   // carried for LLM compact show summary (2026-09-21)
+        Assert.Empty(result.Entries);
 
         // The request: the instruction, the older turns as they were, the focused request last; no tools, thinking off.
         var request = Assert.Single(client.Requests);
@@ -341,6 +366,8 @@ public class ConversationCompactorTests
         Assert.Equal(12, result.MessagesBefore);
         Assert.Equal(12, result.MessagesAfter);
         Assert.Null(result.Usage);
+        Assert.Null(result.Summary);
+        Assert.Equal([new ConversationCompactor.PrunedEntry("read_file", 500)], result.Entries);
         Assert.Empty(client.Requests);
         Assert.Equal("(a 500-character result, pruned by /compact)", ((FunctionResultContent)assistant.History.Messages[8].Contents[0]).Result);
         Assert.Equal(1, tally.Conversation.Requests);

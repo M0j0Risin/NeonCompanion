@@ -97,7 +97,7 @@ internal sealed partial class ChatScreen
     /// with a level, <c>/copy</c>, <c>/remember</c>, <c>/explore</c>, <c>/timer</c> and an unknown
     /// command are <see cref="MidTurnClass.Quick"/>; <c>/clear</c>, <c>/new</c>, <c>/splash</c> (2026-09-19) and <c>/exit</c> cancel; the rest
     /// (<c>/profile</c>, <c>/server</c>, <c>/model</c>, <c>/compact</c>, <c>/cwd</c>, <c>/tree</c>,
-    /// <c>/learn</c>, <c>/window</c>, <c>/memcopy</c>, <c>/speak</c> — the turn owns the transcript and the speaker —, <c>/draft</c> (2026-09-19: it would send a message the turn cannot take), the three prompt files) are refused; <c>/skills</c> is a pane (2026-09-16 as <c>/skills</c>, <c>/skill list</c> then the bare <c>/skill</c> on 2026-09-18, the plural again since 2026-09-19; <c>/skill</c> with a name was refused until later on 2026-09-18, when the name form went — an argument is <see cref="SlashCommand.Overloaded"/> now, quick like an unknown command). Pure.
+    /// <c>/learn</c>, <c>/window</c>, <c>/memcopy</c>, <c>/git</c> (2026-09-21), <c>/speak</c> — the turn owns the transcript and the speaker —, <c>/draft</c> (2026-09-19: it would send a message the turn cannot take), the three prompt files) are refused; <c>/skills</c> is a pane (2026-09-16 as <c>/skills</c>, <c>/skill list</c> then the bare <c>/skill</c> on 2026-09-18, the plural again since 2026-09-19; <c>/skill</c> with a name was refused until later on 2026-09-18, when the name form went — an argument is <see cref="SlashCommand.Overloaded"/> now, quick like an unknown command). Pure.
     /// </summary>
     public static MidTurnClass MidTurnPolicy(SlashCommand command, bool hasArgs) => command switch
     {

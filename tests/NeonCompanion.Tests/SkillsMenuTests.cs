@@ -92,7 +92,7 @@ public class SkillsMenuTests : IDisposable
         var keys = new KeySource(_console.Input, TimeSpan.FromMilliseconds(1));
         var menuPane = new MenuPane(pane, keys);
         var settings = Settings(pane, keys, menuPane);
-        var menu = new SkillsMenu(Facts, () => _allowDelete(), _settings, settings, new TranscriptRenderer(pane), menuPane, _usage);
+        var menu = new SkillsMenu(Facts, () => _allowDelete(), _settings, settings, new TranscriptRenderer(pane), menuPane, new InputLine(pane, keys), _usage);
         pane.Show();
         return (menu, pane, settings);
     }
@@ -104,7 +104,7 @@ public class SkillsMenuTests : IDisposable
         var input = new ScriptedInput();
         var keys = new KeySource(input, TimeSpan.FromMilliseconds(1));
         var menuPane = new MenuPane(pane, keys);
-        var menu = new SkillsMenu(Facts, () => _allowDelete(), _settings, Settings(pane, keys, menuPane), new TranscriptRenderer(pane), menuPane);
+        var menu = new SkillsMenu(Facts, () => _allowDelete(), _settings, Settings(pane, keys, menuPane), new TranscriptRenderer(pane), menuPane, new InputLine(pane, keys));
         pane.Show();
         return (menu, pane, input);
     }
@@ -128,7 +128,7 @@ public class SkillsMenuTests : IDisposable
     [Fact]
     public void Strings_ArePinned()
     {
-        Assert.Equal("Enter = move or delete · ←/→ tabs · ESC = close", SkillsMenu.LoadedKeys);
+        Assert.Equal("Enter = move, rename or delete · ←/→ tabs · ESC = close", SkillsMenu.LoadedKeys);   // rename 2026-09-21
         Assert.Equal("←/→ tabs · ESC = close", SkillsMenu.OtherKeys);
         Assert.Equal("Enter = choose · ESC = back", SkillsMenu.ScopeKeys);
         Assert.Equal("delete", SkillsMenu.DeleteWord);
@@ -142,6 +142,13 @@ public class SkillsMenuTests : IDisposable
         Assert.Equal("Reflection", SkillsText.ReflectionTabTitle);
         Assert.Equal("profile  [#9A8BB8]" + _roots.Profile.Replace("[", "[[", StringComparison.Ordinal) + "[/]", SkillsMenu.ScopeRow(SkillScope.Profile, _roots));
         Assert.Equal("delete   [#9A8BB8]remove the folder and everything in it[/]", SkillsMenu.DeleteRow);
+        // The rename (2026-09-21).
+        Assert.Equal("rename", SkillsMenu.RenameWord);
+        Assert.Equal("rename   [#9A8BB8]give it a new name (letters, digits and hyphens)[/]", SkillsMenu.RenameRow);
+        Assert.Equal("(renamed: haiku → my-haiku)", SkillsMenu.RenamedNotice("haiku", "my-haiku"));
+        Assert.Equal("Could not rename skill 'haiku' to 'pdf': the global skills already hold it", SkillsMenu.RenameExistsError("haiku", "pdf", SkillScope.Global));
+        Assert.Equal("Could not rename the skill: the name needs at least one letter or digit", SkillsMenu.RenameEmptyError);
+        Assert.Equal("Could not rename the skill: boom", SkillsMenu.RenameFailedError("boom"));
         Assert.Equal("Move skill 'haiku' from the profile skills to the global skills?", SkillsMenu.MovePrompt("haiku", SkillScope.Profile, SkillScope.Global));
         Assert.Equal("(moved: haiku → global skills)", SkillsMenu.MovedNotice("haiku", SkillScope.Global));
         Assert.Equal("Could not move skill 'pdf-processing': the global skills already hold 'pdf'", SkillsMenu.ExistsError("pdf-processing", "pdf", SkillScope.Global));
@@ -227,7 +234,7 @@ public class SkillsMenuTests : IDisposable
 
         await menu.ShowAsync(CancellationToken.None);
 
-        Assert.Contains("\n" + Titled(SkillsMenu.ScopeTitle("haiku")) + "\n \n" + Fitted("▸ profile  " + _roots.Profile) + "\n" + Fitted("  global   " + _roots.Global) + "\n" + Rule(100) + "\n" + SkillsMenu.ScopeKeys + "\n", _console.Output);
+        Assert.Contains("\n" + Titled(SkillsMenu.ScopeTitle("haiku")) + "\n \n" + Fitted("▸ profile  " + _roots.Profile) + "\n" + Fitted("  global   " + _roots.Global) + "\n  rename   give it a new name (letters, digits and hyphens)\n" + Rule(100) + "\n" + SkillsMenu.ScopeKeys + "\n", _console.Output);
         Assert.DoesNotContain("\n  delete   ", _console.Output);   // the switch off
         Assert.Contains("\n" + Titled(SkillsMenu.MovePrompt("haiku", SkillScope.Profile, SkillScope.Global)) + "\n \n▸ No\n  Yes\n" + Rule(100) + "\n" + SettingsMenu.ConfirmKeys + "\n", _console.Output);
         Assert.Contains("\n" + Titled(Strip) + "\n  · " + SkillsMenu.MovedNotice("haiku", SkillScope.Global) + "\n▸ haiku  global   Writes haiku.\n", _console.Output);
@@ -301,20 +308,103 @@ public class SkillsMenuTests : IDisposable
         File.WriteAllText(Path.Combine(_roots.Global, "haiku", "scripts", "run.py"), "p");
         _allowDelete = () => true;
         var (menu, pane) = PaneMenu();
-        Push(Keys.Enter);                            // the scope page on global
-        Push(Keys.Down, Keys.Enter);                 // delete
-        Push(Keys.Enter);                            // No: kept
-        Push(Keys.Enter, Keys.Down, Keys.Enter);     // delete again
-        Push(Keys.Char('y'), Keys.Enter);            // Yes by hotkey
+        Push(Keys.Enter);                                       // the scope page on global
+        Push(Keys.Down, Keys.Down, Keys.Enter);                 // delete (past rename, 2026-09-21)
+        Push(Keys.Enter);                                       // No: kept
+        Push(Keys.Enter, Keys.Down, Keys.Down, Keys.Enter);     // delete again
+        Push(Keys.Char('y'), Keys.Enter);                       // Yes by hotkey
         Push(Keys.Escape);
 
         await menu.ShowAsync(CancellationToken.None);
 
-        Assert.Contains("\n" + Titled(SkillsMenu.ScopeTitle("haiku")) + "\n \n" + Fitted("  profile  " + _roots.Profile) + "\n" + Fitted("▸ global   " + _roots.Global) + "\n  delete   remove the folder and everything in it\n", _console.Output);
+        Assert.Contains("\n" + Titled(SkillsMenu.ScopeTitle("haiku")) + "\n \n" + Fitted("  profile  " + _roots.Profile) + "\n" + Fitted("▸ global   " + _roots.Global) + "\n  rename   give it a new name (letters, digits and hyphens)\n  delete   remove the folder and everything in it\n", _console.Output);
         Assert.Contains("\n" + Titled(SkillsMenu.DeletePrompt("haiku", SkillScope.Global)) + "\n \n▸ No\n  Yes\n", _console.Output);
         Assert.Contains("\n  · " + SkillsMenu.KeptNotice + "\n▸ haiku  global   Writes haiku.\n", _console.Output);
         Assert.Contains("\n" + Titled(Strip) + "\n  · " + SkillsMenu.DeletedNotice("haiku", SkillScope.Global) + "\n" + Fitted("▸ " + SkillsText.NoneLine) + "\n", _console.Output);
         Assert.False(Directory.Exists(Path.Combine(_roots.Global, "haiku")));
+        pane.Dispose();
+    }
+
+    [Theory]
+    [InlineData("My Haiku!!", "my-haiku")]
+    [InlineData("  pdf  processing ", "pdf-processing")]
+    [InlineData("--a--b--", "a-b")]
+    [InlineData("Été_2026", "t-2026")]
+    [InlineData("!!!", "")]
+    [InlineData("", "")]
+    [InlineData("haiku", "haiku")]
+    public void KebabName_IsPinned(string typed, string expected)
+    {
+        Assert.Equal(expected, SkillsMenu.KebabName(typed));
+        Assert.True(expected.Length == 0 || SkillFrontmatter.IsValidName(expected));
+    }
+
+    [Fact]
+    public void KebabName_IsCutToTheLimit_AndNeverEndsOnAHyphen()
+    {
+        string cut = SkillsMenu.KebabName(new string('x', 63) + "-yy");
+        Assert.Equal(63, cut.Length);   // 64 would end on the hyphen: trimmed
+        Assert.True(SkillFrontmatter.IsValidName(cut));
+        Assert.Equal(64, SkillsMenu.KebabName(new string('x', 70)).Length);
+    }
+
+    /// <summary>The rename row (2026-09-21): the slot pre-filled with the name; what is typed is kebab-cased, the folder and the name line follow, the list read again.</summary>
+    [Fact]
+    public async Task Rename_TypesTheName_KebabCased_MovesTheFolder_RewritesTheNameLine_AndTheListReReads()
+    {
+        Put(SkillScope.Profile, "haiku", "Writes haiku.");
+        File.WriteAllText(Path.Combine(_roots.Profile, "haiku", SkillCatalog.FileName), "---\nname: haiku\ndescription: Writes haiku.\nlicense: MIT\n---\n\nbody\n");
+        Directory.CreateDirectory(Path.Combine(_roots.Profile, "haiku", "scripts"));
+        File.WriteAllText(Path.Combine(_roots.Profile, "haiku", "scripts", "run.py"), "p");
+        var (menu, pane) = PaneMenu();
+        int flow = pane.FlowRow;
+        Push(Keys.Enter);                                       // the scope page, the cursor on profile
+        Push(Keys.Down, Keys.Down, Keys.Enter);                 // rename: the slot with "haiku" in it
+        Push(Keys.Backspace, Keys.Backspace, Keys.Backspace, Keys.Backspace, Keys.Backspace);
+        _console.Input.PushText("My Haiku!!");
+        Push(Keys.Enter, Keys.Escape);
+
+        await menu.ShowAsync(CancellationToken.None);
+
+        Assert.Contains("\n▸ rename   give it a new name (letters, digits and hyphens)\n› \n" + Rule(100) + "\n" + SettingsMenu.EditKeys, _console.Output);
+        Assert.Contains("\n" + Titled(Strip) + "\n  · " + SkillsMenu.RenamedNotice("haiku", "my-haiku") + "\n▸ my-haiku  profile  Writes haiku.\n", _console.Output);
+        Assert.False(Directory.Exists(Path.Combine(_roots.Profile, "haiku")));
+        Assert.True(Exists(SkillScope.Profile, "my-haiku"));
+        Assert.Equal("---\nname: my-haiku\ndescription: Writes haiku.\nlicense: MIT\n---\n\nbody\n", File.ReadAllText(Path.Combine(_roots.Profile, "my-haiku", SkillCatalog.FileName)));
+        Assert.Equal("p", File.ReadAllText(Path.Combine(_roots.Profile, "my-haiku", "scripts", "run.py")));
+        Assert.Equal(flow, pane.FlowRow);
+        Assert.False(pane.OverlayOpen);
+        pane.Dispose();
+    }
+
+    [Fact]
+    public async Task Rename_AnExistingName_IsRefusedAheadOfTheAct_TheSameName_IsUnchanged_EscKeeps()
+    {
+        Put(SkillScope.Profile, "haiku", "Writes haiku.");
+        Put(SkillScope.Global, "pdf", "Reads PDFs.");
+        var (menu, pane) = PaneMenu();
+        Push(Keys.Enter, Keys.Down, Keys.Down, Keys.Enter);     // rename
+        Push(Keys.Backspace, Keys.Backspace, Keys.Backspace, Keys.Backspace, Keys.Backspace);
+        _console.Input.PushText("PDF");                         // a global skill's name, kebab-cased
+        Push(Keys.Enter);
+        Push(Keys.Enter, Keys.Down, Keys.Down, Keys.Enter);     // rename again
+        Push(Keys.Enter);                                       // the name it has
+        Push(Keys.Enter, Keys.Down, Keys.Down, Keys.Enter);     // rename again
+        Push(Keys.Backspace, Keys.Backspace, Keys.Backspace, Keys.Backspace, Keys.Backspace);
+        _console.Input.PushText("!!!");                         // nothing survives
+        Push(Keys.Enter);
+        Push(Keys.Enter, Keys.Down, Keys.Down, Keys.Enter);     // rename again
+        Push(Keys.Escape);                                      // ESC on the slot: nothing said
+        Push(Keys.Escape);
+
+        await menu.ShowAsync(CancellationToken.None);
+
+        Assert.Contains("\n  ✗ " + SkillsMenu.RenameExistsError("haiku", "pdf", SkillScope.Global) + "\n▸ haiku  profile  Writes haiku.\n", _console.Output);
+        Assert.Contains("\n  · " + SettingsMenu.UnchangedNotice + "\n▸ haiku  profile  Writes haiku.\n", _console.Output);
+        Assert.Contains("\n  ✗ " + SkillsMenu.RenameEmptyError + "\n▸ haiku  profile  Writes haiku.\n", _console.Output);
+        Assert.DoesNotContain("(renamed:", _console.Output);
+        Assert.True(Exists(SkillScope.Profile, "haiku"));
+        Assert.True(Exists(SkillScope.Global, "pdf"));
         pane.Dispose();
     }
 
@@ -394,7 +484,7 @@ public class SkillsMenuTests : IDisposable
         var keys = new KeySource(_console.Input, TimeSpan.FromMilliseconds(1));
         var menuPane = new MenuPane(pane, keys);
         var settings = new SettingsMenu(_console, _settings, _ => null, new InputLine(_console, keys), new TranscriptRenderer(_console), _speech, menuPane, _ => null);
-        var menu = new SkillsMenu(Facts, () => _allowDelete(), _settings, settings, new TranscriptRenderer(_console), menuPane);
+        var menu = new SkillsMenu(Facts, () => _allowDelete(), _settings, settings, new TranscriptRenderer(_console), menuPane, new InputLine(_console, keys));
 
         await menu.ShowAsync(CancellationToken.None);
 

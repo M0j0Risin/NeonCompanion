@@ -4,9 +4,10 @@ namespace NeonCompanion.App;
 
 /// <summary>
 /// The words for <c>/compact</c>: one transcript notice per outcome. Pure statics, every string
-/// pinned. The summary itself is never shown; the figures are the message counts either side and,
-/// for a summary with a usage report, the summariser's own request — what it read → what it wrote
-/// — not the new context in use, which is only measured at the next reply.
+/// pinned. The summary itself is not shown unless <c>LLM compact show summary</c> is on (2026-09-21:
+/// <see cref="DetailLines"/>, dim lines under the notice); the figures are the message counts either
+/// side and, for a summary with a usage report, the summariser's own request — what it read → what
+/// it wrote — not the new context in use, which is only measured at the next reply.
 /// </summary>
 public static class CompactionText
 {
@@ -60,5 +61,60 @@ public static class CompactionText
         }
 
         return "(" + glyph + head + ": " + body + ")";
+    }
+
+    /// <summary>
+    /// The summary's text as transcript lines (2026-09-21): split at line breaks, each trimmed, the
+    /// blank ones dropped — the summariser writes plain paragraphs, and a notice row is one line.
+    /// </summary>
+    public static IReadOnlyList<string> SummaryLines(string summary)
+    {
+        ArgumentNullException.ThrowIfNull(summary);
+        var lines = new List<string>();
+        foreach (string raw in summary.Split('\n'))
+        {
+            string line = raw.Trim();
+            if (line.Length > 0)
+            {
+                lines.Add(line);
+            }
+        }
+
+        return lines;
+    }
+
+    /// <summary>
+    /// One pruned result's line (2026-09-21): <c>(✂️ read_file · 4,312 characters)</c>, or for a
+    /// carrier's pictures <c>(✂️ 2 pictures from view_image)</c>.
+    /// </summary>
+    public static string PrunedLine(ConversationCompactor.PrunedEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        string body = entry.Pictures > 0
+            ? UsageText.Plural(entry.Pictures, "picture", "pictures") + " from " + entry.Tool
+            : entry.Tool + " · " + UsageText.Plural(entry.Characters, "character", "characters");
+        return "(" + Assistant.PruneGlyph + body + ")";
+    }
+
+    /// <summary>
+    /// What <c>LLM compact show summary</c> adds under the notice (2026-09-21): the summary's lines
+    /// (<see cref="SummaryLines"/>) when there is one, then one <see cref="PrunedLine"/> per stubbed
+    /// result, in order. Empty for a result with neither.
+    /// </summary>
+    public static IReadOnlyList<string> DetailLines(ConversationCompactor.Result result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        var lines = new List<string>();
+        if (result.Summary is { } summary)
+        {
+            lines.AddRange(SummaryLines(summary));
+        }
+
+        foreach (var entry in result.Entries)
+        {
+            lines.Add(PrunedLine(entry));
+        }
+
+        return lines;
     }
 }

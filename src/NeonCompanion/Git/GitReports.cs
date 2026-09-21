@@ -117,6 +117,17 @@ public sealed record GitRefsReport(GitOutcome Outcome, string Detail, string? Cu
     public static GitRefsReport Refused(GitOutcome outcome, string detail = "") => new(outcome, detail, null, false, [], [], [], false);
 }
 
+/// <summary>
+/// What <c>/git user</c> did (2026-09-21): <c>Written</c> = the two keys were set at the repository's
+/// local level, <c>Email</c> / <c>Name</c> what they hold now; not written (and Ok) = a <c>[user]</c>
+/// section was there already and <c>force</c> was not given, <c>Email</c> / <c>Name</c> the values found
+/// (either may be empty when only the other was set).
+/// </summary>
+public sealed record GitIdentityResult(GitOutcome Outcome, string Detail, string Email, string Name, bool Written)
+{
+    public static GitIdentityResult Refused(GitOutcome outcome, string detail = "") => new(outcome, detail, "", "", false);
+}
+
 /// <summary>A branch created, switched to or renamed: its name (the new one for a rename, <c>OldName</c> the previous) and the short sha it stands at.</summary>
 public sealed record GitBranchResult(GitOutcome Outcome, string Detail, string Name, string Short, string? OldName = null)
 {

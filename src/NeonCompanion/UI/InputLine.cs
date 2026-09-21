@@ -68,7 +68,11 @@ public abstract record InputResult
 /// user said.</para>
 ///
 /// <para>Keys: printable inserts; Backspace, Delete, Left, Right, Home, End edit; Up/Down walk the
-/// history with the unsent draft kept at the bottom; Enter submits; <b>ESC clears the line, and on an
+/// history with the unsent draft kept at the bottom — but on the pane, while the draft wraps over
+/// more than one row and the caret is not on the first (Up) or last (Down) row, they move the caret
+/// a row instead (2026-09-21, the user's ask; <see cref="ScreenPane.TryStepInputRow"/>), keeping
+/// the column of the first press as a goal across the run, Shift extending the selection, and a line
+/// just recalled from the history walks on until it is edited; Enter submits; <b>ESC clears the line, and on an
 /// empty line reports <see cref="InputResult.Cancelled"/> — it never quits</b>; no single key does (the
 /// chat line's <c>softEscape</c> hook is asked first, so a spoken tail is stopped ahead of both).
 /// Ctrl+C (since 2026-09-17) copies the selection when there is one, else asks the chat line's
@@ -348,6 +352,12 @@ public sealed class InputLine
         int anchor = -1;
         int historyIndex = _history.Count;
         string draft = "";
+        // The Up/Down row moves (2026-09-21): the cell column of the run's first press, kept while the
+        // arrows repeat so a short row in between does not lose it; and whether the last arrow recalled
+        // a history line, in which case the next one walks on rather than climbing the recalled rows.
+        // Any other input ends both.
+        int goalCol = -1;
+        bool walking = false;
         // The completion list (@-mention, command, argument, #skill, $tool): open while `list` is set;
         // `dismissed` is the word ESC closed it on, so a cursor move over the same word does not
         // bring it straight back. The chat line on the pane is the only read with any of the five.
@@ -389,6 +399,12 @@ public sealed class InputLine
                         EndRow();
                         return new InputResult.EndOfInput();
                     }
+                }
+
+                if (input is not InputEvent.Key)
+                {
+                    goalCol = -1;
+                    walking = false;
                 }
 
                 if (input is InputEvent.Paste paste)
@@ -521,6 +537,12 @@ public sealed class InputLine
                 }
 
                 var k = key.Value;
+                if (k.Key is not (ConsoleKey.UpArrow or ConsoleKey.DownArrow))
+                {
+                    goalCol = -1;
+                    walking = false;
+                }
+
                 // A click's anchor lives for the drag that may follow it; once a key arrives, an anchor
                 // on the cursor is no selection (a Backspace or a plain arrow would otherwise move the
                 // cursor off it and leave it behind as a phantom selection — past the text's end after a
@@ -822,27 +844,51 @@ public sealed class InputLine
                         break;
 
                     case ConsoleKey.UpArrow:
-                        if (historyIndex > 0)
+                    case ConsoleKey.DownArrow:
+                    {
+                        // A row move first (2026-09-21): the pane answers while the draft wraps and the
+                        // target row is there; a line just recalled walks on instead. Else the history.
+                        int delta = k.Key == ConsoleKey.UpArrow ? -1 : +1;
+                        if (!walking && _pane.TryStepInputRow(delta, goalCol, out int at, out int col))
                         {
-                            if (historyIndex == _history.Count)
+                            goalCol = col;
+                            if (shift)
                             {
-                                draft = text.ToString();
+                                Anchor();
+                            }
+                            else
+                            {
+                                anchor = -1;
                             }
 
-                            historyIndex--;
-                            Replace(_history[historyIndex]);
+                            cursor = DraftIndex(at);
+                            Redraw();
+                            break;
                         }
 
-                        break;
+                        if (delta < 0)
+                        {
+                            if (historyIndex > 0)
+                            {
+                                if (historyIndex == _history.Count)
+                                {
+                                    draft = text.ToString();
+                                }
 
-                    case ConsoleKey.DownArrow:
-                        if (historyIndex < _history.Count)
+                                historyIndex--;
+                                Replace(_history[historyIndex]);
+                                walking = true;
+                            }
+                        }
+                        else if (historyIndex < _history.Count)
                         {
                             historyIndex++;
                             Replace(historyIndex == _history.Count ? draft : _history[historyIndex]);
+                            walking = true;
                         }
 
                         break;
+                    }
 
                     default:
                         // Function keys, Tab, Ctrl chords: nothing to type.

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using NeonCompanion.App;
 using NeonCompanion.Files;
 using NeonCompanion.Settings;
@@ -40,6 +41,9 @@ public class AppSettingsTests : IDisposable
         LlmApiKey = "sk-test",
         LlmAutoCompactPercent = 65,
         LlmCompactKeepRecent = 4,
+        LlmCompactShowSummary = true,
+        GitEmail = "me@example.invalid",
+        GitName = "Some User",
         LlmCompactType = "prune",
         LlmContextLength = 32_768,
         LlmMaxToolIterations = 22,
@@ -134,6 +138,9 @@ public class AppSettingsTests : IDisposable
         Assert.Equal(expected.LlmApiKey, actual.LlmApiKey);
         Assert.Equal(expected.LlmAutoCompactPercent, actual.LlmAutoCompactPercent);
         Assert.Equal(expected.LlmCompactKeepRecent, actual.LlmCompactKeepRecent);
+        Assert.Equal(expected.LlmCompactShowSummary, actual.LlmCompactShowSummary);
+        Assert.Equal(expected.GitEmail, actual.GitEmail);
+        Assert.Equal(expected.GitName, actual.GitName);
         Assert.Equal(expected.LlmCompactType, actual.LlmCompactType);
         Assert.Equal(expected.LlmContextLength, actual.LlmContextLength);
         Assert.Equal(expected.LlmMaxToolIterations, actual.LlmMaxToolIterations);
@@ -240,6 +247,9 @@ public class AppSettingsTests : IDisposable
             d.LlmApiKey = full.LlmApiKey;
             d.LlmAutoCompactPercent = full.LlmAutoCompactPercent;
             d.LlmCompactKeepRecent = full.LlmCompactKeepRecent;
+            d.LlmCompactShowSummary = full.LlmCompactShowSummary;
+            d.GitEmail = full.GitEmail;
+            d.GitName = full.GitName;
             d.LlmCompactType = full.LlmCompactType;
             d.LlmContextLength = full.LlmContextLength;
             d.LlmMaxToolIterations = full.LlmMaxToolIterations;
@@ -343,6 +353,9 @@ public class AppSettingsTests : IDisposable
                 d.LlmApiKey = full.LlmApiKey;
                 d.LlmAutoCompactPercent = full.LlmAutoCompactPercent;
                 d.LlmCompactKeepRecent = full.LlmCompactKeepRecent;
+                d.LlmCompactShowSummary = full.LlmCompactShowSummary;
+                d.GitEmail = full.GitEmail;
+                d.GitName = full.GitName;
                 d.LlmCompactType = full.LlmCompactType;
                 d.LlmContextLength = full.LlmContextLength;
                 d.LlmMaxToolIterations = full.LlmMaxToolIterations;
@@ -432,7 +445,7 @@ public class AppSettingsTests : IDisposable
         a.LlmModel = "mutated-locally";
         a.ToolsDisabled.Add("read_file");
         Assert.Equal("", settings.Current.LlmModel);
-        Assert.Equal(["delete", "git_delete", "git_discard"], settings.Current.ToolsDisabled);   // the default since 2026-09-20 (the two git tools later that day), the local Add never reached the store
+        Assert.Equal(["delete", "git_delete", "git_discard", "unzip", "zip"], settings.Current.ToolsDisabled);   // the default since 2026-09-20 (the two git tools later that day, zip and unzip on 2026-09-21), the local Add never reached the store
     }
 
     [Fact]
@@ -509,7 +522,7 @@ public class AppSettingsTests : IDisposable
         Assert.Equal("internet", settings.Current.WebBrowserNetworkMode);   // the retired switch, skipped
         Assert.True(settings.Current.SkillHashMention);   // its neighbour untouched by the retired SkillSlashCommands key
         Assert.True(settings.Current.LlmOfferTools);   // the renamed key, skipped; the default stands
-        Assert.Equal(["delete", "git_delete", "git_discard"], settings.Current.ToolsDisabled);   // no ToolsDisabled key in the old file: the 2026-09-20 default fills it (a saved [] or ["delete"] would stand)
+        Assert.Equal(["delete", "git_delete", "git_discard", "unzip", "zip"], settings.Current.ToolsDisabled);   // no ToolsDisabled key in the old file: the default fills it (a saved [] or ["delete"] would stand)
         Assert.Equal(WorkingDirectory.DefaultTreeLength, settings.Current.FileTreeMaxLength);   // the old TreeMaxLength key, skipped
         Assert.Equal("", settings.Current.WebSearxngUrl);   // the old SearxngUrl key, skipped
         Assert.Equal(1, settings.Current.SchemaVersion);   // read as written; the compiled default is 2
@@ -752,6 +765,42 @@ public class AppSettingsTests : IDisposable
     }
 
     [Fact]
+    public async Task Reload_ReadsTheFileAgain_DropsThePendingSave_AndRaisesChanged()
+    {
+        // /profile reload (2026-09-21): the hand-edited file wins over the debounced save, and a missing file is the defaults.
+        Profiles.Create(_dir, "work", new AppSettingsData { LlmModel = "work-model" });
+        using var settings = new AppSettings(_dir);
+        await settings.SwitchProfileAsync("work");
+        settings.Update(d => d.LlmModel = "work-2");   // pending in the debounce: must not land after the reload
+        string file = Profiles.ProfileFile(_dir, "work");
+        File.WriteAllText(file, JsonSerializer.Serialize(new AppSettingsData { LlmModel = "by-hand", TtsSpeed = 1.4 }, SettingsJsonContext.Default.AppSettingsData));
+        var seen = new List<AppSettingsData>();
+        settings.Changed += seen.Add;
+
+        settings.Reload();
+
+        Assert.Equal("by-hand", settings.Current.LlmModel);
+        Assert.Equal(1.4, settings.Current.TtsSpeed);
+        Assert.Equal("work", settings.ProfileName);
+        Assert.Single(seen);
+        Assert.Equal("by-hand", seen[0].LlmModel);
+        await Task.Delay(TimeSpan.FromMilliseconds(800));
+        Assert.Contains("by-hand", File.ReadAllText(file));   // the debounce never fired
+        Assert.DoesNotContain("work-2", File.ReadAllText(file));
+
+        // An edit after the reload lands as usual, over the reloaded values.
+        settings.Update(d => d.LlmModel = "work-3");
+        await settings.FlushAsync();
+        Assert.Contains("work-3", File.ReadAllText(file));
+        Assert.Contains("1.4", File.ReadAllText(file));
+
+        // The file gone: the defaults, as a launch would find.
+        File.Delete(file);
+        settings.Reload();
+        AssertSame(new AppSettingsData(), settings.Current);
+    }
+
+    [Fact]
     public async Task ResetProfile_AnotherOne_LeavesTheLoadedDataAlone()
     {
         Profiles.Create(_dir, "work", new AppSettingsData { LlmModel = "work-model" });
@@ -808,6 +857,7 @@ public class AppSettingsTests : IDisposable
         Assert.True(s.ShowImageThumbnails);
         Assert.Equal("summary", s.LlmCompactType);
         Assert.Equal(2, s.LlmCompactKeepRecent);
+        Assert.False(s.LlmCompactShowSummary);   // 2026-09-21: the one notice line unless asked
         Assert.Equal(85, s.LlmAutoCompactPercent);
         Assert.Equal(10000, s.LlmMaxToolIterations);
         Assert.Equal("small", s.ImageThumbnailSize);
@@ -866,11 +916,13 @@ public class AppSettingsTests : IDisposable
         Assert.False(s.FileSafeEdits);
         Assert.True(s.SkillHashMention);
         Assert.True(s.ToolsDollarMention);   // 2026-09-19
-        Assert.Equal([NeonCompanion.Llm.Tools.DeleteTool.ToolName, NeonCompanion.Llm.Tools.GitDeleteTool.ToolName, NeonCompanion.Llm.Tools.GitDiscardTool.ToolName], s.ToolsDisabled);   // delete opt-in since 2026-09-20 (the user's call), the two destructive git tools with it later that day; a saved list stands
+        Assert.Equal([NeonCompanion.Llm.Tools.DeleteTool.ToolName, NeonCompanion.Llm.Tools.GitDeleteTool.ToolName, NeonCompanion.Llm.Tools.GitDiscardTool.ToolName, NeonCompanion.Llm.Tools.UnzipTool.ToolName, NeonCompanion.Llm.Tools.ZipTool.ToolName], s.ToolsDisabled);   // delete opt-in since 2026-09-20 (the user's call), the two destructive git tools with it later that day, zip and unzip on 2026-09-21; a saved list stands
         // The git tools (2026-09-20): on, 500 patch lines (20–5000), 20 commits (1–200).
         Assert.True(s.GitTools);
         Assert.Equal(500, s.GitDiffMaxLines);
         Assert.Equal(20, s.GitLogMaxCommits);
+        Assert.Equal("", s.GitEmail);   // the /git user pair (2026-09-21): not set until typed
+        Assert.Equal("", s.GitName);
         // The shell tools (2026-09-21): ask before anything runs, nothing allowed for good, PowerShell, 180 s (1–3600) under a 600 s cap (10–3600), 30,000 chars of output (2000–500000).
         Assert.Equal("ask", s.ShellCommandPolicy);
         Assert.Equal("ask", NeonCompanion.Shell.CommandPolicy.Default);

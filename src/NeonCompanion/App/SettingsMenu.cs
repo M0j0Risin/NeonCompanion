@@ -286,6 +286,15 @@ public enum SettingsField
 
     /// <summary>Typed: the most tool calls one <c>execute_code</c> script may make, 1 to 500 (<see cref="Settings.AppSettingsData.ShellCodeMaxToolCalls"/>). The Shell tab's last row (2026-09-21); no reconnect (read at each call).</summary>
     ShellCodeMaxToolCalls,
+
+    /// <summary>A toggle: whether a compact's summary, or its pruned results, follow the compact notice in the transcript (<see cref="Settings.AppSettingsData.LlmCompactShowSummary"/>). The LLM tab, right under <see cref="LlmCompactKeepRecent"/> (2026-09-21); no reconnect (read at each compact).</summary>
+    LlmCompactShowSummary,
+
+    /// <summary>Typed: the <c>user.email</c> <c>/git user</c> writes into the working directory's repository (<see cref="Settings.AppSettingsData.GitEmail"/>); empty = not set. The Git tab's fourth row (2026-09-21); no reconnect (read at each <c>/git user</c>).</summary>
+    GitEmail,
+
+    /// <summary>Typed: the <c>user.name</c> <c>/git user</c> writes beside the email (<see cref="Settings.AppSettingsData.GitName"/>); empty = not set. The Git tab's last row (2026-09-21); no reconnect.</summary>
+    GitName,
 }
 
 /// <summary>The tabs of <c>/settings</c> on the pane, in strip order (Sessions right after General — the user's order, 2026-09-18; STT last since 2026-09-19, when the Ask, Files and Web tabs moved to <c>/tools</c> — <see cref="SettingsMenu.ToolsTabFields"/> — and, later that day, the Skills tab to <c>/skills</c> as its Options tab — <see cref="SettingsMenu.SkillsTabFields"/>); the value is the index into <see cref="SettingsMenu.TabTitles"/> and <see cref="SettingsMenu.TabFields"/>.</summary>
@@ -489,7 +498,7 @@ internal sealed class SettingsMenu
     [
         [SettingsField.Profile, SettingsField.NewProfileMode, SettingsField.WorkingDirectory, SettingsField.QueueMessages, SettingsField.QueueCancelMode, SettingsField.Memory, SettingsField.CopyUserPrompt, SettingsField.MouseInMenus, SettingsField.ShowImageThumbnails, SettingsField.ImageThumbnailSize, SettingsField.TranscriptMarkdown, SettingsField.PastePreviewLines, SettingsField.HideExitAutocomplete, SettingsField.CommandTypoIntercept, SettingsField.WelcomeSplash, SettingsField.ShowWorkingDirectory, SettingsField.DraftEditor],
         [SettingsField.SessionLogging, SettingsField.SessionRetentionDays, SettingsField.SessionNamingMode, SettingsField.SessionShowName, SettingsField.SessionTool, SettingsField.SessionSearchMaxResults],
-        [SettingsField.LlmScanMode, SettingsField.LlmUrl, SettingsField.LlmModel, SettingsField.LlmApiKey, SettingsField.LlmReasoning, SettingsField.LlmRequestTimeoutSeconds, SettingsField.LlmTurnTimeoutSeconds, SettingsField.LlmContextLength, SettingsField.LlmCompactType, SettingsField.LlmCompactKeepRecent, SettingsField.LlmAutoCompactPercent, SettingsField.LlmOfferTools, SettingsField.LlmToolCompactType, SettingsField.LlmMaxToolIterations, SettingsField.LlmUseFunVerbs],
+        [SettingsField.LlmScanMode, SettingsField.LlmUrl, SettingsField.LlmModel, SettingsField.LlmApiKey, SettingsField.LlmReasoning, SettingsField.LlmRequestTimeoutSeconds, SettingsField.LlmTurnTimeoutSeconds, SettingsField.LlmContextLength, SettingsField.LlmCompactType, SettingsField.LlmCompactKeepRecent, SettingsField.LlmCompactShowSummary, SettingsField.LlmAutoCompactPercent, SettingsField.LlmOfferTools, SettingsField.LlmToolCompactType, SettingsField.LlmMaxToolIterations, SettingsField.LlmUseFunVerbs],
         [SettingsField.TtsOutput, SettingsField.TtsSource, SettingsField.TtsHttpUrl, SettingsField.TtsVoicePreview, SettingsField.TtsVoice, SettingsField.TtsVoice2, SettingsField.TtsVoiceMix, SettingsField.TtsSpeed],
         Fields.Where(IsVoiceField).ToArray(),
     ];
@@ -530,7 +539,7 @@ internal sealed class SettingsMenu
         [SettingsField.ToolsDollarMention],
         [SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices],
         [SettingsField.FileTools, SettingsField.FileSafeEdits, SettingsField.FileTreeMaxLength, SettingsField.FileTreeShowSizes, SettingsField.FileMentionFolderMode, SettingsField.FileViewImageMaxPerCall],
-        [SettingsField.GitTools, SettingsField.GitDiffMaxLines, SettingsField.GitLogMaxCommits],
+        [SettingsField.GitTools, SettingsField.GitDiffMaxLines, SettingsField.GitLogMaxCommits, SettingsField.GitEmail, SettingsField.GitName],
         [SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellCodeMaxToolCalls],
         [SettingsField.WebTools, SettingsField.WebBrowserMode, SettingsField.WebBrowserPath, SettingsField.WebBrowserNetworkMode, SettingsField.WebSearchMethod, SettingsField.WebSearxngUrl, SettingsField.WebSearchMaxResults],
     ];
@@ -763,7 +772,8 @@ internal sealed class SettingsMenu
             or SettingsField.SkillHashMention or SettingsField.ReflectionAutoLearn
             or SettingsField.HideExitAutocomplete or SettingsField.CommandTypoIntercept or SettingsField.WelcomeSplash or SettingsField.ShowWorkingDirectory
             or SettingsField.QueueMessages or SettingsField.AllowSkillDelete or SettingsField.SessionLogging or SettingsField.SessionTool
-            or SettingsField.ToolsDollarMention or SettingsField.ReflectionIncludesSessions or SettingsField.McpServers or SettingsField.GitTools;
+            or SettingsField.ToolsDollarMention or SettingsField.ReflectionIncludesSessions or SettingsField.McpServers or SettingsField.GitTools
+            or SettingsField.LlmCompactShowSummary;
 
     public static string FieldName(SettingsField field) => field switch
     {
@@ -802,6 +812,7 @@ internal sealed class SettingsMenu
         SettingsField.ShowImageThumbnails => "Show image thumbnails",
         SettingsField.LlmCompactType => "LLM compact type",
         SettingsField.LlmCompactKeepRecent => "LLM compact keep recent",
+        SettingsField.LlmCompactShowSummary => "LLM compact show summary",
         SettingsField.LlmAutoCompactPercent => "LLM auto compact (%)",
         SettingsField.LlmToolCompactType => "LLM tool compact type",
         SettingsField.LlmMaxToolIterations => "LLM max tool iterations",
@@ -825,6 +836,8 @@ internal sealed class SettingsMenu
         SettingsField.ShellCodeTimeoutSeconds => "Shell code timeout (s)",
         SettingsField.ShellCodeMaxToolCalls => "Shell code max tool calls",
         SettingsField.GitLogMaxCommits => "Git log max commits",
+        SettingsField.GitEmail => "Git email",
+        SettingsField.GitName => "Git name",
         SettingsField.WebBrowserMode => "Web browser mode",
         SettingsField.WebBrowserPath => "Web browser path",
         SettingsField.WebBrowserNetworkMode => "Web browser network mode",
@@ -923,6 +936,7 @@ internal sealed class SettingsMenu
             SettingsField.ShowImageThumbnails => OnOff(data.ShowImageThumbnails),
             SettingsField.LlmCompactType => data.LlmCompactType,
             SettingsField.LlmCompactKeepRecent => Turns(data.LlmCompactKeepRecent),
+            SettingsField.LlmCompactShowSummary => OnOff(data.LlmCompactShowSummary),
             SettingsField.LlmAutoCompactPercent => data.LlmAutoCompactPercent > 0 ? Percent(data.LlmAutoCompactPercent) : CompactAtOffLabel,
             SettingsField.LlmToolCompactType => data.LlmToolCompactType,
             SettingsField.LlmMaxToolIterations => RoundTrips(data.LlmMaxToolIterations),
@@ -947,6 +961,8 @@ internal sealed class SettingsMenu
             SettingsField.ShellCodeTimeoutSeconds => Seconds(data.ShellCodeTimeoutSeconds),
             SettingsField.ShellCodeMaxToolCalls => ToolCalls(data.ShellCodeMaxToolCalls),
             SettingsField.GitLogMaxCommits => Commits(data.GitLogMaxCommits),
+            SettingsField.GitEmail => string.IsNullOrWhiteSpace(data.GitEmail) ? NoGitIdentityLabel : data.GitEmail,
+            SettingsField.GitName => string.IsNullOrWhiteSpace(data.GitName) ? NoGitIdentityLabel : data.GitName,
             SettingsField.WebBrowserMode => data.WebBrowserMode,
             SettingsField.WebBrowserPath => string.IsNullOrWhiteSpace(data.WebBrowserPath) ? AutoBrowserLabel(locatedBrowser) : data.WebBrowserPath,
             SettingsField.DraftEditor => string.IsNullOrWhiteSpace(data.DraftEditor) ? DefaultDraftEditorLabel : data.DraftEditor,
@@ -1008,6 +1024,9 @@ internal sealed class SettingsMenu
 
     /// <summary>How the menu shows an empty <see cref="AppSettingsData.WebSearxngUrl"/> (the engine is <see cref="SettingsField.WebSearchMethod"/>'s row, not this one's). Pinned.</summary>
     public const string NoSearxngUrlLabel = "(not set)";
+
+    /// <summary>How the menu shows an empty <see cref="AppSettingsData.GitEmail"/> or <see cref="AppSettingsData.GitName"/> (2026-09-21): <c>/git user</c> refuses until both are set. Pinned.</summary>
+    public const string NoGitIdentityLabel = "(not set)";
 
     /// <summary>How the menu shows an empty <see cref="AppSettingsData.DraftEditor"/>: <c>/draft</c> hands the file to whatever Windows opens a <c>.txt</c> with. Pinned.</summary>
     public const string DefaultDraftEditorLabel = "(default .txt editor)";
@@ -1251,6 +1270,8 @@ internal sealed class SettingsMenu
         SettingsField.ShellCodeTimeoutSeconds => data.ShellCodeTimeoutSeconds.ToString(CultureInfo.InvariantCulture),
         SettingsField.ShellCodeMaxToolCalls => data.ShellCodeMaxToolCalls.ToString(CultureInfo.InvariantCulture),
         SettingsField.GitLogMaxCommits => data.GitLogMaxCommits.ToString(CultureInfo.InvariantCulture),
+        SettingsField.GitEmail => data.GitEmail,
+        SettingsField.GitName => data.GitName,
         SettingsField.AskMaxQuestions => data.AskMaxQuestions.ToString(CultureInfo.InvariantCulture),
         SettingsField.AskMaxChoices => data.AskMaxChoices.ToString(CultureInfo.InvariantCulture),
         SettingsField.PastePreviewLines => data.PastePreviewLines.ToString(CultureInfo.InvariantCulture),
@@ -1840,7 +1861,7 @@ internal sealed class SettingsMenu
             return await PickVoskModelAsync(saved, cancellationToken).ConfigureAwait(false);
         }
 
-        bool allowEmpty = field is SettingsField.LlmUrl or SettingsField.LlmModel or SettingsField.TtsVoice2 or SettingsField.WorkingDirectory or SettingsField.WebBrowserPath or SettingsField.WebSearxngUrl or SettingsField.DraftEditor;
+        bool allowEmpty = field is SettingsField.LlmUrl or SettingsField.LlmModel or SettingsField.TtsVoice2 or SettingsField.WorkingDirectory or SettingsField.WebBrowserPath or SettingsField.WebSearxngUrl or SettingsField.DraftEditor or SettingsField.GitEmail or SettingsField.GitName;
         var result = await EditTextAsync(field, page, row, EditableValue(field, saved), allowEmpty, cancellationToken).ConfigureAwait(false);
         if (result is not InputResult.Submitted submitted)
         {
@@ -2126,6 +2147,15 @@ internal sealed class SettingsMenu
             case SettingsField.DraftEditor:
                 // A command line, not a path: nothing to check here — a word cmd cannot find shows at the next /draft.
                 Apply(field, d => d.DraftEditor = text);
+                return true;
+
+            case SettingsField.GitEmail:
+                // Whatever git accepts (2026-09-21): an address is not checked here, and empty is "not set".
+                Apply(field, d => d.GitEmail = text);
+                return true;
+
+            case SettingsField.GitName:
+                Apply(field, d => d.GitName = text);
                 return true;
 
             case SettingsField.TtsSpeed:
@@ -2592,6 +2622,7 @@ internal sealed class SettingsMenu
             SettingsField.LlmUseFunVerbs => data.LlmUseFunVerbs,
             SettingsField.WebTools => data.WebTools,
             SettingsField.GitTools => data.GitTools,
+            SettingsField.LlmCompactShowSummary => data.LlmCompactShowSummary,
             SettingsField.TtsVoicePreview => data.TtsVoicePreview,
             SettingsField.FileTools => data.FileTools,
             SettingsField.AskUser => data.AskUser,
@@ -2634,6 +2665,7 @@ internal sealed class SettingsMenu
             case SettingsField.LlmUseFunVerbs: data.LlmUseFunVerbs = on; break;
             case SettingsField.WebTools: data.WebTools = on; break;
             case SettingsField.GitTools: data.GitTools = on; break;
+            case SettingsField.LlmCompactShowSummary: data.LlmCompactShowSummary = on; break;
             case SettingsField.TtsVoicePreview: data.TtsVoicePreview = on; break;
             case SettingsField.FileTools: data.FileTools = on; break;
             case SettingsField.AskUser: data.AskUser = on; break;
@@ -2685,6 +2717,7 @@ internal sealed class SettingsMenu
         SettingsField.FileTreeShowSizes => on ? "/tree carries each file's size" : "/tree names alone",
         SettingsField.WebTools => on ? "the model may search and fetch the web" : "no web tools",
         SettingsField.GitTools => on ? "the model reads and changes the git repository in the working directory" : "no git tools",
+        SettingsField.LlmCompactShowSummary => on ? "the summary's lines, or the pruned results, follow the compact notice" : "the one compact notice alone",
         SettingsField.AgentSkills => on ? "the skills catalog, load_skill and skill_editor are offered" : "no skills, no project notes",
         SettingsField.ExternalSkills => on ? "%USERPROFILE%\\.agents\\skills is read too" : "profile and global skills only",
         SettingsField.SkillHashMention => on ? "# and part of a name lists the loaded skills on the line" : "# is ordinary text",

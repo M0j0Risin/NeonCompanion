@@ -277,6 +277,34 @@ public sealed class AppSettings : IDisposable
         RaiseChanged(snapshot);
     }
 
+    /// <summary>
+    /// Re-reads the loaded profile's <c>profile.json</c> from disk (2026-09-21, <c>/profile reload</c>,
+    /// the way back in after <c>/profile edit</c>): the pending debounced save is cancelled — the
+    /// hand-edited file is what the user wants, not what the menu last saved —, the data replaced in
+    /// place (the compiled defaults when the file is unreadable, as <see cref="Load"/> says), the
+    /// skills folders made sure of, and <see cref="Changed"/> raised with the new snapshot. The
+    /// pointer is untouched. A save already past its debounce and inside its write at that instant
+    /// still lands; the window is milliseconds, and the next reload reads it.
+    /// </summary>
+    public void Reload()
+    {
+        AppSettingsData snapshot;
+        string name;
+        lock (_gate)
+        {
+            _pendingSave?.Cancel();
+            _pendingSave?.Dispose();
+            _pendingSave = null;
+            name = _profileName;
+            _data = Load(Profiles.ProfileFile(StorageDirectory, name));
+            snapshot = Copy(_data);
+        }
+
+        DiagnosticLog.Info(Category, $"Reloaded profile \"{name}\" from disk.");
+        EnsureSkillsDirectories();
+        RaiseChanged(snapshot);
+    }
+
     private void RaiseChanged(AppSettingsData snapshot)
     {
         try
@@ -549,6 +577,7 @@ public sealed class AppSettings : IDisposable
         LlmApiKey = source.LlmApiKey,
         LlmAutoCompactPercent = source.LlmAutoCompactPercent,
         LlmCompactKeepRecent = source.LlmCompactKeepRecent,
+        LlmCompactShowSummary = source.LlmCompactShowSummary,
         LlmCompactType = source.LlmCompactType,
         LlmContextLength = source.LlmContextLength,
         LlmMaxToolIterations = source.LlmMaxToolIterations,
@@ -606,6 +635,8 @@ public sealed class AppSettings : IDisposable
         GitDiffMaxLines = source.GitDiffMaxLines,
         GitLogMaxCommits = source.GitLogMaxCommits,
         GitTools = source.GitTools,
+        GitEmail = source.GitEmail,
+        GitName = source.GitName,
         ShellCodeLanguages = [.. source.ShellCodeLanguages],
         ShellCodeMaxToolCalls = source.ShellCodeMaxToolCalls,
         ShellCodeTimeoutSeconds = source.ShellCodeTimeoutSeconds,
