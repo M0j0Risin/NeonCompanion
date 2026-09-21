@@ -20,6 +20,10 @@ public class SlashCommandsTests
     [InlineData("/REASONING", SlashCommand.Reasoning)]
     [InlineData("/settings", SlashCommand.Settings)]
     [InlineData("//", SlashCommand.Settings)]
+    [InlineData("///", SlashCommand.Tools)]      // 2026-09-21
+    [InlineData("////", SlashCommand.Skills)]    // 2026-09-21
+    [InlineData("/loop", SlashCommand.Loop)]     // 2026-09-21
+    [InlineData("/LOOP", SlashCommand.Loop)]
     [InlineData("/tts", SlashCommand.Tts)]
     [InlineData("/stt", SlashCommand.Voice)]
     [InlineData("/wake", SlashCommand.Wake)]
@@ -94,16 +98,22 @@ public class SlashCommandsTests
     }
 
     [Fact]
-    public void Parse_SkillTakesNothing_ANameIsOverloaded()
+    public void Parse_SkillsTakesTheRestOfTheLine_TheHandlerJudgesIt()
     {
         // /skill <name> [message] loaded a skill from 2026-09-16 until later on 2026-09-18 (the user's
         // call: the #-mention covers it); a bare /skills is the pane (the plural since 2026-09-19, beside /tools;
-        // /skill from later on 2026-09-18 until then, unknown now), anything after it is Overloaded.
+        // /skill from later on 2026-09-18 until then, unknown now). Anything after it was Overloaded until
+        // 2026-09-21, when /skills edit <name> came: the words are the handler's to judge (the usage line).
         Assert.Equal((SlashCommand.Skills, ""), SlashCommands.Parse("/skills"));
         Assert.Equal((SlashCommand.Skills, ""), SlashCommands.Parse("  /SKILLS  "));
-        Assert.Equal((SlashCommand.Overloaded, "haiku"), SlashCommands.Parse("/skills haiku"));
-        Assert.Equal((SlashCommand.Overloaded, "haiku write one about rain"), SlashCommands.Parse("/SKILLS  haiku write one about rain "));
-        Assert.Equal((SlashCommand.Overloaded, "list"), SlashCommands.Parse("/skills list"));   // /skill list was the pane for part of 2026-09-18
+        Assert.Equal((SlashCommand.Skills, ""), SlashCommands.Parse("////"));
+        Assert.Equal((SlashCommand.Skills, "edit haiku"), SlashCommands.Parse("/skills edit haiku"));
+        Assert.Equal((SlashCommand.Skills, "edit haiku"), SlashCommands.Parse("////  edit haiku "));
+        Assert.Equal((SlashCommand.Skills, "haiku"), SlashCommands.Parse("/skills haiku"));
+        Assert.Equal((SlashCommand.Skills, "haiku write one about rain"), SlashCommands.Parse("/SKILLS  haiku write one about rain "));
+        Assert.Equal((SlashCommand.Skills, "list"), SlashCommands.Parse("/skills list"));   // /skill list was the pane for part of 2026-09-18
+        Assert.Equal((SlashCommand.Loop, "3 hi there"), SlashCommands.Parse("/loop 3 hi there"));   // 2026-09-21: the count and the message are the handler's
+        Assert.Equal((SlashCommand.Loop, ""), SlashCommands.Parse("/loop"));
         Assert.Equal((SlashCommand.Unknown, ""), SlashCommands.Parse("/skill"));
         Assert.Equal((SlashCommand.Unknown, "now"), SlashCommands.Parse("/skill now"));
     }
@@ -312,7 +322,7 @@ public class SlashCommandsTests
     [InlineData("/config x")]
     [InlineData("/use reset")]
     [InlineData("/ab x")]
-    [InlineData("///")]
+    [InlineData("/////")]   // /// and //// are aliases since 2026-09-21; five is nothing
     public void Parse_AnUnknownWord_IsUnknown(string line)
     {
         Assert.Equal(SlashCommand.Unknown, SlashCommands.Parse(line).Command);
@@ -354,6 +364,7 @@ public class SlashCommandsTests
             SlashCommand.Persona, SlashCommand.Operata, SlashCommand.Vocalia,
             SlashCommand.Remember, SlashCommand.MemCopy, SlashCommand.Profile, SlashCommand.Timer,
             SlashCommand.Cwd, SlashCommand.Tree, SlashCommand.Explore, SlashCommand.Copy, SlashCommand.Session, SlashCommand.Git,
+            SlashCommand.Loop, SlashCommand.Skills,   // 2026-09-21
         ];
         foreach (var command in Enum.GetValues<SlashCommand>())
         {
@@ -386,7 +397,8 @@ public class SlashCommandsTests
         Assert.Equal(items.Select(i => i.Text).OrderBy(t => t, StringComparer.Ordinal), items.Select(i => i.Text));
         Assert.Equal("/about", items[0].Text);
         Assert.Equal("/window", items[^1].Text);
-        Assert.DoesNotContain(items, i => i.Text is "//");
+        Assert.DoesNotContain(items, i => i.Text is "//" or "///" or "////");   // the three aliases (2026-09-21) are never rows
+        Assert.Contains(items, i => i.Text == "/loop");   // 2026-09-21
         Assert.All(SlashCommands.HelpEntries, e => Assert.Contains(new NeonCompanion.UI.CompletionItem(e.Command, e.Summary), items));
         Assert.Equal(["/server", "/session", "/settings", "/skills", "/speak", "/splash", "/stt", "/sysprompt"], items.Where(i => i.Text.StartsWith("/s", StringComparison.Ordinal)).Select(i => i.Text));
         Assert.Equal(["/timer", "/tools", "/tree", "/tts"], items.Where(i => i.Text.StartsWith("/t", StringComparison.Ordinal)).Select(i => i.Text));   // /tools among them since 2026-09-19
@@ -429,7 +441,7 @@ public class SlashCommandsTests
     [InlineData("/quit")]
     public void Parse_TheRetiredAliases_AreUnknown(string line)
     {
-        // Every alias but // went on 2026-09-16 (the user's call): the completion list makes them redundant.
+        // Every alias but // went on 2026-09-16 (the user's call): the completion list makes them redundant; /// and //// came on 2026-09-21.
         Assert.Equal(SlashCommand.Unknown, SlashCommands.Parse(line).Command);
     }
 
@@ -458,7 +470,7 @@ public class SlashCommandsTests
         Assert.Contains("ESC", SlashCommands.HelpText);
         Assert.DoesNotContain("Ctrl+Q", SlashCommands.HelpText);
         Assert.DoesNotContain("(also", SlashCommands.HelpText);
-        Assert.StartsWith("Commands:\n" + Row("/settings, //", "edit and save settings") + Row("/tools", "switch the model's tools on or off and edit the Options, Ask, Files and Web settings on a pane"), SlashCommands.HelpText);   // /tools right under /settings since 2026-09-19
+        Assert.StartsWith("Commands:\n" + Row("/settings, //", "edit and save settings") + Row("/tools, ///", "switch the model's tools on or off and edit the Options, Ask, Files and Web settings on a pane"), SlashCommands.HelpText);   // /tools right under /settings since 2026-09-19; its alias 2026-09-21
         Assert.Contains(Row("/timer", "list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all") + Row("/help", "show help") + Row("/about", "show general information about the app and profile"), SlashCommands.HelpText);   // the bottom group since 2026-09-16, /timer under /help since later on 2026-09-19, /help under /timer later still that day
         Assert.Contains(Row("/settings, //", "edit and save settings"), SlashCommands.HelpText);
         Assert.Contains(Row("/profile", "switch profiles, or /profile <name> | add <name> | delete <name> | rename <name> <new-name> | reset [name] | edit | reload"), SlashCommands.HelpText);   // edit and reload 2026-09-21
@@ -514,6 +526,8 @@ public class SlashCommandsTests
     {
         Assert.Equal("/tree, /dir, /ls", new SlashCommands.HelpEntry("/tree", "x", "/dir", "/ls").Label);   // the record still joins them; the table lists none but //
         Assert.Equal("/settings, //", new SlashCommands.HelpEntry("/settings", "x", "//").Label);
+        Assert.Equal("/tools, ///", SlashCommands.HelpEntries.Single(e => e.Command == "/tools").Label);     // 2026-09-21
+        Assert.Equal("/skills, ////", SlashCommands.HelpEntries.Single(e => e.Command == "/skills").Label);  // 2026-09-21
         Assert.Equal("/usage", new SlashCommands.HelpEntry("/usage", "x").Label);
     }
 
@@ -525,8 +539,8 @@ public class SlashCommandsTests
         // from 2026-09-15 — gone later on 2026-09-18, /session under /profile and /copy under /queue the same day; later still on
         // 2026-09-19 /skills + /learn under /session, /windowsize → /window under /view, /timer under /help); the flat list is
         // the groups end to end.
-        Assert.Equal(new[] { 7, 6, 6, 4, 4, 5, 4, 3, 4 }, SlashCommands.HelpGroups.Select(g => g.Count));   // /git under /emptytrash since 2026-09-21   // /mcp under /tools since 2026-09-20   // /learn under /skill since 2026-09-17; /skills folded into /skill 2026-09-18; /tools under /settings 2026-09-19; /draft under /copy later that day; /splash under /new later still
-        Assert.Equal(43, SlashCommands.HelpEntries.Count);   // 43 with /git (2026-09-21)
+        Assert.Equal(new[] { 7, 6, 7, 4, 4, 5, 4, 3, 4 }, SlashCommands.HelpGroups.Select(g => g.Count));   // /loop under /draft since 2026-09-21   // /git under /emptytrash since 2026-09-21   // /mcp under /tools since 2026-09-20   // /learn under /skill since 2026-09-17; /skills folded into /skill 2026-09-18; /tools under /settings 2026-09-19; /draft under /copy later that day; /splash under /new later still
+        Assert.Equal(44, SlashCommands.HelpEntries.Count);   // 44 with /loop, 43 with /git (2026-09-21)
         Assert.Equal(SlashCommands.HelpGroups.SelectMany(g => g), SlashCommands.HelpEntries);
         // /help moved to the bottom group above /about, and /memory heads its group (the user's call, 2026-09-16).
         Assert.Equal(["/settings", "/tools", "/mcp", "/profile", "/session", "/skills", "/learn"], SlashCommands.HelpGroups[0].Select(e => e.Command));   // /session under /profile since later on 2026-09-18; /tools under /settings since 2026-09-19; /skills + /learn under /session later that day
@@ -539,7 +553,7 @@ public class SlashCommandsTests
         Assert.Equal("/session", SlashCommands.HelpEntries[4].Command);
         Assert.Equal("list, restore and purge sessions: /session [<id> | purge <id> | purge older <age> | purge all | title <text>]", SlashCommands.HelpEntries[4].Summary);
         Assert.Equal("/skills", SlashCommands.HelpEntries[5].Command);
-        Assert.Equal("list the skills, edit the skill settings and the project file on a pane", SlashCommands.HelpEntries[5].Summary);   // the /skill <name> [message] form went later on 2026-09-18; the Roots tab later on 2026-09-19
+        Assert.Equal("list the skills, edit the skill settings and the project file on a pane, or /skills edit <name> to open its SKILL.md", SlashCommands.HelpEntries[5].Summary);   // edit 2026-09-21   // the /skill <name> [message] form went later on 2026-09-18; the Roots tab later on 2026-09-19
         Assert.Equal("/learn", SlashCommands.HelpEntries[6].Command);
         Assert.Equal("write or improve a skill from the last turn or the stored sessions, in the background: /learn [what to keep] | sessions [N | what to search]", SlashCommands.HelpEntries[6].Summary);   // the sessions form 2026-09-19
         Assert.Equal("/server", SlashCommands.HelpEntries[7].Command);
@@ -551,41 +565,43 @@ public class SlashCommandsTests
         Assert.Equal("/splash", SlashCommands.HelpEntries[15].Command);   // under /new since later still on 2026-09-19
         Assert.Equal("start a new conversation and show the splash screen", SlashCommands.HelpEntries[15].Summary);
         Assert.Equal("/queue", SlashCommands.HelpEntries[16].Command);   // under /new since 2026-09-18, under /splash since 2026-09-19
-        Assert.Equal(["/clear", "/new", "/splash", "/queue", "/copy", "/draft"], SlashCommands.HelpGroups[2].Select(e => e.Command));   // /copy under /queue since later on 2026-09-18; /draft under /copy since 2026-09-19; /splash under /new later still
+        Assert.Equal(["/clear", "/new", "/splash", "/queue", "/copy", "/draft", "/loop"], SlashCommands.HelpGroups[2].Select(e => e.Command));   // /loop under /draft since 2026-09-21   // /copy under /queue since later on 2026-09-18; /draft under /copy since 2026-09-19; /splash under /new later still
         Assert.Equal("list and prune the messages queued while a reply runs", SlashCommands.HelpEntries[16].Summary);
         Assert.Equal("/copy", SlashCommands.HelpEntries[17].Command);
         Assert.Equal("copy the last reply to the clipboard as markdown, or /copy <n> | all", SlashCommands.HelpEntries[17].Summary);
         Assert.Equal("/draft", SlashCommands.HelpEntries[18].Command);
         Assert.Equal("write the next message in your editor: a temporary file, sent when it is saved and closed", SlashCommands.HelpEntries[18].Summary);
-        Assert.Equal("/tts", SlashCommands.HelpEntries[19].Command);
+        Assert.Equal("/loop", SlashCommands.HelpEntries[19].Command);   // 2026-09-21
+        Assert.Equal("send a message again and again, each reply waited for: /loop <count> <message> | infinite <message> (ESC ends it)", SlashCommands.HelpEntries[19].Summary);
+        Assert.Equal("/tts", SlashCommands.HelpEntries[20].Command);
         Assert.Equal(["/tts", "/stt", "/wake", "/interrupt"], SlashCommands.HelpGroups[3].Select(e => e.Command));
         Assert.Equal(["/memory", "/remember", "/forget", "/memcopy"], SlashCommands.HelpGroups[4].Select(e => e.Command));   // /memcopy last since 2026-09-17
-        Assert.Equal("/memory", SlashCommands.HelpEntries[23].Command);
-        Assert.Equal("add a memory: /remember <text>", SlashCommands.HelpEntries[24].Summary);
-        Assert.Equal("forget all memory", SlashCommands.HelpEntries[25].Summary);
-        Assert.Equal("copy this profile's memory into another: /memcopy <profile> [overwrite]", SlashCommands.HelpEntries[26].Summary);
-        Assert.Equal("/cwd", SlashCommands.HelpEntries[27].Command);
+        Assert.Equal("/memory", SlashCommands.HelpEntries[24].Command);
+        Assert.Equal("add a memory: /remember <text>", SlashCommands.HelpEntries[25].Summary);
+        Assert.Equal("forget all memory", SlashCommands.HelpEntries[26].Summary);
+        Assert.Equal("copy this profile's memory into another: /memcopy <profile> [overwrite]", SlashCommands.HelpEntries[27].Summary);
+        Assert.Equal("/cwd", SlashCommands.HelpEntries[28].Command);
         Assert.Equal(["/cwd", "/tree", "/explore", "/emptytrash", "/git"], SlashCommands.HelpGroups[5].Select(e => e.Command));   // /git last since 2026-09-21
-        Assert.Equal("/emptytrash", SlashCommands.HelpEntries[30].Command);
-        Assert.Equal("/git", SlashCommands.HelpEntries[31].Command);   // the working-directory group's last row (2026-09-21)
-        Assert.Equal("write the Git email and Git name settings into the working directory's repository: /git user [force]", SlashCommands.HelpEntries[31].Summary);
+        Assert.Equal("/emptytrash", SlashCommands.HelpEntries[31].Command);
+        Assert.Equal("/git", SlashCommands.HelpEntries[32].Command);   // the working-directory group's last row (2026-09-21)
+        Assert.Equal("write the Git email and Git name settings into the working directory's repository: /git user [force]", SlashCommands.HelpEntries[32].Summary);
         // /speak and /view: a group of their own (the user's call, 2026-09-17); /window under /view since later on 2026-09-19.
         Assert.Equal(["/speak", "/echo", "/view", "/window"], SlashCommands.HelpGroups[6].Select(e => e.Command));   // /echo between them, later on 2026-09-17
-        Assert.Equal("/speak", SlashCommands.HelpEntries[32].Command);
-        Assert.Equal("read a text file from the working directory aloud, as a reply: /speak <file> [n], or /speak to resume, or /speak <n> from sentence n", SlashCommands.HelpEntries[32].Summary);
-        Assert.Equal("/echo", SlashCommands.HelpEntries[33].Command);
-        Assert.Equal("print a line as a reply and read it aloud when speech is on: /echo <text>", SlashCommands.HelpEntries[33].Summary);
-        Assert.Equal("/view", SlashCommands.HelpEntries[34].Command);
-        Assert.Equal("show an image from the working directory in the transcript, as large as the window allows: /view <image>", SlashCommands.HelpEntries[34].Summary);
-        Assert.Equal("/window", SlashCommands.HelpEntries[35].Command);
-        Assert.Equal("show the terminal window's width and height", SlashCommands.HelpEntries[35].Summary);
-        Assert.Equal("/persona", SlashCommands.HelpEntries[36].Command);
+        Assert.Equal("/speak", SlashCommands.HelpEntries[33].Command);
+        Assert.Equal("read a text file from the working directory aloud, as a reply: /speak <file> [n], or /speak to resume, or /speak <n> from sentence n", SlashCommands.HelpEntries[33].Summary);
+        Assert.Equal("/echo", SlashCommands.HelpEntries[34].Command);
+        Assert.Equal("print a line as a reply and read it aloud when speech is on: /echo <text>", SlashCommands.HelpEntries[34].Summary);
+        Assert.Equal("/view", SlashCommands.HelpEntries[35].Command);
+        Assert.Equal("show an image from the working directory in the transcript, as large as the window allows: /view <image>", SlashCommands.HelpEntries[35].Summary);
+        Assert.Equal("/window", SlashCommands.HelpEntries[36].Command);
+        Assert.Equal("show the terminal window's width and height", SlashCommands.HelpEntries[36].Summary);
+        Assert.Equal("/persona", SlashCommands.HelpEntries[37].Command);
         Assert.Equal(["/persona", "/operata", "/vocalia"], SlashCommands.HelpGroups[7].Select(e => e.Command));
         Assert.Equal(["/timer", "/help", "/about", "/exit"], SlashCommands.HelpGroups[^1].Select(e => e.Command));   // /exit the very last row since 2026-09-16, /help above /about; /timer under /help since later on 2026-09-19, /help under /timer later still that day
-        Assert.Equal("/timer", SlashCommands.HelpEntries[39].Command);
-        Assert.Equal("list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all", SlashCommands.HelpEntries[39].Summary);
-        Assert.Equal("/help", SlashCommands.HelpEntries[40].Command);
-        Assert.Equal("/about", SlashCommands.HelpEntries[41].Command);
+        Assert.Equal("/timer", SlashCommands.HelpEntries[40].Command);
+        Assert.Equal("list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all", SlashCommands.HelpEntries[40].Summary);
+        Assert.Equal("/help", SlashCommands.HelpEntries[41].Command);
+        Assert.Equal("/about", SlashCommands.HelpEntries[42].Command);
         Assert.Equal("/exit", SlashCommands.HelpEntries[^1].Command);
         Assert.DoesNotContain(SlashCommands.HelpEntries, e => e.Command == "/windowsize");
         Assert.DoesNotContain(SlashCommands.HelpEntries, e => e.Command is "/ask" or "/files" or "/web");
@@ -599,11 +615,11 @@ public class SlashCommandsTests
 
         // The column is measured, not written down: the widest label today.
         Assert.Equal(SlashCommands.HelpEntries.Max(e => e.Label.Length), SlashCommands.LabelWidth);
-        Assert.Equal("/settings, //".Length, SlashCommands.LabelWidth);   // 13 since every other alias went (2026-09-16); 22 while it was /settings, /config, //
+        Assert.Equal("/settings, //".Length, SlashCommands.LabelWidth);   // 13 since every other alias went (2026-09-16); 22 while it was /settings, /config, //; "/skills, ////" (2026-09-21) is 13 too
 
         // The plain text is the groups, one line each with a blank line between the groups, between the heading and the key line.
         string[] lines = SlashCommands.HelpText.Split('\n');
-        Assert.Equal(1 + 43 + 8 + 1, lines.Length);   // 43 rows with /git (2026-09-21); 42 with /mcp (2026-09-20)   // nine groups since later on 2026-09-19; 41 rows with /draft and /splash
+        Assert.Equal(1 + 44 + 8 + 1, lines.Length);   // 44 rows with /loop, 43 with /git (2026-09-21); 42 with /mcp (2026-09-20)   // nine groups since later on 2026-09-19; 41 rows with /draft and /splash
         Assert.Equal("Commands:", lines[0]);
         Assert.Equal(SlashCommands.KeysLine, lines[^1]);
         var line = 1;

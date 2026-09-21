@@ -3766,6 +3766,7 @@ public partial class ChatScreenTests : IDisposable
     private void McpServer(string json = """{ "mcpServers": { "pipe": { "command": "pipe-server" } } }""")
     {
         File.WriteAllText(McpConfigFile.ProfilePath(_settings.ProfileDirectory), json);
+        _settings.Update(d => d.McpServers = true);   // off by default since 2026-09-21: the profile opts in
         _mcp = new McpSession(_settings, _mcpServers.Transport, _time);
     }
 
@@ -5252,7 +5253,7 @@ public partial class ChatScreenTests : IDisposable
     public void ProfileStrings_ArePinned()
     {
         Assert.Equal("/profile takes nothing (pick), a name, add <name>, delete <name>, rename <name> <new-name>, reset [name], edit or reload.", ChatScreen.ProfileUsageError);
-        Assert.Equal("Profile name must be 1 to 32 letters, digits, - or _ (and not add, delete, edit, reload, rename or reset).", ChatScreen.ProfileNameError);
+        Assert.Equal("Profile name must be 1 to 32 letters, digits, - or _ (and not neon, add, delete, edit, reload, rename or reset).", ChatScreen.ProfileNameError);
         // /profile edit and /profile reload (2026-09-21).
         Assert.Equal("(opened profile \"x\"'s profile.json in your editor; /profile reload reads it back)", ChatScreen.ProfileEditOpenedNotice("x"));
         Assert.Equal("(created and opened profile \"x\"'s profile.json in your editor; /profile reload reads it back)", ChatScreen.ProfileEditCreatedNotice("x"));
@@ -5704,6 +5705,186 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(4, output.Split("  ✗ " + ChatScreen.ProfileUsageError).Length - 1);
     }
 
+    // ── /loop (2026-09-21) ──────────────────────────────────────────────────
+
+    [Fact]
+    public void LoopStrings_AndArgumentList_ArePinned()
+    {
+        Assert.Equal("infinite", ChatScreen.LoopInfiniteWord);
+        Assert.Equal("send the message until ESC or Ctrl+C stops it: /loop infinite <message>", ChatScreen.LoopInfiniteNote);
+        Assert.Equal("Usage: /loop <count> <message>, or /loop infinite <message> (ESC or Ctrl+C stops it).", ChatScreen.LoopUsageError);
+        Assert.Equal("(loop 2 of 5)", ChatScreen.LoopTurnNotice(2, 5));
+        Assert.Equal("(loop 2)", ChatScreen.LoopTurnNotice(2, null));
+        Assert.Equal("(loop done: 5 messages sent)", ChatScreen.LoopDoneNotice(5));
+        Assert.Equal("(loop done: 1 message sent)", ChatScreen.LoopDoneNotice(1));
+        Assert.Equal("(loop stopped after 1 message)", ChatScreen.LoopStoppedNotice(1));
+        Assert.Equal("(loop stopped after 3 messages)", ChatScreen.LoopStoppedNotice(3));
+
+        Assert.Equal([new CompletionItem("infinite", ChatScreen.LoopInfiniteNote)], ChatScreen.ArgumentItems("/loop", "", Sources()));
+        Assert.Equal([new CompletionItem("infinite", ChatScreen.LoopInfiniteNote)], ChatScreen.ArgumentItems("/loop", "inf", Sources()));
+        Assert.Empty(ChatScreen.ArgumentItems("/loop", "3", Sources()));
+        Assert.Empty(ChatScreen.ArgumentItems("/loop", "infinite ", Sources()));
+    }
+
+    [Theory]
+    [InlineData("3 hi", true, 3, "hi")]
+    [InlineData("  1   say hi there  ", true, 1, "say hi there")]
+    [InlineData("infinite hi", true, null, "hi")]
+    [InlineData("INFINITE  hi", true, null, "hi")]
+    [InlineData("0 hi", false, null, "")]
+    [InlineData("-1 hi", false, null, "")]
+    [InlineData("+1 hi", false, null, "")]
+    [InlineData("x hi", false, null, "")]
+    [InlineData("3", false, null, "")]
+    [InlineData("infinite", false, null, "")]
+    [InlineData("", false, null, "")]
+    [InlineData("3 ", false, null, "")]
+    public void TryParseLoopArgs_IsPinned(string args, bool ok, int? count, string message)
+    {
+        Assert.Equal(ok, ChatScreen.TryParseLoopArgs(args, out int? parsedCount, out string parsedMessage));
+        Assert.Equal(count, parsedCount);
+        Assert.Equal(message, parsedMessage);
+    }
+
+    [Fact]
+    public async Task Loop_BadArguments_IsTheUsageLine()
+    {
+        _settings.Update(d => d.TtsOutput = false);
+        PushLine("/loop");
+        PushLine("/loop hi");
+        PushLine("/loop 0 hi");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Equal(3, CountOf(output, "  ✗ " + ChatScreen.LoopUsageError));
+        Assert.Empty(_chat.Requests);
+    }
+
+    /// <summary>A counted loop: the message echoed and sent that many times, each reply waited for, one conversation throughout.</summary>
+    [Fact]
+    public async Task Loop_Count_SendsTheMessageThatManyTimes_ThenTheDoneNotice()
+    {
+        _settings.Update(d => d.TtsOutput = false);
+        _chat.EnqueueText("One.");
+        _chat.EnqueueText("Two.");
+        _chat.EnqueueText("Three.");
+        PushLine("/loop 3 say a number");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Equal(3, _chat.Requests.Count);
+        Assert.Equal(3, CountOf(output, "› say a number"));
+        // The notice, the user row, then the reply (the first pass carries the opening calls' notes between them, as any first turn).
+        Assert.Contains("  · " + ChatScreen.LoopTurnNotice(1, 3) + "\n› say a number\n", output);
+        Assert.Contains("● One.\n\n  · " + ChatScreen.LoopTurnNotice(2, 3) + "\n› say a number\n", output);
+        Assert.Contains("● Two.\n\n  · " + ChatScreen.LoopTurnNotice(3, 3) + "\n› say a number\n", output);
+        Assert.Contains("● Three.\n\n  · " + ChatScreen.LoopDoneNotice(3) + "\n", output);
+        Assert.DoesNotContain(ChatScreen.LoopStoppedNotice(3), output);
+        // One conversation: the third request carries the first two exchanges (the opening calls are assistant turns too).
+        Assert.True(_chat.Requests[2].Count > _chat.Requests[0].Count);
+        Assert.Equal(_chat.Requests[0].Count(m => m.Role == ChatRole.Assistant) + 2, _chat.Requests[2].Count(m => m.Role == ChatRole.Assistant));
+    }
+
+    /// <summary>ESC mid-reply cancels the reply and the loop with it: nothing more is sent, and the stopped notice counts the pass.</summary>
+    [Fact]
+    public async Task Loop_Esc_CancelsTheReply_AndStopsTheLoop()
+    {
+        _settings.Update(d => d.TtsOutput = false);
+        _chat.EnqueueText("One. ", "Two.");
+        _chat.EnqueueText("never");
+        _chat.BeforeUpdate = async (i, ct) =>
+        {
+            if (i == 1)
+            {
+                _console.Input.PushKey(Keys.Escape);
+                while (!ct.IsCancellationRequested)
+                {
+                    await Task.Delay(5, CancellationToken.None);
+                }
+            }
+        };
+        PushLine("/loop 5 hi");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Single(_chat.Requests);
+        Assert.Contains("  · " + ChatScreen.LoopTurnNotice(1, 5) + "\n› hi\n", output);
+        Assert.Contains("● One.\n  · " + ChatScreen.CancelledNotice + "\n", output);
+        Assert.Contains("  · " + ChatScreen.LoopStoppedNotice(1) + "\n", output);
+        Assert.DoesNotContain(ChatScreen.LoopTurnNotice(2, 5), output);
+    }
+
+    /// <summary>An infinite loop runs until a cancel: here ESC in the second pass.</summary>
+    [Fact]
+    public async Task Loop_Infinite_RunsUntilEsc()
+    {
+        _settings.Update(d => d.TtsOutput = false);
+        _chat.EnqueueText("One.");
+        _chat.EnqueueText("Two. ", "more");
+        _chat.EnqueueText("never");
+        _chat.BeforeUpdate = async (i, ct) =>
+        {
+            if (_chat.Requests.Count == 2 && i == 1)
+            {
+                _console.Input.PushKey(Keys.Escape);
+                while (!ct.IsCancellationRequested)
+                {
+                    await Task.Delay(5, CancellationToken.None);
+                }
+            }
+        };
+        PushLine("/loop infinite hi");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Equal(2, _chat.Requests.Count);
+        Assert.Contains("  · " + ChatScreen.LoopTurnNotice(1, null) + "\n› hi\n", output);
+        Assert.Contains("● One.\n\n  · " + ChatScreen.LoopTurnNotice(2, null) + "\n› hi\n", output);
+        Assert.Contains("● Two.\n  · " + ChatScreen.CancelledNotice + "\n", output);
+        Assert.Contains("  · " + ChatScreen.LoopStoppedNotice(2) + "\n", output);
+        Assert.DoesNotContain(ChatScreen.LoopTurnNotice(3, null), output);
+    }
+
+    /// <summary>A failed reply (the server's error as the assistant's notice) ends the loop: a server that is down is not asked again.</summary>
+    [Fact]
+    public async Task Loop_AFailedReply_StopsTheLoop()
+    {
+        _settings.Update(d => d.TtsOutput = false);
+        _chat.EnqueueText("never");
+        _chat.EnqueueText("never either");
+        _chat.ThrowAt = 0;
+        PushLine("/loop 3 hi");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Single(_chat.Requests);
+        Assert.Contains("Model error: HttpRequestException: scripted failure", output);
+        Assert.Contains("  · " + ChatScreen.LoopStoppedNotice(1), output);
+        Assert.DoesNotContain(ChatScreen.LoopTurnNotice(2, 3), output);
+    }
+
+    [Fact]
+    public async Task MidTurn_Loop_IsRefusedWithANotice_AndDropped()
+    {
+        MidTurnFixture(i =>
+        {
+            if (i == 1)
+            {
+                PushLine("/loop 2 hi");
+            }
+        });
+
+        string output = await RunAsync();
+
+        Assert.Contains("  · " + ChatScreen.MidTurnRefusedNotice("/loop"), output);
+        Assert.Single(_chat.Requests);
+    }
+
     [Fact]
     public async Task Profile_Edit_FlushesThenOpensTheFile_AndAFailedEditorIsTheError()
     {
@@ -5842,12 +6023,13 @@ public partial class ChatScreenTests : IDisposable
     {
         WorkProfile();
         PushLine("/profile add bad.name");
+        PushLine("/profile add Neon");   // the companion's own name (2026-09-21)
         PushLine("/profile add WORK");
         PushLine("/exit");
 
         string output = await RunAsync();
 
-        Assert.Contains("  ✗ " + ChatScreen.ProfileNameError, output);
+        Assert.Equal(2, output.Split("  ✗ " + ChatScreen.ProfileNameError).Length - 1);
         Assert.Contains("  ✗ " + ChatScreen.ProfileExistsError("work"), output);
         Assert.Equal(Profiles.DefaultName, _settings.ProfileName);
         Assert.Equal(new[] { "default", "work" }, Profiles.List(_dir));
@@ -7260,12 +7442,12 @@ public partial class ChatScreenTests : IDisposable
         }
 
         Assert.Equal(lines.Length, line);
-        Assert.Equal(51, lines.Length);   // 43 commands + 8 blank rows: /git under /emptytrash 2026-09-21; /mcp under /tools 2026-09-20; /splash under /new later still on 2026-09-19; /draft under /copy since 2026-09-19; nine groups since later on 2026-09-19 (/skills + /learn under /session, /window under /view, /timer under /help); 39 + 10 with /tools under /settings that morning (38 + 10 since the three tool switches went, 2026-09-18)
+        Assert.Equal(52, lines.Length);   // 44 commands + 8 blank rows: /loop under /draft 2026-09-21; /git under /emptytrash 2026-09-21; /mcp under /tools 2026-09-20; /splash under /new later still on 2026-09-19; /draft under /copy since 2026-09-19; nine groups since later on 2026-09-19 (/skills + /learn under /session, /window under /view, /timer under /help); 39 + 10 with /tools under /settings that morning (38 + 10 since the three tool switches went, 2026-09-18)
         Assert.StartsWith(HelpRow("/settings, //", "edit and save settings"), lines[0]);
-        Assert.StartsWith(HelpRow("/tools", "switch the model's tools on or off and edit the Options, Ask, Files and Web settings on a pane"), lines[1]);   // 2026-09-19
+        Assert.StartsWith(HelpRow("/tools, ///", "switch the model's tools on or off and edit the Options, Ask, Files and Web settings on a pane"), lines[1]);   // 2026-09-19; the alias 2026-09-21
         Assert.StartsWith(HelpRow("/mcp", "connect external MCP servers and switch their tools on or off on a pane"), lines[2]);   // 2026-09-20
         Assert.StartsWith(HelpRow("/session", "list, restore and purge sessions: /session [<id> | purge <id> | purge older <age> | purge all | title <text>]"), lines[4]);   // under /profile since later on 2026-09-18
-        Assert.StartsWith(HelpRow("/skills", "list the skills, edit the skill settings and the project file on a pane"), lines[5]);   // under /session since later on 2026-09-19 (/ask /files /web ahead of it until 2026-09-18)
+        Assert.StartsWith(HelpRow("/skills, ////", "list the skills, edit the skill settings and the project file on a pane, or /skills edit <name> to open its SKILL.md"), lines[5]);   // the alias and edit 2026-09-21;   // under /session since later on 2026-09-19 (/ask /files /web ahead of it until 2026-09-18)
         Assert.StartsWith(HelpRow("/learn", "write or improve a skill from the last turn or the stored sessions, in the background: /learn [what to keep] | sessions [N | what to search]"), lines[6]);   // 2026-09-17; the sessions form 2026-09-19
         Assert.True(string.IsNullOrWhiteSpace(lines[7]));
         Assert.StartsWith(HelpRow("/server", "pick an LLM server found on the usual ports, or /server <url>"), lines[8]);
@@ -7278,28 +7460,29 @@ public partial class ChatScreenTests : IDisposable
         Assert.StartsWith(HelpRow("/queue", "list and prune the messages queued while a reply runs"), lines[18]);   // 2026-09-18
         Assert.StartsWith(HelpRow("/copy", "copy the last reply to the clipboard as markdown, or /copy <n> | all"), lines[19]);   // under /queue since later on 2026-09-18
         Assert.StartsWith(HelpRow("/draft", "write the next message in your editor: a temporary file, sent when it is saved and closed"), lines[20]);   // under /copy since 2026-09-19
-        Assert.True(string.IsNullOrWhiteSpace(lines[21]));
-        Assert.StartsWith(HelpRow("/interrupt", "toggle the speech input wake word interrupt, or /interrupt on|off"), lines[25]);
-        Assert.True(string.IsNullOrWhiteSpace(lines[26]));
-        Assert.StartsWith(HelpRow("/memory", "list and prune memory items"), lines[27]);
-        Assert.StartsWith(HelpRow("/remember", "add a memory: /remember <text>"), lines[28]);
-        Assert.StartsWith(HelpRow("/forget", "forget all memory"), lines[29]);
-        Assert.StartsWith(HelpRow("/memcopy", "copy this profile's memory into another: /memcopy <profile> [overwrite]"), lines[30]);   // 2026-09-17
-        Assert.StartsWith(HelpRow("/tree", "print a tree of the working directory's folders and files, or /tree <path>"), lines[33]);
-        Assert.StartsWith(HelpRow("/emptytrash", "empty the working directory's .trash for good (asks first)"), lines[35]);
-        Assert.StartsWith(HelpRow("/git", "write the Git email and Git name settings into the working directory's repository: /git user [force]"), lines[36]);   // 2026-09-21
-        Assert.True(string.IsNullOrWhiteSpace(lines[37]));
+        Assert.StartsWith(HelpRow("/loop", "send a message again and again, each reply waited for: /loop <count> <message> | infinite <message> (ESC ends it)"), lines[21]);   // under /draft since 2026-09-21
+        Assert.True(string.IsNullOrWhiteSpace(lines[22]));
+        Assert.StartsWith(HelpRow("/interrupt", "toggle the speech input wake word interrupt, or /interrupt on|off"), lines[26]);
+        Assert.True(string.IsNullOrWhiteSpace(lines[27]));
+        Assert.StartsWith(HelpRow("/memory", "list and prune memory items"), lines[28]);
+        Assert.StartsWith(HelpRow("/remember", "add a memory: /remember <text>"), lines[29]);
+        Assert.StartsWith(HelpRow("/forget", "forget all memory"), lines[30]);
+        Assert.StartsWith(HelpRow("/memcopy", "copy this profile's memory into another: /memcopy <profile> [overwrite]"), lines[31]);   // 2026-09-17
+        Assert.StartsWith(HelpRow("/tree", "print a tree of the working directory's folders and files, or /tree <path>"), lines[34]);
+        Assert.StartsWith(HelpRow("/emptytrash", "empty the working directory's .trash for good (asks first)"), lines[36]);
+        Assert.StartsWith(HelpRow("/git", "write the Git email and Git name settings into the working directory's repository: /git user [force]"), lines[37]);   // 2026-09-21
+        Assert.True(string.IsNullOrWhiteSpace(lines[38]));
         // /speak and /view: a group of their own (the user's call, 2026-09-17); /window (/windowsize until then) under /view since later on 2026-09-19.
-        Assert.StartsWith(HelpRow("/speak", "read a text file from the working directory aloud, as a reply: /speak <file> [n], or /speak to resume, or /speak <n> from sentence n"), lines[38]);
-        Assert.StartsWith(HelpRow("/echo", "print a line as a reply and read it aloud when speech is on: /echo <text>"), lines[39]);
-        Assert.StartsWith(HelpRow("/view", "show an image from the working directory in the transcript, as large as the window allows: /view <image>"), lines[40]);
-        Assert.StartsWith(HelpRow("/window", "show the terminal window's width and height"), lines[41]);
-        Assert.True(string.IsNullOrWhiteSpace(lines[42]));
-        Assert.StartsWith(HelpRow("/persona", "export and manage persona.md (the personality) in your editor, or /persona reset to go back to the default"), lines[43]);
-        Assert.True(string.IsNullOrWhiteSpace(lines[46]));
-        Assert.StartsWith(HelpRow("/timer", "list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all"), lines[47]);   // the bottom group's first row since later still on 2026-09-19 (under /help from earlier that day)
-        Assert.StartsWith(HelpRow("/help", "show help"), lines[48]);   // the bottom group since 2026-09-16, above /about; under /timer since later still on 2026-09-19
-        Assert.StartsWith(HelpRow("/about", "show general information about the app and profile"), lines[49]);
+        Assert.StartsWith(HelpRow("/speak", "read a text file from the working directory aloud, as a reply: /speak <file> [n], or /speak to resume, or /speak <n> from sentence n"), lines[39]);
+        Assert.StartsWith(HelpRow("/echo", "print a line as a reply and read it aloud when speech is on: /echo <text>"), lines[40]);
+        Assert.StartsWith(HelpRow("/view", "show an image from the working directory in the transcript, as large as the window allows: /view <image>"), lines[41]);
+        Assert.StartsWith(HelpRow("/window", "show the terminal window's width and height"), lines[42]);
+        Assert.True(string.IsNullOrWhiteSpace(lines[43]));
+        Assert.StartsWith(HelpRow("/persona", "export and manage persona.md (the personality) in your editor, or /persona reset to go back to the default"), lines[44]);
+        Assert.True(string.IsNullOrWhiteSpace(lines[47]));
+        Assert.StartsWith(HelpRow("/timer", "list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all"), lines[48]);   // the bottom group's first row since later still on 2026-09-19 (under /help from earlier that day)
+        Assert.StartsWith(HelpRow("/help", "show help"), lines[49]);   // the bottom group since 2026-09-16, above /about; under /timer since later still on 2026-09-19
+        Assert.StartsWith(HelpRow("/about", "show general information about the app and profile"), lines[50]);
         Assert.StartsWith(HelpRow("/exit", "exit/quit the application"), lines[^1]);   // the very last row since 2026-09-16
         Assert.DoesNotContain("/windowsize", _console.Output);
         Assert.DoesNotContain("(also", _console.Output);
@@ -8332,6 +8515,10 @@ public partial class ChatScreenTests : IDisposable
     [InlineData(SlashCommand.Persona, false, MidTurnClass.Refused)]
     [InlineData(SlashCommand.Operata, false, MidTurnClass.Refused)]
     [InlineData(SlashCommand.Vocalia, false, MidTurnClass.Refused)]
+    [InlineData(SlashCommand.Skills, false, MidTurnClass.Pane)]
+    [InlineData(SlashCommand.Skills, true, MidTurnClass.Refused)]   // /skills edit <name>, 2026-09-21
+    [InlineData(SlashCommand.Loop, false, MidTurnClass.Refused)]    // 2026-09-21
+    [InlineData(SlashCommand.Loop, true, MidTurnClass.Refused)]
     public void MidTurnPolicy_IsPinned(SlashCommand command, bool hasArgs, MidTurnClass expected) =>
         Assert.Equal(expected, ChatScreen.MidTurnPolicy(command, hasArgs));
 
@@ -11338,23 +11525,86 @@ public partial class ChatScreenTests : IDisposable
     }
 
     [Fact]
-    public async Task Skill_WithAName_TakesNoArgument_NothingSeeded()
+    public async Task Skills_WithAnArgumentThatIsNotEdit_IsTheUsageLine_NothingSeeded()
     {
         // /skill <name> [message] loaded the skill into the next reply from 2026-09-16 until later on
-        // 2026-09-18 (the user's call: the #-mention covers it); the argument is Overloaded now, whatever
-        // the switches say, and no request is made.
+        // 2026-09-18 (the user's call: the #-mention covers it); since 2026-09-21 the one argument form
+        // is edit <name>, and anything else is the usage line, whatever the switches say — no request.
         _settings.Update(d => d.TtsOutput = false);
         PutSkill(ProfileSkills, "haiku");
         PushLine("/skills haiku");
         PushLine("/skills haiku one about rain");
+        PushLine("/skills edit");
+        PushLine("/skills edit haiku extra");
         PushLine("/exit");
 
         string output = await RunAsync();
 
-        Assert.Equal(2, CountOf(output, "  ✗ " + ChatScreen.NoArgumentError("/skills")));
+        Assert.Equal(4, CountOf(output, "  ✗ " + ChatScreen.SkillsUsageError));
         Assert.DoesNotContain("Offered", output);   // no pane either
         Assert.DoesNotContain("loaded skill", output);
         Assert.Empty(_chat.Requests);
+        Assert.Empty(_openedFiles);
+    }
+
+    /// <summary><c>/skills edit &lt;name&gt;</c> (2026-09-21): the offered skill's SKILL.md in the editor, the case ignored; a name that is not offered is the error; a failed editor is the error line.</summary>
+    [Fact]
+    public async Task Skills_Edit_OpensTheSkillMd_InTheEditor()
+    {
+        _settings.Update(d => d.TtsOutput = false);
+        string directory = PutSkill(ProfileSkills, "haiku");
+        PushLine("/skills edit haiku");
+        PushLine("//// edit HAIKU");
+        PushLine("/skills edit nope");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        string path = Path.Combine(directory, SkillCatalog.FileName);
+        Assert.Equal([path, path], _openedFiles);
+        Assert.Equal(2, CountOf(output, "  · " + ChatScreen.SkillEditOpenedNotice("haiku", path)));
+        Assert.Contains("  ✗ " + ChatScreen.SkillMissingError("nope"), output);
+        Assert.Empty(_chat.Requests);
+
+        _openFile = _ => throw new System.ComponentModel.Win32Exception("no editor");
+        PushLine("/skills edit haiku");
+        PushLine("/exit");
+        output = await RunAsync();
+        Assert.Contains("  ✗ " + ChatScreen.SkillEditFailedError("no editor"), output);
+    }
+
+    [Fact]
+    public async Task Skills_Edit_WhileTheSkillsAreOff_IsRefused()
+    {
+        _settings.Update(d => { d.TtsOutput = false; d.AgentSkills = false; });
+        PutSkill(ProfileSkills, "haiku");
+        PushLine("/skills edit haiku");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains("  ✗ " + ChatScreen.SkillsOffError, output);
+        Assert.Empty(_openedFiles);
+    }
+
+    [Fact]
+    public void SkillsEditStrings_AndArgumentList_ArePinned()
+    {
+        Assert.Equal("edit", ChatScreen.SkillsEditWord);
+        Assert.Equal("open a skill's SKILL.md in your editor: /skills edit <name>", ChatScreen.SkillsEditNote);
+        Assert.Equal("Usage: /skills, or /skills edit <skill-name>.", ChatScreen.SkillsUsageError);
+        Assert.Equal("No skill named \"nope\" is offered; /skills lists them.", ChatScreen.SkillMissingError("nope"));
+        Assert.Equal(@"(opened skill ""haiku""'s SKILL.md in your editor: C:\s\haiku\SKILL.md)", ChatScreen.SkillEditOpenedNotice("haiku", @"C:\s\haiku\SKILL.md"));
+        Assert.Equal("Could not open the SKILL.md: boom", ChatScreen.SkillEditFailedError("boom"));
+
+        // The argument list: edit, then edit with each offered skill's name; the alias resolves.
+        var skills = new[] { new CompletionItem("haiku", "Writes haiku."), new CompletionItem("sonnet", "Writes sonnets.") };
+        Assert.Equal([new CompletionItem("edit", ChatScreen.SkillsEditNote)], ChatScreen.ArgumentItems("/skills", "", Sources(skills: skills)));
+        Assert.Equal([new CompletionItem("edit", ChatScreen.SkillsEditNote)], ChatScreen.ArgumentItems("////", "ed", Sources(skills: skills)));
+        Assert.Equal([new CompletionItem("edit haiku", "Writes haiku."), new CompletionItem("edit sonnet", "Writes sonnets.")], ChatScreen.ArgumentItems("/skills", "edit ", Sources(skills: skills)));
+        Assert.Equal([new CompletionItem("edit sonnet", "Writes sonnets.")], ChatScreen.ArgumentItems("/skills", "edit so", Sources(skills: skills)));
+        Assert.Empty(ChatScreen.ArgumentItems("/skills", "edit ", Sources()));   // no catalog source: nothing
+        Assert.Empty(ChatScreen.ArgumentItems("/skills", "x", Sources(skills: skills)));
     }
 
     [Fact]
@@ -11366,15 +11616,35 @@ public partial class ChatScreenTests : IDisposable
     }
 
     [Fact]
-    public void MidTurn_SkillIsAPane_AnArgumentIsOverloadedAndQuick()
+    public void MidTurn_SkillsIsAPane_WithAnArgumentItIsRefused()
     {
         // A pane (later on 2026-09-18; with a name it was refused until the name form went later that
-        // day): Parse never hands Skill an argument now, so hasArgs is moot; /skill x is Overloaded, quick.
+        // day; /skill x was Overloaded, quick, until 2026-09-21): /skills edit <name> launches an editor,
+        // refused mid-turn like /profile edit.
         Assert.Equal(MidTurnClass.Pane, ChatScreen.MidTurnPolicy(SlashCommand.Skills, hasArgs: false));
-        Assert.Equal(MidTurnClass.Pane, ChatScreen.MidTurnPolicy(SlashCommand.Skills, hasArgs: true));
-        var (command, args) = SlashCommands.Parse("/skills x");
-        Assert.Equal((SlashCommand.Overloaded, "x"), (command, args));
-        Assert.Equal(MidTurnClass.Quick, ChatScreen.MidTurnPolicy(command, args.Length > 0));
+        Assert.Equal(MidTurnClass.Refused, ChatScreen.MidTurnPolicy(SlashCommand.Skills, hasArgs: true));
+        var (command, args) = SlashCommands.Parse("/skills edit x");
+        Assert.Equal((SlashCommand.Skills, "edit x"), (command, args));
+        Assert.Equal(MidTurnClass.Refused, ChatScreen.MidTurnPolicy(command, args.Length > 0));
+    }
+
+    [Fact]
+    public async Task MidTurn_SkillsEdit_IsRefusedWithANotice_AndDropped()
+    {
+        PutSkill(ProfileSkills, "haiku");
+        MidTurnFixture(i =>
+        {
+            if (i == 1)
+            {
+                PushLine("/skills edit haiku");
+            }
+        });
+
+        string output = await RunAsync();
+
+        Assert.Contains("  · " + ChatScreen.MidTurnRefusedNotice("/skills"), output);
+        Assert.Empty(_openedFiles);
+        Assert.Single(_chat.Requests);
     }
 
     [Fact]
@@ -13312,13 +13582,14 @@ public partial class ChatScreenTests : IDisposable
         Assert.False(ChatScreen.TryParseSessionId("5.0", out _));
     }
 
-    private static ChatScreen.ArgumentSources Sources(IReadOnlyList<string>? timers = null, string loaded = "default") => new(
+    private static ChatScreen.ArgumentSources Sources(IReadOnlyList<string>? timers = null, string loaded = "default", IReadOnlyList<CompletionItem>? skills = null) => new(
         () => ["chef", "default", "work"],
         loaded,
         timers ?? [],
         prefix => new[] { "docs/", "docs/tools/", "src/", "test/" }.Where(f => f.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) || f.Contains("/" + prefix, StringComparison.OrdinalIgnoreCase)).ToList(),
         TextFiles,
-        query => new MentionResult(FileOutcome.Ok, query.Length == 0 ? ["docs/", "pic.png", "shot.jpg"] : query.Equals("p", StringComparison.OrdinalIgnoreCase) ? ["pic.png"] : [], false));
+        query => new MentionResult(FileOutcome.Ok, query.Length == 0 ? ["docs/", "pic.png", "shot.jpg"] : query.Equals("p", StringComparison.OrdinalIgnoreCase) ? ["pic.png"] : [], false),
+        Skills: skills is null ? null : () => skills);
 
     /// <summary>A stand-in for <c>WorkingDirectory.Complete(query, textFilesOnly: true)</c>: the root's one level for an empty query, the whole tree by name prefix otherwise, a folder segment narrowing it.</summary>
     private static MentionResult TextFiles(string query)
@@ -13397,8 +13668,8 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal([new CompletionItem("reset", ChatScreen.PromptFileResetNote("persona.md"))], ChatScreen.ArgumentItems("/persona", "re", sources));
         Assert.Equal([new CompletionItem("reset", ChatScreen.PromptFileResetNote("operata.md"))], ChatScreen.ArgumentItems("/operata", "", sources));
         Assert.Equal([new CompletionItem("reset", ChatScreen.PromptFileResetNote("vocalia.md"))], ChatScreen.ArgumentItems("/vocalia", "", sources));
-        // /skill takes nothing since later on 2026-09-18 (the catalog listed under it from 2026-09-16 until then).
-        Assert.Empty(ChatScreen.ArgumentItems("/skills", "", sources));
+        // /skill took nothing from later on 2026-09-18 (the catalog listed under it from 2026-09-16 until then); edit, then the catalog after it, since 2026-09-21.
+        Assert.Equal([new CompletionItem("edit", ChatScreen.SkillsEditNote)], ChatScreen.ArgumentItems("/skills", "", sources));
         Assert.Empty(ChatScreen.ArgumentItems("/skills", "h", sources));
 
         // Free text and the rest: nothing.

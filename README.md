@@ -270,7 +270,7 @@ Every connected server's tools as `<server>__<tool>` with the description the se
 
 | Setting | What it does | Default |
 |---|---|---|
-| MCP servers | The master switch: on, every enabled server is started at launch and after a profile switch and its tools are offered; off, nothing is started. | on |
+| MCP servers | The master switch: on, every enabled server is started at launch and after a profile switch and its tools are offered; off, nothing is started. | off |
 | MCP connect timeout (s) | How long one server gets to answer the handshake and list its tools before it is marked failed (5–300). | 30 |
 
 ### System prompt (`/sysprompt`)
@@ -288,7 +288,7 @@ Every tool the reply may call, grouped — Clock, Timers, Files, Git, Web, Memor
 ## Slash commands
 [↑ Back to top](#neon-companion)
 
-Type `/` and the list opens with every command and its summary; after the command and a space, the argument list follows for any argument that can be listed. `//` is the one alias (for `/settings`).
+Type `/` and the list opens with every command and its summary; after the command and a space, the argument list follows for any argument that can be listed. `//`, `///` and `////` are the aliases (for `/settings`, `/tools` and `/skills`); they are never listed.
 
 | Command | What it does |
 |---|---|
@@ -307,6 +307,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/help` | Show the commands and the keys. |
 | `/interrupt [on\|off]` | Toggle the wake-word interrupt during a spoken reply. |
 | `/learn [note \| sessions [N \| text]]` | Write or improve a skill in the background from the last turn, or from the stored sessions. |
+| `/loop <count> <message>`, `/loop infinite <message>` | Send the message that many times, or until ESC or Ctrl+C stops it, each reply waited for; a cancelled, withdrawn or failed turn ends the loop. |
 | `/mcp` | Connect external MCP servers and switch their tools on or off. |
 | `/memcopy <profile> [overwrite]` | Copy this profile's memory into another. |
 | `/memory` | List and prune the memory items. |
@@ -314,20 +315,21 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/new` | Start a new conversation without clearing the screen. |
 | `/operata [reset]` | Edit `operata.md` (the operating rules) in your editor, or go back to the default. |
 | `/persona [reset]` | Edit `persona.md` (the personality) in your editor, or go back to the default. |
-| `/profile [name \| add <name> \| delete <name> \| rename <name> <new> \| reset [name] \| edit \| reload]` | Switch, create, delete, rename or reset a profile; `edit` opens the loaded profile's `profile.json` in your editor and `reload` reads it back from disk, reconnecting only what changed. |
+| `/profile [name \| add <name> \| delete <name> \| rename <name> <new> \| reset [name] \| edit \| reload]` | Switch, create, delete, rename or reset a profile; `edit` opens the loaded profile's `profile.json` in your editor and `reload` reads it back from disk, reconnecting only what changed. A name is 1 to 32 letters, digits, `-` or `_`, and not `neon` or one of the verbs. |
 | `/queue` | List and prune the messages queued while a reply runs. |
 | `/reasoning [level]` | Pick the reasoning effort (`none`, `low`, `medium`, `high`, `xhigh`). |
 | `/remember <text>` | Add a memory. |
 | `/server [url]` | Pick an LLM server found on the usual ports, or set one. |
 | `/session [id \| purge <id> \| purge older <age> \| purge all \| title <text>]` | List, restore, rename and purge the stored sessions. An age is days as a bare number (`30`, `0`), or a duration with units: `12h`, `90m`, `2 hours`, `1d 6h`. |
 | `/settings`, `//` | Edit and save the settings. |
-| `/skills` | List the skills and edit the skill, reflection and project-file settings. |
+| `/skills`, `////` | List the skills and edit the skill, reflection and project-file settings. |
+| `/skills edit <name>` | Open a skill's `SKILL.md` in your editor. |
 | `/speak [file [n] \| n]` | Read a text file from the working directory aloud as a reply; alone resumes, a number starts from that sentence. |
 | `/splash` | Start a new conversation and show the splash screen. |
 | `/stt [on\|off]` | Toggle speech input. |
 | `/sysprompt` | Show the system prompt and the tools sent to the model. |
 | `/timer [duration [name] \| stop <name> \| stop all]` | List the timers, or start one (`10m`, `90s`, `1h30m`), or stop one. |
-| `/tools` | Switch the model's tools on or off and edit the Ask, Files, Git and Web settings. |
+| `/tools`, `///` | Switch the model's tools on or off and edit the Ask, Files, Git and Web settings. |
 | `/tree [path]` | Print a tree of the working directory. |
 | `/tts [on\|off]` | Toggle speech output. |
 | `/usage` | Show token usage and performance statistics. |

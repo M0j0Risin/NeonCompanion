@@ -19,6 +19,12 @@ public class ProfilesTests : IDisposable
     [InlineData("travel", true)]
     [InlineData("Work-2", true)]
     [InlineData("a_b", true)]
+    [InlineData("neon2", true)]        // the companion's name with more is fine (2026-09-21)
+    [InlineData("neon_debug", true)]
+    [InlineData("neon-test", true)]
+    [InlineData("neon", false)]        // the word alone is the companion's (2026-09-21)
+    [InlineData("Neon", false)]
+    [InlineData("NEON", false)]
     [InlineData("", false)]
     [InlineData(null, false)]
     [InlineData("add", false)]
@@ -43,7 +49,8 @@ public class ProfilesTests : IDisposable
         Assert.Equal("profiles", Profiles.DirectoryName);
         Assert.Equal("default", Profiles.DefaultName);
         Assert.Equal("profile.json", Profiles.FileName);
-        Assert.Equal("must be 1 to 32 letters, digits, - or _ (and not add, delete, edit, reload, rename or reset)", Profiles.NameError);   // edit and reload reserved since 2026-09-21
+        Assert.Equal("must be 1 to 32 letters, digits, - or _ (and not neon, add, delete, edit, reload, rename or reset)", Profiles.NameError);   // edit and reload reserved since 2026-09-21, neon later that day
+        Assert.Equal("neon", Profiles.CompanionName);
         Assert.False(Profiles.IsValidName("edit"));
         Assert.False(Profiles.IsValidName("Reload"));
         Assert.Equal("The default profile cannot be deleted.", Profiles.DefaultUndeletable);

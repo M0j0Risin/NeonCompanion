@@ -258,6 +258,57 @@ internal sealed partial class ChatScreen
     public const string KeptNotice = "(kept)";
     public const string ProfileUsageError = "/profile takes nothing (pick), a name, add <name>, delete <name>, rename <name> <new-name>, reset [name], edit or reload.";
 
+    // The /loop words and lines (2026-09-21, the user's ask). Pinned.
+    public const string LoopInfiniteWord = "infinite";
+    public const string LoopInfiniteNote = "send the message until ESC or Ctrl+C stops it: /loop infinite <message>";
+    public const string LoopUsageError = "Usage: /loop <count> <message>, or /loop infinite <message> (ESC or Ctrl+C stops it).";
+    /// <summary>The notice above each pass: the count so far, of the total when there is one.</summary>
+    public static string LoopTurnNotice(int n, int? total) => total is null ? $"(loop {n})" : $"(loop {n} of {total})";
+    /// <summary>The notice after the last pass of a counted loop.</summary>
+    public static string LoopDoneNotice(int total) => $"(loop done: {UsageText.Plural(total, "message", "messages")} sent)";
+    /// <summary>The notice when a pass ended the loop early: cancelled, withdrawn or failed; <paramref name="ran"/> counts that pass.</summary>
+    public static string LoopStoppedNotice(int ran) => $"(loop stopped after {UsageText.Plural(ran, "message", "messages")})";
+
+    /// <summary>
+    /// <c>/loop</c>'s grammar (2026-09-21): the first word is <see cref="LoopInfiniteWord"/> (any
+    /// case; <paramref name="count"/> null) or a whole number of 1 or more (invariant digits, no
+    /// sign), and what follows, trimmed, is the message — never empty. False for anything else. Pure.
+    /// </summary>
+    public static bool TryParseLoopArgs(string args, out int? count, out string message)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+        count = null;
+        message = "";
+        string trimmed = args.Trim();
+        int split = trimmed.IndexOfAny([' ', '\t']);
+        if (split < 0)
+        {
+            return false;
+        }
+
+        string first = trimmed[..split];
+        string rest = trimmed[(split + 1)..].Trim();
+        if (rest.Length == 0)
+        {
+            return false;
+        }
+
+        if (string.Equals(first, LoopInfiniteWord, StringComparison.OrdinalIgnoreCase))
+        {
+            message = rest;
+            return true;
+        }
+
+        if (!int.TryParse(first, NumberStyles.None, CultureInfo.InvariantCulture, out int n) || n < 1)
+        {
+            return false;
+        }
+
+        count = n;
+        message = rest;
+        return true;
+    }
+
     // The /git words (2026-09-21). Pinned.
     public const string GitUserWord = "user";
     public const string GitForceWord = "force";
@@ -436,6 +487,9 @@ internal sealed partial class ChatScreen
 
     /// <summary>Set by <see cref="RunTurnAsync"/>'s end: the reply was cancelled, interrupted or withdrawn, so <see cref="RunMessageAsync"/> applies <c>Queue cancel mode</c> instead of releasing a hold.</summary>
     private bool _lastTurnCancelled;
+
+    /// <summary>Set beside <see cref="_lastTurnCancelled"/>: the reply failed (a thrown turn, or a server error the assistant reported as a notice), so a <c>/loop</c> stops rather than send the same message to a server that is down (2026-09-21).</summary>
+    private bool _lastTurnFailed;
 
     /// <summary>The pair of clicks on the busy row's queued count or the scroll's hint (<see cref="HintClickLine"/>), on the watcher task alone; reset at each watcher's start.</summary>
     private readonly DoubleClick _queuedClicks;
@@ -1822,14 +1876,14 @@ internal sealed partial class ChatScreen
 
     /// <summary>
     /// What the argument table reads that is not a constant: the profile names and the loaded one,
-    /// the running timers' names, the skill catalog (<see cref="SkillChoices"/>), the sandbox's
+    /// the running timers' names, the skill catalog (<see cref="SkillChoices"/>, for <c>/skills edit</c>, 2026-09-21), the sandbox's
     /// folders for a prefix (<c>WorkingDirectory.Complete</c>, folders only, for <c>/tree</c> and
     /// <c>/explore</c>) and its <c>@</c>-mention walk over the text files alone
     /// (<c>Complete(query, WorkingDirectory.IsTextFile)</c>, for <c>/speak</c>) or the image files alone
     /// (<c>Complete(query, ImageFile.IsImagePath)</c>, for <c>/view</c>) — <see cref="ArgumentPaths"/> —
     /// the disk reads behind a function each, so <c>/tts o</c> scans no catalog.
     /// </summary>
-    public sealed record ArgumentSources(Func<IReadOnlyList<string>> Profiles, string LoadedProfile, IReadOnlyList<string> Timers, Func<string, IReadOnlyList<string>> Folders, Func<string, MentionResult> TextFiles, Func<string, MentionResult> ImageFiles, Func<IReadOnlyList<CompletionItem>>? Sessions = null);
+    public sealed record ArgumentSources(Func<IReadOnlyList<string>> Profiles, string LoadedProfile, IReadOnlyList<string> Timers, Func<string, IReadOnlyList<string>> Folders, Func<string, MentionResult> TextFiles, Func<string, MentionResult> ImageFiles, Func<IReadOnlyList<CompletionItem>>? Sessions = null, Func<IReadOnlyList<CompletionItem>>? Skills = null);
 
     /// <summary>The note beside <c>on</c> / <c>off</c> on a switch's list: what the switch is. Pinned.</summary>
     public static string SwitchSubject(SlashCommand command) => command switch
@@ -1913,7 +1967,7 @@ internal sealed partial class ChatScreen
     /// <c>/cwd</c> (a path is free text and resolves against the process directory, not the
     /// sandbox), the sandbox's folders for <c>/tree</c> and <c>/explore</c>, <c>all</c> for <c>/copy</c>,
     /// <c>reset</c> for the three prompt files. Free text (a URL, a
-    /// memory, a focus, a new name, a duration, a message) and <c>/model</c>'s ids (a network probe,
+    /// memory, a focus, a new name, a duration, a message; <c>/loop</c> lists <c>infinite</c> alone and <c>/skills</c> <c>edit</c> then <c>edit &lt;name&gt;</c> over the catalog, 2026-09-21) and <c>/model</c>'s ids (a network probe,
     /// nothing cached; the picker lists them) get nothing — and so do <c>/speak</c> and <c>/view</c>
     /// here: their argument is a path list, <see cref="ArgumentPaths"/>. Pure.
     /// </summary>
@@ -2026,6 +2080,22 @@ internal sealed partial class ChatScreen
             case SlashCommand.Learn:
                 return MentionCompleter.Matches([new(LearnSessionsWord, LearnSessionsNote)], argText);
 
+            case SlashCommand.Loop:
+                // The one word; a count and the message are free text (2026-09-21).
+                return MentionCompleter.Matches([new(LoopInfiniteWord, LoopInfiniteNote)], argText);
+
+            case SlashCommand.Skills:
+            {
+                // edit, then edit with each offered skill's name (2026-09-21).
+                if (argText.StartsWith(SkillsEditWord + " ", StringComparison.OrdinalIgnoreCase))
+                {
+                    var skills = sources.Skills?.Invoke() ?? [];
+                    return MentionCompleter.Matches(skills.Select(skill => new CompletionItem(SkillsEditWord + " " + skill.Text, skill.Note)).ToList(), argText);
+                }
+
+                return MentionCompleter.Matches([new(SkillsEditWord, SkillsEditNote)], argText);
+            }
+
             default:
                 return [];
         }
@@ -2082,7 +2152,8 @@ internal sealed partial class ChatScreen
             prefix => _files.Complete(prefix).Paths.Where(path => path.EndsWith('/')).ToList(),
             prefix => _files.Complete(prefix, WorkingDirectory.IsTextFile),
             prefix => _files.Complete(prefix, ImageFile.IsImagePath),
-            SessionChoices);
+            SessionChoices,
+            SkillChoices);
         return ArgumentPaths(command, argText, sources) is { } paths
             ? new ArgumentList([], paths.Paths, paths.Truncated)
             : new ArgumentList(ArgumentItems(command, argText, sources));
@@ -3968,6 +4039,14 @@ internal sealed partial class ChatScreen
 
     public static string ProfileMissingError(string name) => $"No profile named \"{name}\"; /profile lists them.";
 
+    // /skills edit <name> (2026-09-21, the user's ask). Pinned.
+    public const string SkillsEditWord = "edit";
+    public const string SkillsEditNote = "open a skill's SKILL.md in your editor: /skills edit <name>";
+    public const string SkillsUsageError = "Usage: /skills, or /skills edit <skill-name>.";
+    public static string SkillMissingError(string name) => $"No skill named \"{name}\" is offered; /skills lists them.";
+    public static string SkillEditOpenedNotice(string name, string path) => $"(opened skill \"{name}\"'s SKILL.md in your editor: {path})";
+    public static string SkillEditFailedError(string detail) => $"Could not open the SKILL.md: {detail}";
+
     // /profile edit and /profile reload (2026-09-21). Pinned.
     public static string ProfileEditOpenedNotice(string name) => $"(opened profile \"{name}\"'s profile.json in your editor; /profile reload reads it back)";
     public static string ProfileEditCreatedNotice(string name) => $"(created and opened profile \"{name}\"'s profile.json in your editor; /profile reload reads it back)";
@@ -5631,9 +5710,19 @@ internal sealed partial class ChatScreen
                 // The tabbed menu on the pane (a skill row's Enter opens the scope page), the three
                 // tabs as lines without one, whatever the switches say. No argument since later on
                 // 2026-09-18 (the user's call): /skill <name> [message] seeded the skill's load_skill
-                // pair ahead of the reply; the #-mention is the way now.
+                // pair ahead of the reply; the #-mention is the way now. /skills edit <name> opens
+                // the skill's SKILL.md in the editor (2026-09-21, the user's ask).
+                if (args.Length > 0)
+                {
+                    HandleSkillsEdit(args);
+                    return false;
+                }
+
                 await _skillsMenu.ShowAsync(cancellationToken).ConfigureAwait(false);
                 return false;
+
+            case SlashCommand.Loop:
+                return await HandleLoopAsync(args, images, cancellationToken).ConfigureAwait(false);
 
             case SlashCommand.Learn:
                 HandleLearn(args, cancellationToken);
@@ -6183,6 +6272,86 @@ internal sealed partial class ChatScreen
 
             DrainDiagnostics();
         });
+    }
+
+    /// <summary>
+    /// <c>/skills edit &lt;name&gt;</c> (2026-09-21, the user's ask): the offered skill of that name
+    /// (the catalog rescanned, the case ignored, a shadowed copy never) has its <c>SKILL.md</c> opened
+    /// in the editor, as <c>/profile edit</c> opens <c>profile.json</c>. Refused while <c>Agent skills</c>
+    /// is off (the catalog is empty then, and <c>/learn</c> refuses the same way). No rescan after: the
+    /// body is read at activation, so the edit shows on the next load.
+    /// </summary>
+    private void HandleSkillsEdit(string args)
+    {
+        string[] words = args.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length != 2 || !string.Equals(words[0], SkillsEditWord, StringComparison.OrdinalIgnoreCase))
+        {
+            _transcript.Error(SkillsUsageError);
+            return;
+        }
+
+        var effective = _effective();
+        if (!effective.AgentSkills)
+        {
+            _transcript.Error(SkillsOffError);
+            return;
+        }
+
+        var skill = Catalog(effective).FirstOrDefault(s => string.Equals(s.Name, words[1], StringComparison.OrdinalIgnoreCase));
+        if (skill is null)
+        {
+            _transcript.Error(SkillMissingError(words[1]));
+            return;
+        }
+
+        try
+        {
+            _openFile(skill.FilePath);
+            _transcript.Notice(SkillEditOpenedNotice(skill.Name, skill.FilePath));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            _transcript.Error(SkillEditFailedError(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// <c>/loop</c> (2026-09-21, the user's ask): the message sent <c>count</c> times, or until
+    /// something ends it, each pass a whole <see cref="RunMessageAsync"/> — the auto-compact, the
+    /// reply, the interrupt follow-up — with the message echoed as a user row first (the typed line
+    /// was the command, not the message; the spoken path's precedent). Ends early on a cancelled or
+    /// withdrawn pass (ESC, Ctrl+C, the wake phrase — the whole loop, not the pass), on a failed one
+    /// (<see cref="_lastTurnFailed"/>: a server that is down is not asked again and again) and on the
+    /// app token. A withdrawn pass restores the <c>/loop</c> line itself (the history's last line), so
+    /// the loop is one Enter from a re-run. The images go with the first pass alone. Messages queued
+    /// mid-turn wait for the loop's end, as they wait for any reply. Returns true when the shell should exit.
+    /// </summary>
+    private async Task<bool> HandleLoopAsync(string args, IReadOnlyList<ImageAttachment> images, CancellationToken cancellationToken)
+    {
+        if (!TryParseLoopArgs(args, out int? count, out string message))
+        {
+            _transcript.Error(LoopUsageError);
+            return false;
+        }
+
+        for (int n = 1; count is null || n <= count; n++)
+        {
+            _transcript.Notice(LoopTurnNotice(n, count));
+            _transcript.User(message);
+            if (await RunMessageAsync(message, n == 1 ? images : [], cancellationToken).ConfigureAwait(false))
+            {
+                return true;
+            }
+
+            if (_lastTurnCancelled || _lastTurnFailed || _restoreDraft is not null || cancellationToken.IsCancellationRequested)
+            {
+                _transcript.Notice(LoopStoppedNotice(n));
+                return false;
+            }
+        }
+
+        _transcript.Notice(LoopDoneNotice(count!.Value));
+        return false;
     }
 
     /// <summary>
@@ -6745,6 +6914,7 @@ internal sealed partial class ChatScreen
             // phrase cancelled it, or it was withdrawn — Continue covers a key cancel after the
             // first event, so the outcome alone cannot say. Read once by RunMessageAsync.
             _lastTurnCancelled = cancelled || outcome is TurnOutcome.Interrupted or TurnOutcome.Withdrawn;
+            _lastTurnFailed = failed || sawError;
             // Why it ended, for the --log file (2026-09-19): the assistant's own closing line says
             // "cancelled" and no more; the reason is the screen's to know.
             if (TurnOutcomeLogLine(outcome, cancelled, interrupt, hit is not null, cancellationToken.IsCancellationRequested) is { } reason)

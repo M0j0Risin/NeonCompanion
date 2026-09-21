@@ -17,6 +17,7 @@ public class McpSessionTests : IAsyncDisposable
     public McpSessionTests()
     {
         _settings = new AppSettings(_dir);
+        _settings.Update(d => d.McpServers = true);   // off by default since 2026-09-21; these tests are about the connections
     }
 
     public async ValueTask DisposeAsync()

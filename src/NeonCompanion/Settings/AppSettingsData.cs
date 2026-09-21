@@ -959,8 +959,10 @@ public sealed class AppSettingsData
     /// profile switch and its tools are offered as <c>&lt;server&gt;__&lt;tool&gt;</c>; off, nothing is
     /// started and the <c>/mcp</c> pane still lists the config. A flip reconnects (disconnects) at once,
     /// so it is refused mid-turn. The first row of <c>/mcp</c>' Options tab (2026-09-20). No variable.
+    /// Off by default since 2026-09-21 (the user's call): a profile opts in on that row, so a fresh
+    /// install starts nothing it was not asked to.
     /// </summary>
-    public bool McpServers { get; set; } = true;
+    public bool McpServers { get; set; }
 
     /// <summary>
     /// The MCP servers switched off by name on <c>/mcp</c>' Servers tab (2026-09-20): sorted

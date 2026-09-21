@@ -27,7 +27,7 @@ public enum SlashCommand
     Reasoning,
     Settings,
 
-    /// <summary><c>/tools</c>: the Tools pane (2026-09-19, the user's ask) — every tool the model can be offered, on or off one by one (the Offered tab), then its Options tab (the <c>$</c>-mention switch, later that day) and the Ask, Files and Web settings rows that sat on <c>/settings</c> until then. No argument: bare like <see cref="Skills"/>.</summary>
+    /// <summary><c>/tools</c>: the Tools pane (2026-09-19, the user's ask) — every tool the model can be offered, on or off one by one (the Offered tab), then its Options tab (the <c>$</c>-mention switch, later that day) and the Ask, Files and Web settings rows that sat on <c>/settings</c> until then. No argument: bare like <see cref="Skills"/>. <c>///</c> is its alias (2026-09-21, the user's ask, beside <c>//</c>).</summary>
     Tools,
 
     /// <summary><c>/mcp</c>: the MCP pane (2026-09-20, the user's ask) — the servers the two <c>mcp.json</c> files name, on or off one by one and connected or not (the Servers tab), their tools on or off by their prefixed names (the Tools tab), then its Options tab (the master switch and the connect timeout). No argument: bare like <see cref="Tools"/>.</summary>
@@ -85,6 +85,9 @@ public enum SlashCommand
     /// <summary><c>/draft</c>: a temporary text file in your editor; saved and closed, its text is the next message — sent through the input line as a paste, so a long one lands as a token — and the file goes; blank, or closed unsaved, nothing is sent (2026-09-19). No argument.</summary>
     Draft,
 
+    /// <summary><c>/loop &lt;count&gt; &lt;message&gt;</c> | <c>/loop infinite &lt;message&gt;</c>: the message sent that many times, or until ESC or Ctrl+C, each reply waited for as if typed again (2026-09-21, the user's ask). Refused mid-turn like <see cref="Draft"/>: it sends what the running turn cannot take.</summary>
+    Loop,
+
     /// <summary><c>/emptytrash</c>: delete everything in the working directory's <c>.trash</c> for good, after a confirmation.</summary>
     EmptyTrash,
 
@@ -97,7 +100,7 @@ public enum SlashCommand
     /// <summary><c>/about</c>: the app's version, runtime, folders, servers, third-party components and licence, in the info pane.</summary>
     About,
 
-    /// <summary><c>/skills</c>: the Skills pane listing the skills the model can load, the project notes file and the skill folders (<c>/skills</c> again since 2026-09-19, the plural beside <c>/tools</c>, the user's call — <c>/skill</c> is an unknown command now; a bare <c>/skill</c> from later on 2026-09-18, <c>/skill list</c> earlier that day, <c>/skills</c> from 2026-09-16 until then). No argument: <c>/skill &lt;name&gt; [message]</c> loaded a skill into the next reply from 2026-09-16 until later on 2026-09-18, when the <c>#</c>-mention made it redundant (the user's call); an argument is <see cref="Overloaded"/> now.</summary>
+    /// <summary><c>/skills</c>: the Skills pane listing the skills the model can load, the project notes file and the skill folders (<c>/skills</c> again since 2026-09-19, the plural beside <c>/tools</c>, the user's call — <c>/skill</c> is an unknown command now; a bare <c>/skill</c> from later on 2026-09-18, <c>/skill list</c> earlier that day, <c>/skills</c> from 2026-09-16 until then). No argument: <c>/skill &lt;name&gt; [message]</c> loaded a skill into the next reply from 2026-09-16 until later on 2026-09-18, when the <c>#</c>-mention made it redundant (the user's call); an argument was <see cref="Overloaded"/> until 2026-09-21, when <c>/skills edit &lt;name&gt;</c> came (the user's ask: the skill's <c>SKILL.md</c> in your editor). <c>////</c> is its alias (the same day).</summary>
     Skills,
 
     /// <summary><c>/learn [note]</c>: a skill-learning reflection over the last turn whatever its shape, the note steering it (2026-09-17, the explicit signal of <c>Skills auto learn</c>); <c>/learn sessions [N | text]</c> a pass over the stored sessions (2026-09-19).</summary>
@@ -128,14 +131,14 @@ public enum SlashCommand
 /// <summary>
 /// The slash-command classifier. A line is a command only when it starts with <c>/</c>, and the
 /// first token must match exactly: <c>/exit the program please</c> is not <c>/exit</c>, and
-/// <c>what does /clear do?</c> is a question for the model. <c>//</c> is <c>/settings</c> — the one alias left: every other one (<c>/?</c>, <c>/cls</c>, <c>/exit</c>, <c>/srv</c>, <c>/prof</c> …) went on 2026-09-16 with the argument completion, the user's call, and reads as an unknown command now (<c>/config</c> had gone the same day). <c>/new</c> is its own command (a new conversation, the screen kept) since 2026-09-16; <c>/splash</c> (a new conversation, the screen wiped and the welcome splash shown) since 2026-09-19. Only <c>/server</c>, <c>/model</c>, <c>/reasoning</c>, <c>/tts</c>,
-/// <c>/stt</c>, <c>/wake</c>, <c>/interrupt</c>, <c>/speak</c>, <c>/echo</c>, <c>/view</c>, <c>/learn</c>, <c>/remember</c>, <c>/memcopy</c>, <c>/profile</c>, <c>/timer</c>, <c>/cwd</c>, <c>/tree</c>, <c>/explore</c>, <c>/copy</c>, <c>/compact</c>, <c>/git</c> (2026-09-21) and (since 2026-09-16, <c>reset</c>) <c>/persona</c>, <c>/operata</c>, <c>/vocalia</c> take an argument (<see cref="TakesArgument"/>); any other command given one is <see cref="SlashCommand.Overloaded"/>, so <c>/about me</c> is told the command takes nothing rather than called unknown (2026-09-17). <c>/draft</c> takes nothing (2026-09-19: the editor is the argument). <c>/skills</c> takes nothing and opens the Skills pane (the plural since 2026-09-19, beside <c>/tools</c>; a bare <c>/skill</c> from later on 2026-09-18, in place of <c>/skill list</c>; <c>/skills</c> before that; <c>/skill &lt;name&gt; [message]</c> took a name until later that day; <c>/skill</c> is unknown now). The three tool switches <c>/web</c>, <c>/files</c>, <c>/ask</c> went later on 2026-09-18 (the user's call: the settings rows <c>Web tools</c>, <c>File tools</c>, <c>Ask user</c> are the one place now) and read as unknown commands.
+/// <c>what does /clear do?</c> is a question for the model. <c>//</c> is <c>/settings</c>, and since 2026-09-21 (the user's ask) <c>///</c> is <c>/tools</c> and <c>////</c> is <c>/skills</c> — the three aliases; every other one (<c>/?</c>, <c>/cls</c>, <c>/exit</c>, <c>/srv</c>, <c>/prof</c> …) went on 2026-09-16 with the argument completion, the user's call, and reads as an unknown command now (<c>/config</c> had gone the same day). <c>/new</c> is its own command (a new conversation, the screen kept) since 2026-09-16; <c>/splash</c> (a new conversation, the screen wiped and the welcome splash shown) since 2026-09-19. Only <c>/server</c>, <c>/model</c>, <c>/reasoning</c>, <c>/tts</c>,
+/// <c>/stt</c>, <c>/wake</c>, <c>/interrupt</c>, <c>/speak</c>, <c>/echo</c>, <c>/view</c>, <c>/learn</c>, <c>/remember</c>, <c>/memcopy</c>, <c>/profile</c>, <c>/timer</c>, <c>/cwd</c>, <c>/tree</c>, <c>/explore</c>, <c>/copy</c>, <c>/compact</c>, <c>/git</c>, <c>/loop</c>, <c>/skills</c> (2026-09-21) and (since 2026-09-16, <c>reset</c>) <c>/persona</c>, <c>/operata</c>, <c>/vocalia</c> take an argument (<see cref="TakesArgument"/>); any other command given one is <see cref="SlashCommand.Overloaded"/>, so <c>/about me</c> is told the command takes nothing rather than called unknown (2026-09-17). <c>/draft</c> takes nothing (2026-09-19: the editor is the argument). <c>/skills</c> opens the Skills pane, or <c>/skills edit &lt;name&gt;</c> the skill's file (2026-09-21; it took nothing before) (the plural since 2026-09-19, beside <c>/tools</c>; a bare <c>/skill</c> from later on 2026-09-18, in place of <c>/skill list</c>; <c>/skills</c> before that; <c>/skill &lt;name&gt; [message]</c> took a name until later that day; <c>/skill</c> is unknown now). The three tool switches <c>/web</c>, <c>/files</c>, <c>/ask</c> went later on 2026-09-18 (the user's call: the settings rows <c>Web tools</c>, <c>File tools</c>, <c>Ask user</c> are the one place now) and read as unknown commands.
 /// </summary>
 public static class SlashCommands
 {
     /// <summary>
     /// One command and what it does: a row of the Commands tab of the info pane, and a line of <see cref="HelpText"/>.
-    /// An alias goes in the first column with the command (<see cref="Label"/>), never in the summary — <c>//</c> is the one left (2026-09-16).
+    /// An alias goes in the first column with the command (<see cref="Label"/>), never in the summary — <c>//</c> was the one left (2026-09-16), <c>///</c> and <c>////</c> came on 2026-09-21.
     /// </summary>
     public sealed record HelpEntry(string Command, string Summary, params string[] Aliases)
     {
@@ -158,11 +161,11 @@ public static class SlashCommands
     [
         [
             new("/settings", "edit and save settings", "//"),
-            new("/tools", "switch the model's tools on or off and edit the Options, Ask, Files and Web settings on a pane"),
+            new("/tools", "switch the model's tools on or off and edit the Options, Ask, Files and Web settings on a pane", "///"),
             new("/mcp", "connect external MCP servers and switch their tools on or off on a pane"),
             new("/profile", "switch profiles, or /profile <name> | add <name> | delete <name> | rename <name> <new-name> | reset [name] | edit | reload"),
             new("/session", "list, restore and purge sessions: /session [<id> | purge <id> | purge older <age> | purge all | title <text>]"),
-            new("/skills", "list the skills, edit the skill settings and the project file on a pane"),
+            new("/skills", "list the skills, edit the skill settings and the project file on a pane, or /skills edit <name> to open its SKILL.md", "////"),
             new("/learn", "write or improve a skill from the last turn or the stored sessions, in the background: /learn [what to keep] | sessions [N | what to search]"),
         ],
         [
@@ -180,6 +183,7 @@ public static class SlashCommands
             new("/queue", "list and prune the messages queued while a reply runs"),
             new("/copy", "copy the last reply to the clipboard as markdown, or /copy <n> | all"),
             new("/draft", "write the next message in your editor: a temporary file, sent when it is saved and closed"),
+            new("/loop", "send a message again and again, each reply waited for: /loop <count> <message> | infinite <message> (ESC ends it)"),
         ],
         [
             new("/tts", "toggle speech output, or /tts on|off"),
@@ -225,7 +229,7 @@ public static class SlashCommands
     /// <summary>
     /// The input line's command list (<see cref="UI.MentionCompleter.TryFindCommand"/>): every base
     /// command with its summary as the note, sorted by name — never an alias (the user's call,
-    /// 2026-09-16). Pinned by tests.
+    /// 2026-09-16; <c>///</c> and <c>////</c> stay out the same way, 2026-09-21). Pinned by tests.
     /// </summary>
     public static readonly IReadOnlyList<UI.CompletionItem> Completions =
         HelpEntries.Select(entry => new UI.CompletionItem(entry.Command, entry.Summary)).OrderBy(item => item.Text, StringComparer.Ordinal).ToArray();
@@ -274,7 +278,7 @@ public static class SlashCommands
     }
 
     /// <summary>Every command word, for help and completion.</summary>
-    public static readonly string[] Words = { "/help", "/clear", "/new", "/splash", "/queue", "/session", "/compact", "/server", "/model", "/reasoning", "/settings", "//", "/tools", "/mcp", "/tts", "/stt", "/wake", "/interrupt", "/speak", "/remember", "/memory", "/forget", "/memcopy", "/persona", "/operata", "/vocalia", "/sysprompt", "/usage", "/profile", "/timer", "/cwd", "/tree", "/explore", "/view", "/echo", "/emptytrash", "/git", "/copy", "/draft", "/window", "/skills", "/learn", "/about", "/exit" };
+    public static readonly string[] Words = { "/help", "/clear", "/new", "/splash", "/queue", "/session", "/compact", "/server", "/model", "/reasoning", "/settings", "//", "/tools", "///", "/mcp", "/tts", "/stt", "/wake", "/interrupt", "/speak", "/remember", "/memory", "/forget", "/memcopy", "/persona", "/operata", "/vocalia", "/sysprompt", "/usage", "/profile", "/timer", "/cwd", "/tree", "/explore", "/view", "/echo", "/emptytrash", "/git", "/copy", "/draft", "/loop", "/window", "/skills", "////", "/learn", "/about", "/exit" };
 
     /// <summary>The <c>/queue</c> word: what a double-click on the hint row's queued part sends through the mid-turn line hook, so the pane opens exactly as the typed command's does (2026-09-18). Pinned.</summary>
     public const string QueueWord = "/queue";
@@ -304,7 +308,7 @@ public static class SlashCommands
             "/model" => SlashCommand.Model,
             "/reasoning" => SlashCommand.Reasoning,
             "/settings" or "//" => SlashCommand.Settings,
-            "/tools" => SlashCommand.Tools,
+            "/tools" or "///" => SlashCommand.Tools,
             "/mcp" => SlashCommand.Mcp,
             "/tts" => SlashCommand.Tts,
             "/stt" => SlashCommand.Voice,
@@ -331,11 +335,12 @@ public static class SlashCommands
             "/session" => SlashCommand.Session,
             "/copy" => SlashCommand.Copy,
             "/draft" => SlashCommand.Draft,
+            "/loop" => SlashCommand.Loop,
             "/emptytrash" => SlashCommand.EmptyTrash,
             "/git" => SlashCommand.Git,
             "/window" => SlashCommand.Window,
             "/about" => SlashCommand.About,
-            "/skills" => SlashCommand.Skills,
+            "/skills" or "////" => SlashCommand.Skills,
             "/learn" => SlashCommand.Learn,
             "/exit" => SlashCommand.Exit,
             _ => SlashCommand.Unknown,
@@ -360,5 +365,6 @@ public static class SlashCommands
         or SlashCommand.Learn
         or SlashCommand.Persona or SlashCommand.Operata or SlashCommand.Vocalia
         or SlashCommand.Remember or SlashCommand.MemCopy or SlashCommand.Profile or SlashCommand.Timer
-        or SlashCommand.Cwd or SlashCommand.Tree or SlashCommand.Explore or SlashCommand.Copy or SlashCommand.Session or SlashCommand.Git;
+        or SlashCommand.Cwd or SlashCommand.Tree or SlashCommand.Explore or SlashCommand.Copy or SlashCommand.Session or SlashCommand.Git
+        or SlashCommand.Loop or SlashCommand.Skills;
 }

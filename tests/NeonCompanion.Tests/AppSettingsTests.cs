@@ -112,7 +112,7 @@ public class AppSettingsTests : IDisposable
         SessionShowName = "none",
         SessionTool = false,
         McpConnectTimeoutSeconds = 45,
-        McpServers = false,
+        McpServers = true,
         McpServersDisabled = ["docker"],
     };
 
@@ -947,8 +947,8 @@ public class AppSettingsTests : IDisposable
         Assert.Equal(50, s.ShellCodeMaxToolCalls);
         Assert.Equal(1, AppSettingsData.MinShellCodeMaxToolCalls);
         Assert.Equal(500, AppSettingsData.MaxShellCodeMaxToolCalls);
-        // The MCP servers (2026-09-20): on, none switched off, 30 s to connect (5–300).
-        Assert.True(s.McpServers);
+        // The MCP servers (2026-09-20): off by default since 2026-09-21, none switched off, 30 s to connect (5–300).
+        Assert.False(s.McpServers);
         Assert.Empty(s.McpServersDisabled);
         Assert.Equal(30, s.McpConnectTimeoutSeconds);
         Assert.Equal(5, AppSettingsData.MinMcpConnectTimeout);

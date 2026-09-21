@@ -42,8 +42,17 @@ public static class Profiles
     /// <summary>The <c>/profile</c> subcommand words (<c>edit</c> and <c>reload</c> since 2026-09-21); a profile cannot be called any of them, so <c>/profile add</c> is never a switch and <c>/profile reset</c> is always the loaded one.</summary>
     public static readonly string[] ReservedNames = { "add", "delete", "edit", "reload", "rename", "reset" };
 
+    /// <summary>
+    /// The companion's own name, never a profile's (2026-09-21, the user's call): it is the default
+    /// profile's window title (<c>ChatScreen.DefaultWindowTitle</c>) and the persona's name, so a
+    /// profile called <c>neon</c> would read as the default one. The word alone, whatever the case;
+    /// <c>neon2</c> or <c>neon_debug</c> are fine. Not a <see cref="ReservedNames"/> word: those are
+    /// verbs, and <c>/profile neon</c> must stay a switch to a profile that is not there.
+    /// </summary>
+    public const string CompanionName = "neon";
+
     /// <summary>The wording for a name <see cref="IsValidName"/> refuses. Pinned.</summary>
-    public const string NameError = "must be 1 to 32 letters, digits, - or _ (and not add, delete, edit, reload, rename or reset)";
+    public const string NameError = "must be 1 to 32 letters, digits, - or _ (and not neon, add, delete, edit, reload, rename or reset)";
 
     /// <summary>Why <c>default</c> cannot be deleted. Pinned.</summary>
     public const string DefaultUndeletable = "The default profile cannot be deleted.";
@@ -61,7 +70,8 @@ public static class Profiles
 
     /// <summary>
     /// Whether <paramref name="name"/> can name a profile: one to <see cref="MaxNameLength"/>
-    /// ASCII letters, digits, hyphens or underscores, and not a <see cref="ReservedNames"/> word.
+    /// ASCII letters, digits, hyphens or underscores, and not a <see cref="ReservedNames"/> word
+    /// nor <see cref="CompanionName"/> (2026-09-21).
     /// Nothing that could be a path segment trick, a shell surprise or a non-ASCII directory
     /// (the Vosk path rule is a reminder of what those cost).
     /// </summary>
@@ -80,7 +90,7 @@ public static class Profiles
             }
         }
 
-        return !ReservedNames.Contains(name, StringComparer.OrdinalIgnoreCase);
+        return !ReservedNames.Contains(name, StringComparer.OrdinalIgnoreCase) && !NameEquals(name, CompanionName);
     }
 
     public static bool NameEquals(string? a, string? b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);

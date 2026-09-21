@@ -97,14 +97,15 @@ internal sealed partial class ChatScreen
     /// with a level, <c>/copy</c>, <c>/remember</c>, <c>/explore</c>, <c>/timer</c> and an unknown
     /// command are <see cref="MidTurnClass.Quick"/>; <c>/clear</c>, <c>/new</c>, <c>/splash</c> (2026-09-19) and <c>/exit</c> cancel; the rest
     /// (<c>/profile</c>, <c>/server</c>, <c>/model</c>, <c>/compact</c>, <c>/cwd</c>, <c>/tree</c>,
-    /// <c>/learn</c>, <c>/window</c>, <c>/memcopy</c>, <c>/git</c> (2026-09-21), <c>/speak</c> — the turn owns the transcript and the speaker —, <c>/draft</c> (2026-09-19: it would send a message the turn cannot take), the three prompt files) are refused; <c>/skills</c> is a pane (2026-09-16 as <c>/skills</c>, <c>/skill list</c> then the bare <c>/skill</c> on 2026-09-18, the plural again since 2026-09-19; <c>/skill</c> with a name was refused until later on 2026-09-18, when the name form went — an argument is <see cref="SlashCommand.Overloaded"/> now, quick like an unknown command). Pure.
+    /// <c>/learn</c>, <c>/window</c>, <c>/memcopy</c>, <c>/git</c> (2026-09-21), <c>/speak</c> — the turn owns the transcript and the speaker —, <c>/draft</c> (2026-09-19: it would send a message the turn cannot take), <c>/loop</c> (2026-09-21, the same reason), the three prompt files) are refused; <c>/skills</c> is a pane (2026-09-16 as <c>/skills</c>, <c>/skill list</c> then the bare <c>/skill</c> on 2026-09-18, the plural again since 2026-09-19; <c>/skill</c> with a name was refused until later on 2026-09-18, when the name form went — an argument was <see cref="SlashCommand.Overloaded"/>, quick like an unknown command, until <c>/skills edit &lt;name&gt;</c> came on 2026-09-21: an editor launch, refused like <c>/profile edit</c>). Pure.
     /// </summary>
     public static MidTurnClass MidTurnPolicy(SlashCommand command, bool hasArgs) => command switch
     {
         SlashCommand.None => MidTurnClass.Message,
         SlashCommand.Help or SlashCommand.Settings or SlashCommand.Sysprompt or SlashCommand.Memory
-            or SlashCommand.Usage or SlashCommand.About or SlashCommand.Forget or SlashCommand.EmptyTrash or SlashCommand.Queue or SlashCommand.Skills or SlashCommand.Tools or SlashCommand.Mcp => MidTurnClass.Pane,
+            or SlashCommand.Usage or SlashCommand.About or SlashCommand.Forget or SlashCommand.EmptyTrash or SlashCommand.Queue or SlashCommand.Tools or SlashCommand.Mcp => MidTurnClass.Pane,
         SlashCommand.Reasoning => hasArgs ? MidTurnClass.Quick : MidTurnClass.Pane,
+        SlashCommand.Skills => hasArgs ? MidTurnClass.Refused : MidTurnClass.Pane,
         SlashCommand.Session => hasArgs ? MidTurnClass.Refused : MidTurnClass.Pane,
         SlashCommand.Tts or SlashCommand.Voice or SlashCommand.Wake or SlashCommand.Interrupt or SlashCommand.Copy
             or SlashCommand.Remember or SlashCommand.Explore or SlashCommand.Timer or SlashCommand.Unknown or SlashCommand.Overloaded => MidTurnClass.Quick,

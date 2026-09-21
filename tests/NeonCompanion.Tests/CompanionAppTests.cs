@@ -398,6 +398,7 @@ public class CompanionAppTests : IDisposable
     {
         ServerOn1234("llama");
         File.WriteAllText(NeonCompanion.Mcp.McpConfigFile.ProfilePath(_settings.ProfileDirectory), """{ "mcpServers": { "pipe": { "command": "pipe-server" } } }""");
+        _settings.Update(d => d.McpServers = true);   // off by default since 2026-09-21: the profile opts in
         _chat.Enqueue(FakeChatClient.Call("c1", "pipe__echo", new Dictionary<string, object?> { ["text"] = "ping" }));
         _chat.EnqueueText("It said ping.");
 
@@ -418,6 +419,7 @@ public class CompanionAppTests : IDisposable
     {
         ServerOn1234("llama");
         File.WriteAllText(NeonCompanion.Mcp.McpConfigFile.ProfilePath(_settings.ProfileDirectory), """{ "mcpServers": { "pipe": { "command": "pipe-server" } } }""");
+        _settings.Update(d => d.McpServers = true);   // off by default since 2026-09-21: the profile opts in
         _mcpServers.Failing.Add("pipe");
         _chat.EnqueueText("hi");
 
