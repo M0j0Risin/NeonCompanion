@@ -145,7 +145,7 @@ public class ToolsMenuTests : IDisposable
         Assert.Equal(19, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[0]));   // "$-mention enabled"
         Assert.Equal(26, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[1]));   // "Web browser network mode" (the Web-prefixed labels, later still on 2026-09-19; "Web search max results", 24, before)
         Assert.Equal(32, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[2]));   // "File view image max (per call)" (later still on 2026-09-19; "Stale line number guard", 25, that morning; "Always return line numbers", 28, before)
-        Assert.Equal(27, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[3]));   // "Shell code max tool calls" (the Shell tab, 2026-09-21)
+        Assert.Equal(29, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[3]));   // "Shell tool bridge max calls" (the Shell tab, 2026-09-21; the row was "Shell code max tool calls", 27, until later that day)
         Assert.Equal(30, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[4]));   // "Ask max choices per question"
         Assert.Equal(28, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[5]));   // "Git native log max commits" (later on 2026-09-21; "Git log max commits", 21, from 2026-09-20)
         Assert.All(SettingsMenu.ToolsTabFields.SelectMany(t => t), f => Assert.False(SettingsMenu.RefusedMidTurn(f)));
@@ -346,7 +346,7 @@ public class ToolsMenuTests : IDisposable
         Assert.Equal("cmd", _settings.Current.ShellDefault);
         Assert.Equal(180, _settings.Current.ShellTimeoutSeconds);
         // The ten rows padded to the tab's own column (27), then the picker's rows, the list's, and the notices on the status line.
-        Assert.Contains("\n" + Titled(Strip) + "\n \n▸ Shell command policy       ask\n  Shell allowed commands     2 prefixes\n  Shell default              powershell\n  Shell timeout (s)          180\n  Shell foreground cap (s)   600\n  Shell output max chars     30,000 chars\n  Shell code languages       powershell, python, node\n  Shell code timeout (s)     300\n  Shell tool bridge          off\n  Shell code max tool calls  50 tool calls\n" + Rule(100), _console.Output);
+        Assert.Contains("\n" + Titled(Strip) + "\n \n▸ Shell command policy         ask\n  Shell allowed commands       2 prefixes\n  Shell default                powershell\n  Shell timeout (s)            180\n  Shell foreground cap (s)     600\n  Shell output max chars       30,000 chars\n  Shell code languages         powershell, python, node\n  Shell code timeout (s)       300\n  Shell tool bridge            off\n  Shell tool bridge max calls  50 tool calls\n" + Rule(100), _console.Output);
         Assert.Contains("\n" + Titled(ToolsText.Label + " › Shell command policy") + "\n \n  off  no shell or script tool is offered\n▸ ask  you approve each command not on the allow list\n  yolo every command runs, nothing is asked\n", _console.Output);
         Assert.Contains("  · Shell command policy: yolo\n", _console.Output);
         Assert.Contains("\n" + Titled(ToolsText.Label + " › Shell allowed commands") + "\n \n▸ dotnet build\n  git push\n", _console.Output);
@@ -372,7 +372,7 @@ public class ToolsMenuTests : IDisposable
         Assert.True(_settings.Current.ShellToolBridge);
         Assert.Contains("\n" + Titled(ToolsText.Label + " › Shell tool bridge") + "\n \n  on  a script may call this app's other tools through its neon_tools module\n▸ off a script does everything itself: no neon_tools module, no tool calls\n", _console.Output);
         Assert.Contains("  · Shell tool bridge: on", _console.Output);
-        Assert.Contains("\n▸ Shell tool bridge          on\n  Shell code max tool calls  50 tool calls\n", _console.Output);
+        Assert.Contains("\n▸ Shell tool bridge            on\n  Shell tool bridge max calls  50 tool calls\n", _console.Output);
         pane.Dispose();
     }
 
@@ -395,7 +395,7 @@ public class ToolsMenuTests : IDisposable
         Assert.Contains("  · Shell code languages: python, node\n", _console.Output);
         Assert.Contains("  · Shell code languages: node\n", _console.Output);
         Assert.Contains("At least one language stays on.", _console.Output);
-        Assert.Contains("\n▸ Shell code languages       node\n  Shell code timeout (s)     300\n", _console.Output);
+        Assert.Contains("\n▸ Shell code languages         node\n  Shell code timeout (s)       300\n", _console.Output);
         pane.Dispose();
     }
 

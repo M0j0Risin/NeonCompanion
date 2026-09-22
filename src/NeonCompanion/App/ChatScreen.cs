@@ -838,7 +838,8 @@ internal sealed partial class ChatScreen
 
     /// <summary>
     /// The toolbar under the hint row (2026-09-21, the user's ask): the pane glyphs pinned at its
-    /// left in the user's order — settings, tools, MCP, skills, system prompt — and the working
+    /// left in the user's order — settings, tools, MCP, skills, system prompt, and (later on
+    /// 2026-09-21, the user's ask) sessions, the speech balloon its pane's title already wore — and the working
     /// directory pinned at its right (cut from the front, as the banner's). A double-click on a
     /// glyph opens the pane (<see cref="ToolbarWord"/> names the command), one on the path is
     /// <c>/cwd browse</c> (a folder glyph carried that until later that day; the user's call).
@@ -853,7 +854,8 @@ internal sealed partial class ChatScreen
     public const string McpToolGlyph = McpText.Glyph;
     public const string SkillsToolGlyph = "🎓";
     public const string SysToolGlyph = "🎭";
-    public static readonly string ToolbarStrip = string.Join(GlyphSeparator, SettingsToolGlyph, ToolsToolGlyph, McpToolGlyph, SkillsToolGlyph, SysToolGlyph);
+    public const string SessionsToolGlyph = "💬";
+    public static readonly string ToolbarStrip = string.Join(GlyphSeparator, SettingsToolGlyph, ToolsToolGlyph, McpToolGlyph, SkillsToolGlyph, SysToolGlyph, SessionsToolGlyph);
 
     /// <summary>The line the path's double-click runs: <c>/cwd browse</c>, the picker on the pane. Pinned.</summary>
     public const string CwdBrowseLine = "/cwd " + CwdBrowseWord;
@@ -893,6 +895,7 @@ internal sealed partial class ChatScreen
         ToolsToolGlyph => SlashCommands.ToolsWord,
         McpToolGlyph => SlashCommands.McpWord,
         SysToolGlyph => SlashCommands.SysWord,
+        SessionsToolGlyph => SlashCommands.SessionsWord,
         _ => null,
     };
 
@@ -7434,8 +7437,12 @@ internal sealed partial class ChatScreen
                 _transcript.ToolNotes(result.Text);
                 break;
             case TurnEvent.ToolResult result when string.Equals(result.Name, LoadSkillTool.ToolName, StringComparison.Ordinal):
-                // The instructions are the model's to read; the line says which skill (LoadSkillTool.Note).
-                _transcript.ToolNote(LoadSkillTool.Note(result.Text));
+                // The instructions are the model's to read; the line says which skill (LoadSkillTool.Note), behind the skills' glyph (later on 2026-09-21).
+                _transcript.SkillNote(LoadSkillTool.Note(result.Text));
+                break;
+            case TurnEvent.ToolResult result when string.Equals(result.Name, SkillEditorTool.ToolName, StringComparison.Ordinal):
+                // created / updated / renamed / deleted skill 'x' (SkillText): a quiet tool's one line, behind the skills' glyph too.
+                _transcript.SkillNote(result.Text);
                 break;
             case TurnEvent.ToolResult result when string.Equals(result.Name, RecallMemoryTool.ToolName, StringComparison.Ordinal):
                 // The list is the model's to read (/memory shows it); the line says how many (RecallMemoryTool.Note).

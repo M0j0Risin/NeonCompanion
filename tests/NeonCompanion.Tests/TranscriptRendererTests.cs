@@ -213,6 +213,20 @@ public class TranscriptRendererTests : IDisposable
         Assert.Equal(new[] { "● 🛠️ remembered: Their name is Chris.", "Nice to meet you." }, _console.Lines);
     }
 
+    /// <summary>A skill tool's line (later on 2026-09-21): the tool note's shape behind the mortarboard, a bare glyph continued the same way.</summary>
+    [Fact]
+    public void SkillNote_IsOneDimLine_BehindTheSkillGlyph_ContinuingABareGlyph()
+    {
+        _t.BeginAssistant();
+        _t.SkillNote("loaded skill 'haiku' (120 characters)");
+        _t.AppendDelta("Here is one.");
+        _t.EndAssistant();
+        Assert.Equal(new[] { "● 🎓 loaded skill 'haiku' (120 characters)", "Here is one." }, _console.Lines);
+
+        _t.SkillNote("created skill 'rain-haiku' (profile, 200 bytes)");
+        Assert.Equal("  🎓 created skill 'rain-haiku' (profile, 200 bytes)", _console.Lines[^1]);
+    }
+
     [Fact]
     public void ToolNotes_IsOneDimLinePerLine_BlankLinesSkipped()
     {
@@ -233,6 +247,8 @@ public class TranscriptRendererTests : IDisposable
         Assert.Equal("[#9A8BB8]  🛠️ t {}[/]", TranscriptRenderer.ToolMarkup("t", "{}"));
         Assert.Equal("[#9A8BB8]  🛠️ t → r[/]", TranscriptRenderer.ToolResultMarkup("t", "r"));
         Assert.Equal("[#9A8BB8]  🛠️ remembered: [[x]][/]", TranscriptRenderer.ToolNoteMarkup("remembered: [x]"));
+        Assert.Equal("[#9A8BB8]  🎓 loaded skill '[[x]]'[/]", TranscriptRenderer.SkillNoteMarkup("loaded skill '[x]'"));   // later on 2026-09-21
+        Assert.Equal("  🎓 ", TranscriptRenderer.SkillGlyph);
         Assert.Equal(InputLine.SubmittedMarkup("u"), TranscriptRenderer.UserMarkup("u"));
         Assert.Equal("● ", TranscriptRenderer.AssistantGlyph);
     }

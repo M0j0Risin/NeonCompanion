@@ -1017,7 +1017,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("a script does everything itself: no neon_tools module, no tool calls", SettingsMenu.ToggleDescribe(SettingsField.ShellToolBridge, false));
         Assert.Equal("Shell code languages", SettingsMenu.FieldName(SettingsField.ShellCodeLanguages));
         Assert.Equal("Shell code timeout (s)", SettingsMenu.FieldName(SettingsField.ShellCodeTimeoutSeconds));
-        Assert.Equal("Shell code max tool calls", SettingsMenu.FieldName(SettingsField.ShellCodeMaxToolCalls));
+        Assert.Equal("Shell tool bridge max calls", SettingsMenu.FieldName(SettingsField.ShellCodeMaxToolCalls));
         Assert.Equal("powershell, python, node", SettingsMenu.FieldValue(SettingsField.ShellCodeLanguages, data, _settings.ProfileDirectory));
         Assert.Equal("python", SettingsMenu.FieldValue(SettingsField.ShellCodeLanguages, new AppSettingsData { ShellCodeLanguages = ["python", "ruby"] }, _settings.ProfileDirectory));
         Assert.Equal("300", SettingsMenu.FieldValue(SettingsField.ShellCodeTimeoutSeconds, data, _settings.ProfileDirectory));
@@ -1323,7 +1323,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal(19, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[0]));   // "$-mention enabled" (the Options tab, later on 2026-09-19)
         Assert.Equal(26, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[1]));   // "Web browser network mode" (the Web-prefixed labels, later still on 2026-09-19; "Web search max results", 24, before)
         Assert.Equal(32, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[2]));   // "File view image max (per call)" (the File-prefixed labels, later still on 2026-09-19; "Stale line number guard", 25, that morning; "Always return line numbers", 28, from 2026-09-17 until it went; "Tree max length", 17, before)
-        Assert.Equal(27, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[3]));   // "Shell code max tool calls" (the Shell tab, 2026-09-21)
+        Assert.Equal(29, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[3]));   // "Shell tool bridge max calls" (the Shell tab, 2026-09-21; the row was "Shell code max tool calls", 27, until later that day)
         Assert.Equal(30, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[4]));   // "Ask max choices per question"
         Assert.Equal(28, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[5]));   // "Git native log max commits" (later on 2026-09-21; "Git log max commits", 21, from 2026-09-20)
         Assert.Equal(38, SettingsMenu.LabelWidthOf(SettingsMenu.SkillsTabFields[0]));   // "Use external skills (.agents\\skills)"

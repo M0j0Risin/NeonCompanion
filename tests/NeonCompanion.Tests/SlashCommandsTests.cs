@@ -20,8 +20,6 @@ public class SlashCommandsTests
     [InlineData("/REASONING", SlashCommand.Reasoning)]
     [InlineData("/settings", SlashCommand.Settings)]
     [InlineData("//", SlashCommand.Settings)]
-    [InlineData("///", SlashCommand.Tools)]      // 2026-09-21
-    [InlineData("////", SlashCommand.Skills)]    // 2026-09-21
     [InlineData("/loop", SlashCommand.Loop)]     // 2026-09-21
     [InlineData("/LOOP", SlashCommand.Loop)]
     [InlineData("/tts", SlashCommand.Tts)]
@@ -109,9 +107,8 @@ public class SlashCommandsTests
         // 2026-09-21, when /skills edit <name> came: the words are the handler's to judge (the usage line).
         Assert.Equal((SlashCommand.Skills, ""), SlashCommands.Parse("/skills"));
         Assert.Equal((SlashCommand.Skills, ""), SlashCommands.Parse("  /SKILLS  "));
-        Assert.Equal((SlashCommand.Skills, ""), SlashCommands.Parse("////"));
         Assert.Equal((SlashCommand.Skills, "edit haiku"), SlashCommands.Parse("/skills edit haiku"));
-        Assert.Equal((SlashCommand.Skills, "edit haiku"), SlashCommands.Parse("////  edit haiku "));
+        Assert.Equal((SlashCommand.Skills, "edit haiku"), SlashCommands.Parse("/skills  edit haiku "));
         Assert.Equal((SlashCommand.Skills, "haiku"), SlashCommands.Parse("/skills haiku"));
         Assert.Equal((SlashCommand.Skills, "haiku write one about rain"), SlashCommands.Parse("/SKILLS  haiku write one about rain "));
         Assert.Equal((SlashCommand.Skills, "list"), SlashCommands.Parse("/skills list"));   // /skill list was the pane for part of 2026-09-18
@@ -326,7 +323,7 @@ public class SlashCommandsTests
     [InlineData("/config x")]
     [InlineData("/use reset")]
     [InlineData("/ab x")]
-    [InlineData("/////")]   // /// and //// are aliases since 2026-09-21; five is nothing
+    [InlineData("/////")]
     public void Parse_AnUnknownWord_IsUnknown(string line)
     {
         Assert.Equal(SlashCommand.Unknown, SlashCommands.Parse(line).Command);
@@ -401,7 +398,7 @@ public class SlashCommandsTests
         Assert.Equal(items.Select(i => i.Text).OrderBy(t => t, StringComparer.Ordinal), items.Select(i => i.Text));
         Assert.Equal("/about", items[0].Text);
         Assert.Equal("/window", items[^1].Text);
-        Assert.DoesNotContain(items, i => i.Text is "//" or "///" or "////");   // the three aliases (2026-09-21) are never rows
+        Assert.DoesNotContain(items, i => i.Text is "//" or "///" or "////");   // the alias is never a row (nor the two that came and went on 2026-09-21)
         Assert.Contains(items, i => i.Text == "/loop");   // 2026-09-21
         Assert.All(SlashCommands.HelpEntries, e => Assert.Contains(new NeonCompanion.UI.CompletionItem(e.Command, e.Summary), items));
         Assert.Equal(["/server", "/sessions", "/settings", "/skills", "/speak", "/splash", "/stt", "/sys"], items.Where(i => i.Text.StartsWith("/s", StringComparison.Ordinal)).Select(i => i.Text));
@@ -442,9 +439,11 @@ public class SlashCommandsTests
     [InlineData("/win")]
     [InlineData("/ab")]
     [InlineData("/quit")]
+    [InlineData("///")]     // /tools for part of 2026-09-21
+    [InlineData("////")]    // /skills the same day
     public void Parse_TheRetiredAliases_AreUnknown(string line)
     {
-        // Every alias but // went on 2026-09-16 (the user's call): the completion list makes them redundant; /// and //// came on 2026-09-21.
+        // Every alias but // went on 2026-09-16 (the user's call): the completion list makes them redundant; /// and //// came and went on 2026-09-21.
         Assert.Equal(SlashCommand.Unknown, SlashCommands.Parse(line).Command);
     }
 
@@ -473,7 +472,7 @@ public class SlashCommandsTests
         Assert.Contains("ESC", SlashCommands.HelpText);
         Assert.DoesNotContain("Ctrl+Q", SlashCommands.HelpText);
         Assert.DoesNotContain("(also", SlashCommands.HelpText);
-        Assert.StartsWith("Commands:\n" + Row("/settings, //", "edit and save settings") + Row("/tools, ///", "switch the model's tools on or off and edit the Options, Ask, Files and Web settings on a pane"), SlashCommands.HelpText);   // /tools right under /settings since 2026-09-19; its alias 2026-09-21
+        Assert.StartsWith("Commands:\n" + Row("/settings, //", "edit and save settings") + Row("/tools", "switch the model's tools on or off and edit the Options, Ask, Files and Web settings on a pane"), SlashCommands.HelpText);   // /tools right under /settings since 2026-09-19; its alias /// came and went on 2026-09-21
         Assert.Contains(Row("/timer", "list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all") + Row("/help", "show help") + Row("/about", "show general information about the app and profile"), SlashCommands.HelpText);   // the bottom group since 2026-09-16, /timer under /help since later on 2026-09-19, /help under /timer later still that day
         Assert.Contains(Row("/settings, //", "edit and save settings"), SlashCommands.HelpText);
         Assert.Contains(Row("/profile", "switch profiles, or /profile <name> | add <name> | delete <name> | rename <name> <new-name> | reset [name] | edit | reload"), SlashCommands.HelpText);   // edit and reload 2026-09-21
@@ -529,8 +528,8 @@ public class SlashCommandsTests
     {
         Assert.Equal("/tree, /dir, /ls", new SlashCommands.HelpEntry("/tree", "x", "/dir", "/ls").Label);   // the record still joins them; the table lists none but //
         Assert.Equal("/settings, //", new SlashCommands.HelpEntry("/settings", "x", "//").Label);
-        Assert.Equal("/tools, ///", SlashCommands.HelpEntries.Single(e => e.Command == "/tools").Label);     // 2026-09-21
-        Assert.Equal("/skills, ////", SlashCommands.HelpEntries.Single(e => e.Command == "/skills").Label);  // 2026-09-21
+        Assert.Equal("/tools", SlashCommands.HelpEntries.Single(e => e.Command == "/tools").Label);     // "/tools, ///" for part of 2026-09-21
+        Assert.Equal("/skills", SlashCommands.HelpEntries.Single(e => e.Command == "/skills").Label);   // "/skills, ////" the same day
         Assert.Equal("/usage", new SlashCommands.HelpEntry("/usage", "x").Label);
     }
 
@@ -618,7 +617,7 @@ public class SlashCommandsTests
 
         // The column is measured, not written down: the widest label today.
         Assert.Equal(SlashCommands.HelpEntries.Max(e => e.Label.Length), SlashCommands.LabelWidth);
-        Assert.Equal("/settings, //".Length, SlashCommands.LabelWidth);   // 13 since every other alias went (2026-09-16); 22 while it was /settings, /config, //; "/skills, ////" (2026-09-21) is 13 too
+        Assert.Equal("/settings, //".Length, SlashCommands.LabelWidth);   // 13 since every other alias went (2026-09-16); 22 while it was /settings, /config, //; "/skills, ////" (part of 2026-09-21) was 13 too
 
         // The plain text is the groups, one line each with a blank line between the groups, between the heading and the key line.
         string[] lines = SlashCommands.HelpText.Split('\n');

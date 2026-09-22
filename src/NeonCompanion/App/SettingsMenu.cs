@@ -843,7 +843,7 @@ internal sealed class SettingsMenu
         SettingsField.ShellCodeLanguages => "Shell code languages",
         SettingsField.ShellCodeTimeoutSeconds => "Shell code timeout (s)",
         SettingsField.ShellToolBridge => "Shell tool bridge",
-        SettingsField.ShellCodeMaxToolCalls => "Shell code max tool calls",
+        SettingsField.ShellCodeMaxToolCalls => "Shell tool bridge max calls",   // the bridge's cap, named after the switch above it (later on 2026-09-21, the user's ask; "Shell code max tool calls" before)
         SettingsField.GitNativeLogMaxCommits => "Git native log max commits",
         SettingsField.GitNativeEmail => "Git native email",
         SettingsField.GitNativeName => "Git native name",

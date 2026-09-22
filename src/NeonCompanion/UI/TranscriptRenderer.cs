@@ -41,6 +41,13 @@ public sealed class TranscriptRenderer : INoticeSink
     // U+FE0F selector is a true two-cell emoji, so one space after it keeps the five-cell indent the
     // gear had with two — the gear was Neutral, one cell to the terminal, and the font overdrew the next.
     public const string ToolGlyph = "  🛠️ ";
+
+    /// <summary>
+    /// A skill line's glyph (later on 2026-09-21, the user's call): the mortarboard the toolbar and the
+    /// Skills pane wear, so <c>loaded skill 'x'</c> and the skill editor's <c>created skill 'x'</c> read as
+    /// the skills' and not as any other tool's. A surrogate pair, two cells, the indent <see cref="ToolGlyph"/>'s.
+    /// </summary>
+    public const string SkillGlyph = "  🎓 ";
     public const string AlertGlyph = "  ⏰ ";
 
     /// <summary>A background process's exit (2026-09-21): its own glyph, so it never reads as a timer.</summary>
@@ -120,6 +127,10 @@ public sealed class TranscriptRenderer : INoticeSink
     /// <summary>A tool's outcome on one line without its name or arguments (<c>🛠️ remembered: …</c>), for a tool whose result says it all.</summary>
     public static string ToolNoteMarkup(string text) =>
         Theme.ColorMarkup(Theme.Dim, ToolGlyph + Truncate(text, ToolTextLimit));
+
+    /// <summary>A skill tool's outcome as <see cref="ToolNoteMarkup"/> is a tool's, behind <see cref="SkillGlyph"/>.</summary>
+    public static string SkillNoteMarkup(string text) =>
+        Theme.ColorMarkup(Theme.Dim, SkillGlyph + Truncate(text, ToolTextLimit));
 
     public static string DiagnosticMarkup(DiagnosticEvent evt) =>
         Theme.ColorMarkup(DiagnosticColor(evt.Level), $"  [{evt.Category}] {evt.Message}");
@@ -202,6 +213,9 @@ public sealed class TranscriptRenderer : INoticeSink
     public void ToolResult(string name, string text) => Line(ToolResultMarkup(name, text), ToolResultMarkup(name, text).TrimStart());
 
     public void ToolNote(string text) => Line(ToolNoteMarkup(text), Theme.ColorMarkup(Theme.Dim, ToolGlyph.TrimStart() + Truncate(text, ToolTextLimit)));
+
+    /// <summary><see cref="ToolNote"/> for a skill tool's result: the same dim line behind <see cref="SkillGlyph"/>.</summary>
+    public void SkillNote(string text) => Line(SkillNoteMarkup(text), Theme.ColorMarkup(Theme.Dim, SkillGlyph.TrimStart() + Truncate(text, ToolTextLimit)));
 
     /// <summary>A quiet tool's result as one <see cref="ToolNote"/> per line of <paramref name="text"/> (the question tool's answers), blank lines skipped; nothing for a blank text.</summary>
     public void ToolNotes(string text)

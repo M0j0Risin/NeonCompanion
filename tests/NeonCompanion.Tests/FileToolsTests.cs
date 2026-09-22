@@ -360,9 +360,12 @@ public sealed class FileToolsTests : IDisposable
         _settings.FileSafeEdits = false;
         Assert.Equal(DeleteTool.DescribeTool(false), delete.Description);
         // Later still on 2026-09-20 (the user's ask): the off-form names neither restore nor .trash — the tool is not offered then, and the model never hears of a trash.
+        // 2026-09-21 (the user's ask again): nor the setting, nor that nothing brings a file back — the model confused itself over a restore it could not reach.
         Assert.Equal(
-            "Deletes a file or folder under the working directory (the user's cwd / current directory) for good: File safe edits is off, so nothing is kept and nothing brings it back; a folder goes with everything in it.",
+            "Deletes a file or folder under the working directory (the user's cwd / current directory) for good; a folder goes with everything in it.",
             DeleteTool.DescribeTool(false));
+        Assert.DoesNotContain("safe edits", DeleteTool.DescribeTool(false), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("brings it back", DeleteTool.DescribeTool(false));
         Assert.Equal("deleted d.txt (File safe edits is off: nothing was kept)", await Invoke(delete, ("path", "d.txt")));
         Assert.False(File.Exists(Path.Combine(_root, "d.txt")));
         Assert.False(File.Exists(Path.Combine(_root, ".trash", "20260911-140530", "d.txt (2)")));

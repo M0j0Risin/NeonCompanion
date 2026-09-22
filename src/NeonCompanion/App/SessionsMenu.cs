@@ -20,7 +20,7 @@ namespace NeonCompanion.App;
 internal sealed class SessionsMenu
 {
     // The key hints. Pinned.
-    public const string Title = "💬 Sessions";
+    public const string Title = ChatScreen.SessionsToolGlyph + " Sessions";   // the glyph the toolbar wears for the pane too (later on 2026-09-21)
     public const string Keys = "Enter = open · ESC = close";
     public const string RowKeys = SettingsMenu.PickKeys;
 

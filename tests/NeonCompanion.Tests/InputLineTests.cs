@@ -974,7 +974,8 @@ public class InputLineTests : IDisposable
         Assert.Equal(-5, InputLine.ToolbarPairKey(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "⚙️", 0)));
         Assert.Equal(-8, InputLine.ToolbarPairKey(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "🛠️", 3)));
         Assert.Equal(-17, InputLine.ToolbarPairKey(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "🎭", 12)));
-        var keys = new[] { -3, -4, -5, -8, -11, -14, -17 };
+        Assert.Equal(-20, InputLine.ToolbarPairKey(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "💬", 15)));   // the sixth glyph, later on 2026-09-21
+        var keys = new[] { -3, -4, -5, -8, -11, -14, -17, -20 };
         Assert.DoesNotContain(-1, keys);
         Assert.DoesNotContain(InputLine.OutsidePairKey, keys);
         Assert.All(keys, key => Assert.True(key < InputLine.HintPairKey(new ScreenPane.HintHit(ScreenPane.HintZone.Row, "", -1))));

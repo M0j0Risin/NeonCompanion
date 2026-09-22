@@ -7,7 +7,7 @@ namespace NeonCompanion.Skills;
 
 /// <summary>
 /// Every sentence the two skill tools answer with, pinned. A result is what the model reads and,
-/// flattened to its first line, the dim 🛠️ line the transcript shows. Every error starts with
+/// flattened to its first line, the dim 🎓 line the transcript shows (🛠️ until later on 2026-09-21). Every error starts with
 /// <c>Error:</c>; a model's mistake is a sentence, never a warning.
 /// </summary>
 public static class SkillText

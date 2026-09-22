@@ -1,9 +1,9 @@
 # Neon Companion
 
-Neon Companion is a streamlined agentic TUI for local LLMs, built on .NET 10. It attempts to combine many of my favorite features from tools like Claude Code, Hermes Agent, and Cline with a local-first workflow and native toolsets.
+Neon Companion is a streamlined agentic TUI for local LLMs, built on .NET 10. It attempts to combine and improve on many of my favorite features from tools like Claude Code, Hermes Agent, and Cline with a local-first workflow.
 
-Current State: A foundational shell for tool development (Windows-first).
-On the Roadmap: Full terminal execution, coding capabilities, and official macOS/Linux support.
+Current State: A foundational shell for continued tool development (Windows-first).
+On the Roadmap: More coding functionality and official macOS/Linux support.
 
 ## Contents
 
@@ -93,7 +93,7 @@ Every setting lives in a profile and is edited from a pane inside the app — `�
 | Command typo intercept | A line that is exactly a command's name without its slash (`clear`) asks *Did you mean /clear?* before sending it as text. | on |
 | Welcome splash | Shows one of the splash pictures under the banner at startup until the first line is sent (`←`/`→` walk the set; a profile's own `splash\` folder replaces the built-in pictures). | on |
 | Working directory in header | Prints the working directory at the right edge of the banner's title line. | off |
-| Show toolbar | Draws a toolbar under the hint row: at its left the glyphs a double-click opens — ⚙️ `/settings`, 🛠️ `/tools`, 🔌 `/mcp`, 🎓 `/skills`, 🎭 `/sys` — at its right the working directory, a double-click on which is `/cwd browse`, and between them blanks a double-click on which is `/settings`. | on |
+| Show toolbar | Draws a toolbar under the hint row: at its left the glyphs a double-click opens — ⚙️ `/settings`, 🛠️ `/tools`, 🔌 `/mcp`, 🎓 `/skills`, 🎭 `/sys`, 💬 `/sessions` — at its right the working directory, a double-click on which is `/cwd browse`, and between them blanks a double-click on which is `/settings`. | on |
 | Draft editor | The command `/draft` opens its temporary file with (`code --wait`, `notepad`…); empty uses whatever Windows opens `.txt` files with. | (default .txt editor) |
 
 #### Sessions
@@ -237,7 +237,7 @@ Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Web, Memory, 
 | Shell code languages | The languages `execute_code` may run — `powershell`, `python`, `node`; one or more, and a language is offered only while its interpreter is found. Enter or Space flips one; the last one on stays. | all three |
 | Shell code timeout (s) | How long an `execute_code` script without `timeout` may run before it is killed (1–3600). | 300 |
 | Shell tool bridge | Whether an `execute_code` script may call the app's other tools through its `neon_tools` module (a loopback socket with a per-run token). Off: no module is written, the script's environment carries no bridge, and neither the tool's description nor the operating rules mention calling tools — the script does everything itself. | off |
-| Shell code max tool calls | How many tool calls one script may make through its bridge (1–500), while `Shell tool bridge` is on. | 50 |
+| Shell tool bridge max calls | How many tool calls one script may make through its bridge (1–500), while `Shell tool bridge` is on. | 50 |
 
 #### Ask
 
@@ -289,7 +289,7 @@ Every tool the reply may call, grouped — Clock, Timers, Files, Git, Web, Memor
 ## Slash commands
 [↑ Back to top](#neon-companion)
 
-Type `/` and the list opens with every command and its summary; after the command and a space, the argument list follows for any argument that can be listed. `//`, `///` and `////` are the aliases (for `/settings`, `/tools` and `/skills`); they are never listed.
+Type `/` and the list opens with every command and its summary; after the command and a space, the argument list follows for any argument that can be listed. `//` is the one alias (for `/settings`); it is never listed.
 
 | Command | What it does |
 |---|---|
@@ -323,14 +323,14 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/server [url]` | Pick an LLM server found on the usual ports, or set one; the model picker and then the reasoning picker follow, and one reconnect carries all three. |
 | `/sessions [id \| purge <id> \| purge older <age> \| purge all \| title <text>]` | List, restore, rename and purge the stored sessions. An age is days as a bare number (`30`, `0`), or a duration with units: `12h`, `90m`, `2 hours`, `1d 6h`. |
 | `/settings`, `//` | Edit and save the settings. |
-| `/skills`, `////` | List the skills and edit the skill, reflection and project-file settings. |
+| `/skills` | List the skills and edit the skill, reflection and project-file settings. |
 | `/skills edit <name>` | Open a skill's `SKILL.md` in your editor. |
 | `/speak [file [n] \| n]` | Read a text file from the working directory aloud as a reply; alone resumes, a number starts from that sentence. |
 | `/splash` | Start a new conversation and show the splash screen. |
 | `/stt [on\|off]` | Toggle speech input. |
 | `/sys` | Show the system prompt and the tools sent to the model. |
 | `/timer [duration [name] \| stop <name> \| stop all]` | List the timers, or start one (`10m`, `90s`, `1h30m`), or stop one. |
-| `/tools`, `///` | Switch the model's tools on or off and edit the Ask, Files, Git and Web settings. |
+| `/tools` | Switch the model's tools on or off and edit the Ask, Files, Git and Web settings. |
 | `/tree [path]` | Print a tree of the working directory. |
 | `/tts [on\|off]` | Toggle speech output. |
 | `/usage` | Show token usage and performance statistics. |
