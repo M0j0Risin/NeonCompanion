@@ -117,7 +117,7 @@ public class MarkdownViewTests : IDisposable
     {
         var lines = Render(MarkdownView.Of("```csharp\nvar x = 1;\n\n\ty();\n```"));
 
-        Assert.Equal(new[] { "csharp", "  var x = 1;", "   ", "      y();" }, lines.Select(Text));
+        Assert.Equal(new[] { "📜 csharp", "  var x = 1;", "   ", "      y();" }, lines.Select(Text));   // the scroll ahead of the label since 2026-09-22
         Assert.Equal(Theme.MarkdownCodeLabel, lines[0][0].Style);
         Assert.All(lines.Skip(1).SelectMany(l => l).Where(s => s.Text.Length > 0), s => Assert.Equal(Theme.PanelBg, s.Style.Background));
     }
@@ -137,7 +137,7 @@ public class MarkdownViewTests : IDisposable
     {
         var lines = Render(MarkdownView.Of("```text\nvar x = 1;\n```"));
 
-        Assert.Equal("text", Text(lines[0]));
+        Assert.Equal("📜 text", Text(lines[0]));
         Assert.All(lines[1].Where(s => s.Text.Length > 0), s => Assert.Equal(Theme.MarkdownCodeBlock, s.Style));
     }
 
@@ -146,7 +146,7 @@ public class MarkdownViewTests : IDisposable
     {
         var lines = Render(MarkdownView.Of("```c\n/* one\ntwo */ x\n```"));
 
-        Assert.Equal(new[] { "c", "  /* one", "  two */ x" }, lines.Select(Text));
+        Assert.Equal(new[] { "📜 c", "  /* one", "  two */ x" }, lines.Select(Text));
         Assert.Equal(Theme.CodeComment, lines[1].Single(s => s.Text.Contains("one", StringComparison.Ordinal)).Style);
         Assert.Equal(Theme.CodeComment, lines[2].Single(s => s.Text.Contains("two", StringComparison.Ordinal)).Style);
     }
@@ -164,13 +164,13 @@ public class MarkdownViewTests : IDisposable
     [Fact]
     public void Fence_WithoutALanguage_IsLabelledCode()
     {
-        Assert.Equal(new[] { MarkdownView.CodeLabel, "  x" }, Lines("```\nx\n```"));
+        Assert.Equal(new[] { MarkdownView.CodeGlyph + MarkdownView.CodeLabel, "  x" }, Lines("```\nx\n```"));
     }
 
     [Fact]
     public void UnclosedFence_RunsToTheEnd()
     {
-        Assert.Equal(new[] { "python", "  def f():", "      pass" }, Lines("```python\ndef f():\n    pass"));
+        Assert.Equal(new[] { "📜 python", "  def f():", "      pass" }, Lines("```python\ndef f():\n    pass"));
     }
 
     [Fact]
@@ -323,7 +323,11 @@ public class MarkdownViewTests : IDisposable
     [Fact]
     public void CodeFoldText_Summary_ReadsAsTheLabel_ItsLinesAndTheTriangle()
     {
-        Assert.Equal("▸ csharp · 57 lines", CodeFoldText.Summary("csharp", 57, expanded: false));
-        Assert.Equal("▾ code · 1 line", CodeFoldText.Summary("code", 1, expanded: true));
+        Assert.Equal("▸ 📜 csharp · 57 lines", CodeFoldText.Summary("csharp", 57, expanded: false));
+        Assert.Equal("▾ 📜 code · 1 line", CodeFoldText.Summary("code", 1, expanded: true));
+        Assert.Equal("📜 ", MarkdownView.CodeGlyph);   // the user's pick, 2026-09-22
+        Assert.Equal(3, TextCells.Width(MarkdownView.CodeGlyph));
+        Assert.Equal("📜 csharp", MarkdownView.CodeHeading("csharp"));
+        Assert.Equal("📜 code", MarkdownView.CodeHeading(null));
     }
 }

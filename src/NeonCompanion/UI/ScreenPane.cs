@@ -3240,7 +3240,7 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
         for (int i = from; i < to; i++)
         {
             var span = spans?.FirstOrDefault(c => i >= c.LabelRow && i < c.End);
-            if (span is not null && i == span.LabelRow && ReadsAs(lines[i], span.Label))
+            if (span is not null && i == span.LabelRow && ReadsAs(lines[i], MarkdownView.CodeGlyph + span.Label))
             {
                 EmitCodeLabel(lines[i], keep, span);
                 _liveCodeSpan = span.LabelRow;

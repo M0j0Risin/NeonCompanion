@@ -685,7 +685,7 @@ public sealed class AppSettingsData
     /// How many lines a code block in a styled reply may have before it folds (2026-09-22, the
     /// user's ask, the tool runs' fold for code): the block streams at full height, and once the
     /// reply moves on one with more source lines than this shrinks to its label line
-    /// (<c>▸ csharp · 57 lines</c>) — a click on it, Ctrl+O or <c>/expand</c> shows it again.
+    /// (<c>▸ 📜 csharp · 57 lines</c>) — a click on it, Ctrl+O or <c>/expand</c> shows it again.
     /// Top-level blocks only (not one inside a list item or a quote). <see cref="MinCodeCollapseCount"/>
     /// to <see cref="MaxCodeCollapseCount"/>; 0 = never fold. Read when a reply opens, no reconnect;
     /// the Options tab of <c>/tools</c>, under <see cref="ToolCollapseCount"/>. Only on the screen's

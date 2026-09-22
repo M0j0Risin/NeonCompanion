@@ -319,7 +319,7 @@ public static partial class SmokeChecks
             });
             var block = new UI.Markdown.ReplyBlock("**Hello** there\n\n- one\n- two\n\n```cs\nvar x = 1;\n```", glyph: true);
             var lines = UI.ScreenPane.RenderLines(block, console, 40).Select(l => string.Concat(l.Select(s => s.Text))).ToList();
-            string[] expected = ["● Hello there", "   ", "  • one", "  • two", "   ", "  cs", "    var x = 1;"];
+            string[] expected = ["● Hello there", "   ", "  • one", "  • two", "   ", "  📜 cs", "    var x = 1;"];   // the scroll ahead of the label since 2026-09-22
             bool ok = lines.SequenceEqual(expected);
             return new SmokeCheck(name, ok, ok ? $"Markdig {Markdig.Markdown.Version}; {lines.Count} rows at 40 cells" : string.Join(" | ", lines));
         }

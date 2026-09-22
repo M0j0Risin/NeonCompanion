@@ -220,7 +220,7 @@ Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Web, Memory, 
 |---|---|---|
 | $-mention enabled | `$` and part of a name on the input line lists the tools the next turn offers; a pick writes `$name` as text. | on |
 | Tool collapse count | A run of tool calls longer than this folds under one summary line (`▸ 🛠️ 7 tool calls — read_file ×3, …`), showing only its last lines while it runs and the summary alone once the reply moves on. Click the summary, press Ctrl+O or use `/expand` to see every line (0–100; 0 = never fold). | 2 |
-| Code collapse count | A code block in a reply longer than this folds to its label line (`▸ csharp · 57 lines`) once the reply moves on; it streams at full height first. Top-level blocks only, and only with Transcript markdown on. Click the label, press Ctrl+O or use `/expand` to see it again (0–100; 0 = never fold). | 20 |
+| Code collapse count | A code block in a reply longer than this folds to its label line (`▸ 📜 csharp · 57 lines`) once the reply moves on; it streams at full height first. Top-level blocks only, and only with Transcript markdown on. Click the label, press Ctrl+O or use `/expand` to see it again (0–100; 0 = never fold). | 20 |
 
 #### Web
 

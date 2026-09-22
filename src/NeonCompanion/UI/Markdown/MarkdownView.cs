@@ -24,6 +24,16 @@ public sealed class MarkdownView : IRenderable
     /// <summary>The label above a fenced block with no language.</summary>
     public const string CodeLabel = "code";
 
+    /// <summary>
+    /// Ahead of every code block's label (2026-09-22, the user's pick): the scroll, <c>📜 csharp</c>.
+    /// U+1F4DC is emoji-presentation by default — two cells without a selector, a surrogate pair to
+    /// <see cref="TextCells"/> — so one space after it, as after the tools' glyph.
+    /// </summary>
+    public const string CodeGlyph = "📜 ";
+
+    /// <summary>A code block's label line as drawn: <see cref="CodeGlyph"/> and the language, or <see cref="CodeLabel"/>.</summary>
+    public static string CodeHeading(string? language) => CodeGlyph + (language ?? CodeLabel);
+
     private static readonly IRenderable Spacer = new Text(" ");
 
     private readonly MarkdownDocument _document;
@@ -75,7 +85,7 @@ public sealed class MarkdownView : IRenderable
             if (block is CodeBlock code)
             {
                 string label = code.Language ?? CodeLabel;
-                int labelRows = Segment.SplitLines(((IRenderable)new Text(label, Theme.MarkdownCodeLabel)).Render(options, maxWidth)).Count;
+                int labelRows = Segment.SplitLines(((IRenderable)new Text(CodeHeading(code.Language), Theme.MarkdownCodeLabel)).Render(options, maxWidth)).Count;
                 spans.Add(new CodeSpan(row, labelRows, rows - labelRows, label, code.Lines.Count));
             }
 
@@ -135,7 +145,7 @@ public sealed class MarkdownView : IRenderable
         var language = CodeLanguages.Find(code.Language);
         var lines = language is null || code.Lines.Count == 0 ? PlainCode(code.Lines) : HighlightedCode(code.Lines, language);
         var block = new HangingIndent(CodeIndent, CodeIndent, Theme.MarkdownCodeBlock, new Rows(lines));
-        return new Rows(new Text(code.Language ?? CodeLabel, Theme.MarkdownCodeLabel), block);
+        return new Rows(new Text(CodeHeading(code.Language), Theme.MarkdownCodeLabel), block);
     }
 
     /// <summary>A tab is four cells.</summary>
