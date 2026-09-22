@@ -7,7 +7,7 @@ namespace NeonCompanion.Timers;
 
 /// <summary>
 /// The words the timers speak and the forms they accept: pure statics, every string pinned.
-/// The tool results are sentences the model reads and, verbatim, the one dim <c>⚙</c> line the
+/// The tool results are sentences the model reads and, verbatim, the one dim <c>🛠️</c> line the
 /// transcript shows; the alert wording is what the screen prints and what it speaks. Invariant
 /// culture throughout.
 /// </summary>

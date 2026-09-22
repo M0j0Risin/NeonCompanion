@@ -44,7 +44,7 @@ public abstract record InputResult
     public sealed record Exit : InputResult;
 
     /// <summary>
-    /// A double-click on the pane's hint row under <c>hintDoubleClick</c> (2026-09-18): <see cref="Hit"/>
+    /// A double-click on the pane's hint row (2026-09-18): <see cref="Hit"/>
     /// says which part — a speech glyph, the model trailer or the row itself (the screen switches the
     /// feature off, opens the model picker or the settings); <see cref="Draft"/> is whatever was on
     /// the line and comes back on the next read.
@@ -52,7 +52,7 @@ public abstract record InputResult
     public sealed record HintRow(string Draft, ScreenPane.HintHit Hit) : InputResult;
 
     /// <summary>
-    /// A double-click on the pane's toolbar under <c>hintDoubleClick</c> (2026-09-21): <see cref="Hit"/>
+    /// A double-click on the pane's toolbar (2026-09-21): <see cref="Hit"/>
     /// says which part — a pane glyph or the path (the screen opens the pane, or the folder
     /// picker); <see cref="Draft"/> as <see cref="HintRow"/>'s. Never the row itself: a pair
     /// there is nobody's.
@@ -331,14 +331,14 @@ public sealed class InputLine
     /// is not reading while it awaits; it gets <paramref name="cancellationToken"/>, never the wake
     /// or alert token, so an alert firing while it is up cannot decide the line. A settings field
     /// never passes it.
-    /// <paramref name="hintDoubleClick"/> (2026-09-18; the chat line under <c>Mouse in menus</c>)
-    /// gives the pane's hint row a meaning: two left clicks on it within <see cref="DoubleClick.Interval"/>
+    /// The pane's hint row has a meaning (2026-09-18; under the <c>Mouse in menus</c> setting and
+    /// a <c>hintDoubleClick</c> flag until 2026-09-21, on every read since — a menu's slot never
+    /// draws the row, so its reads never see a hit): two left clicks on it within <see cref="DoubleClick.Interval"/>
     /// end the read as <see cref="InputResult.HintRow"/> with the draft (the screen opens the
     /// settings and reads again with it — nothing committed, nothing remembered); a first click there
     /// is nothing, and a key, a wheel notch or a click anywhere else ends the pair. A pair on the
     /// scroll's hint (<see cref="ScreenPane.HintZone.Scrolled"/>, later on 2026-09-18) never ends the
-    /// read: it is the bottom again, as Ctrl+End, the draft kept. Off, the hint row
-    /// is as dead to a click as the transcript. Under a menu's typed-value slot, whatever the flag,
+    /// read: it is the bottom again, as Ctrl+End, the draft kept. Under a menu's typed-value slot
     /// two left clicks off the pane (<see cref="ScreenPane.TryHitOutside"/>) are
     /// <see cref="ScreenPane.Dismiss"/> and the ESC key (later on 2026-09-18).
     /// <paramref name="beforeCommit"/> (2026-09-18) runs once per Enter that sends, after the intercept
@@ -357,7 +357,7 @@ public sealed class InputLine
     /// false or null is the key as ever, which on an empty draft is nothing. A settings field never passes it.
     /// Throws <see cref="OperationCanceledException"/> when <paramref name="cancellationToken"/> fires.
     /// </summary>
-    public async Task<InputResult> ReadAsync(string initialText = "", bool remember = true, bool allowEmpty = false, ConsoleKey? pushToTalk = null, CancellationToken cancellationToken = default, CancellationToken wake = default, CancellationToken alert = default, bool escapeCancels = false, bool multiline = false, MentionFolderAction? mentions = null, int pastePreview = 0, Func<bool>? softEscape = null, Func<bool>? interrupt = null, Func<string, CancellationToken, Task<string?>>? intercept = null, bool hintDoubleClick = false, Action? beforeCommit = null, IReadOnlyList<InputEvent>? replay = null, Func<int, bool>? emptyArrow = null)
+    public async Task<InputResult> ReadAsync(string initialText = "", bool remember = true, bool allowEmpty = false, ConsoleKey? pushToTalk = null, CancellationToken cancellationToken = default, CancellationToken wake = default, CancellationToken alert = default, bool escapeCancels = false, bool multiline = false, MentionFolderAction? mentions = null, int pastePreview = 0, Func<bool>? softEscape = null, Func<bool>? interrupt = null, Func<string, CancellationToken, Task<string?>>? intercept = null, Action? beforeCommit = null, IReadOnlyList<InputEvent>? replay = null, Func<int, bool>? emptyArrow = null)
     {
         ArgumentNullException.ThrowIfNull(initialText);
 
@@ -466,7 +466,7 @@ public sealed class InputLine
                             anchor = cursor;
                             Redraw();
                         }
-                        else if (hintDoubleClick && _pane.TryHitHint(click.X, click.Y, out var hit))
+                        else if (_pane.TryHitHint(click.X, click.Y, out var hit))
                         {
                             // Paired per part: two clicks on different glyphs, or one on the model
                             // and one on the row, are two firsts.
@@ -485,7 +485,7 @@ public sealed class InputLine
                                 return new InputResult.HintRow(text.ToString(), hit);
                             }
                         }
-                        else if (hintDoubleClick && _pane.TryHitToolbar(click.X, click.Y, out var tool) && tool.Zone != ScreenPane.ToolbarZone.Row)
+                        else if (_pane.TryHitToolbar(click.X, click.Y, out var tool) && tool.Zone != ScreenPane.ToolbarZone.Row)
                         {
                             // The toolbar (2026-09-21): a glyph or the path, paired per part like
                             // the hint row's; the blanks between them are a miss.

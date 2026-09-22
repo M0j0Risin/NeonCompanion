@@ -5,7 +5,7 @@ namespace NeonCompanion.Files;
 
 /// <summary>
 /// The sentences the file tools answer with: pure statics, every string pinned. A result is what
-/// the model reads and, verbatim, the one dim <c>⚙</c> line the transcript shows (flattened to
+/// the model reads and, verbatim, the one dim <c>🛠️</c> line the transcript shows (flattened to
 /// its first 200 characters, so a multi-line answer starts with a header line that stands on its
 /// own). Every error starts with <c>Error:</c>. Invariant culture throughout.
 /// </summary>

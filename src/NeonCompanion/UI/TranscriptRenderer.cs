@@ -28,7 +28,7 @@ namespace NeonCompanion.UI;
 /// ahead of the next token when more text follows, and is dropped when a line-shaped write or the
 /// end of the reply comes first. LM Studio + Gemma 4 streams a newline content delta beside each
 /// tool call it generates, and seventeen quiet <c>move</c> calls after a sentence were seventeen
-/// blank rows before the first <c>⚙</c> line (2026-09-14). A paragraph break inside a reply is
+/// blank rows before the first <c>🛠️</c> line (2026-09-14). A paragraph break inside a reply is
 /// untouched: its newlines are written before the word that follows them.</para>
 /// </summary>
 public sealed class TranscriptRenderer : INoticeSink
@@ -37,9 +37,10 @@ public sealed class TranscriptRenderer : INoticeSink
     public const string NoticeGlyph = "  · ";
     public const string WarningGlyph = "  ! ";
     public const string ErrorGlyph = "  ✗ ";
-    // Two spaces after the gear: U+2699 is East Asian Width Neutral (one cell to the terminal) but the
-    // font draws it wider, over the cell that follows — one space vanished under it in Windows Terminal.
-    public const string ToolGlyph = "  ⚙  ";
+    // The hammer and wrench (2026-09-21, the user's call; the gear ⚙ before it): U+1F6E0 with the
+    // U+FE0F selector is a true two-cell emoji, so one space after it keeps the five-cell indent the
+    // gear had with two — the gear was Neutral, one cell to the terminal, and the font overdrew the next.
+    public const string ToolGlyph = "  🛠️ ";
     public const string AlertGlyph = "  ⏰ ";
 
     /// <summary>A background process's exit (2026-09-21): its own glyph, so it never reads as a timer.</summary>
@@ -116,7 +117,7 @@ public sealed class TranscriptRenderer : INoticeSink
     public static string ToolResultMarkup(string name, string text) =>
         Theme.ColorMarkup(Theme.Dim, $"{ToolGlyph}{name} → {Truncate(text, ToolTextLimit)}");
 
-    /// <summary>A tool's outcome on one line without its name or arguments (<c>⚙ remembered: …</c>), for a tool whose result says it all.</summary>
+    /// <summary>A tool's outcome on one line without its name or arguments (<c>🛠️ remembered: …</c>), for a tool whose result says it all.</summary>
     public static string ToolNoteMarkup(string text) =>
         Theme.ColorMarkup(Theme.Dim, ToolGlyph + Truncate(text, ToolTextLimit));
 
@@ -419,7 +420,7 @@ public sealed class TranscriptRenderer : INoticeSink
     /// The pane's spinner (<see cref="ScreenPane.BeginBusy"/>: the label with its elapsed count in
     /// the hint row) held by the caller until the scope is disposed, with the transcript written
     /// under it meanwhile — the pane draws its own hint row under every write, so a reply can
-    /// stream and its ⚙ lines print while the spinner runs; the scope's <see cref="ScreenPane.BusyScope.SetLabel"/>
+    /// stream and its 🛠️ lines print while the spinner runs; the scope's <see cref="ScreenPane.BusyScope.SetLabel"/>
     /// renames it as the turn's stage changes. Null without the pane: Spectre's <c>Status</c>
     /// cannot span a write, and there <see cref="WithSpinnerAsync{T}(string, Func{Task{T}})"/>
     /// over the first wait is all a turn gets.

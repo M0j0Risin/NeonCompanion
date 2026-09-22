@@ -2016,12 +2016,12 @@ public partial class ChatScreenTests : IDisposable
         WakeOn();
         FakeModelFiles.WriteVoskModelUnder(ModelsDir, "vosk-model-en-us-0.22-lgraph");
         PushLine("/settings");
-        for (int i = 0; i < 52; i++)
+        for (int i = 0; i < 51; i++)
         {
             _console.Input.PushKey(Keys.Down);
         }
 
-        _console.Input.PushKey(Keys.Enter);     // Vosk model (row 53, the last): the picker opens on the default
+        _console.Input.PushKey(Keys.Enter);     // Vosk model (row 52 since Mouse in menus went on 2026-09-21; 53 before): the picker opens on the default
         _console.Input.PushKey(Keys.Down);      // the lgraph model
         _console.Input.PushKey(Keys.Enter);
         _console.Input.PushKey(Keys.Escape);
@@ -2507,6 +2507,9 @@ public partial class ChatScreenTests : IDisposable
 
     /// <summary>A pane's title or strip row as it prints since 2026-09-18: the text, then the × close glyph in column width − 2 (the console's width as the test set it).</summary>
     private string Titled(string row) => row + new string(' ', _console.Profile.Width - 2 - TextCells.Width(row)) + ScreenPane.CloseGlyph;
+
+    /// <summary>The queue pane's title row since 2026-09-21: the label, then its clear-all button as a dim tab (a space either side), two spaces between.</summary>
+    private const string QueueStrip = "Queue   ⊠ clear all ";
 
     /// <summary>The rule above the input row with the session's name at its right edge (2026-09-18), at the console's width.</summary>
     private string TitledRule(string title) => ScreenPane.RuleWithTitle(title, _console.Profile.Width);
@@ -3258,7 +3261,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(3, _chat.Requests.Count);
         Assert.Equal([MemoryPrompt.NothingRemembered, MemoryPrompt.Heading + "\n- Their name is Chris.", MemoryPrompt.NothingRemembered], seen);
         Assert.Equal(1, _chat.Requests[2].Count(m => m.Contents.OfType<FunctionCallContent>().Any(c => c.CallId == Assistant.OpeningMemoryCallId)));
-        Assert.Equal(1, Count(output, "  ⚙  nothing remembered yet\n"));   // the first turn's line alone; a refresh prints nothing
+        Assert.Equal(1, Count(output, "  🛠️ nothing remembered yet\n"));   // the first turn's line alone; a refresh prints nothing
         Assert.DoesNotContain("memory recalled", output);
     }
 
@@ -3419,7 +3422,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal((RecallMemoryTool.ToolName, Assistant.OpeningMemoryCallId), (call.Name, call.CallId));
         Assert.Equal(MemoryPrompt.Heading + "\n- Their name is Chris.", MemoryResult(request));
         // One dim line above the reply, the count not the list; the model never printed a call line.
-        Assert.Contains("  ⚙  1 memory recalled\n● Hi Chris.", output);
+        Assert.Contains("  🛠️ 1 memory recalled\n● Hi Chris.", output);
         Assert.DoesNotContain(RecallMemoryTool.ToolName, output);
         Assert.DoesNotContain("- Their name is Chris.", output);
     }
@@ -3810,8 +3813,8 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains(" " + Assistant.SessionRule + " " + Assistant.McpRule + "\n\n", _chat.Requests[0][0].Text);
         Assert.Equal(SkilledPrompt(false, [], web: true, mcp: true), _chat.Requests[0][0].Text);   // memory on: the directive, the list on the opening call
         // Not a quiet tool: the call line with its arguments, then the result line.
-        Assert.Contains("  ⚙  pipe__echo {\"text\":\"ping\"}\n", output);
-        Assert.Contains("  ⚙  pipe__echo → echo: ping\n", output);
+        Assert.Contains("  🛠️ pipe__echo {\"text\":\"ping\"}\n", output);
+        Assert.Contains("  🛠️ pipe__echo → echo: ping\n", output);
         Assert.Contains("It said ping.", output);
         var result = Assert.Single(_chat.Requests[1][^1].Contents.OfType<FunctionResultContent>());
         Assert.Equal("echo: ping", result.Result);
@@ -4107,8 +4110,8 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("⚙  Searched \"rust async traits\" (2 results, DuckDuckGo): 1. ", output);
-        Assert.Contains("⚙  Traits for Async — https://doc.rust-lang.org/book/ch17-05-traits-for-async.html (chars 1–37 of 37, http)", output);
+        Assert.Contains("🛠️ Searched \"rust async traits\" (2 results, DuckDuckGo): 1. ", output);
+        Assert.Contains("🛠️ Traits for Async — https://doc.rust-lang.org/book/ch17-05-traits-for-async.html (chars 1–37 of 37, http)", output);
         Assert.DoesNotContain("web_search(", output);
         Assert.Contains("The book covers it.", output);
         var search = Assert.Single(_chat.Requests[1][^1].Contents.OfType<FunctionResultContent>());
@@ -4128,7 +4131,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("⚙  Opened https://dotnet.microsoft.com/download in your browser", output);
+        Assert.Contains("🛠️ Opened https://dotnet.microsoft.com/download in your browser", output);
         Assert.DoesNotContain("open_url(", output);
         Assert.Equal(new[] { "https://dotnet.microsoft.com/download" }, _openedUrls);
         Assert.Empty(_openedFiles);   // the editor opener is not the browser's
@@ -4648,7 +4651,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("⚙  remembered: Their name is Chris.", output);
+        Assert.Contains("🛠️ remembered: Their name is Chris.", output);
         Assert.DoesNotContain(SaveMemoryTool.ToolName, output);
         Assert.Contains("Nice to meet you, Chris.", output);
         Assert.Equal(new[] { "Their name is Chris." }, new MemoryStore(_settings.ProfileDirectory).Snapshot());
@@ -4658,7 +4661,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal("remembered: Their name is Chris.", toolResult.Result);
         Assert.Equal(SkilledPrompt(false, new[] { "Their name is Chris." }, web: true), _chat.Requests[2][0].Text);
         Assert.Equal(MemoryPrompt.Heading + "\n- Their name is Chris.", MemoryResult(_chat.Requests[2]));
-        Assert.Equal(1, Count(output, "  ⚙  nothing remembered yet\n"));   // the first turn's line as it stood then; once per conversation, no line for the refresh
+        Assert.Equal(1, Count(output, "  🛠️ nothing remembered yet\n"));   // the first turn's line as it stood then; once per conversation, no line for the refresh
         Assert.DoesNotContain("memory recalled", output);
     }
 
@@ -4675,18 +4678,18 @@ public partial class ChatScreenTests : IDisposable
 
         // The manual clock, so the exact line is known. Four lines: the opening calls' (the
         // clock, the working directory, the memory) above the glyph, the model's own under it.
-        var lines = output.Split('\n').Where(l => l.Contains("⚙  ")).ToList();
+        var lines = output.Split('\n').Where(l => l.Contains("🛠️ ")).ToList();
         Assert.Equal(4, lines.Count);
-        Assert.All(new[] { lines[0], lines[3] }, l => Assert.Contains("⚙  Friday 11 September 2026, 14:05 (Pacific Daylight Time, UTC-07:00)", l));
-        Assert.Contains("⚙  " + TranscriptRenderer.Truncate(FileText.Describe(Path.Combine(_settings.ProfileDirectory, WorkingDirectory.DefaultFolderName), isDefault: true), TranscriptRenderer.ToolTextLimit), lines[1]);   // the sentence cut at the ⚙ limit over a temp path
-        Assert.Contains("⚙  nothing remembered yet", lines[2]);
+        Assert.All(new[] { lines[0], lines[3] }, l => Assert.Contains("🛠️ Friday 11 September 2026, 14:05 (Pacific Daylight Time, UTC-07:00)", l));
+        Assert.Contains("🛠️ " + TranscriptRenderer.Truncate(FileText.Describe(Path.Combine(_settings.ProfileDirectory, WorkingDirectory.DefaultFolderName), isDefault: true), TranscriptRenderer.ToolTextLimit), lines[1]);   // the sentence cut at the 🛠️ limit over a temp path
+        Assert.Contains("🛠️ nothing remembered yet", lines[2]);
         string line = lines[3];
         Assert.DoesNotContain(GetCurrentTimeTool.ToolName, output);
         Assert.Contains("It is a fine day.", output);
 
         var toolResult = Assert.Single(_chat.Requests[1][^1].Contents.OfType<FunctionResultContent>());
         Assert.Equal("c1", toolResult.CallId);
-        Assert.Contains(line.Split("⚙  ")[1].Trim(), toolResult.Result!.ToString()!);
+        Assert.Contains(line.Split("🛠️ ")[1].Trim(), toolResult.Result!.ToString()!);
     }
 
     [Fact]
@@ -4703,14 +4706,14 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         // The date line, the working directory, then the memory (2026-09-17), above the reply's glyph; the model never printed a call line.
-        string cwd = TranscriptRenderer.Truncate(FileText.Describe(Path.Combine(_settings.ProfileDirectory, WorkingDirectory.DefaultFolderName), isDefault: true), TranscriptRenderer.ToolTextLimit);   // cut at the ⚙ limit over a temp path
-        Assert.Contains("  ⚙  Friday 11 September 2026, 14:05 (Pacific Daylight Time, UTC-07:00)\n  ⚙  " + cwd + "\n  ⚙  nothing remembered yet\n● Hello.", output);
+        string cwd = TranscriptRenderer.Truncate(FileText.Describe(Path.Combine(_settings.ProfileDirectory, WorkingDirectory.DefaultFolderName), isDefault: true), TranscriptRenderer.ToolTextLimit);   // cut at the 🛠️ limit over a temp path
+        Assert.Contains("  🛠️ Friday 11 September 2026, 14:05 (Pacific Daylight Time, UTC-07:00)\n  🛠️ " + cwd + "\n  🛠️ nothing remembered yet\n● Hello.", output);
         Assert.DoesNotContain(GetCurrentTimeTool.ToolName, output);
         Assert.DoesNotContain(GetWorkingDirectoryTool.ToolName, output);
         Assert.DoesNotContain(RecallMemoryTool.ToolName, output);
         // Once per conversation: not on the second turn, again after /clear.
-        Assert.Equal(6, output.Split('\n').Count(l => l.Contains("⚙  ")));
-        Assert.Contains("  ⚙  Friday 11 September 2026, 14:05 (Pacific Daylight Time, UTC-07:00)\n  ⚙  " + cwd + "\n  ⚙  nothing remembered yet\n● Fresh.", output);
+        Assert.Equal(6, output.Split('\n').Count(l => l.Contains("🛠️ ")));
+        Assert.Contains("  🛠️ Friday 11 September 2026, 14:05 (Pacific Daylight Time, UTC-07:00)\n  🛠️ " + cwd + "\n  🛠️ nothing remembered yet\n● Fresh.", output);
         ChatRole[] opened = [ChatRole.System, ChatRole.User, ChatRole.Assistant, ChatRole.Tool, ChatRole.Assistant, ChatRole.Tool, ChatRole.Assistant, ChatRole.Tool];
         Assert.Equal(opened, _chat.Requests[0].Select(m => m.Role));
         Assert.Equal([.. opened, ChatRole.Assistant, ChatRole.User], _chat.Requests[1].Select(m => m.Role));
@@ -4735,7 +4738,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.DoesNotContain("⚙  ", output);
+        Assert.DoesNotContain("🛠️ ", output);
         Assert.Contains("● Hello.", output);
         Assert.Equal([ChatRole.System, ChatRole.User], _chat.Requests[0].Select(m => m.Role));
         Assert.Equal([ChatRole.System, ChatRole.User, ChatRole.Assistant, ChatRole.User], _chat.Requests[1].Select(m => m.Role));
@@ -4917,7 +4920,7 @@ public partial class ChatScreenTests : IDisposable
     }
 
     [Fact]
-    public async Task WithGeometry_ADoubleClickOnTheScrolledHintDuringAReply_IsTheBottomAgain_AndNothingWithMouseInMenusOff()
+    public async Task WithGeometry_ADoubleClickOnTheScrolledHintDuringAReply_IsTheBottomAgain()
     {
         // Later on 2026-09-18: the busy row's scroll hint under a pair is Ctrl+End through the watcher's click hook.
         _settings.Update(d => { d.TtsOutput = false; d.TranscriptMarkdown = false; });
@@ -4946,30 +4949,6 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains(ScreenPane.ScrolledHint(5), output);
         Assert.Contains("after", output);
         Assert.Single(_chat.Requests);
-
-        // Mouse in menus off: the pair is nobody's; Ctrl+End ends the scroll so the run finishes as before.
-        _settings.Update(d => d.MouseInMenus = false);
-        _chat.EnqueueText(first, "after\n");
-        bool stillScrolled = false;
-        _chat.BeforeUpdate = async (i, ct) =>
-        {
-            if (i == 1)
-            {
-                Scripted().Push(Keys.PageUp);
-                await WaitUntilAsync(() => _console.Output[output.Length..].Contains("rows below", StringComparison.Ordinal));
-                Scripted().PushClick(20, 102);
-                Scripted().PushClick(20, 102);
-                await Task.Delay(80, ct);
-                stillScrolled = _console.Output[_console.Output.LastIndexOf(ScreenPane.RuleGlyph)..].Contains("rows below", StringComparison.Ordinal);
-                Scripted().Push(Keys.Ctrl(ConsoleKey.End));
-                await WaitUntilAsync(() => !_console.Output[_console.Output.LastIndexOf(ScreenPane.RuleGlyph)..].Contains("rows below", StringComparison.Ordinal));
-            }
-        };
-        LinesWhenIdle("hi", "/exit");
-        await RunAsync();
-
-        Assert.True(stillScrolled);
-        Assert.Equal(2, _chat.Requests.Count);
     }
 
     [Fact]
@@ -5103,8 +5082,8 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(new[] { ChatRole.System, ChatRole.User, ChatRole.Assistant, ChatRole.Tool, ChatRole.Assistant, ChatRole.Tool, ChatRole.Assistant, ChatRole.Tool, ChatRole.Assistant, ChatRole.User }, _chat.Requests[1].Select(m => m.Role));
         var results = _chat.Requests[1].SelectMany(m => m.Contents.OfType<FunctionResultContent>()).Where(r => r.CallId == Assistant.OpeningCwdCallId).ToList();
         Assert.Equal(FileText.Describe(elsewhere, isDefault: false), Assert.Single(results).Result);
-        Assert.Contains("  ⚙  " + TranscriptRenderer.Truncate(FileText.Describe(Path.Combine(_settings.ProfileDirectory, WorkingDirectory.DefaultFolderName), isDefault: true), TranscriptRenderer.ToolTextLimit), output);
-        Assert.DoesNotContain("  ⚙  " + TranscriptRenderer.Truncate(FileText.Describe(elsewhere, isDefault: false), TranscriptRenderer.ToolTextLimit), output);   // replaced in place, silently
+        Assert.Contains("  🛠️ " + TranscriptRenderer.Truncate(FileText.Describe(Path.Combine(_settings.ProfileDirectory, WorkingDirectory.DefaultFolderName), isDefault: true), TranscriptRenderer.ToolTextLimit), output);
+        Assert.DoesNotContain("  🛠️ " + TranscriptRenderer.Truncate(FileText.Describe(elsewhere, isDefault: false), TranscriptRenderer.ToolTextLimit), output);   // replaced in place, silently
         Assert.Contains("  · Opening working-directory call — already sent with the first message, kept current\n  ·   get_working_directory → " + FileText.Describe(elsewhere, isDefault: false) + "\n", output);
     }
 
@@ -5180,18 +5159,73 @@ public partial class ChatScreenTests : IDisposable
     }
 
     [Fact]
-    public async Task Queue_WithNothingQueued_SaysSo_AndTakesNoArgument()
+    public async Task Queue_WithNothingQueued_SaysSo_AndAnUnknownWordIsTheUsageError()
     {
-        // /queue (2026-09-18): the queued messages on a pane; empty, the notice alone. With an argument, the overloaded-command error.
+        // /queue (2026-09-18): the queued messages on a pane; empty, the notice alone — /queue clear the same with nothing to drop (2026-09-21). Any other word is the usage error.
         PushLine("/queue");
+        PushLine("/queue clear");
         PushLine("/queue now");
         PushLine("/exit");
 
         string output = await RunAsync();
 
-        Assert.Contains("  · " + QueueMenu.EmptyNotice, output);
-        Assert.Contains(ChatScreen.NoArgumentError("/queue"), output);
+        Assert.Equal(2, output.Split("  · " + QueueMenu.EmptyNotice).Length - 1);
+        Assert.Contains("  ✗ " + ChatScreen.QueueUsageError, output);
+        Assert.DoesNotContain(ChatScreen.NoArgumentError("/queue"), output);
         Assert.Empty(_chat.Requests);
+    }
+
+    /// <summary>The /queue grammar (2026-09-21) and its completion: nothing, clear (any case), anything else invalid.</summary>
+    [Fact]
+    public void ParseQueueArgs_IsPinned_AndTheClearWordCompletes()
+    {
+        Assert.Equal(QueueAction.List, ChatScreen.ParseQueueArgs(""));
+        Assert.Equal(QueueAction.List, ChatScreen.ParseQueueArgs("  "));
+        Assert.Equal(QueueAction.Clear, ChatScreen.ParseQueueArgs("clear"));
+        Assert.Equal(QueueAction.Clear, ChatScreen.ParseQueueArgs(" Clear "));
+        Assert.Equal(QueueAction.Invalid, ChatScreen.ParseQueueArgs("now"));
+        Assert.Equal(QueueAction.Invalid, ChatScreen.ParseQueueArgs("clear all"));
+        Assert.Equal("clear", ChatScreen.QueueClearWord);
+        Assert.Equal("/queue lists the queued messages; /queue clear drops them all.", ChatScreen.QueueUsageError);
+        Assert.Equal([new CompletionItem("clear", ChatScreen.QueueClearNote)], ChatScreen.ArgumentItems("/queue", "", Sources()));
+        Assert.Equal([new CompletionItem("clear", ChatScreen.QueueClearNote)], ChatScreen.ArgumentItems("/queue", "cl", Sources()));
+        Assert.Empty(ChatScreen.ArgumentItems("/queue", "x", Sources()));
+    }
+
+    /// <summary>/queue clear at the idle line over a held queue (2026-09-21): every message dropped with the loop's notice, none sent.</summary>
+    [Fact]
+    public async Task Idle_QueueClear_DropsAHeldQueue_WithTheNotice()
+    {
+        CancelledWithAQueuedLineFixture("hold", 1, "later", "and later");
+        LinesWhenIdle("hi", "/queue clear", "/exit");
+
+        string output = await RunAsync();
+
+        Assert.Single(_chat.Requests);
+        Assert.Contains("  · " + ChatScreen.QueueDroppedNotice(2), output);
+        Assert.Contains("› /queue clear", output);
+        Assert.DoesNotContain(Titled(QueueStrip), output);
+    }
+
+    /// <summary>/queue clear under a reply (2026-09-21) is a quick act: the queued message goes with the notice, the reply runs on, nothing is sent after it.</summary>
+    [Fact]
+    public async Task MidTurn_QueueClear_DropsTheQueue_WithTheNotice_AndTheReplyRunsOn()
+    {
+        MidTurnFixture(i =>
+        {
+            if (i == 1)
+            {
+                PushLine("later");
+                PushLine("/queue clear");
+            }
+        });
+
+        string output = await RunAsync();
+
+        Assert.Single(_chat.Requests);
+        Assert.Contains("  · " + ChatScreen.QueueDroppedNotice(1), output);
+        Assert.Contains("three.", output);
+        Assert.DoesNotContain("› later", output);
     }
 
     [Fact]
@@ -6661,7 +6695,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("⚙  started the tea timer: 3 minutes, done at 14:08", output);
+        Assert.Contains("🛠️ started the tea timer: 3 minutes, done at 14:08", output);
         Assert.DoesNotContain(StartTimerTool.ToolName, output);
         Assert.Contains("  · tea: 3 minutes left of 3 minutes (done at 14:08)", output);
         var toolResult = Assert.Single(_chat.Requests[1][^1].Contents.OfType<FunctionResultContent>());
@@ -7204,42 +7238,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(new[] { true, true, true }, wheel);
     }
 
-    /// <summary>With Mouse in menus off a pane hands the mouse to the terminal (drag-select over its text) and its close is the screen's hold again.</summary>
-    [Fact]
-    public async Task TheMouse_StaysTheTerminals_UnderAPane_WithMouseInMenusOff()
-    {
-        _settings.Update(d => { d.TtsOutput = false; d.MouseInMenus = false; });
-        _console.Profile.Height = 40;
-        _geometry = new ScreenGeometry(() => null);
-        var owned = new List<bool>();
-        var wheel = new List<bool>();
-        _mouse = owned.Add;
-        _holdWheel = wheel.Add;
-        PushLine("/help");
-        _console.Input.PushKey(Keys.Escape);
-        PushLine("/settings");
-        for (int i = 0; i < 7; i++)
-        {
-            _console.Input.PushKey(Keys.Down);          // Mouse in menus, General's eighth row (the queue's two rows since 2026-09-18; (New profile mode sits under Profile; the six web rows moved to the Web tab 2026-09-15)
-        }
-
-        _console.Input.PushKey(Keys.Enter);             // its on/off page
-        _console.Input.PushKey(Keys.Up);
-        _console.Input.PushKey(Keys.Enter);             // on: the list again, now taken
-        _console.Input.PushKey(Keys.Escape);            // closed
-        PushLine("/exit");
-
-        string output = await RunAsync();
-
-        Assert.Contains("\n  · Mouse in menus: on\n", output);
-        Assert.True(_settings.Current.MouseInMenus);
-        // The screen's hold; the help pane hands back (false), ESC the hold again; the settings list
-        // hands back; the on/off page too; the list after the pick keeps it (the setting is read on every take); the close.
-        Assert.Equal(new[] { true, false, true, false, false, true, true }, owned);
-        Assert.Equal(new[] { true, false, true, false, false, true, true }, wheel);
-    }
-
-    /// <summary>A double-click anywhere on the hint row at the idle line opens the settings as /settings would — no transcript row, the draft back under the menu — with Mouse in menus on (2026-09-18).</summary>
+    /// <summary>A double-click anywhere on the hint row at the idle line opens the settings as /settings would — no transcript row, the draft back under the menu (2026-09-18; the Mouse in menus setting that gated it went on 2026-09-21).</summary>
     [Fact]
     public async Task ADoubleClickOnTheHintRow_OpensTheSettings_AndTheDraftComesBack()
     {
@@ -7388,34 +7387,7 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         Assert.DoesNotContain(ChatScreen.SysToolGlyph, output);
-        Assert.DoesNotContain(ChatScreen.ToolsToolGlyph, output);
-        Assert.DoesNotContain("Settings   General", output);
-        Assert.Contains("› hi", output);
-        Assert.Equal("hi", Assert.Single(_chat.Requests).Last(m => m.Role == ChatRole.User).Text);
-    }
-
-    /// <summary>Mouse in menus off: the toolbar is still drawn (it carries the working directory) but the mouse is the terminal's, so a pair on a glyph is nothing.</summary>
-    [Fact]
-    public async Task ShowToolbar_WithMouseInMenusOff_DrawsTheRow_AndItsClicksAreNothing()
-    {
-        _settings.Update(d => { d.TtsOutput = false; d.ShowToolbar = true; d.MouseInMenus = false; });
-        _console.Profile.Height = 40;
-        _console.Profile.Width = 240;
-        _geometry = new ScreenGeometry(() => null, () => 100);
-        StepsWhenIdle(
-            input =>
-            {
-                input.Push(Keys.Char('h'), Keys.Char('i'));
-                input.PushClick(0, 103);
-                input.PushClick(0, 103);
-                input.Push(Keys.Enter);
-            },
-            Line("/exit"));
-
-        string output = await RunAsync();
-
-        string cwd = WorkingDirectory.Resolve("", _settings.ProfileDirectory);
-        Assert.Contains("\n" + ScreenPane.ToolbarRow(ChatScreen.ToolbarStrip, cwd, 239), output);
+        Assert.DoesNotContain(ChatScreen.ToolbarStrip, output);   // the strip, not its 🛠️ alone: the transcript's tool lines carry that glyph since 2026-09-21
         Assert.DoesNotContain("Settings   General", output);
         Assert.Contains("› hi", output);
         Assert.Equal("hi", Assert.Single(_chat.Requests).Last(m => m.Role == ChatRole.User).Text);
@@ -7447,7 +7419,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(ScreenPane.ToolbarZone.Row, ScreenPane.ToolbarHitAt(ChatScreen.ToolbarStrip, -1, 0, 14).Zone);
     }
 
-    /// <summary>A double-click on the scroll's hint at the idle line (later on 2026-09-18) is Ctrl+End — the bottom again, the draft kept, no settings pane; with Mouse in menus off the clicks are nothing and the sent line takes the bottom.</summary>
+    /// <summary>A double-click on the scroll's hint at the idle line (later on 2026-09-18) is Ctrl+End — the bottom again, the draft kept, no settings pane.</summary>
     [Fact]
     public async Task ADoubleClickOnTheScrolledHint_AtIdle_IsTheBottomAgain_AndOpensNothing()
     {
@@ -7479,28 +7451,6 @@ public partial class ChatScreenTests : IDisposable
         Assert.True(tail >= 0 && draft > tail, after);
         Assert.DoesNotContain("Settings   General", output);
         Assert.Equal("!", _chat.Requests[1].Last(m => m.Role == ChatRole.User).Text);
-
-        // Mouse in menus off: the hint row is dead to a click; the "!" is typed under the scroll's hint and its Enter is the bottom again.
-        _settings.Update(d => d.MouseInMenus = false);
-        _chat.EnqueueText(rows);
-        _chat.EnqueueText("ok");
-        StepsWhenIdle(
-            Line("hi"),
-            input =>
-            {
-                input.Push(Keys.PageUp);
-                input.PushClick(20, 102);
-                input.PushClick(20, 102);
-                input.Push(Keys.Char('!'));
-                input.Push(Keys.Enter);
-            },
-            Line("/exit"));
-        string second = (await RunAsync())[output.Length..];
-        string afterScroll = second[(second.LastIndexOf("rows below", StringComparison.Ordinal) + 1)..];
-        int typed = afterScroll.IndexOf('!');
-        int restored = afterScroll.IndexOf("row12", StringComparison.Ordinal);
-        Assert.True(typed >= 0 && restored > typed, afterScroll);   // the "!" typed while scrolled; the Enter wrote the tail back
-        Assert.Equal("!", _chat.Requests[3].Last(m => m.Role == ChatRole.User).Text);
     }
 
     /// <summary>The model name at the row's right edge (2026-09-18): a double-click there is /model — the list over the fixture's server, ESC keeps the model — with no › row.</summary>
@@ -7526,6 +7476,32 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains("\n" + Titled(SettingsMenu.ModelTitle) + "\n \n▸ llama\n", output);
         Assert.Contains("  · " + SettingsMenu.UnchangedNotice, output);
         Assert.DoesNotContain("› /model", output);
+    }
+
+    /// <summary>The reasoning mark on the row's last cell (2026-09-21): a double-click there is /reasoning — the level list, ESC keeps the level — with no › row; the name beside it is still /model.</summary>
+    [Fact]
+    public async Task ADoubleClickOnTheReasoningMark_OpensTheReasoningPicker()
+    {
+        _settings.Update(d => d.TtsOutput = false);
+        _console.Profile.Height = 40;
+        _console.Profile.Width = 240;
+        _geometry = new ScreenGeometry(() => null, () => 100);
+        // "llama ○" ends at column 238: the mark's cell.
+        StepsWhenIdle(
+            input =>
+            {
+                input.PushClick(238, 102);
+                input.PushClick(238, 102);
+            },
+            Key(Keys.Escape),
+            Line("/exit"));
+
+        string output = await RunAsync();
+
+        Assert.Contains("\n" + Titled(SettingsMenu.ReasoningTitle) + "\n \n▸ none  ", output);
+        Assert.Equal("none", _settings.Current.LlmReasoning);
+        Assert.DoesNotContain("› /reasoning", output);
+        Assert.DoesNotContain(Titled(SettingsMenu.ModelTitle), output);
     }
 
     /// <summary>A speech glyph (2026-09-18): a double-click on 🎤 is /stt off — the setting saved, the strip 🔊 alone after — with no › row; the separator between the glyphs is the row (the settings).</summary>
@@ -7565,28 +7541,6 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(SlashCommand.Interrupt, ChatScreen.SwitchForGlyph(ChatScreen.InterruptGlyph));
         Assert.Null(ChatScreen.SwitchForGlyph(""));
         Assert.Null(ChatScreen.SwitchForGlyph("x"));
-    }
-
-    /// <summary>With Mouse in menus off the hint row is dead to the mouse: the same two clicks open nothing.</summary>
-    [Fact]
-    public async Task ADoubleClickOnTheHintRow_OpensNothing_WithMouseInMenusOff()
-    {
-        _settings.Update(d => { d.TtsOutput = false; d.MouseInMenus = false; });
-        _console.Profile.Height = 40;
-        _geometry = new ScreenGeometry(() => null, () => 100);
-        StepsWhenIdle(
-            input =>
-            {
-                input.PushClick(3, 102);
-                input.PushClick(3, 102);
-                PushLine(input, "hi");
-            },
-            Line("/exit"));
-
-        string output = await RunAsync();
-
-        Assert.DoesNotContain("Settings   General", output);
-        Assert.Contains("› hi", output);
     }
 
     [Theory]
@@ -7786,12 +7740,12 @@ public partial class ChatScreenTests : IDisposable
     [Theory]
     [InlineData(null, "high", "")]       // no server: no glyph either
     [InlineData("", "high", "")]
-    [InlineData("llama", "none", "")]
+    [InlineData("llama", "none", "○")]   // the empty circle, always shown (2026-09-21)
     [InlineData("llama", "low", "◔")]
     [InlineData("llama", "medium", "◑")]
     [InlineData("llama", "high", "◕")]
     [InlineData("llama", "xhigh", "●")]
-    [InlineData("llama", "bogus", "")]   // a hand-edited level: nothing, never a throw
+    [InlineData("llama", "bogus", "○")]   // a hand-edited level: none's circle, never a throw
     public void ModelMark_IsPinned(string? modelId, string reasoning, string expected) =>
         Assert.Equal(expected, ChatScreen.ModelMark(modelId, reasoning));
 
@@ -7818,7 +7772,7 @@ public partial class ChatScreenTests : IDisposable
         string row = Row(ChatScreen.HintLine(null), reasoning: "high");
         Assert.Equal(239, TextCells.Width(row));
         Assert.EndsWith("llama ◕", row);
-        Assert.EndsWith("llama", none);
+        Assert.EndsWith("llama ○", none);   // the empty circle at none (2026-09-21)
     }
 
     [Fact]
@@ -7885,11 +7839,11 @@ public partial class ChatScreenTests : IDisposable
 
         string defaultPath = Path.Combine(_settings.ProfileDirectory, WorkingDirectory.DefaultFolderName);
         Assert.Contains("  · " + ChatScreen.CwdNotice(defaultPath, true, null), output);
-        Assert.Contains("  · Working directory: " + elsewhere, output);                 // the saved notice, from the menu
+        Assert.Contains("  · Working directory (cwd): " + elsewhere, output);                 // the saved notice, from the menu
         Assert.True(Directory.Exists(elsewhere));                                       // created on save
         Assert.Contains("  · " + ChatScreen.CwdNotice(elsewhere, false, null), output);
-        Assert.Equal(2, output.Split("  ✗ Working directory " + SettingsMenu.WorkingDirectoryError + "; keeping " + elsewhere + ".").Length - 1);
-        Assert.Contains("  · Working directory: " + SettingsMenu.DefaultWorkingDirectoryLabel(_settings.ProfileDirectory), output);
+        Assert.Equal(2, output.Split("  ✗ Working directory (cwd) " + SettingsMenu.WorkingDirectoryError + "; keeping " + elsewhere + ".").Length - 1);
+        Assert.Contains("  · Working directory (cwd): " + SettingsMenu.DefaultWorkingDirectoryLabel(_settings.ProfileDirectory), output);
         Assert.Equal("", _settings.Current.WorkingDirectory);
         Assert.Empty(_chat.Requests);
     }
@@ -7906,8 +7860,8 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         string defaultPath = Path.Combine(_settings.ProfileDirectory, WorkingDirectory.DefaultFolderName);
-        Assert.Contains("  · Working directory: " + elsewhere, output);
-        Assert.Contains("  · Working directory: " + SettingsMenu.DefaultWorkingDirectoryLabel(_settings.ProfileDirectory), output);   // the reset notice
+        Assert.Contains("  · Working directory (cwd): " + elsewhere, output);
+        Assert.Contains("  · Working directory (cwd): " + SettingsMenu.DefaultWorkingDirectoryLabel(_settings.ProfileDirectory), output);   // the reset notice
         Assert.Contains("  · " + ChatScreen.CwdNotice(defaultPath, true, null), output);
         Assert.Equal("", _settings.Current.WorkingDirectory);
     }
@@ -7954,7 +7908,7 @@ public partial class ChatScreenTests : IDisposable
         string strip = FolderText.Title + "   " + FolderText.CollapseAllButton + " ";
         Assert.Contains("\n" + Titled(strip) + "\n" + elsewhere + "\n", output);                  // the path row: the cursor on the directory in force
         Assert.Contains("\n" + Titled(strip) + "\n" + Path.GetDirectoryName(elsewhere) + "\n", output);
-        Assert.Contains("  · Working directory: " + Path.GetDirectoryName(elsewhere) + "\n", output);   // the saved notice, from the menu
+        Assert.Contains("  · Working directory (cwd): " + Path.GetDirectoryName(elsewhere) + "\n", output);   // the saved notice, from the menu
         Assert.Contains("  · " + FolderText.KeptNotice + "\n", output);
         Assert.Contains("  · " + ChatScreen.CwdNotice(Path.GetDirectoryName(elsewhere)!, false, null), output);
         Assert.Equal(Path.GetDirectoryName(elsewhere), _settings.Current.WorkingDirectory);
@@ -7984,7 +7938,7 @@ public partial class ChatScreenTests : IDisposable
         string strip = FolderText.Title + "   " + FolderText.CollapseAllButton + " ";
         Assert.True(Directory.Exists(defaultPath));
         Assert.Contains("\n" + Titled(strip) + "\n" + defaultPath + "\n" + MenuPane.Pointer + FolderText.CollapsedGlyph + " " + FolderText.ShortcutGlyph + " " + FolderText.ProfileLabel + "\n" + MenuPane.NoPointer + FolderText.CollapsedGlyph + " ", output);
-        Assert.Equal(2, output.Split("  · Working directory: " + SettingsMenu.DefaultWorkingDirectoryLabel(_settings.ProfileDirectory)).Length - 1);   // ~, then the pick
+        Assert.Equal(2, output.Split("  · Working directory (cwd): " + SettingsMenu.DefaultWorkingDirectoryLabel(_settings.ProfileDirectory)).Length - 1);   // ~, then the pick
         Assert.Equal("", _settings.Current.WorkingDirectory);
         Assert.Empty(_chat.Requests);
     }
@@ -8149,7 +8103,7 @@ public partial class ChatScreenTests : IDisposable
         string spinner = Row(Theme.SpinnerFrames[0] + " " + ScreenPane.BusyText(ChatScreen.ThinkingLabel, TimeSpan.Zero));
         int busy = output.IndexOf(spinner, StringComparison.Ordinal);
         int first = output.IndexOf("One moment.", StringComparison.Ordinal);
-        int call = output.IndexOf("⚙  Friday 11 September 2026", first, StringComparison.Ordinal);
+        int call = output.IndexOf("🛠️ Friday 11 September 2026", first, StringComparison.Ordinal);
         int second = output.IndexOf("Done.", StringComparison.Ordinal);
         int tally = output.IndexOf(rule + "\n" + Row(ChatScreen.HintLine(null, "25 tokens")), StringComparison.Ordinal);
         Assert.True(busy > 0 && first > busy && call > first && second > call && tally > second);
@@ -8779,6 +8733,7 @@ public partial class ChatScreenTests : IDisposable
     [InlineData(SlashCommand.EmptyTrash, false, MidTurnClass.Pane)]
     [InlineData(SlashCommand.Git, true, MidTurnClass.Refused)]
     [InlineData(SlashCommand.Queue, false, MidTurnClass.Pane)]
+    [InlineData(SlashCommand.Queue, true, MidTurnClass.Quick)]   // /queue clear, 2026-09-21
     [InlineData(SlashCommand.Reasoning, false, MidTurnClass.Pane)]
     [InlineData(SlashCommand.Reasoning, true, MidTurnClass.Quick)]
     [InlineData(SlashCommand.Tts, false, MidTurnClass.Quick)]
@@ -8971,11 +8926,11 @@ public partial class ChatScreenTests : IDisposable
         // The tool runs while the pane asks: its name is the spinner's stage, as any tool's.
         Assert.Contains(" " + ScreenPane.BusyRow(AskUserTool.ToolName, TimeSpan.Zero, QuestionMenu.SingleKeys), output);
         Assert.Contains("\n  Q1 Colour — blue\n  Q2 — cheese, olives\n▸ Submit\n", output);
-        // The answers, one dim line each, then the reply; never a ⚙ line with the tool's name or its arguments.
-        Assert.Contains("⚙  Which colour? — blue\n", output);
-        Assert.Contains("  ⚙  Toppings? — cheese, olives\n", output);
+        // The answers, one dim line each, then the reply; never a 🛠️ line with the tool's name or its arguments.
+        Assert.Contains("🛠️ Which colour? — blue\n", output);
+        Assert.Contains("  🛠️ Toppings? — cheese, olives\n", output);
         Assert.Contains("Blue, cheese and olives.", output);
-        Assert.DoesNotContain("⚙  " + AskUserTool.ToolName, output);
+        Assert.DoesNotContain("🛠️ " + AskUserTool.ToolName, output);
         Assert.DoesNotContain("\"questions\"", output);
         Assert.DoesNotContain(ChatScreen.CancelledNotice, output);
         // The model: the tool offered last with its rule in the prompt, the result under the call id.
@@ -8995,7 +8950,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("⚙  " + AskUserText.NotAnswered + "\n", output);
+        Assert.Contains("🛠️ " + AskUserText.NotAnswered + "\n", output);
         Assert.Contains("Fine, I will pick.", output);
         Assert.DoesNotContain(ChatScreen.CancelledNotice, output);
         Assert.Equal(2, _chat.Requests.Count);
@@ -9012,7 +8967,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("⚙  " + AskUserText.NotAnswered + "\n", output);
+        Assert.Contains("🛠️ " + AskUserText.NotAnswered + "\n", output);
         Assert.Contains("Fine, I will pick.", output);
         Assert.DoesNotContain(ChatScreen.CancelledNotice, output);
         Assert.Equal(2, _chat.Requests.Count);
@@ -9407,7 +9362,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("\n" + Titled(QueueMenu.Title) + "\n \n▸ 1  later\n", output);
+        Assert.Contains("\n" + Titled(QueueStrip) + "\n \n▸ 1  later\n", output);
         Assert.DoesNotContain("› /queue", output);
         Assert.Single(_chat.Requests);
         Assert.Contains("\n" + ChatScreen.QueuedHintPart(1), output);
@@ -9451,7 +9406,7 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         output = string.Join("\n", output.Split('\n').Select(l => l.TrimEnd()));
-        int pane = output.IndexOf("\n" + Titled(QueueMenu.Title) + "\n\n▸ 1  later\n", StringComparison.Ordinal);   // the spacer row trimmed
+        int pane = output.IndexOf("\n" + Titled(QueueStrip) + "\n\n▸ 1  later\n", StringComparison.Ordinal);   // the spacer row trimmed
         Assert.True(pane > 0, "the Queue pane opened over the streaming reply");
         Assert.Contains(" " + ScreenPane.BusyRow(TurnStages.WritingLabel, TimeSpan.Zero, QueueMenu.Keys), output);   // the count hidden under the pane's hint
         Assert.True(pane < output.LastIndexOf("three.", StringComparison.Ordinal));
@@ -9488,7 +9443,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.DoesNotContain(Titled(QueueMenu.Title), output);
+        Assert.DoesNotContain(Titled(QueueStrip), output);
         Assert.Equal(2, _chat.Requests.Count);
         Assert.Equal("later", _chat.Requests[1][^1].Text);
     }
@@ -10820,7 +10775,7 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         Assert.Contains("(--cwd this launch)", output);
-        Assert.Contains("  · Working directory: " + elsewhere, output);
+        Assert.Contains("  · Working directory (cwd): " + elsewhere, output);
         Assert.Contains(SettingsMenu.OverrideNotice(CompanionOptions.CwdFlag), output);
         Assert.Equal(elsewhere, _settings.Current.WorkingDirectory);
     }
@@ -11490,7 +11445,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("Moving.\n  ⚙  moved a.txt to done\\a.txt\n  ⚙  moved b.txt to done\\b.txt\n", output);
+        Assert.Contains("Moving.\n  🛠️ moved a.txt to done\\a.txt\n  🛠️ moved b.txt to done\\b.txt\n", output);
         Assert.Contains("Done.", output);
         Assert.DoesNotContain("Moving.\n\n", output);
     }
@@ -11509,8 +11464,8 @@ public partial class ChatScreenTests : IDisposable
 
         string file = Path.Combine(_settings.ProfileDirectory, WorkingDirectory.DefaultFolderName, "drafts", "haiku.txt");
         Assert.Equal("old pond\nfrog jumps in", File.ReadAllText(file));
-        Assert.Contains("⚙  wrote drafts\\haiku.txt (22 bytes, 2 lines, 5 words)", output);
-        Assert.Contains("⚙  drafts\\haiku.txt (2 lines): old pond frog jumps in", output);   // the note flattens the lines (bare since 2026-09-19)
+        Assert.Contains("🛠️ wrote drafts\\haiku.txt (22 bytes, 2 lines, 5 words)", output);
+        Assert.Contains("🛠️ drafts\\haiku.txt (2 lines): old pond frog jumps in", output);   // the note flattens the lines (bare since 2026-09-19)
         Assert.DoesNotContain(WriteFileTool.ToolName, output);
         Assert.DoesNotContain(ReadFileTool.ToolName, output);
         Assert.Contains("Saved and read back.", output);
@@ -11520,7 +11475,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal("drafts\\haiku.txt (2 lines):\nold pond\nfrog jumps in", results.Single().Result);
     }
 
-    /// <summary>The model's own way to a picture: the ⚙ note, the thumbnail under it, the carrier after the tool message, and the picture still there for a follow-up.</summary>
+    /// <summary>The model's own way to a picture: the 🛠️ note, the thumbnail under it, the carrier after the tool message, and the picture still there for a follow-up.</summary>
     [Fact]
     public async Task Turn_ModelViewsAnImage_ShowsTheNoteAndTheThumbnail_AndTheCarrierFollowsTheResult()
     {
@@ -11536,7 +11491,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("⚙  square.bmp (4×4 image/png, ", output);
+        Assert.Contains("🛠️ square.bmp (4×4 image/png, ", output);
         Assert.Contains("): " + FileText.ImageFollows + "\n▀▀▀▀\n▀▀▀▀\n", output);
         Assert.DoesNotContain(ViewImageTool.ToolName + " {", output);   // quiet: no call line
         Assert.Contains("A pink square.", output);
@@ -11555,7 +11510,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(2, _chat.Requests[2].Count(ConversationHistory.IsTurnStart));
     }
 
-    /// <summary>A batch in one call: one ⚙ line per path, both thumbnails side by side, one carrier with two parts.</summary>
+    /// <summary>A batch in one call: one 🛠️ line per path, both thumbnails side by side, one carrier with two parts.</summary>
     [Fact]
     public async Task Turn_ModelViewsTwoImagesInOneCall_DrawsBothThumbnails_OneCarrier()
     {
@@ -11571,7 +11526,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("⚙  a.bmp (4×4 image/png, ", output);
+        Assert.Contains("🛠️ a.bmp (4×4 image/png, ", output);
         Assert.Contains("▀▀▀▀  ▀▀▀▀\n▀▀▀▀  ▀▀▀▀\n", output);
         var carrier = _chat.Requests[1][^1];
         Assert.True(ConversationHistory.IsImageCarrier(carrier));
@@ -11597,7 +11552,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("⚙  square.bmp (4×4 image/png, ", output);
+        Assert.Contains("🛠️ square.bmp (4×4 image/png, ", output);
         Assert.DoesNotContain("▀", output);
         Assert.Single(_chat.Requests[1], ConversationHistory.IsImageCarrier);   // attached just the same
     }
@@ -11613,7 +11568,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("⚙  " + FileText.OutsideRoot(@"..\profile.json"), output);
+        Assert.Contains("🛠️ " + FileText.OutsideRoot(@"..\profile.json"), output);
         var result = Assert.Single(_chat.Requests[1][^1].Contents.OfType<FunctionResultContent>());
         Assert.Equal(FileText.OutsideRoot(@"..\profile.json"), result.Result);
     }
@@ -11751,7 +11706,7 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         string expected = SkillText.Content("haiku", "# Haiku\n\nFive, seven, five.", directory, [], false, false);
-        Assert.Contains("⚙  loaded skill 'haiku' (" + expected.Length.ToString("N0", CultureInfo.InvariantCulture) + " characters)", output);
+        Assert.Contains("🛠️ loaded skill 'haiku' (" + expected.Length.ToString("N0", CultureInfo.InvariantCulture) + " characters)", output);
         Assert.DoesNotContain("<skill_content", output);
         Assert.DoesNotContain(LoadSkillTool.ToolName, output);
         var result = Assert.Single(_chat.Requests[1][^1].Contents.OfType<FunctionResultContent>());
@@ -11775,7 +11730,7 @@ public partial class ChatScreenTests : IDisposable
 
         string file = Path.Combine(ProfileSkills, "rain-haiku", "SKILL.md");
         Assert.Equal("---\nname: rain-haiku\ndescription: Writes haiku about rain.\n---\n\nMention rain.\n", File.ReadAllText(file));
-        Assert.Contains("⚙  created skill 'rain-haiku' (profile, " + new FileInfo(file).Length.ToString("N0", CultureInfo.InvariantCulture) + " bytes); it is in the list from the next reply on", output);
+        Assert.Contains("🛠️ created skill 'rain-haiku' (profile, " + new FileInfo(file).Length.ToString("N0", CultureInfo.InvariantCulture) + " bytes); it is in the list from the next reply on", output);
         Assert.DoesNotContain(SkillEditorTool.ToolName, output);
         // The turn that wrote it offered the editor alone; the next one lists the skill and offers the loader.
         Assert.DoesNotContain(LoadSkillTool.ToolName, _chat.Options[0]!.Tools!.Cast<AIFunction>().Select(t => t.Name));
@@ -13799,7 +13754,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Null(store.Load(old));
     }
 
-    /// <summary>The git tools (2026-09-20): a quiet call over the sandbox's repository, the result's first line the one dim ⚙ line, the rule in the prompt.</summary>
+    /// <summary>The git tools (2026-09-20): a quiet call over the sandbox's repository, the result's first line the one dim 🛠️ line, the rule in the prompt.</summary>
     [Fact]
     public async Task GitStatus_ReadsTheSandboxRepository_AndTheNoteIsTheHeader()
     {
@@ -13816,7 +13771,7 @@ public partial class ChatScreenTests : IDisposable
 
         var result = Assert.Single(_chat.Requests[1].SelectMany(m => m.Contents.OfType<FunctionResultContent>()), r => r.CallId == "c1");
         Assert.Equal("On branch main: 1 modified\nunstaged:\nM  notes.txt\n" + GitText.Legend, (string)result.Result!);
-        Assert.Contains("⚙  On branch main: 1 modified\n", output);
+        Assert.Contains("🛠️ On branch main: 1 modified\n", output);
         Assert.DoesNotContain(TranscriptRenderer.ToolGlyph + GitStatusTool.ToolName, output);   // a quiet tool: the result's header alone
         Assert.DoesNotContain("M  notes.txt", output);
         Assert.Contains(Assistant.GitRule, _chat.Requests[0][0].Text!, StringComparison.Ordinal);
@@ -13860,7 +13815,7 @@ public partial class ChatScreenTests : IDisposable
 
         var result = Assert.Single(_chat.Requests[1].SelectMany(m => m.Contents.OfType<FunctionResultContent>()), r => r.CallId == "c1");
         Assert.StartsWith("Searched \"vosk\" (1 session):\n#" + id + " · ", (string)result.Result!);
-        Assert.Contains("⚙  Searched \"vosk\" (1 session):", output);
+        Assert.Contains("🛠️ Searched \"vosk\" (1 session):", output);
         Assert.DoesNotContain(TranscriptRenderer.ToolGlyph + SessionManagerTool.ToolName, output);   // a quiet tool: the result's header alone
     }
 

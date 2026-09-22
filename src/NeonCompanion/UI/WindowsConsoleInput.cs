@@ -20,7 +20,7 @@ namespace NeonCompanion.UI;
 /// press it never saw, so who owns the mouse is decided before the press: the screen holds it
 /// for its whole run (2026-09-17, the user's call once the transcript was the app's to scroll —
 /// from 2026-09-13 to then the draft decided, so the terminal selected at an empty line), and a
-/// pane hands it to the terminal only under <c>Mouse in menus</c> off. Two modes, both from the original: released = the original with
+/// pane keeps it (a <c>Mouse in menus</c> setting could hand it to the terminal there until 2026-09-21). Two modes, both from the original: released = the original with
 /// <c>ENABLE_EXTENDED_FLAGS</c> on (so quick-edit is honoured as the shell had it — the classic
 /// console's drag-select) and <c>ENABLE_VIRTUAL_TERMINAL_INPUT</c> off (with it on, keys arrive as
 /// ESC-led sequences the key loop cannot parse); captured = that with <c>ENABLE_MOUSE_INPUT</c> on
@@ -93,8 +93,8 @@ public sealed class WindowsConsoleInput : IAnsiConsoleInput, IInputEvents, IDisp
 
     /// <summary>
     /// Takes the mouse (<paramref name="on"/>) or hands it back to the terminal: the screen takes
-    /// it at its start, a pane hands it back under <c>Mouse in menus</c> off and takes it again on
-    /// closing. While taken without the wheel (<see cref="HoldWheel"/>) a notch hands it back and
+    /// it at its start and every pane keeps it (2026-09-21; a setting could hand it back before).
+    /// While taken without the wheel (<see cref="HoldWheel"/>) a notch hands it back and
     /// the next key press takes it again; while handed back, keys change nothing.
     /// </summary>
     public void Capture(bool on)
@@ -377,7 +377,7 @@ public sealed class WindowsConsoleInput : IAnsiConsoleInput, IInputEvents, IDisp
             _captured = on;
         }
 
-        DiagnosticLog.Debug(Category, on ? "Mouse captured." : _wanted ? "Mouse handed back to the terminal (wheel)." : "Mouse handed back to the terminal (a pane, Mouse in menus off).");
+        DiagnosticLog.Debug(Category, on ? "Mouse captured." : _wanted ? "Mouse handed back to the terminal (wheel)." : "Mouse handed back to the terminal.");
         if (ModeChanged is { } changed)
         {
             _ = Task.Run(() =>

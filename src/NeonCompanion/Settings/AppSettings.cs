@@ -558,7 +558,6 @@ public sealed class AppSettings : IDisposable
         HideExitAutocomplete = source.HideExitAutocomplete,
         ImageThumbnailSize = source.ImageThumbnailSize,
         Memory = source.Memory,
-        MouseInMenus = source.MouseInMenus,
         NewProfileMode = source.NewProfileMode,
         PastePreviewLines = source.PastePreviewLines,
         QueueCancelMode = source.QueueCancelMode,

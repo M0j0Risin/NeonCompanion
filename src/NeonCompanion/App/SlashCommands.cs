@@ -114,7 +114,7 @@ public enum SlashCommand
     /// <summary><c>/echo &lt;text&gt;</c>: the line printed as a reply and read aloud when speech is on — <c>/speak</c>'s block and voice over typed text, never resumed (2026-09-17).</summary>
     Echo,
 
-    /// <summary><c>/queue</c>: the messages queued while a reply runs, on a pane where Enter removes one (2026-09-18, behind <c>Queue messages</c>).</summary>
+    /// <summary><c>/queue</c>: the messages queued while a reply runs, on a pane where Enter removes one and a button drops them all (2026-09-18, behind <c>Queue messages</c>); <c>/queue clear</c> (2026-09-21) drops them all without the pane.</summary>
     Queue,
 
     /// <summary><c>/session</c>: this profile's stored sessions on a pane (restore, rename, purge), or <c>/session &lt;id&gt; | purge &lt;id&gt; | purge older &lt;age&gt; | purge all | title &lt;text&gt;</c> typed (2026-09-18).</summary>
@@ -180,7 +180,7 @@ public static class SlashCommands
             new("/clear", "start a new conversation and clear the screen"),
             new("/new", "start a new conversation but do not clear the screen"),
             new("/splash", "start a new conversation and show the splash screen"),
-            new("/queue", "list and prune the messages queued while a reply runs"),
+            new("/queue", "list and prune the messages queued while a reply runs, or /queue clear"),
             new("/copy", "copy the last reply to the clipboard as markdown, or /copy <n> | all"),
             new("/draft", "write the next message in your editor: a temporary file, sent when it is saved and closed"),
             new("/loop", "repeat a message, each reply waited for: /loop <count> <message> | infinite <message> (ESC ends it)"),
@@ -376,5 +376,5 @@ public static class SlashCommands
         or SlashCommand.Persona or SlashCommand.Operata or SlashCommand.Vocalia
         or SlashCommand.Remember or SlashCommand.MemCopy or SlashCommand.Profile or SlashCommand.Timer
         or SlashCommand.Cwd or SlashCommand.Tree or SlashCommand.Explore or SlashCommand.Copy or SlashCommand.Session or SlashCommand.Git
-        or SlashCommand.Loop or SlashCommand.Skills;
+        or SlashCommand.Loop or SlashCommand.Skills or SlashCommand.Queue;
 }

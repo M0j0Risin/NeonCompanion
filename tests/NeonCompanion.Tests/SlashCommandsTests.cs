@@ -364,7 +364,7 @@ public class SlashCommandsTests
             SlashCommand.Persona, SlashCommand.Operata, SlashCommand.Vocalia,
             SlashCommand.Remember, SlashCommand.MemCopy, SlashCommand.Profile, SlashCommand.Timer,
             SlashCommand.Cwd, SlashCommand.Tree, SlashCommand.Explore, SlashCommand.Copy, SlashCommand.Session, SlashCommand.Git,
-            SlashCommand.Loop, SlashCommand.Skills,   // 2026-09-21
+            SlashCommand.Loop, SlashCommand.Skills, SlashCommand.Queue,   // 2026-09-21 (/queue clear later that day)
         ];
         foreach (var command in Enum.GetValues<SlashCommand>())
         {
@@ -565,7 +565,7 @@ public class SlashCommandsTests
         Assert.Equal("start a new conversation and show the splash screen", SlashCommands.HelpEntries[15].Summary);
         Assert.Equal("/queue", SlashCommands.HelpEntries[16].Command);   // under /new since 2026-09-18, under /splash since 2026-09-19
         Assert.Equal(["/clear", "/new", "/splash", "/queue", "/copy", "/draft", "/loop"], SlashCommands.HelpGroups[2].Select(e => e.Command));   // /loop under /draft since 2026-09-21   // /copy under /queue since later on 2026-09-18; /draft under /copy since 2026-09-19; /splash under /new later still
-        Assert.Equal("list and prune the messages queued while a reply runs", SlashCommands.HelpEntries[16].Summary);
+        Assert.Equal("list and prune the messages queued while a reply runs, or /queue clear", SlashCommands.HelpEntries[16].Summary);   // the clear word since 2026-09-21
         Assert.Equal("/copy", SlashCommands.HelpEntries[17].Command);
         Assert.Equal("copy the last reply to the clipboard as markdown, or /copy <n> | all", SlashCommands.HelpEntries[17].Summary);
         Assert.Equal("/draft", SlashCommands.HelpEntries[18].Command);

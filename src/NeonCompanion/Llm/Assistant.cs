@@ -1189,7 +1189,7 @@ public sealed class Assistant
 
         // Exact, ordinal: a namespaced or re-cased name is an unknown tool, and the model is told so.
         // A model's mistake is the Error: result, logged at Info — never a Warning on the transcript
-        // (the ⚙ echo already shows it in a turn; a reflection's shows nowhere but the log).
+        // (the 🛠️ echo already shows it in a turn; a reflection's shows nowhere but the log).
         var tool = tools.FirstOrDefault(t => string.Equals(t.Name, call.Name, StringComparison.Ordinal));
         if (tool is null)
         {

@@ -14,7 +14,7 @@ namespace NeonCompanion.Llm.Tools;
 /// must match; nothing checks that at compile time.
 ///
 /// <para>The result is a sentence for the model and, verbatim, the one dim line the transcript
-/// shows (<c>⚙ remembered: …</c>), so a wrong save is visible and <c>/forget</c> can undo it.</para>
+/// shows (<c>🛠️ remembered: …</c>), so a wrong save is visible and <c>/forget</c> can undo it.</para>
 /// </summary>
 public sealed class SaveMemoryTool : AIFunction
 {

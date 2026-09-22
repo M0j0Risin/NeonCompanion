@@ -66,9 +66,6 @@ public enum SettingsField
     /// <summary>Whether <c>/copy</c> puts the user's prompt above each reply (<see cref="Settings.AppSettingsData.CopyUserPrompt"/>; <c>Copy user text</c> until 2026-09-18); a toggle that needs no reconnect.</summary>
     CopyUserPrompt,
 
-    /// <summary>Whether the app holds the mouse under a menu or the info pane; a toggle that needs no reconnect (read on every take).</summary>
-    MouseInMenus,
-
     /// <summary>The model's context window in tokens for the <c>/usage</c> percentage; 0 = the server's own figure. Last of the LLM rows (enum order within the tab).</summary>
     LlmContextLength,
 
@@ -493,7 +490,7 @@ internal sealed class SettingsMenu
     /// (General, Sessions, LLM, TTS, STT — the user's order, 2026-09-18: Sessions right after General; the Ask,
     /// Files and Web tabs are <c>/tools</c>' since 2026-09-19, <see cref="ToolsTabFields"/>, and the Skills tab
     /// <c>/skills</c>' Options tab since later that day, <see cref="SkillsTabFields"/>).
-    /// General is spelled out (the profile and what a new one copies, then where its files live, then the message queue's switch and its cancel mode (2026-09-18, the user's place: right under the working directory), then the switches and pickers, the
+    /// General is spelled out (the profile and what a new one copies, then where its files live, then the message queue's switch and its cancel mode (2026-09-18, the user's place: right under the working directory), then the switches and pickers (<c>Mouse in menus</c> sat among them until 2026-09-21, when the mouse became the pane's for good), the
     /// transcript's Markdown and the paste preview, then the two line conveniences of 2026-09-18 — the hidden <c>/exit</c>, the typo intercept —, the welcome splash (the user's order, later that day), the banner's working directory and the draft editor last (2026-09-19)); LLM
     /// is spelled out too: the scan mode (where a blank URL looks, so it sits above the URL), the
     /// <see cref="IsLlmField"/> rows, the compact rows, then <see cref="SettingsField.LlmOfferTools"/> ABOVE
@@ -505,7 +502,7 @@ internal sealed class SettingsMenu
     /// </summary>
     public static readonly IReadOnlyList<IReadOnlyList<SettingsField>> TabFields =
     [
-        [SettingsField.Profile, SettingsField.NewProfileMode, SettingsField.WorkingDirectory, SettingsField.QueueMessages, SettingsField.QueueCancelMode, SettingsField.Memory, SettingsField.CopyUserPrompt, SettingsField.MouseInMenus, SettingsField.ShowImageThumbnails, SettingsField.ImageThumbnailSize, SettingsField.TranscriptMarkdown, SettingsField.PastePreviewLines, SettingsField.HideExitAutocomplete, SettingsField.CommandTypoIntercept, SettingsField.WelcomeSplash, SettingsField.ShowWorkingDirectory, SettingsField.ShowToolbar, SettingsField.DraftEditor],
+        [SettingsField.Profile, SettingsField.NewProfileMode, SettingsField.WorkingDirectory, SettingsField.QueueMessages, SettingsField.QueueCancelMode, SettingsField.Memory, SettingsField.CopyUserPrompt, SettingsField.ShowImageThumbnails, SettingsField.ImageThumbnailSize, SettingsField.TranscriptMarkdown, SettingsField.PastePreviewLines, SettingsField.HideExitAutocomplete, SettingsField.CommandTypoIntercept, SettingsField.WelcomeSplash, SettingsField.ShowWorkingDirectory, SettingsField.ShowToolbar, SettingsField.DraftEditor],
         [SettingsField.SessionLogging, SettingsField.SessionRetentionDays, SettingsField.SessionNamingMode, SettingsField.SessionShowName, SettingsField.SessionTool, SettingsField.SessionSearchMaxResults],
         [SettingsField.LlmScanMode, SettingsField.LlmUrl, SettingsField.LlmModel, SettingsField.LlmApiKey, SettingsField.LlmReasoning, SettingsField.LlmRequestTimeoutSeconds, SettingsField.LlmTurnTimeoutSeconds, SettingsField.LlmContextLength, SettingsField.LlmCompactType, SettingsField.LlmCompactKeepRecent, SettingsField.LlmCompactShowSummary, SettingsField.LlmAutoCompactPercent, SettingsField.LlmOfferTools, SettingsField.LlmToolCompactType, SettingsField.LlmMaxToolIterations, SettingsField.LlmUseFunVerbs],
         [SettingsField.TtsOutput, SettingsField.TtsSource, SettingsField.TtsHttpUrl, SettingsField.TtsVoicePreview, SettingsField.TtsVoice, SettingsField.TtsVoice2, SettingsField.TtsVoiceMix, SettingsField.TtsSpeed],
@@ -774,7 +771,7 @@ internal sealed class SettingsMenu
 
     public static bool IsToggle(SettingsField field) =>
         field is SettingsField.TtsOutput or SettingsField.SttInput or SettingsField.SttWake or SettingsField.SttInterrupt
-            or SettingsField.Memory or SettingsField.CopyUserPrompt or SettingsField.MouseInMenus or SettingsField.ShowImageThumbnails
+            or SettingsField.Memory or SettingsField.CopyUserPrompt or SettingsField.ShowImageThumbnails
             or SettingsField.FileTreeShowSizes or SettingsField.LlmOfferTools or SettingsField.LlmUseFunVerbs
             or SettingsField.WebTools or SettingsField.TtsVoicePreview or SettingsField.FileTools or SettingsField.AskUser
             or SettingsField.AgentSkills or SettingsField.ExternalSkills or SettingsField.TranscriptMarkdown
@@ -812,13 +809,12 @@ internal sealed class SettingsMenu
         SettingsField.TtsVoice2 => "TTS voice 2",
         SettingsField.TtsVoiceMix => "TTS voice mix",
         SettingsField.Memory => "Memory",
-        SettingsField.WorkingDirectory => "Working directory",
+        SettingsField.WorkingDirectory => "Working directory (cwd)",
         SettingsField.CopyUserPrompt => "Copy user prompt",
         SettingsField.DraftEditor => "Draft editor",
         SettingsField.FileViewImageMaxPerCall => "File view image max (per call)",
         SettingsField.McpServers => "MCP servers",
         SettingsField.McpConnectTimeoutSeconds => "MCP connect timeout (s)",
-        SettingsField.MouseInMenus => "Mouse in menus",
         SettingsField.ShowImageThumbnails => "Show image thumbnails",
         SettingsField.LlmCompactType => "LLM compact type",
         SettingsField.LlmCompactKeepRecent => "LLM compact keep recent",
@@ -881,7 +877,7 @@ internal sealed class SettingsMenu
         SettingsField.HideExitAutocomplete => "Hide /exit autocomplete",
         SettingsField.CommandTypoIntercept => "Command typo intercept",
         SettingsField.WelcomeSplash => "Welcome splash",
-        SettingsField.ShowWorkingDirectory => "Show working directory",
+        SettingsField.ShowWorkingDirectory => "Working directory in header",
         SettingsField.ShowToolbar => "Show toolbar",
         SettingsField.QueueMessages => "Queue messages",
         SettingsField.QueueCancelMode => "Queue cancel mode",
@@ -945,7 +941,6 @@ internal sealed class SettingsMenu
             SettingsField.Memory => OnOff(data.Memory),
             SettingsField.WorkingDirectory => string.IsNullOrWhiteSpace(data.WorkingDirectory) ? DefaultWorkingDirectoryLabel(profileDirectory) : data.WorkingDirectory,
             SettingsField.CopyUserPrompt => OnOff(data.CopyUserPrompt),
-            SettingsField.MouseInMenus => OnOff(data.MouseInMenus),
             SettingsField.ShowImageThumbnails => OnOff(data.ShowImageThumbnails),
             SettingsField.LlmCompactType => data.LlmCompactType,
             SettingsField.LlmCompactKeepRecent => Turns(data.LlmCompactKeepRecent),
@@ -2655,7 +2650,6 @@ internal sealed class SettingsMenu
             SettingsField.SttInterrupt => data.SttInterrupt,
             SettingsField.Memory => data.Memory,
             SettingsField.CopyUserPrompt => data.CopyUserPrompt,
-            SettingsField.MouseInMenus => data.MouseInMenus,
             SettingsField.ShowImageThumbnails => data.ShowImageThumbnails,
             SettingsField.FileTreeShowSizes => data.FileTreeShowSizes,
             SettingsField.LlmOfferTools => data.LlmOfferTools,
@@ -2700,7 +2694,6 @@ internal sealed class SettingsMenu
             case SettingsField.SttInterrupt: data.SttInterrupt = on; break;
             case SettingsField.Memory: data.Memory = on; break;
             case SettingsField.CopyUserPrompt: data.CopyUserPrompt = on; break;
-            case SettingsField.MouseInMenus: data.MouseInMenus = on; break;
             case SettingsField.ShowImageThumbnails: data.ShowImageThumbnails = on; break;
             case SettingsField.FileTreeShowSizes: data.FileTreeShowSizes = on; break;
             case SettingsField.LlmOfferTools: data.LlmOfferTools = on; break;
@@ -2743,9 +2736,8 @@ internal sealed class SettingsMenu
     /// </summary>
     public static string ToggleDescribe(SettingsField field, bool on) => field switch
     {
-        SettingsField.Memory => on ? "the memories open every conversation; save_memory, recall_memory work" : "no memory call, no memory tool; the file is left as it is",
+        SettingsField.Memory => on ? "memory enabled" : "memory disabled",
         SettingsField.CopyUserPrompt => on ? "/copy copies user prompts and model replies" : "/copy copies model replies only",
-        SettingsField.MouseInMenus => on ? "a double-click picks a row, closes a pane from outside, opens /settings" : "the terminal keeps the mouse under a menu or pane; the keys move",
         SettingsField.ShowImageThumbnails => on ? "a picture sent is drawn under your line" : "the picture is attached and labelled, nothing drawn",
         SettingsField.TranscriptMarkdown => on ? "replies are styled as Markdown in the pane" : "replies stream as plain text",
         SettingsField.LlmOfferTools => on ? "the model gets the tools; a change starts a new conversation" : "no tools at all; a change starts a new conversation",
@@ -2769,11 +2761,11 @@ internal sealed class SettingsMenu
         SettingsField.McpServers => on ? "the configured MCP servers connect and their tools are offered" : "no MCP server is started; the pane still lists the config",
         SettingsField.ReflectionAutoLearn => on ? "enough tool calls, or an error it recovered from, teaches a skill" : "nothing is learned unasked; /learn and skill_editor still work",
         SettingsField.ReflectionIncludesSessions => on ? "the earlier sessions matching the turn open the reflection, readable too" : "a reflection reads the conversation on screen alone",
-        SettingsField.HideExitAutocomplete => on ? "the / list leaves /exit out; typed in full it still exits" : "/exit is in the / list like every command",
+        SettingsField.HideExitAutocomplete => on ? "hide '/exit' from the autocomplete list" : "show '/exit' in the autocomplete list",
         SettingsField.CommandTypoIntercept => on ? "a line that is only a command's name offers the command first" : "a line that is only a command's name is sent as typed",
         SettingsField.WelcomeSplash => on ? "a picture greets you under the banner at startup, until the first line" : "the banner alone at startup",
-        SettingsField.ShowWorkingDirectory => on ? "the working directory sits at the banner's right edge" : "the banner is the title and the version alone",
-        SettingsField.ShowToolbar => on ? "the pane glyphs and the working directory sit under the hint row" : "the hint row is the pane's last row",
+        SettingsField.ShowWorkingDirectory => on ? "show the working directory in the header" : "hide the working directory in the header",
+        SettingsField.ShowToolbar => on ? "show the toolbar" : "hide the toolbar",
         SettingsField.QueueMessages => on ? "a message sent while a reply runs is queued and sent when the reply ends" : "a message sent during a reply stays type-ahead; /queue leaves the / list",
         SettingsField.AllowSkillDelete => on ? "the scope picker in /skills offers delete, after a confirmation" : "a skill is moved between the profile and global roots only",
         SettingsField.SessionLogging => on ? "every completed turn is written to this profile's session store" : "nothing is written; what is stored still lists, restores and purges",

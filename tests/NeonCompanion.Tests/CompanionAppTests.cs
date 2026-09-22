@@ -1602,8 +1602,10 @@ public class CompanionAppTests : IDisposable
     private string TitleLine() => _console.Output.Split('\n').Last(l => l.Contains("N E O N   C O M P A N I O N", StringComparison.Ordinal));
 
     [Fact]
-    public void RenderBanner_ShowsTheWorkingDirectoryAtTheRightEdge_ByDefault()
+    public void RenderBanner_ShowsTheWorkingDirectoryAtTheRightEdge_WithTheSwitchOn()
     {
+        // The switch is off out of the box since 2026-09-21 (the toolbar carries the path); on, the banner's title line ends with it.
+        _settings.Update(d => d.ShowWorkingDirectory = true);
         App().RenderBanner();
 
         string title = TitleLine();
@@ -1618,7 +1620,7 @@ public class CompanionAppTests : IDisposable
     public async Task RenderBanner_ShowsTheConfiguredDirectory_AndTheCwdFlagOverIt()
     {
         string configured = Path.Combine(_dir, "elsewhere");
-        _settings.Update(d => d.WorkingDirectory = configured);
+        _settings.Update(d => { d.WorkingDirectory = configured; d.ShowWorkingDirectory = true; });
         App().RenderBanner();
         Assert.EndsWith(@"\elsewhere", TitleLine());
 
@@ -1628,9 +1630,10 @@ public class CompanionAppTests : IDisposable
     }
 
     [Fact]
-    public void RenderBanner_ShowWorkingDirectoryOff_IsTheTitleAndTheVersionAlone()
+    public void RenderBanner_ShowWorkingDirectoryOff_IsTheTitleAndTheVersionAlone_ByDefault()
     {
-        _settings.Update(d => d.ShowWorkingDirectory = false);
+        // Off out of the box since 2026-09-21 (the user's call): the fixture's default is the case.
+        Assert.False(_settings.Current.ShowWorkingDirectory);
         App().RenderBanner();
 
         string title = TitleLine();

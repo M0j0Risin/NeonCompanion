@@ -70,7 +70,7 @@ Neon Companion is released under the GPLv3 license.
 ## Settings & menus
 [⬆ Back to Top](#readme)
 
-Every setting lives in a profile and is edited from a pane inside the app — `←`/`→` switch tabs, `↑`/`↓` move, Enter edits or flips a row, ESC backs out. Five panes carry them: `/settings` for the app, the sessions, the LLM and the voice stack; `/skills` for the agent skills and the self-reflection; `/tools` for what the model may call; `/mcp` for external MCP servers; and `/sys`, a read-only view of what the model is about to be sent.
+Every setting lives in a profile and is edited from a pane inside the app — `←`/`→` switch tabs, `↑`/`↓` move, Enter edits or flips a row, ESC backs out. The app keeps the mouse under every pane: a click moves the cursor, a double-click picks a row or a tab, one off the pane closes it, and the `×` at the top-right corner is ESC. On the hint row a double-click on the model name opens `/model`, on the reasoning glyph after it `/reasoning`, on the token tally (or on the reply's spinner mid-turn) `/usage`, on the queued count `/queue`, and anywhere else `/settings`. Five panes carry them: `/settings` for the app, the sessions, the LLM and the voice stack; `/skills` for the agent skills and the self-reflection; `/tools` for what the model may call; `/mcp` for external MCP servers; and `/sys`, a read-only view of what the model is about to be sent.
 
 ### Settings (`/settings`)
 
@@ -80,12 +80,11 @@ Every setting lives in a profile and is edited from a pane inside the app — `�
 |---|---|---|
 | Profile | Switches to another profile (each has its own settings, persona, memory, skills and sessions). | `default` |
 | New profile mode | What `/profile add` copies from the current profile: `basic` copies the settings and memories; `advanced` also copies the persona, operating-rules and voice-directive files. | `basic` |
-| Working directory | The folder the file and git tools work under; empty means the profile's own `files\` folder. | profile's `files\` |
+| Working directory (cwd) | The folder the file and git tools work under; empty means the profile's own `files\` folder. | profile's `files\` |
 | Queue messages | A message sent while a reply is streaming is queued and sent when the reply ends, instead of waiting on the input row. | on |
 | Queue cancel mode | What a cancelled reply does with the queue: `hold` keeps it until your next message, `drain` sends the next queued message at once, `empty` drops them all. | `empty` |
 | Memory | Offers the model `save_memory` / `recall_memory` and opens every conversation with what it remembers. | on |
 | Copy user prompt | `/copy` includes your prompt above the reply; off copies the reply alone. | on |
-| Mouse in menus | The app keeps the mouse under a menu: a double-click picks a row, one off the pane closes it, one on the hint row opens `/settings` (on the token tally, or on the reply's spinner mid-turn, `/usage`), one on a toolbar glyph opens its pane and one on the toolbar's working directory `/cwd browse`. Off hands the mouse to the terminal there. | on |
 | Show image thumbnails | Draws a small colour block of each picture you send under your line. | on |
 | Image thumbnail size | The block's size: `small` (48×12), `medium` (64×16), `large` (80×20) or `xlarge` (96×24) columns × rows. | `small` |
 | Transcript markdown | Renders replies as styled Markdown (bold, lists, code fences, tables) instead of plain streamed text. | on |
@@ -93,7 +92,7 @@ Every setting lives in a profile and is edited from a pane inside the app — `�
 | Hide /exit autocomplete | Leaves `/exit` out of the `/` completion list so a pick never closes the app by mistake; typed in full it still exits. | on |
 | Command typo intercept | A line that is exactly a command's name without its slash (`clear`) asks *Did you mean /clear?* before sending it as text. | on |
 | Welcome splash | Shows one of the splash pictures under the banner at startup until the first line is sent (`←`/`→` walk the set; a profile's own `splash\` folder replaces the built-in pictures). | on |
-| Show working directory | Prints the working directory at the right edge of the banner's title line. | on |
+| Working directory in header | Prints the working directory at the right edge of the banner's title line. | off |
 | Show toolbar | Draws a toolbar under the hint row: at its left the glyphs a double-click opens — `/settings`, `/tools`, `/mcp`, `/skills`, `/sys` — and at its right the working directory, a double-click on which is `/cwd browse`. | on |
 | Draft editor | The command `/draft` opens its temporary file with (`code --wait`, `notepad`…); empty uses whatever Windows opens `.txt` files with. | (default .txt editor) |
 
@@ -318,7 +317,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/operata [reset]` | Edit `operata.md` (the operating rules) in your editor, or go back to the default. |
 | `/persona [reset]` | Edit `persona.md` (the personality) in your editor, or go back to the default. |
 | `/profile [name \| add <name> \| delete <name> \| rename <name> <new> \| reset [name] \| edit \| reload]` | Switch, create, delete, rename or reset a profile; `edit` opens the loaded profile's `profile.json` in your editor and `reload` reads it back from disk, reconnecting only what changed. A name is 1 to 32 letters, digits, `-` or `_`, and not `neon` or one of the verbs. |
-| `/queue` | List and prune the messages queued while a reply runs. |
+| `/queue [clear]` | List and prune the messages queued while a reply runs (the pane's `⊠ clear all` button, or `c`, drops them all); `/queue clear` drops them all without the pane. |
 | `/reasoning [level]` | Pick the reasoning effort (`none`, `low`, `medium`, `high`, `xhigh`). |
 | `/remember <text>` | Add a memory. |
 | `/server [url]` | Pick an LLM server found on the usual ports, or set one; the model picker and then the reasoning picker follow, and one reconnect carries all three. |

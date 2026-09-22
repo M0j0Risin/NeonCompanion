@@ -21,7 +21,7 @@ public sealed record SessionSummary(long Id, DateTimeOffset StartedAt, DateTimeO
 /// raw text, how many tools the model called, and — since schema 3 (2026-09-19), the reflection's
 /// telemetry — the distinct tool names in first-call order, the skills it loaded and how many
 /// calls answered with an error; then the request's tokens and whether the keys cut it short.
-/// The replay never shows the names (one <c>⚙ N tool calls</c> line per turn as ever).
+/// The replay never shows the names (one <c>🛠️ N tool calls</c> line per turn as ever).
 /// </summary>
 public sealed record SessionTurn(int Ordinal, DateTimeOffset At, string UserText, string ReplyText, int ToolCalls, IReadOnlyList<string> ToolNames, IReadOnlyList<string> SkillsLoaded, int Errors, long InputTokens, long OutputTokens, bool Cancelled);
 

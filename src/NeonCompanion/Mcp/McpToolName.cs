@@ -6,7 +6,7 @@ namespace NeonCompanion.Mcp;
 /// <summary>
 /// How an MCP tool is named for the model (2026-09-20, the user's call): always
 /// <c>&lt;server&gt;__&lt;tool&gt;</c>, never the server's bare name — so a gateway's <c>get_current_time</c>
-/// never shadows the app's, and the transcript's <c>⚙</c> line says which server answered. Both halves
+/// never shadows the app's, and the transcript's <c>🛠️</c> line says which server answered. Both halves
 /// are sanitised to <c>[A-Za-z0-9_-]</c> (some servers use dotted tool names) and the whole is cut at
 /// <see cref="MaxLength"/>, OpenAI's rule on a function name; two tools that collide after the cut are
 /// told apart with <c>_2</c>, <c>_3</c>… (<see cref="Unique"/>), since the turn loop matches the first

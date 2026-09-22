@@ -70,8 +70,8 @@ public partial class ChatScreenTests
         Assert.Contains("\n" + Titled(ShellText.ApprovalTitle) + "\ncmd › echo hi\n \n▸ Deny\n  Allow once\n  Allow \"echo\" for this session\n  Allow \"echo\" always (saved to the profile)\n", output);
         Assert.Contains(" " + ScreenPane.BusyRow(RunCommandTool.ToolName, TimeSpan.Zero, ShellText.ApprovalKeys), output);
         // The quiet note: the result's header, never the tool's name or the output.
-        Assert.Contains("⚙  exit 0 in 0.0 s (cmd): echo hi\n", output);
-        Assert.DoesNotContain("⚙  " + RunCommandTool.ToolName, output);
+        Assert.Contains("🛠️ exit 0 in 0.0 s (cmd): echo hi\n", output);
+        Assert.DoesNotContain("🛠️ " + RunCommandTool.ToolName, output);
         Assert.DoesNotContain("\nhi\n", output);
         Assert.Contains("It said hi.", output);
         Assert.DoesNotContain("(allowed", output);
@@ -91,7 +91,7 @@ public partial class ChatScreenTests
 
         string output = await RunAsync();
 
-        Assert.Contains("⚙  Error: the command was denied by the user: echo hi; do not retry it or work around the refusal\n", output);
+        Assert.Contains("🛠️ Error: the command was denied by the user: echo hi; do not retry it or work around the refusal\n", output);
         Assert.Contains("Fine, I will not.", output);
         Assert.DoesNotContain(ChatScreen.CancelledNotice, output);
         Assert.Equal("Error: the command was denied by the user: echo hi; do not retry it or work around the refusal", ToolResult(_chat.Requests[1], "c1"));
@@ -120,7 +120,7 @@ public partial class ChatScreenTests
         Assert.DoesNotContain("cmd › echo again", output);   // the second echo rode the session's allow
         Assert.Equal("exit 0 in 0.0 s (cmd): echo hi\nhi", ToolResult(_chat.Requests[1], "c1"));
         Assert.Equal("exit 0 in 0.0 s (cmd): echo again\nagain", ToolResult(_chat.Requests[2], "c2"));
-        Assert.Contains("⚙  exit 0 in 0.0 s (cmd): echo again\n", output);
+        Assert.Contains("🛠️ exit 0 in 0.0 s (cmd): echo again\n", output);
         Assert.Empty(_settings.Current.ShellCommandAllowed);   // the session's, not the file's
     }
 
@@ -211,7 +211,7 @@ public partial class ChatScreenTests
         Assert.Matches("^started proc_[0-9a-f]{6} \\(cmd, pid [0-9]+\\): echo bg\n", started);
         Assert.EndsWith("; you will be told when it exits.", started);
         string id = started.Substring(8, 11);
-        Assert.Contains("⚙  started " + id + " (cmd, pid ", output);
+        Assert.Contains("🛠️ started " + id + " (cmd, pid ", output);
         Assert.Contains("  ⚡ " + id + " exited 0 after ", output);
         Assert.Contains(": echo bg\n", output);
         // The next turn: the seeded poll pair first, then the user's line — the model reads the output it never asked for.
@@ -223,7 +223,7 @@ public partial class ChatScreenTests
         string polled = ToolResult(second, Assistant.PendingCallId(id));
         Assert.StartsWith(id + " exited 0 after ", polled);
         Assert.EndsWith(" (cmd): echo bg — 1 new line\nbg", polled);
-        Assert.Contains("⚙  " + id + " exited 0 after ", output);
+        Assert.Contains("🛠️ " + id + " exited 0 after ", output);
         Assert.Equal(1, second.Count(m => m.Role == ChatRole.User && m.Text == "and?"));
         var messages = second.ToList();
         Assert.True(messages.FindIndex(m => m.Contents.Contains(call)) > messages.FindLastIndex(m => m.Role == ChatRole.User));   // the pair after the user's line, as the openers ride
@@ -269,7 +269,7 @@ public partial class ChatScreenTests
         string first = ToolResult(_chat.Requests[1], "c1");
         Assert.Equal("exit 0 in 0.0 s (powershell, 1 tool call): $d = Invoke-NeonTool get_working_directory\nseen: True", first);
         Assert.Equal("exit 0 in 0.0 s (powershell, 0 tool calls): Write-Output again\nagain", ToolResult(_chat.Requests[2], "c2"));
-        Assert.Contains("⚙  exit 0 in 0.0 s (powershell, 1 tool call): $d = Invoke-NeonTool get_working_directory\n", output);
+        Assert.Contains("🛠️ exit 0 in 0.0 s (powershell, 1 tool call): $d = Invoke-NeonTool get_working_directory\n", output);
         Assert.DoesNotContain("seen: True\n", output);
         Assert.Contains(ExecuteCodeTool.ToolName, _chat.Options[0]!.Tools!.Cast<AIFunction>().Select(t => t.Name));
         Assert.Empty(_settings.Current.ShellCommandAllowed);
@@ -288,7 +288,7 @@ public partial class ChatScreenTests
         string output = await RunAsync();
 
         Assert.Equal("exit 0 in 0.0 s (powershell): Write-Output \"bridge: [$env:NEONCOMPANION_BRIDGE_ADDRESS]\"\nbridge: []", ToolResult(_chat.Requests[1], "c1"));
-        Assert.Contains("⚙  exit 0 in 0.0 s (powershell): Write-Output \"bridge: [$env:NEONCOMPANION_BRIDGE_ADDRESS]\"\n", output);
+        Assert.Contains("🛠️ exit 0 in 0.0 s (powershell): Write-Output \"bridge: [$env:NEONCOMPANION_BRIDGE_ADDRESS]\"\n", output);
         var code = _chat.Options[0]!.Tools!.Cast<AIFunction>().Single(t => t.Name == ExecuteCodeTool.ToolName);
         Assert.Equal(ExecuteCodeTool.DescriptionWithoutBridge, code.Description);
         Assert.DoesNotContain("neon_tools", code.JsonSchema.GetRawText());
@@ -381,7 +381,7 @@ public partial class ChatScreenTests
         Assert.StartsWith("exit 0 in 0.0 s (cmd): ver\n", ToolResult(_chat.Requests[2], "c2"));
         Assert.Contains(events, e => e.Message == "approval: refused (never asked) — cmd \"echo hi\"");
         Assert.Contains(events, e => e.Message == "approval: on the allow list — cmd \"ver\"");
-        Assert.Contains("⚙  Error: the command was not approved", output);
+        Assert.Contains("🛠️ Error: the command was not approved", output);
     }
 
 }

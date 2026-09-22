@@ -45,7 +45,7 @@ public enum FetchOutcome
 /// <summary>
 /// The sentences the web tools answer with: pure statics, every string pinned, the
 /// <see cref="Files.FileText"/> pattern. A result is what the model reads and, flattened to its first
-/// 200 characters, the one dim <c>⚙</c> line the transcript shows, so a multi-line answer starts with a
+/// 200 characters, the one dim <c>🛠️</c> line the transcript shows, so a multi-line answer starts with a
 /// header line that stands on its own. Every error starts with <c>Error:</c>. Invariant culture.
 /// </summary>
 public static class WebText

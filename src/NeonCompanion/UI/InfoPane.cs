@@ -20,7 +20,7 @@ public sealed record InfoTab(string Title, Func<IRenderable> Content);
 /// read: the caller prints instead.</para>
 ///
 /// <para>Mouse: the pane takes the console's mouse for the visit (the injected hook, the one the
-/// menu pane uses — the screen gates it on the <c>Mouse in menus</c> setting) and hands it back
+/// menu pane uses) and hands it back
 /// when it closes; a left click on a tab's title (<see cref="TabAt"/>) switches to that tab exactly
 /// as the keys would; one on the × at the corner is ESC; two left clicks off the pane — the
 /// transcript, a rule, the hint row — within <see cref="DoubleClick.Interval"/> close it too (later

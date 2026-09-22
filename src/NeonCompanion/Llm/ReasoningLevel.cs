@@ -62,7 +62,10 @@ public static class ReasoningLevel
 
     /// <summary>
     /// The glyph for a level beside the model on the hint row: a disc filling with the effort
-    /// (◔ ◑ ◕ ●); nothing for <c>none</c> or an unknown word. The user's call, 2026-09-15. Pinned.
+    /// (○ ◔ ◑ ◕ ●) — the empty circle for <c>none</c> and for an unknown word (which
+    /// <see cref="Resolve"/> treats as <c>none</c>). The user's call, 2026-09-15; <c>none</c> drew
+    /// nothing until 2026-09-21, when the user asked for the circle, always shown, as the place a
+    /// double-click opens <c>/reasoning</c> from. Pinned.
     /// </summary>
     public static string Glyph(string level) => level switch
     {
@@ -70,7 +73,7 @@ public static class ReasoningLevel
         "medium" => "◑",
         "high" => "◕",
         "xhigh" => "●",
-        _ => "",
+        _ => "○",
     };
 
     /// <summary>The effort in force for <paramref name="effective"/>; an unknown saved value warns and uses <see cref="Default"/>.</summary>

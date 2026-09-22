@@ -28,7 +28,6 @@ public class AppSettingsTests : IDisposable
         HideExitAutocomplete = false,
         ImageThumbnailSize = "large",
         Memory = false,
-        MouseInMenus = false,
         NewProfileMode = "advanced",
         PastePreviewLines = 7,
         QueueCancelMode = "drain",
@@ -127,7 +126,6 @@ public class AppSettingsTests : IDisposable
         Assert.Equal(expected.HideExitAutocomplete, actual.HideExitAutocomplete);
         Assert.Equal(expected.ImageThumbnailSize, actual.ImageThumbnailSize);
         Assert.Equal(expected.Memory, actual.Memory);
-        Assert.Equal(expected.MouseInMenus, actual.MouseInMenus);
         Assert.Equal(expected.NewProfileMode, actual.NewProfileMode);
         Assert.Equal(expected.PastePreviewLines, actual.PastePreviewLines);
         Assert.Equal(expected.QueueCancelMode, actual.QueueCancelMode);
@@ -238,7 +236,6 @@ public class AppSettingsTests : IDisposable
             d.HideExitAutocomplete = full.HideExitAutocomplete;
             d.ImageThumbnailSize = full.ImageThumbnailSize;
             d.Memory = full.Memory;
-            d.MouseInMenus = full.MouseInMenus;
             d.NewProfileMode = full.NewProfileMode;
             d.PastePreviewLines = full.PastePreviewLines;
             d.QueueCancelMode = full.QueueCancelMode;
@@ -346,7 +343,6 @@ public class AppSettingsTests : IDisposable
                 d.HideExitAutocomplete = full.HideExitAutocomplete;
                 d.ImageThumbnailSize = full.ImageThumbnailSize;
                 d.Memory = full.Memory;
-                d.MouseInMenus = full.MouseInMenus;
                 d.NewProfileMode = full.NewProfileMode;
                 d.PastePreviewLines = full.PastePreviewLines;
                 d.QueueCancelMode = full.QueueCancelMode;
@@ -860,7 +856,6 @@ public class AppSettingsTests : IDisposable
         Assert.True(s.CommandTypoIntercept);
         Assert.True(s.CopyUserPrompt);
         Assert.True(s.HideExitAutocomplete);
-        Assert.True(s.MouseInMenus);
         Assert.Equal(0, s.LlmContextLength);
         Assert.True(s.ShowImageThumbnails);
         Assert.Equal("summary", s.LlmCompactType);
@@ -903,7 +898,7 @@ public class AppSettingsTests : IDisposable
         Assert.Equal("protected", s.SkillCompactMode);
         Assert.True(s.TranscriptMarkdown);
         Assert.True(s.WelcomeSplash);   // 2026-09-18
-        Assert.True(s.ShowWorkingDirectory);   // 2026-09-18
+        Assert.False(s.ShowWorkingDirectory);   // 2026-09-18; off by default since 2026-09-21
         Assert.True(s.ShowToolbar);   // 2026-09-21
         Assert.Equal("", s.DraftEditor);   // 2026-09-19: the shell's default for .txt
         // The Sessions tab (2026-09-18): logging and the tool on, the model writes the title (the first line until later that day), kept forever, ten hits.

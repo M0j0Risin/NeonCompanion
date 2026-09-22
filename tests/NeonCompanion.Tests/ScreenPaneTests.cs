@@ -2391,9 +2391,18 @@ public class ScreenPaneTests : IDisposable
         Assert.Equal(ScreenPane.HintZone.Row, hit.Zone);
         Assert.True(pane.TryHitHint(32, 102, out hit));  // the l of llama
         Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Trailer, "", 32), hit);
-        Assert.True(pane.TryHitHint(38, 102, out hit));  // the mark
-        Assert.Equal(ScreenPane.HintZone.Trailer, hit.Zone);
+        Assert.True(pane.TryHitHint(37, 102, out hit));  // the separator before the mark: the name's zone still
+        Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Trailer, "", 32), hit);
+        Assert.True(pane.TryHitHint(38, 102, out hit));  // the mark: its own zone since 2026-09-21 (/reasoning)
+        Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Mark, "", 38), hit);
         Assert.False(pane.TryHitHint(32, 101, out _));
+
+        // Without a mark (no reasoning glyph drawn) the trailer runs to the edge.
+        pane.TrailerMark = () => "";
+        pane.RefreshHint();
+        Assert.True(pane.TryHitHint(38, 102, out hit));
+        Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Trailer, "", 34), hit);
+        pane.TrailerMark = () => "◕";
 
         // No model: the right edge is the row.
         pane.Trailer = () => "";
@@ -2416,6 +2425,19 @@ public class ScreenPaneTests : IDisposable
         Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Queued, "", 3), ScreenPane.HintHitAt("🔊", 30, 3, 8, 5, 11, 6));   // the queued part first
         Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Scrolled, "", -1), ScreenPane.HintHitAt("🔊", 30, -1, 0, -1, 0, 6, scrolled: true));
         Assert.Equal(ScreenPane.HintHitAt("🔊", 30, 5, 11, 15), ScreenPane.HintHitAt("🔊", 30, 5, 11, -1, 0, 15));
+    }
+
+    /// <summary>The mark zone (2026-09-21): from the mark's column to the row's end, ahead of the trailer, which is then the name and the separator; −1 for none.</summary>
+    [Fact]
+    public void HintHitAt_TheMarkZone_IsTheRowsLastCells()
+    {
+        Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Mark, "", 38), ScreenPane.HintHitAt("🔊", 30, 38, -1, 0, -1, 0, 38));
+        Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Mark, "", 38), ScreenPane.HintHitAt("🔊", 30, 38, -1, 0, -1, 0, 39));
+        Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Trailer, "", 30), ScreenPane.HintHitAt("🔊", 30, 38, -1, 0, -1, 0, 37));
+        Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Trailer, "", 30), ScreenPane.HintHitAt("🔊", 30, 38, -1, 0, -1, 0, 30));
+        Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Row, "", -1), ScreenPane.HintHitAt("🔊", 30, 38, -1, 0, -1, 0, 29));
+        Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Trailer, "", 30), ScreenPane.HintHitAt("🔊", 30, -1, -1, 0, -1, 0, 38));   // no mark: the trailer to the edge
+        Assert.Equal(ScreenPane.HintHitAt("🔊", 30, 5, 11, -1, 0, 15), ScreenPane.HintHitAt("🔊", 30, -1, 5, 11, -1, 0, 15));
     }
 
     /// <summary>The drawn rows: the tally the Usage delegate names is its zone where HintText put it; the timers in its place, or an empty tally, leave the row; the busy row's spinner and label are the zone too, the rest of that row the row.</summary>
@@ -2586,15 +2608,7 @@ public class ScreenPaneTests : IDisposable
         Assert.Contains("\nTitle\nb\n", Output[mark..]);
         Assert.DoesNotContain(ScreenPane.CloseGlyph, Output[mark..]);
 
-        // Switched off (Mouse in menus off): not drawn either.
-        pane.CloseGlyphShown = () => false;
-        mark = Output.Length;
-        pane.ShowOverlay(new Markup("Title" + "\n" + "b"), "hint", close: true);
-        Assert.Contains("\nTitle\nb\n", Output[mark..]);
-        Assert.DoesNotContain(ScreenPane.CloseGlyph, Output[mark..]);
-
         // A first row that leaves less than the gap and the glyph before the last column goes without.
-        pane.CloseGlyphShown = () => true;
         mark = Output.Length;
         pane.ShowOverlay(new Markup("1234567890123456" + "\n" + "b"), "hint", close: true);   // 16 cells: 16 + 2 + 1 = 19 fits
         Assert.Contains("\n1234567890123456  " + ScreenPane.CloseGlyph + "\n", Output[mark..]);
@@ -2638,12 +2652,8 @@ public class ScreenPaneTests : IDisposable
         // No glyph drawn: no hit.
         pane.ShowOverlay(new Markup("a" + "\n" + "b"), "hint");
         Assert.False(pane.TryHitClose(18, 100));
-        pane.CloseGlyphShown = () => false;
-        pane.ShowOverlay(new Markup("a" + "\n" + "b"), "hint", close: true);
-        Assert.False(pane.TryHitClose(18, 100));
 
         _cursorTop = null;
-        pane.CloseGlyphShown = () => true;
         pane.ShowOverlay(new Markup("a" + "\n" + "b"), "hint", close: true);
         Assert.False(pane.TryHitClose(18, 100));
     }
@@ -2664,12 +2674,6 @@ public class ScreenPaneTests : IDisposable
         Assert.True(pane.TryHitOutside(0, 103));    // the lower rule
         Assert.True(pane.TryHitOutside(0, 104));    // the hint row
         Assert.True(pane.TryHitOutside(0, 200));    // below the screen: off the pane still
-
-        // The glyph switched off (Mouse in menus off) changes nothing here: the overlay was shown with close.
-        pane.CloseGlyphShown = () => false;
-        pane.ShowOverlay(new Markup("a\nb\nc"), "hint", close: true);
-        Assert.True(pane.TryHitOutside(0, 99));
-        pane.CloseGlyphShown = () => true;
 
         using (pane.Batch())
         {

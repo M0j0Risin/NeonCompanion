@@ -78,16 +78,6 @@ public sealed class AppSettingsData
     public bool Memory { get; set; } = true;
 
     /// <summary>
-    /// Whether the app keeps the mouse while a menu, <c>/help</c> or <c>/sys</c> is open
-    /// (a click highlights a row, a double-click picks it, a click picks a tab, the wheel scrolls
-    /// the pane; the terminal's selection needs Shift), or hands it to the terminal there (plain
-    /// drag-select and copy over the pane's text; the keys do the moving) and takes it back when the
-    /// pane closes — the screen holds it everywhere else (2026-09-17). On, a double-click on the hint
-    /// row at the idle line opens the settings too (2026-09-18). A toggle like <see cref="Memory"/>: no variable.
-    /// </summary>
-    public bool MouseInMenus { get; set; } = true;
-
-    /// <summary>
     /// What <c>/profile add</c> copies from the current profile: <c>basic</c> (the default: the settings and
     /// the memories) or <c>advanced</c> (the settings plus the memories, persona, operating rules and voice
     /// directive files, each when it exists). One of <see cref="Settings.NewProfileMode.Names"/>; anything
@@ -130,9 +120,10 @@ public sealed class AppSettingsData
     /// Whether the working directory in force (the resolved full path, what <c>/cwd</c> prints)
     /// sits at the right edge of the banner's title line, cut from the front to fit (2026-09-18).
     /// Read at each banner draw — startup, <c>/clear</c>, a profile switch, the splash dismissal —
-    /// so a <c>/cwd</c> change or a flip of this shows at the next of those. No variable.
+    /// so a <c>/cwd</c> change or a flip of this shows at the next of those. Off by default since
+    /// 2026-09-21 (the user's call: the toolbar carries the path now). No variable.
     /// </summary>
-    public bool ShowWorkingDirectory { get; set; } = true;
+    public bool ShowWorkingDirectory { get; set; }
 
     /// <summary>
     /// Whether the toolbar is drawn under the hint row (2026-09-21, the user's ask): the pane

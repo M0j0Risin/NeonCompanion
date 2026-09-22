@@ -67,11 +67,17 @@ public class QueueMenuTests : IDisposable
     /// <summary>A row as the pane prints it: the position, two spaces, the text.</summary>
     private static string Row(int index, string text) => (index + 1) + "  " + text;
 
+    /// <summary>The title row as the pane prints it since 2026-09-21: the label, then the one button as a dim tab (a space either side), two spaces between.</summary>
+    private const string Strip = "Queue   ⊠ clear all ";
+
     [Fact]
     public void Strings_ArePinned()
     {
         Assert.Equal("Queue", QueueMenu.Title);
-        Assert.Equal("Enter = remove · ESC = back", QueueMenu.Keys);
+        Assert.Equal("Enter = remove · c = clear all · ESC = back", QueueMenu.Keys);
+        Assert.Equal("⊠ clear all", QueueMenu.ClearAllButton);
+        Assert.Equal('c', QueueMenu.ClearAllKey);
+        Assert.Equal(new MenuButton("⊠ clear all", 'c'), Assert.Single(QueueMenu.Buttons));
         Assert.Equal("(nothing queued)", QueueMenu.EmptyNotice);
         Assert.Equal("(removed: and then?)", QueueMenu.RemovedNotice("and then?"));
         Assert.Equal("[#9A8BB8]1[/]  a [[b]]", QueueMenu.RowMarkup(0, "a [b]"));
@@ -115,7 +121,7 @@ public class QueueMenuTests : IDisposable
 
         await menu.ShowAsync(CancellationToken.None);
 
-        Assert.Contains(Rule(100) + "\n" + Titled(QueueMenu.Title) + "\n \n▸ " + Row(0, "one") + "\n  " + Row(1, "two") + "\n" + Rule(100) + "\n" + QueueMenu.Keys + "\n", _console.Output);
+        Assert.Contains(Rule(100) + "\n" + Titled(Strip) + "\n \n▸ " + Row(0, "one") + "\n  " + Row(1, "two") + "\n" + Rule(100) + "\n" + QueueMenu.Keys + "\n", _console.Output);
         Assert.False(pane.OverlayOpen);
         Assert.Equal(flow, pane.FlowRow);   // nothing reached the transcript
         Assert.Equal(new[] { "one", "two" }, Labels());
@@ -133,7 +139,7 @@ public class QueueMenuTests : IDisposable
         await menu.ShowAsync(CancellationToken.None);
 
         // The re-shown list: the notice where the spacer was, the cursor on the row that slid up, the numbers fresh.
-        Assert.Contains("\n" + Titled(QueueMenu.Title) + "\n  · (removed: two)\n  " + Row(0, "one") + "\n▸ " + Row(1, "three") + "\n" + Rule(100) + "\n" + QueueMenu.Keys + "\n", _console.Output);
+        Assert.Contains("\n" + Titled(Strip) + "\n  · (removed: two)\n  " + Row(0, "one") + "\n▸ " + Row(1, "three") + "\n" + Rule(100) + "\n" + QueueMenu.Keys + "\n", _console.Output);
         Assert.Equal(flow, pane.FlowRow);   // the notice was a status line, not a transcript line
         Assert.False(pane.OverlayOpen);
         Assert.Equal(new[] { "one", "three" }, Labels());
@@ -171,6 +177,51 @@ public class QueueMenuTests : IDisposable
 
         Assert.Contains("\n  · (removed: three)\n  " + Row(0, "one") + "\n▸ " + Row(1, "two") + "\n", _console.Output);
         Assert.Equal(new[] { "one", "two" }, Labels());
+        Assert.False(pane.OverlayOpen);
+        pane.Dispose();
+    }
+
+    /// <summary>The clear-all button (2026-09-21): a click on it drops every message, the pane closes and the transcript gets the loop's dropped notice — as /queue clear prints it.</summary>
+    [Fact]
+    public async Task OnThePane_AClickOnTheClearAllButton_DropsEveryMessage_ClosesThePane_AndSaysSoOnTheTranscript()
+    {
+        Seed("one", "two", "three");
+        var (menu, pane, input) = ClickablePaneMenu(cursorTop: 100);
+        int flow = pane.FlowRow;
+        input.PushClick(10, 100);                        // the strip row: "Queue" 0–4, the gap, the button from column 7
+
+        await menu.ShowAsync(CancellationToken.None);
+
+        Assert.Contains("\n" + Titled(Strip) + "\n \n▸ " + Row(0, "one") + "\n", _console.Output);
+        Assert.Contains("  · " + ChatScreen.QueueDroppedNotice(3) + "\n", _console.Output);
+        Assert.DoesNotContain("(removed:", _console.Output);
+        Assert.Equal(flow + 1, pane.FlowRow);
+        Assert.Empty(Labels());
+        Assert.False(pane.OverlayOpen);
+        Assert.False(input.IsAvailable);
+        pane.Dispose();
+    }
+
+    /// <summary>The button's key does the same; a click on the label is nothing (ESC then leaves the queue whole).</summary>
+    [Fact]
+    public async Task OnThePane_TheClearAllKey_IsTheButton_AndAClickOnTheLabelIsNothing()
+    {
+        Seed("one", "two");
+        var (menu, pane, input) = ClickablePaneMenu(cursorTop: 100);
+        input.PushClick(2, 100);                         // the label
+        input.Push(Keys.Escape);
+
+        await menu.ShowAsync(CancellationToken.None);
+
+        Assert.Equal(new[] { "one", "two" }, Labels());
+        Assert.DoesNotContain("dropped", _console.Output);
+
+        input.Push(Keys.Char('c'));
+
+        await menu.ShowAsync(CancellationToken.None);
+
+        Assert.Contains("  · " + ChatScreen.QueueDroppedNotice(2) + "\n", _console.Output);
+        Assert.Empty(Labels());
         Assert.False(pane.OverlayOpen);
         pane.Dispose();
     }

@@ -28,6 +28,14 @@ public sealed record MenuTab(string Title, IReadOnlyList<string> Rows)
 }
 
 /// <summary>
+/// A button on a one-list page's title row (2026-09-21, the queue pane's <c>clear all</c>): drawn
+/// as a dim tab nobody is on, the <see cref="FolderPane"/>'s shape; a click on it, or
+/// <see cref="Key"/> typed (null for none), returns a <see cref="MenuPick"/> with
+/// <see cref="MenuPick.Button"/> set.
+/// </summary>
+public sealed record MenuButton(string Title, char? Key);
+
+/// <summary>
 /// One level of a menu in the pane: a title, the rows as markup (escaped by the caller), and the
 /// hint row's text. A page built by <see cref="Tabbed"/> carries <see cref="Tabs"/>: the title row
 /// becomes the <see cref="InfoPane.TabStripMarkup"/> strip and <see cref="Rows"/> are the active
@@ -37,6 +45,13 @@ public sealed record MenuPage(string Title, IReadOnlyList<string> Rows, string H
 {
     /// <summary>The tabs when the page has them; null for a one-list page.</summary>
     public IReadOnlyList<MenuTab>? Tabs { get; init; }
+
+    /// <summary>
+    /// The buttons on a one-list page's title row (2026-09-21), drawn after the title as the tab
+    /// strip draws its titles, none active; null or empty for none (every page but the queue's).
+    /// Ignored on a tabbed page: its strip is the tabs'.
+    /// </summary>
+    public IReadOnlyList<MenuButton>? Buttons { get; init; }
 
     /// <summary>The active tab's index into <see cref="Tabs"/>; 0 on a one-list page.</summary>
     public int Tab { get; init; }
@@ -97,9 +112,10 @@ public sealed record MenuPage(string Title, IReadOnlyList<string> Rows, string H
 /// <summary>
 /// What <see cref="MenuPane.PickAsync"/> returns on Enter — or on Space over a page whose
 /// <see cref="MenuPage.SpaceToggles"/> (<see cref="Toggle"/> true): the tab shown (0 on a one-list
-/// page) and the cursor's row within it.
+/// page) and the cursor's row within it. A press on one of the page's <see cref="MenuPage.Buttons"/>
+/// (2026-09-21) is <see cref="Button"/> at its index, the row still the cursor's; −1 otherwise.
 /// </summary>
-public readonly record struct MenuPick(int Tab, int Row, bool Toggle = false);
+public readonly record struct MenuPick(int Tab, int Row, bool Toggle = false, int Button = -1);
 
 /// <summary>
 /// A menu in the bottom pane: the <see cref="InfoPane"/> shape for a list — a title, a status line
@@ -126,7 +142,9 @@ public readonly record struct MenuPick(int Tab, int Row, bool Toggle = false);
 /// A left click on a row moves the cursor there, exactly as the arrows would, and a second on the
 /// same row within <see cref="DoubleClick.Interval"/> picks it exactly as Enter would (2026-09-18);
 /// one on a tab's title switches to that tab exactly as the tab keys would, a double-click there
-/// switching once; one on the <see cref="ScreenPane.CloseGlyph"/> at the first row's right edge is
+/// switching once; one on a one-list page's button (<see cref="MenuPage.Buttons"/>, 2026-09-21) is
+/// the button's pick, as its key is (the status cleared as Enter clears it: the press's result
+/// fills it); one on the <see cref="ScreenPane.CloseGlyph"/> at the first row's right edge is
 /// ESC (null); two left clicks off the pane — the transcript, a rule, the hint row — within the
 /// interval close every level at once (<see cref="ScreenPane.Dismiss"/>, later on 2026-09-18: the
 /// hosts above find <see cref="ScreenPane.Dismissed"/> and back out without a draw), where the × is
@@ -387,6 +405,11 @@ public sealed class MenuPane : INoticeSink
                         {
                             count = SwitchTab(page, strip, hit);
                         }
+                        else if (page.Tabs is null && page.Buttons is { Count: > 0 } buttons && InfoPane.TabAt(page.Title, Titles(buttons), click.X) is int button)
+                        {
+                            _status.Clear();
+                            return new MenuPick(page.Tab, _cursor, Button: button);
+                        }
                     }
                     else if (at - Header is int i && i >= 0 && i < _shown)
                     {
@@ -461,6 +484,13 @@ public sealed class MenuPane : INoticeSink
                 {
                     count = SwitchTab(page, tabs, (page.Tab + step + tabs.Count) % tabs.Count);
                     continue;
+                }
+
+                if (page.Tabs is null && page.Buttons is { Count: > 0 } keyed && k.KeyChar is not '\0' && !char.IsControl(k.KeyChar)
+                    && ButtonFor(keyed, k.KeyChar) is int pressed)
+                {
+                    _status.Clear();
+                    return new MenuPick(page.Tab, _cursor, Button: pressed);
                 }
 
                 int next = _cursor;
@@ -552,6 +582,23 @@ public sealed class MenuPane : INoticeSink
 
     private static List<string> Titles(IReadOnlyList<MenuTab> tabs) => tabs.Select(t => t.Title).ToList();
 
+    private static List<string> Titles(IReadOnlyList<MenuButton> buttons) => buttons.Select(b => b.Title).ToList();
+
+    /// <summary>The index of the button whose key is <paramref name="key"/> (ignoring case), null for none. Pure.</summary>
+    public static int? ButtonFor(IReadOnlyList<MenuButton> buttons, char key)
+    {
+        ArgumentNullException.ThrowIfNull(buttons);
+        for (int i = 0; i < buttons.Count; i++)
+        {
+            if (buttons[i].Key is { } k && char.ToLowerInvariant(k) == char.ToLowerInvariant(key))
+            {
+                return i;
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>The overlay closed and the status forgotten; nothing when no visit is open.</summary>
     public void Close()
     {
@@ -602,6 +649,15 @@ public sealed class MenuPane : INoticeSink
     /// <summary>The overlay rows above the first list row: the title (or the tab strip), the caption's rows, then the status lines or the one spacer.</summary>
     private int Header => 1 + _captionRows + Math.Max(1, _status.Count);
 
+    /// <summary>The title row of <paramref name="page"/>: the tab strip on a tabbed page, the title with its buttons as a strip nobody is on (2026-09-21), else the title alone. Pinned.</summary>
+    public static string TopMarkup(MenuPage page)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        return page.Tabs is { } tabs ? InfoPane.TabStripMarkup(page.Title, Titles(tabs), page.Tab)
+            : page.Buttons is { Count: > 0 } buttons ? InfoPane.TabStripMarkup(page.Title, Titles(buttons), -1)
+            : TitleMarkup(page.Title);
+    }
+
     /// <summary>The page laid out for the window: the title or the tab strip, the caption, the status (or a spacer row), the rows in view, the more row.</summary>
     private void Show()
     {
@@ -612,10 +668,7 @@ public sealed class MenuPane : INoticeSink
         int capacity = ScreenPane.MaxOverlayRows(Height, _inputRows) - header;
         (_first, _shown) = Viewport(page.Rows.Count, _cursor, capacity, _first);
 
-        string top = page.Tabs is { } tabs
-            ? InfoPane.TabStripMarkup(page.Title, Titles(tabs), page.Tab)
-            : TitleMarkup(page.Title);
-        var lines = new List<IRenderable>(header + _shown + 1) { new Markup(top) };
+        var lines = new List<IRenderable>(header + _shown + 1) { new Markup(TopMarkup(page)) };
         foreach (var row in caption)
         {
             lines.Add(new Markup(Markup.Escape(row), Theme.Body).Overflow(Overflow.Ellipsis));

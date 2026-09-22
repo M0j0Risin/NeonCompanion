@@ -486,6 +486,51 @@ public class MenuPaneTests : IDisposable
         menu.Close();
     }
 
+    /// <summary>
+    /// A one-list page's buttons (2026-09-21): drawn after the title as a strip nobody is on
+    /// ("Settings   ⊠ clear    ✎ edit "; ⊠ clear is columns 11–19, ✎ edit 22–29); a click on one
+    /// returns the pick with Button set and the cursor's row, its key (either case) the same, the
+    /// status cleared; the label, a gap and a keyless button's letter are nothing. A tabbed page
+    /// ignores them.
+    /// </summary>
+    [Fact]
+    public async Task AClickOnAButton_OrItsKey_ReturnsTheButton_TheLabelAndTheGapsDoNothing()
+    {
+        var page = Page("one", "two") with { Buttons = [new MenuButton("⊠ clear", 'c'), new MenuButton("✎ edit", null)] };
+        Assert.Equal(InfoPane.TabStripMarkup("Settings", ["⊠ clear", "✎ edit"], -1), MenuPane.TopMarkup(page));
+        Assert.Equal(MenuPane.TitleMarkup("Settings"), MenuPane.TopMarkup(Page("one")));
+        Assert.Equal(MenuPane.TitleMarkup("Settings"), MenuPane.TopMarkup(Page("one") with { Buttons = [] }));
+        Assert.Equal(0, MenuPane.ButtonFor(page.Buttons!, 'c'));
+        Assert.Equal(0, MenuPane.ButtonFor(page.Buttons!, 'C'));
+        Assert.Null(MenuPane.ButtonFor(page.Buttons!, 'e'));
+
+        var (pane, input, keys) = ClickablePane(cursorTop: 100);
+        using var _ = pane;
+        pane.Show();
+        var menu = new MenuPane(pane, keys);
+        menu.Notice("a status");
+        input.Push(Keys.Down);                           // the cursor on "two"
+        input.PushClick(3, 100);                         // the label
+        input.PushClick(20, 100);                        // the gap
+        input.Push(Keys.Char('e'));                      // a keyless button's letter: swallowed
+        input.PushClick(25, 100);                        // ✎ edit
+
+        int mark = Output.Length;
+        Assert.Equal(new MenuPick(0, 1, Button: 1), await menu.PickAsync(page, 0, CancellationToken.None));
+        Assert.Contains("\n" + Titled("Settings   ⊠ clear    ✎ edit ") + "\n  · a status\n  one\n▸ two\n", Output[mark..]);
+        Assert.Empty(menu.Status);
+
+        input.PushClick(12, 100);                        // ⊠ clear
+        Assert.Equal(new MenuPick(0, 1, Button: 0), await menu.PickAsync(page, 1, CancellationToken.None));
+        input.Push(Keys.Char('C'));
+        Assert.Equal(new MenuPick(0, 0, Button: 0), await menu.PickAsync(page, 0, CancellationToken.None));
+
+        // A tabbed page: the strip is the tabs', the key a plain swallow, Enter the row.
+        input.Push(Keys.Char('c'), Keys.Enter);
+        Assert.Equal(new MenuPick(0, 0), await menu.PickAsync(Tabbed() with { Buttons = page.Buttons }, 0, CancellationToken.None));
+        menu.Close();
+    }
+
     /// <summary>The × at the first row's right edge (columns 37–39 at width 40) is ESC: null, the pane still open; a click just left of it is the title, nothing (2026-09-18).</summary>
     [Fact]
     public async Task AClickOnTheCloseGlyph_IsEsc_OnAFlatAndATabbedPage()

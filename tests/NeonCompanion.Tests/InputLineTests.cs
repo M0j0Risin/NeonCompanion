@@ -920,7 +920,7 @@ public class InputLineTests : IDisposable
         scripted.PushClick(3, 102);
         scripted.PushClick(30, 102);              // the pair, anywhere on the row
 
-        var result = await line.ReadAsync(hintDoubleClick: true);
+        var result = await line.ReadAsync();
 
         Assert.Equal("a draft!", Assert.IsType<InputResult.HintRow>(result).Draft);
         Assert.Empty(line.History);
@@ -930,7 +930,7 @@ public class InputLineTests : IDisposable
         scripted.PushClick(3, 102);
         scripted.Push(Chars(" more"));
         scripted.Push(Keys.Enter);
-        Assert.Equal("a draft! more", Assert.IsType<InputResult.Submitted>(await line.ReadAsync(initialText: "a draft!", hintDoubleClick: true)).Text);
+        Assert.Equal("a draft! more", Assert.IsType<InputResult.Submitted>(await line.ReadAsync(initialText: "a draft!")).Text);
     }
 
     /// <summary>The result names the part under the pair (2026-09-18): the strip glyph with its column, the trailer, the row; a click on one part and one on another are two firsts.</summary>
@@ -951,17 +951,17 @@ public class InputLineTests : IDisposable
         scripted.PushClick(4, 102);               // 🎤 again: a first (the row's click ended the pair)
         scripted.PushClick(3, 102);               // the pair
 
-        var hint = Assert.IsType<InputResult.HintRow>(await line.ReadAsync(hintDoubleClick: true));
+        var hint = Assert.IsType<InputResult.HintRow>(await line.ReadAsync());
         Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Strip, "🎤", 3), hint.Hit);
 
         scripted.PushClick(38, 102);
         scripted.PushClick(34, 102);
-        hint = Assert.IsType<InputResult.HintRow>(await line.ReadAsync(hintDoubleClick: true));
+        hint = Assert.IsType<InputResult.HintRow>(await line.ReadAsync());
         Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Trailer, "", 34), hint.Hit);
 
         scripted.PushClick(20, 102);
         scripted.PushClick(12, 102);
-        hint = Assert.IsType<InputResult.HintRow>(await line.ReadAsync(hintDoubleClick: true));
+        hint = Assert.IsType<InputResult.HintRow>(await line.ReadAsync());
         Assert.Equal(ScreenPane.HintZone.Row, hint.Hit.Zone);
     }
 
@@ -998,7 +998,7 @@ public class InputLineTests : IDisposable
         scripted.PushClick(4, 103);               // 🎓: a first
         scripted.PushClick(3, 103);               // the pair
 
-        var tool = Assert.IsType<InputResult.ToolbarRow>(await line.ReadAsync(hintDoubleClick: true));
+        var tool = Assert.IsType<InputResult.ToolbarRow>(await line.ReadAsync());
         Assert.Equal("a draft", tool.Draft);
         Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "🎓", 3), tool.Hit);
         Assert.Empty(line.History);
@@ -1006,21 +1006,17 @@ public class InputLineTests : IDisposable
         // The path (D:\x on the last four cells): a pair there is its own.
         scripted.PushClick(38, 103);
         scripted.PushClick(36, 103);
-        tool = Assert.IsType<InputResult.ToolbarRow>(await line.ReadAsync(initialText: "a draft", hintDoubleClick: true));
+        tool = Assert.IsType<InputResult.ToolbarRow>(await line.ReadAsync(initialText: "a draft"));
         Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Path, "", 35), tool.Hit);
 
-        // Two on the blanks, or a glyph pair with the flag off: nothing, and Enter sends the draft.
+        // Two on the blanks: nothing, and Enter sends the draft.
         scripted.PushClick(20, 103);
         scripted.PushClick(20, 103);
-        scripted.Push(Keys.Enter);
-        Assert.Equal("a draft", Assert.IsType<InputResult.Submitted>(await line.ReadAsync(initialText: "a draft", hintDoubleClick: true)).Text);
-        scripted.PushClick(0, 103);
-        scripted.PushClick(0, 103);
         scripted.Push(Keys.Enter);
         Assert.Equal("a draft", Assert.IsType<InputResult.Submitted>(await line.ReadAsync(initialText: "a draft")).Text);
     }
 
-    /// <summary>Two clicks apart, a click on the draft or in the transcript between them, or the flag off: the hint row is nothing and Enter sends.</summary>
+    /// <summary>Two clicks apart, or a click on the draft or in the transcript between them: the hint row is nothing and Enter sends.</summary>
     [Fact]
     public async Task OnThePane_HintRowClicks_ThatAreNoPair_OrWithTheFlagOff_ChangeNothing()
     {
@@ -1047,14 +1043,7 @@ public class InputLineTests : IDisposable
             scripted.OnWait = null;
         };
 
-        Assert.Equal("Xab", Assert.IsType<InputResult.Submitted>(await line.ReadAsync(hintDoubleClick: true)).Text);
-
-        // The flag off (every read but the chat line's): the hint row is as dead as the transcript.
-        scripted.Push(Chars("cd"));
-        scripted.PushClick(3, 102);
-        scripted.PushClick(3, 102);
-        scripted.Push(Keys.Enter);
-        Assert.Equal("cd", Assert.IsType<InputResult.Submitted>(await line.ReadAsync()).Text);
+        Assert.Equal("Xab", Assert.IsType<InputResult.Submitted>(await line.ReadAsync()).Text);
     }
 
     [Fact]
@@ -1242,14 +1231,14 @@ public class InputLineTests : IDisposable
             }
         };
 
-        Assert.Equal("aXb", Assert.IsType<InputResult.Submitted>(await line.ReadAsync(hintDoubleClick: true)).Text);
+        Assert.Equal("aXb", Assert.IsType<InputResult.Submitted>(await line.ReadAsync()).Text);
         Assert.Contains("⇡ 5 rows below", _console.Output);
     }
 
     [Fact]
-    public async Task OnThePane_ScrolledHintClicks_ThatAreNoPair_OrWithTheFlagOff_ScrollNothing_AndAGlyphPairStillEndsTheRead()
+    public async Task OnThePane_ScrolledHintClicks_ThatAreNoPair_ScrollNothing_AndAGlyphPairStillEndsTheRead()
     {
-        // One click, or two with the flag off, leave the scroll; a pair on a strip glyph while scrolled is the glyph's row result, as ever.
+        // One click leaves the scroll; a pair on a strip glyph while scrolled is the glyph's row result, as ever.
         var (line, keys, pane) = ScrollableLine();
         using var _ = pane;
         pane.Strip = () => "🔊";
@@ -1271,30 +1260,10 @@ public class InputLineTests : IDisposable
             }
         };
 
-        var hit = Assert.IsType<InputResult.HintRow>(await line.ReadAsync(hintDoubleClick: true));
+        var hit = Assert.IsType<InputResult.HintRow>(await line.ReadAsync());
         Assert.Equal("ab", hit.Draft);
         Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Strip, "🔊", 0), hit.Hit);
         Assert.True(pane.Scrolled);
-
-        // The flag off: the hint row is dead to a click, scrolled or not (the sent line is the bottom again, as any sent line is).
-        waits = 0;
-        keys.PushClick(20, 102).PushClick(20, 102);
-        keys.OnWait = () =>
-        {
-            switch (waits++)
-            {
-                case 0:
-                    Assert.True(pane.Scrolled);
-                    keys.Push(Keys.Char('z'));
-                    break;
-                case 1:
-                    Assert.True(pane.Scrolled);
-                    keys.Push(Keys.Enter);
-                    break;
-            }
-        };
-        Assert.Equal("z", Assert.IsType<InputResult.Submitted>(await line.ReadAsync()).Text);
-        Assert.False(pane.Scrolled);
     }
 
     [Fact]

@@ -179,7 +179,7 @@ public class TranscriptRendererTests : IDisposable
 
         _t.ToolResult("echo", "line1\nline2");
         _t.Tool("echo", "{\"x\":1}");
-        Assert.Equal(new[] { "  ⚙  echo → line1 line2", "  ⚙  echo {\"x\":1}" }, _console.Lines);
+        Assert.Equal(new[] { "  🛠️ echo → line1 line2", "  🛠️ echo {\"x\":1}" }, _console.Lines);
     }
 
     [Fact]
@@ -210,7 +210,7 @@ public class TranscriptRendererTests : IDisposable
         _t.ToolNote("remembered: Their name is Chris.");
         _t.AppendDelta("Nice to meet you.");
         _t.EndAssistant();
-        Assert.Equal(new[] { "● ⚙  remembered: Their name is Chris.", "Nice to meet you." }, _console.Lines);
+        Assert.Equal(new[] { "● 🛠️ remembered: Their name is Chris.", "Nice to meet you." }, _console.Lines);
     }
 
     [Fact]
@@ -220,7 +220,7 @@ public class TranscriptRendererTests : IDisposable
         _t.ToolNotes("Which colour? — blue\n\nToppings? — cheese, olives\n");
         _t.AppendDelta("Blue it is.");
         _t.EndAssistant();
-        Assert.Equal(new[] { "● ⚙  Which colour? — blue", "  ⚙  Toppings? — cheese, olives", "Blue it is." }, _console.Lines);
+        Assert.Equal(new[] { "● 🛠️ Which colour? — blue", "  🛠️ Toppings? — cheese, olives", "Blue it is." }, _console.Lines);
     }
 
     [Fact]
@@ -230,9 +230,9 @@ public class TranscriptRendererTests : IDisposable
         Assert.Equal("[#FFC832]  ! w[/]", TranscriptRenderer.WarningMarkup("w"));
         Assert.Equal("[#FF4D6D]  ✗ e[/]", TranscriptRenderer.ErrorMarkup("e"));
         // Two spaces after the gear: the terminal advances one cell for U+2699 and the font overdraws the next.
-        Assert.Equal("[#9A8BB8]  ⚙  t {}[/]", TranscriptRenderer.ToolMarkup("t", "{}"));
-        Assert.Equal("[#9A8BB8]  ⚙  t → r[/]", TranscriptRenderer.ToolResultMarkup("t", "r"));
-        Assert.Equal("[#9A8BB8]  ⚙  remembered: [[x]][/]", TranscriptRenderer.ToolNoteMarkup("remembered: [x]"));
+        Assert.Equal("[#9A8BB8]  🛠️ t {}[/]", TranscriptRenderer.ToolMarkup("t", "{}"));
+        Assert.Equal("[#9A8BB8]  🛠️ t → r[/]", TranscriptRenderer.ToolResultMarkup("t", "r"));
+        Assert.Equal("[#9A8BB8]  🛠️ remembered: [[x]][/]", TranscriptRenderer.ToolNoteMarkup("remembered: [x]"));
         Assert.Equal(InputLine.SubmittedMarkup("u"), TranscriptRenderer.UserMarkup("u"));
         Assert.Equal("● ", TranscriptRenderer.AssistantGlyph);
     }
@@ -371,8 +371,8 @@ public class TranscriptRendererTests : IDisposable
         _t.ToolNote("moved c.txt to b\\c.txt");
         _t.EndAssistant();
 
-        // No blank row between the sentence and the first ⚙ line, none between the two.
-        Assert.Equal("● All moved.\n  ⚙  moved a.txt to b\\a.txt\n  ⚙  moved c.txt to b\\c.txt\n\n", Output);
+        // No blank row between the sentence and the first 🛠️ line, none between the two.
+        Assert.Equal("● All moved.\n  🛠️ moved a.txt to b\\a.txt\n  🛠️ moved c.txt to b\\c.txt\n\n", Output);
     }
 
     [Fact]

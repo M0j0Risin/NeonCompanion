@@ -6,7 +6,7 @@ namespace NeonCompanion.Git;
 /// <summary>
 /// The sentences the git tools answer with: pure statics, every string pinned, the
 /// <see cref="Web.WebText"/> pattern. A result is what the model reads and, cut to its first line
-/// (<see cref="Note"/>), the one dim <c>⚙</c> line the transcript shows, so every multi-line answer opens
+/// (<see cref="Note"/>), the one dim <c>🛠️</c> line the transcript shows, so every multi-line answer opens
 /// with a header that stands on its own. Every error starts with <c>Error:</c>. Invariant culture;
 /// a moment is shown in the caller's zone as <c>yyyy-MM-dd HH:mm</c>.
 /// </summary>

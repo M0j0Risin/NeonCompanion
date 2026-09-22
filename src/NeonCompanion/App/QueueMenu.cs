@@ -7,7 +7,9 @@ namespace NeonCompanion.App;
 /// <summary>
 /// The <c>/queue</c> screen (2026-09-18): one row per message waiting in the <see cref="MessageQueue"/>
 /// (its number, then its label — a paste as <c>[Pasted text +N lines]</c>), Enter or a double-click removes the highlighted one and shows the
-/// list again, ESC / Ctrl+C / the <c>×</c> back out. A list in the bottom pane (<see cref="MenuPane"/>,
+/// list again, the <see cref="ClearAllButton"/> on the title row (a click, or <see cref="ClearAllKey"/>;
+/// 2026-09-21, the user's ask, the folder pane's collapse-all shape) drops every one and closes
+/// with the transcript's dropped notice — what <c>/queue clear</c> prints —, ESC / Ctrl+C / the <c>×</c> back out. A list in the bottom pane (<see cref="MenuPane"/>,
 /// the removal notice on its status line above the re-shown rows), the <see cref="MemoryMenu"/>
 /// shape — with no prompt fallback: a message is queued only from the pane's mid-turn line hook, so
 /// a console without the pane never holds one and <c>/queue</c> there prints <see cref="EmptyNotice"/>.
@@ -19,8 +21,17 @@ internal sealed class QueueMenu
 {
     // The label and the key hints: the pane shows the label as its title and the keys in its hint row. Pinned.
     public const string Title = "Queue";
-    public const string Keys = "Enter = remove · ESC = back";
+    public const string Keys = "Enter = remove · c = clear all · ESC = back";
     public const string EmptyNotice = "(nothing queued)";
+
+    /// <summary>The one button on the title row (2026-09-21), drawn as a dim tab: every queued message dropped.</summary>
+    public const string ClearAllButton = "⊠ clear all";
+
+    /// <summary>The key that is the button.</summary>
+    public const char ClearAllKey = 'c';
+
+    /// <summary>The page's buttons: the one.</summary>
+    public static readonly IReadOnlyList<MenuButton> Buttons = [new(ClearAllButton, ClearAllKey)];
 
     private readonly MessageQueue _queue;
     private readonly INoticeSink _transcript;
@@ -65,10 +76,19 @@ internal sealed class QueueMenu
         {
             while (true)
             {
-                var page = new MenuPage(Title, entries.Select((entry, i) => RowMarkup(i, entry.Label)).ToList(), Keys);
+                var page = new MenuPage(Title, entries.Select((entry, i) => RowMarkup(i, entry.Label)).ToList(), Keys) { Buttons = Buttons };
                 var picked = await _pane.PickAsync(page, cursor, cancellationToken).ConfigureAwait(false);
                 if (picked is not { Row: var row })
                 {
+                    return;
+                }
+
+                if (picked.Value.Button >= 0)
+                {
+                    // The button: every message goes, the loop's own drop notice says how many
+                    // (nothing queued by now — the loop took the last — is the empty notice).
+                    int dropped = _queue.Clear();
+                    closingNotice = dropped > 0 ? ChatScreen.QueueDroppedNotice(dropped) : EmptyNotice;
                     return;
                 }
 

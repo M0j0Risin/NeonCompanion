@@ -144,29 +144,16 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task Toggle_ShowImageThumbnails_IsRow27_PersistsAndNeedsNoReconnect()
+    public async Task Toggle_ShowImageThumbnails_IsRow26_PersistsAndNeedsNoReconnect()
     {
         Assert.True(_settings.Current.ShowImageThumbnails);
-        Down(26);
+        Down(25);
         Push(Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape);   // the on/off picker (2026-09-17): the saved value under the cursor, the other row picked
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
 
         Assert.False(_settings.Current.ShowImageThumbnails);
         Assert.Contains("  · Show image thumbnails: off", _console.Output);
-    }
-
-    [Fact]
-    public async Task Toggle_MouseInMenus_IsRow25_PersistsAndNeedsNoReconnect()
-    {
-        Assert.True(_settings.Current.MouseInMenus);
-        Down(24);
-        Push(Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape);   // the on/off picker (2026-09-17): the saved value under the cursor, the other row picked
-
-        Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
-
-        Assert.False(_settings.Current.MouseInMenus);
-        Assert.Contains("  · Mouse in menus: off", _console.Output);
     }
 
     [Fact]
@@ -281,9 +268,9 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task ContextLength_IsRow26_Typed_AnLlmChange_ZeroForTheServersFigure()
+    public async Task ContextLength_IsRow25_Typed_AnLlmChange_ZeroForTheServersFigure()
     {
-        Down(25);
+        Down(24);
         Push(Keys.Enter);                       // LLM context length (the last row) shows "0"
         Push(Keys.Backspace);
         _console.Input.PushText("32768");
@@ -302,7 +289,7 @@ public class SettingsMenuTests : IDisposable
     {
         _console.Profile.Width = 240;           // the whole error on one row
         _settings.Update(d => d.LlmContextLength = 8_192);
-        Down(25);
+        Down(24);
         Push(Keys.Enter);                       // shows "8192"
         Push(Keys.Backspace, Keys.Backspace, Keys.Backspace, Keys.Backspace);
         _console.Input.PushText(typed);
@@ -316,10 +303,10 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task MaxToolIterations_IsRow33_Typed_NoReconnect_AndZeroIsRefused()
+    public async Task MaxToolIterations_IsRow32_Typed_NoReconnect_AndZeroIsRefused()
     {
         _console.Profile.Width = 240;
-        Down(32);
+        Down(31);
         Push(Keys.Enter);                       // LLM max tool iterations shows "10000"
         Push(Keys.Backspace, Keys.Backspace, Keys.Backspace, Keys.Backspace, Keys.Backspace);
         _console.Input.PushText("0");
@@ -591,9 +578,9 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task VoskModel_IsRow53_APicker_AndAVoiceChange()
+    public async Task VoskModel_IsRow52_APicker_AndAVoiceChange()
     {
-        Down(52);
+        Down(51);
         Push(Keys.Enter);                       // Vosk model (row 53, the last): the picker opens on the default
         Push(Keys.Down, Keys.Enter, Keys.Escape);   // the lgraph model
 
@@ -612,7 +599,7 @@ public class SettingsMenuTests : IDisposable
     public async Task VoskModel_OpensOnTheSavedName_UpPicksTheOneAbove()
     {
         _settings.Update(d => d.SttVoskModel = "VOSK-MODEL-EN-US-0.22-LGRAPH");   // any case
-        Down(52);
+        Down(51);
         Push(Keys.Enter, Keys.Up, Keys.Enter, Keys.Escape);   // lgraph → the default
 
         Assert.Equal(SettingsChanges.Voice, await _menu.ShowAsync(CancellationToken.None));
@@ -623,7 +610,7 @@ public class SettingsMenuTests : IDisposable
     public async Task VoskModel_EscapeKeepsTheSavedName()
     {
         _settings.Update(d => d.SttVoskModel = "vosk-model-small-en-in-0.4");
-        Down(52);
+        Down(51);
         Push(Keys.Enter, Keys.Escape, Keys.Escape);
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -635,7 +622,7 @@ public class SettingsMenuTests : IDisposable
     public async Task VoskModel_HandEditedName_OpensOnTheFirstRow()
     {
         _settings.Update(d => d.SttVoskModel = "vosk-model-en-us-0.22");   // a static-graph model, never offered: only a hand edit can hold it
-        Down(52);
+        Down(51);
         Push(Keys.Enter, Keys.Enter, Keys.Escape);
 
         Assert.Equal(SettingsChanges.Voice, await _menu.ShowAsync(CancellationToken.None));
@@ -744,7 +731,7 @@ public class SettingsMenuTests : IDisposable
                 SettingsField.TtsVoiceMix, SettingsField.TtsSpeed,
                 SettingsField.SttInput, SettingsField.SttWake, SettingsField.SttWakePhrase,
                 SettingsField.SttInterrupt, SettingsField.SttInterruptEchoGuard, SettingsField.SttInterruptConfirmMs, SettingsField.SttPushToTalkKey, SettingsField.SttWhisperModel,
-                SettingsField.WorkingDirectory, SettingsField.CopyUserPrompt, SettingsField.MouseInMenus, SettingsField.LlmContextLength, SettingsField.ShowImageThumbnails,
+                SettingsField.WorkingDirectory, SettingsField.CopyUserPrompt, SettingsField.LlmContextLength, SettingsField.ShowImageThumbnails,
                 SettingsField.LlmCompactType, SettingsField.LlmCompactKeepRecent, SettingsField.LlmAutoCompactPercent, SettingsField.LlmToolCompactType, SettingsField.LlmOfferTools, SettingsField.LlmMaxToolIterations, SettingsField.ImageThumbnailSize,
                 SettingsField.FileTreeMaxLength, SettingsField.FileTreeShowSizes, SettingsField.NewProfileMode, SettingsField.LlmUseFunVerbs, SettingsField.LlmScanMode,
                 SettingsField.WebTools, SettingsField.WebBrowserMode, SettingsField.WebBrowserPath, SettingsField.WebBrowserNetworkMode, SettingsField.WebSearxngUrl, SettingsField.WebSearchMaxResults,
@@ -920,7 +907,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal(6, SettingsMenu.ToolsTabFields.Count);   // Options first since later on 2026-09-19; Git between Files and Web since 2026-09-20; Shell between Git and Web since 2026-09-21
         Assert.Equal(2, SettingsMenu.SkillsTabFields.Count);   // Options and Reflection, since later on 2026-09-19 (one list of 11, then 14, before)
         Assert.Equal(13, SettingsMenu.SkillsTabFields.Sum(t => t.Count));   // 14 until Reflection verbose went later still on 2026-09-19
-        Assert.Equal(new[] { SettingsField.Profile, SettingsField.NewProfileMode, SettingsField.WorkingDirectory, SettingsField.QueueMessages, SettingsField.QueueCancelMode, SettingsField.Memory, SettingsField.CopyUserPrompt, SettingsField.MouseInMenus, SettingsField.ShowImageThumbnails, SettingsField.ImageThumbnailSize, SettingsField.TranscriptMarkdown, SettingsField.PastePreviewLines, SettingsField.HideExitAutocomplete, SettingsField.CommandTypoIntercept, SettingsField.WelcomeSplash, SettingsField.ShowWorkingDirectory, SettingsField.ShowToolbar, SettingsField.DraftEditor }, SettingsMenu.TabFields[(int)SettingsTab.General]);
+        Assert.Equal(new[] { SettingsField.Profile, SettingsField.NewProfileMode, SettingsField.WorkingDirectory, SettingsField.QueueMessages, SettingsField.QueueCancelMode, SettingsField.Memory, SettingsField.CopyUserPrompt, SettingsField.ShowImageThumbnails, SettingsField.ImageThumbnailSize, SettingsField.TranscriptMarkdown, SettingsField.PastePreviewLines, SettingsField.HideExitAutocomplete, SettingsField.CommandTypoIntercept, SettingsField.WelcomeSplash, SettingsField.ShowWorkingDirectory, SettingsField.ShowToolbar, SettingsField.DraftEditor }, SettingsMenu.TabFields[(int)SettingsTab.General]);
         // Draft editor (2026-09-19): typed, the General tab's last row, blank = the shell's default for .txt, no reconnect (read at each /draft).
         Assert.False(SettingsMenu.IsToggle(SettingsField.DraftEditor));
         Assert.Equal("Draft editor", SettingsMenu.FieldName(SettingsField.DraftEditor));
@@ -945,9 +932,9 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("empty [#9A8BB8]a cancelled reply drops every queued message[/]", SettingsMenu.QueueCancelModeLabel("empty"));
         // Show working directory (2026-09-18): a toggle, the General tab's last row, no reconnect (read at each banner draw).
         Assert.True(SettingsMenu.IsToggle(SettingsField.ShowWorkingDirectory));
-        Assert.Equal("Show working directory", SettingsMenu.FieldName(SettingsField.ShowWorkingDirectory));
-        Assert.Equal("on", SettingsMenu.FieldValue(SettingsField.ShowWorkingDirectory, data, _settings.ProfileDirectory));
-        Assert.Equal("off", SettingsMenu.FieldValue(SettingsField.ShowWorkingDirectory, new AppSettingsData { ShowWorkingDirectory = false }, _settings.ProfileDirectory));
+        Assert.Equal("Working directory in header", SettingsMenu.FieldName(SettingsField.ShowWorkingDirectory));   // "Show working directory" until 2026-09-21
+        Assert.Equal("off", SettingsMenu.FieldValue(SettingsField.ShowWorkingDirectory, data, _settings.ProfileDirectory));   // off by default since 2026-09-21
+        Assert.Equal("on", SettingsMenu.FieldValue(SettingsField.ShowWorkingDirectory, new AppSettingsData { ShowWorkingDirectory = true }, _settings.ProfileDirectory));
         Assert.False(SettingsMenu.RefusedMidTurn(SettingsField.ShowWorkingDirectory) || SettingsMenu.IsLlmField(SettingsField.ShowWorkingDirectory) || SettingsMenu.IsTtsField(SettingsField.ShowWorkingDirectory) || SettingsMenu.IsVoiceField(SettingsField.ShowWorkingDirectory));
         // Show toolbar (2026-09-21): the General row after it, a toggle, no reconnect (the pane reads it at each draw).
         Assert.True(SettingsMenu.IsToggle(SettingsField.ShowToolbar));
@@ -1201,10 +1188,6 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("off", SettingsMenu.FieldValue(SettingsField.LlmUseFunVerbs, data, _settings.ProfileDirectory));
         Assert.Equal("on", SettingsMenu.FieldValue(SettingsField.LlmUseFunVerbs, new AppSettingsData { LlmUseFunVerbs = true }, _settings.ProfileDirectory));
         Assert.False(SettingsMenu.IsLlmField(SettingsField.LlmUseFunVerbs) || SettingsMenu.IsTtsField(SettingsField.LlmUseFunVerbs) || SettingsMenu.IsVoiceField(SettingsField.LlmUseFunVerbs));
-        Assert.True(SettingsMenu.IsToggle(SettingsField.MouseInMenus));
-        Assert.Equal("Mouse in menus", SettingsMenu.FieldName(SettingsField.MouseInMenus));
-        Assert.Equal("on", SettingsMenu.FieldValue(SettingsField.MouseInMenus, data, _settings.ProfileDirectory));
-        Assert.False(SettingsMenu.IsLlmField(SettingsField.MouseInMenus) || SettingsMenu.IsTtsField(SettingsField.MouseInMenus) || SettingsMenu.IsVoiceField(SettingsField.MouseInMenus));
         // The LLM tab: the scan mode first (where a blank URL looks, so above the URL; a picker, no reconnect), then the reconnecting LLM fields in enum order, the compact rows, the turn-loop rows and the fun verbs.
         Assert.Equal(new[] { SettingsField.LlmScanMode, SettingsField.LlmUrl, SettingsField.LlmModel, SettingsField.LlmApiKey, SettingsField.LlmReasoning, SettingsField.LlmRequestTimeoutSeconds, SettingsField.LlmTurnTimeoutSeconds, SettingsField.LlmContextLength, SettingsField.LlmCompactType, SettingsField.LlmCompactKeepRecent, SettingsField.LlmCompactShowSummary, SettingsField.LlmAutoCompactPercent, SettingsField.LlmOfferTools, SettingsField.LlmToolCompactType, SettingsField.LlmMaxToolIterations, SettingsField.LlmUseFunVerbs }, SettingsMenu.TabFields[(int)SettingsTab.Llm]);
         Assert.Equal(Enum.GetValues<SettingsField>().Where(SettingsMenu.IsLlmField), SettingsMenu.TabFields[(int)SettingsTab.Llm].Skip(1).Take(7));
@@ -1333,7 +1316,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("must be 1 to 10 questions", SettingsMenu.AskMaxQuestionsRangeError);
         Assert.Equal("must be 2 to 15 choices", SettingsMenu.AskMaxChoicesRangeError);
         Assert.Equal(Enum.GetValues<SettingsField>().Order(), SettingsMenu.TabFields.Concat(SettingsMenu.SkillsTabFields).Concat(SettingsMenu.ToolsTabFields).Concat(SettingsMenu.McpTabFields).SelectMany(t => t).Order());   // the four panes together, every field once
-        Assert.Equal(25, SettingsMenu.TabLabelWidth(SettingsTab.General));   // "Hide /exit autocomplete", 23 (2026-09-18; "Show image thumbnails", 21, before)
+        Assert.Equal(29, SettingsMenu.TabLabelWidth(SettingsTab.General));   // "Working directory in header", 27 (2026-09-21; "Hide /exit autocomplete", 23, from 2026-09-18; "Show image thumbnails", 21, before)
         Assert.Equal(26, SettingsMenu.TabLabelWidth(SettingsTab.Llm));       // "LLM compact show summary" (2026-09-21; "LLM request timeout (s)", 23, before)
         Assert.Equal(19, SettingsMenu.TabLabelWidth(SettingsTab.Tts));       // "TTS voice preview"
         Assert.Equal(26, SettingsMenu.TabLabelWidth(SettingsTab.Stt));       // "STT interrupt echo guard"
@@ -1346,18 +1329,18 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal(38, SettingsMenu.LabelWidthOf(SettingsMenu.SkillsTabFields[0]));   // "Use external skills (.agents\\skills)"
         Assert.Equal(31, SettingsMenu.LabelWidthOf(SettingsMenu.SkillsTabFields[1]));   // "Reflection cooldown (minutes)" (the Reflection tab, later on 2026-09-19)
         Assert.Equal("TTS speed          [#EFE6FF]1.2[/]", SettingsMenu.FieldLabel(SettingsField.TtsSpeed, data, _settings.ProfileDirectory, null, SettingsMenu.TabLabelWidth(SettingsTab.Tts)));   // 1.0 until 2026-09-18
-        Assert.Equal(@"Profile                  [#EFE6FF]work[/][#9A8BB8] (D:\home\profiles\work)[/]", SettingsMenu.ProfileLabel("work", @"D:\home\profiles\work", SettingsMenu.TabLabelWidth(SettingsTab.General)));
+        Assert.Equal(@"Profile                      [#EFE6FF]work[/][#9A8BB8] (D:\home\profiles\work)[/]", SettingsMenu.ProfileLabel("work", @"D:\home\profiles\work", SettingsMenu.TabLabelWidth(SettingsTab.General)));
         Assert.Equal("Enter = edit · ←/→ tabs · ESC = close", SettingsMenu.TabKeys);   // "or toggle" went with the on/off pickers (2026-09-17)
         Assert.Equal("Enter = edit · ESC = close", SettingsMenu.TitleKeys);
         Assert.False(SettingsMenu.IsToggle(SettingsField.WorkingDirectory));
         Assert.False(SettingsMenu.IsLlmField(SettingsField.WorkingDirectory));
         Assert.False(SettingsMenu.IsTtsField(SettingsField.WorkingDirectory));
         Assert.False(SettingsMenu.IsVoiceField(SettingsField.WorkingDirectory));
-        Assert.Equal("Working directory", SettingsMenu.FieldName(SettingsField.WorkingDirectory));
+        Assert.Equal("Working directory (cwd)", SettingsMenu.FieldName(SettingsField.WorkingDirectory));   // "(cwd)" since 2026-09-21, the user's words
         Assert.Equal("(" + Path.Combine(_settings.ProfileDirectory, WorkingDirectory.DefaultFolderName) + ")", SettingsMenu.FieldValue(SettingsField.WorkingDirectory, data, _settings.ProfileDirectory));
         Assert.Equal("", SettingsMenu.EditableValue(SettingsField.WorkingDirectory, data));
         Assert.Equal(@"D:\x\[v]", SettingsMenu.FieldValue(SettingsField.WorkingDirectory, new AppSettingsData { WorkingDirectory = @"D:\x\[v]" }, _settings.ProfileDirectory));
-        Assert.Equal("Working directory                     [#EFE6FF]D:\\x\\[[v]][/]", SettingsMenu.FieldLabel(SettingsField.WorkingDirectory, new AppSettingsData { WorkingDirectory = @"D:\x\[v]" }, _settings.ProfileDirectory, null));
+        Assert.Equal("Working directory (cwd)               [#EFE6FF]D:\\x\\[[v]][/]", SettingsMenu.FieldLabel(SettingsField.WorkingDirectory, new AppSettingsData { WorkingDirectory = @"D:\x\[v]" }, _settings.ProfileDirectory, null));
         Assert.Equal("must be a full path, or empty for the profile's files folder", SettingsMenu.WorkingDirectoryError);
         Assert.Equal(@"(D:\home\profiles\p\files)", SettingsMenu.DefaultWorkingDirectoryLabel(@"D:\home\profiles\p"));
         Assert.Equal("(profile folder)", SettingsMenu.ProfileFolderNote);
@@ -1475,9 +1458,9 @@ public class SettingsMenuTests : IDisposable
     // ── Image thumbnail size ────────────────────────────────────────────────
 
     [Fact]
-    public async Task ImageThumbnailSize_IsRow34_APicker_NoReconnect()
+    public async Task ImageThumbnailSize_IsRow33_APicker_NoReconnect()
     {
-        Down(33);
+        Down(32);
         Push(Keys.Enter);                           // Image thumbnail size: the picker opens on small
         Push(Keys.Down, Keys.Enter);                // medium
         Push(Keys.Escape);
@@ -1494,7 +1477,7 @@ public class SettingsMenuTests : IDisposable
     public async Task ImageThumbnailSize_OpensOnTheSavedSize_AndEscapeKeepsIt()
     {
         _settings.Update(d => d.ImageThumbnailSize = "large");
-        Down(33);
+        Down(32);
         Push(Keys.Enter, Keys.Escape, Keys.Escape);
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -1507,7 +1490,7 @@ public class SettingsMenuTests : IDisposable
     public async Task ImageThumbnailSize_UpFromTheSavedSize_PicksTheOneAbove()
     {
         _settings.Update(d => d.ImageThumbnailSize = "large");
-        Down(33);
+        Down(32);
         Push(Keys.Enter, Keys.Up, Keys.Enter, Keys.Escape);   // large → medium
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -1517,10 +1500,10 @@ public class SettingsMenuTests : IDisposable
     // ── Tree max length / Tree show sizes ───────────────────────────────────
 
     [Fact]
-    public async Task TreeMaxLength_IsRow35_Typed_NoReconnect_AndOutOfRangeIsRefused()
+    public async Task TreeMaxLength_IsRow34_Typed_NoReconnect_AndOutOfRangeIsRefused()
     {
         _console.Profile.Width = 240;
-        Down(34);
+        Down(33);
         Push(Keys.Enter);                       // Tree max length shows "500"
         Push(Keys.Backspace, Keys.Backspace, Keys.Backspace);
         _console.Input.PushText("0");
@@ -1543,10 +1526,10 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task Toggle_TreeShowSizes_IsRow36_PersistsAndNeedsNoReconnect()
+    public async Task Toggle_TreeShowSizes_IsRow35_PersistsAndNeedsNoReconnect()
     {
         Assert.True(_settings.Current.FileTreeShowSizes);
-        Down(35);
+        Down(34);
         Push(Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape);   // the on/off picker (2026-09-17): the saved value under the cursor, the other row picked
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -1558,10 +1541,10 @@ public class SettingsMenuTests : IDisposable
     // ── LLM use fun verbs ───────────────────────────────────────────────────
 
     [Fact]
-    public async Task Toggle_ThinkingFunVerbs_IsRow38_PersistsAndNeedsNoReconnect()
+    public async Task Toggle_ThinkingFunVerbs_IsRow37_PersistsAndNeedsNoReconnect()
     {
         Assert.False(_settings.Current.LlmUseFunVerbs);
-        Down(37);
+        Down(36);
         Push(Keys.Enter, Keys.Up, Keys.Enter, Keys.Escape);   // the on/off picker (2026-09-17): the saved value under the cursor, the other row picked          // one row from the end
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -1573,10 +1556,10 @@ public class SettingsMenuTests : IDisposable
     // ── LLM offer tools ───────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Toggle_LlmTools_IsRow32_PersistsAndNeedsNoReconnect_ButClearsTheConversation()
+    public async Task Toggle_LlmTools_IsRow31_PersistsAndNeedsNoReconnect_ButClearsTheConversation()
     {
         Assert.True(_settings.Current.LlmOfferTools);
-        Down(31);
+        Down(30);
         Push(Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape);   // the on/off picker (2026-09-17): the saved value under the cursor, the other row picked          // the row above LLM max tool iterations
 
         Assert.Equal(SettingsChanges.Conversation, await _menu.ShowAsync(CancellationToken.None));
@@ -1589,7 +1572,7 @@ public class SettingsMenuTests : IDisposable
     public async Task Toggle_LlmTools_BackOn_ClearsTheConversationToo()
     {
         _settings.Update(d => d.LlmOfferTools = false);
-        Down(31);
+        Down(30);
         Push(Keys.Enter, Keys.Up, Keys.Enter, Keys.Escape);   // the on/off picker (2026-09-17): the saved value under the cursor, the other row picked
 
         Assert.Equal(SettingsChanges.Conversation, await _menu.ShowAsync(CancellationToken.None));
@@ -1601,9 +1584,9 @@ public class SettingsMenuTests : IDisposable
     // ── New profile mode ────────────────────────────────────────────────────
 
     [Fact]
-    public async Task NewProfileMode_IsRow37_APicker_NoReconnect()
+    public async Task NewProfileMode_IsRow36_APicker_NoReconnect()
     {
-        Down(36);
+        Down(35);
         Push(Keys.Enter);                           // New profile mode: the picker opens on basic (the default, the first row)
         Push(Keys.Down, Keys.Enter);                // advanced
         Push(Keys.Escape);
@@ -1620,7 +1603,7 @@ public class SettingsMenuTests : IDisposable
     public async Task NewProfileMode_OpensOnTheSavedMode_AndEscapeKeepsIt()
     {
         _settings.Update(d => d.NewProfileMode = "advanced");
-        Down(36);
+        Down(35);
         Push(Keys.Enter, Keys.Escape, Keys.Escape);
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -1633,7 +1616,7 @@ public class SettingsMenuTests : IDisposable
     public async Task NewProfileMode_UpFromAdvanced_PicksBasic()
     {
         _settings.Update(d => d.NewProfileMode = "advanced");
-        Down(36);
+        Down(35);
         Push(Keys.Enter, Keys.Up, Keys.Enter, Keys.Escape);   // advanced → basic: the picker opened on the saved row
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -1644,9 +1627,9 @@ public class SettingsMenuTests : IDisposable
     // ── LLM scan mode ───────────────────────────────────────────────────────
 
     [Fact]
-    public async Task LlmScanMode_IsRow39_APicker_NoReconnect()
+    public async Task LlmScanMode_IsRow38_APicker_NoReconnect()
     {
-        Down(38);
+        Down(37);
         Push(Keys.Enter);                           // LLM scan mode: the picker opens on local (the first row)
         Push(Keys.Down, Keys.Enter);                // remote
         Push(Keys.Escape);
@@ -1664,7 +1647,7 @@ public class SettingsMenuTests : IDisposable
     public async Task LlmScanMode_OpensOnTheSavedMode_AndEscapeKeepsIt()
     {
         _settings.Update(d => d.LlmScanMode = "both");
-        Down(38);
+        Down(37);
         Push(Keys.Enter, Keys.Escape, Keys.Escape);
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -1677,7 +1660,7 @@ public class SettingsMenuTests : IDisposable
     public async Task LlmScanMode_UpFromBoth_PicksRemote_AndTheUrlRowFollows()
     {
         _settings.Update(d => d.LlmScanMode = "both");
-        Down(38);
+        Down(37);
         Push(Keys.Enter, Keys.Up, Keys.Enter, Keys.Escape);   // both → remote
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -1688,9 +1671,9 @@ public class SettingsMenuTests : IDisposable
     // ── TTS source (flat row 52, under TTS output on the TTS tab) ───────────
 
     [Fact]
-    public async Task TtsSource_IsRow52_APicker_AndReconnectsSpeech()
+    public async Task TtsSource_IsRow51_APicker_AndReconnectsSpeech()
     {
-        Down(51);
+        Down(50);
         Push(Keys.Enter);                           // TTS source: the picker opens on the fixture's http (the first row)
         Push(Keys.Down, Keys.Enter);                // in-process
         Push(Keys.Escape);
@@ -1708,7 +1691,7 @@ public class SettingsMenuTests : IDisposable
     [Fact]
     public async Task MentionFolderMode_IsAPicker_Row54()
     {
-        Down(53);
+        Down(52);
         Push(Keys.Enter);                           // @-mention folder mode: the picker opens on the default (folder-remain, the second row, since 2026-09-19)
         Push(Keys.Up, Keys.Enter);                  // folder-apply
         Push(Keys.Escape);
@@ -1725,7 +1708,7 @@ public class SettingsMenuTests : IDisposable
     public async Task MentionFolderMode_OpensOnTheSavedMode_AndEscapeKeepsIt()
     {
         _settings.Update(d => d.FileMentionFolderMode = "folder-apply");
-        Down(53);
+        Down(52);
         Push(Keys.Enter, Keys.Escape, Keys.Escape);
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -1737,7 +1720,7 @@ public class SettingsMenuTests : IDisposable
     [Fact]
     public async Task MentionFolderMode_MidTurn_IsAllowed()
     {
-        Down(53);
+        Down(52);
         Push(Keys.Enter, Keys.Up, Keys.Enter, Keys.Escape);
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None, midTurn: true));
@@ -1748,7 +1731,7 @@ public class SettingsMenuTests : IDisposable
     public async Task TtsSource_OpensOnTheSavedSource_AndEscapeKeepsIt()
     {
         _settings.Update(d => d.TtsSource = "in-process");
-        Down(51);
+        Down(50);
         Push(Keys.Enter, Keys.Escape, Keys.Escape);
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -1761,7 +1744,7 @@ public class SettingsMenuTests : IDisposable
     public async Task TtsSource_UpFromInProcess_PicksHttp()
     {
         _settings.Update(d => d.TtsSource = "in-process");   // the compiled default; the fixture saved http
-        Down(51);
+        Down(50);
         Push(Keys.Enter, Keys.Up, Keys.Enter, Keys.Escape);   // in-process → http
 
         Assert.Equal(SettingsChanges.Tts, await _menu.ShowAsync(CancellationToken.None));
@@ -1772,7 +1755,7 @@ public class SettingsMenuTests : IDisposable
     [Fact]
     public async Task TtsSource_MidTurn_IsRefused()
     {
-        Down(51);
+        Down(50);
         Push(Keys.Enter, Keys.Escape);
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None, midTurn: true));
@@ -1801,9 +1784,9 @@ public class SettingsMenuTests : IDisposable
     // ── LLM tool compact type (flat row 31, under LLM auto compact (%) on the LLM tab) ──
 
     [Fact]
-    public async Task ToolCompactType_IsRow31_APicker_NoReconnect()
+    public async Task ToolCompactType_IsRow30_APicker_NoReconnect()
     {
-        Down(30);
+        Down(29);
         Push(Keys.Enter);                           // LLM tool compact type: the picker opens on prune (the first row)
         Push(Keys.Down, Keys.Enter);                // stop
         Push(Keys.Escape);
@@ -1821,7 +1804,7 @@ public class SettingsMenuTests : IDisposable
     public async Task ToolCompactType_OpensOnTheSavedType_AndEscapeKeepsIt()
     {
         _settings.Update(d => d.LlmToolCompactType = "nothing");
-        Down(30);
+        Down(29);
         Push(Keys.Enter, Keys.Escape, Keys.Escape);
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -1834,7 +1817,7 @@ public class SettingsMenuTests : IDisposable
     public async Task ToolCompactType_UpFromNothing_PicksStop()
     {
         _settings.Update(d => d.LlmToolCompactType = "nothing");
-        Down(30);
+        Down(29);
         Push(Keys.Enter, Keys.Up, Keys.Enter, Keys.Escape);   // nothing → stop
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -1844,10 +1827,10 @@ public class SettingsMenuTests : IDisposable
     // ── The web rows (flat rows 40–45; on the General tab under Memory) ─────
 
     [Fact]
-    public async Task Toggle_WebTools_IsRow40_PersistsAndNeedsNoReconnect()
+    public async Task Toggle_WebTools_IsRow39_PersistsAndNeedsNoReconnect()
     {
         Assert.True(_settings.Current.WebTools);
-        Down(39);
+        Down(38);
         Push(Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape);   // the on/off picker (2026-09-17): the saved value under the cursor, the other row picked
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -1857,9 +1840,9 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task WebBrowserMode_IsRow41_APicker_NoReconnect()
+    public async Task WebBrowserMode_IsRow40_APicker_NoReconnect()
     {
-        Down(40);
+        Down(39);
         Push(Keys.Enter);                           // the picker opens on default (the first row)
         Push(Keys.Down, Keys.Down, Keys.Enter);     // chromium
         Push(Keys.Escape);
@@ -1878,7 +1861,7 @@ public class SettingsMenuTests : IDisposable
     public async Task WebBrowserMode_OpensOnTheSavedMode_AndEscapeKeepsIt()
     {
         _settings.Update(d => d.WebBrowserMode = "httpclient");
-        Down(40);
+        Down(39);
         Push(Keys.Enter, Keys.Escape, Keys.Escape);
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -1888,13 +1871,13 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task WebBrowserPath_IsRow42_Typed_AMissingFileIsRefused_AndEmptyMeansAuto()
+    public async Task WebBrowserPath_IsRow41_Typed_AMissingFileIsRefused_AndEmptyMeansAuto()
     {
         _console.Profile.Width = 240;
         string exe = Path.Combine(_dir, "chrome.exe");
         Directory.CreateDirectory(_dir);
         File.WriteAllText(exe, "");
-        Down(41);
+        Down(40);
         Push(Keys.Enter);                           // Browser path: empty
         _console.Input.PushText(Path.Combine(_dir, "nope.exe"));
         Push(Keys.Enter);                           // refused, the row stays open
@@ -1914,11 +1897,11 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task WebBrowserNetworkMode_IsRow43_APicker_InternetByDefault_PersistsAndNeedsNoReconnect()
+    public async Task WebBrowserNetworkMode_IsRow42_APicker_InternetByDefault_PersistsAndNeedsNoReconnect()
     {
         // The on/off Browser allow LAN until 2026-09-18, this slot kept.
         Assert.Equal("internet", _settings.Current.WebBrowserNetworkMode);
-        Down(42);
+        Down(41);
         Push(Keys.Enter);                           // the picker opens on internet (the first row)
         Push(Keys.Down, Keys.Enter);                // local_area_network
         Push(Keys.Escape);
@@ -1938,7 +1921,7 @@ public class SettingsMenuTests : IDisposable
     public async Task WebBrowserNetworkMode_OpensOnTheSavedMode_AndEscapeKeepsIt()
     {
         _settings.Update(d => d.WebBrowserNetworkMode = "both");
-        Down(42);
+        Down(41);
         Push(Keys.Enter, Keys.Escape, Keys.Escape);
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -1948,10 +1931,10 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task SearxngUrl_IsRow44_Typed_NotAUrlIsRefused_AndEmptyMeansDuckDuckGo()
+    public async Task SearxngUrl_IsRow43_Typed_NotAUrlIsRefused_AndEmptyMeansDuckDuckGo()
     {
         _console.Profile.Width = 240;
-        Down(43);
+        Down(42);
         Push(Keys.Enter);                           // SearXNG URL: empty
         _console.Input.PushText("localhost:8080");
         Push(Keys.Enter);                           // refused (no scheme)
@@ -1971,9 +1954,9 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task WebSearchResults_IsRow45_Typed_NoReconnect_AndOutOfRangeIsRefused()
+    public async Task WebSearchResults_IsRow44_Typed_NoReconnect_AndOutOfRangeIsRefused()
     {
-        Down(44);
+        Down(43);
         Push(Keys.Enter);                           // Web search max results shows "20" (two Backspaces clear it)
         Push(Keys.Backspace, Keys.Backspace);
         _console.Input.PushText("0");
@@ -2576,10 +2559,10 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
 
         Assert.True(Directory.Exists(elsewhere));
-        Assert.Contains("  · Working directory: " + elsewhere, _console.Output);
+        Assert.Contains("  · Working directory (cwd): " + elsewhere, _console.Output);
         Assert.Contains(SettingsMenu.UnchangedNotice, _console.Output);
-        Assert.Contains("  ✗ Working directory " + SettingsMenu.WorkingDirectoryError + "; keeping " + elsewhere + ".", _console.Output);
-        Assert.Contains("  · Working directory: " + SettingsMenu.DefaultWorkingDirectoryLabel(_settings.ProfileDirectory), _console.Output);
+        Assert.Contains("  ✗ Working directory (cwd) " + SettingsMenu.WorkingDirectoryError + "; keeping " + elsewhere + ".", _console.Output);
+        Assert.Contains("  · Working directory (cwd): " + SettingsMenu.DefaultWorkingDirectoryLabel(_settings.ProfileDirectory), _console.Output);
         Assert.Equal("", _settings.Current.WorkingDirectory);
     }
 
@@ -2653,11 +2636,11 @@ public class SettingsMenuTests : IDisposable
 
         Assert.Equal(SettingsChanges.None, await menu.ShowAsync(CancellationToken.None));
 
-        // General: the eighteen rows in their own order (Draft editor last, 2026-09-19; Show toolbar after Show working directory, 2026-09-21) (the six web rows moved to the Web tab and the two /tree rows to Files, 2026-09-15; Transcript markdown and Paste preview lines, 2026-09-16; the @-mention folder mode to Files, 2026-09-17; the two line switches, Welcome splash, then Show working directory last, and the queue's two rows under Working directory, 2026-09-18), padded to the tab's own column (25), nothing of the other tabs.
+        // General: the seventeen rows in their own order (Mouse in menus gone, 2026-09-21; Draft editor last, 2026-09-19; Show toolbar after Show working directory, 2026-09-21) (the six web rows moved to the Web tab and the two /tree rows to Files, 2026-09-15; Transcript markdown and Paste preview lines, 2026-09-16; the @-mention folder mode to Files, 2026-09-17; the two line switches, Welcome splash, then Show working directory last, and the queue's two rows under Working directory, 2026-09-18), padded to the tab's own column (25), nothing of the other tabs.
         string cwd = SettingsMenu.DefaultWorkingDirectoryLabel(_settings.ProfileDirectory);
         Assert.StartsWith("(", cwd);
         Assert.EndsWith(@"\profiles\default\files)", cwd);
-        Assert.Contains(Rule(240) + "\n" + Titled(Strip) + "\n \n▸ Profile                  default (" + _settings.ProfileDirectory + ")\n  New profile mode         basic\n  Working directory        " + cwd + "\n  Queue messages           on\n  Queue cancel mode        empty\n  Memory                   on\n  Copy user prompt         on\n  Mouse in menus           on\n  Show image thumbnails    on\n  Image thumbnail size     small\n  Transcript markdown      on\n  Paste preview lines      25 lines\n  Hide /exit autocomplete  on\n  Command typo intercept   on\n  Welcome splash           on\n  Show working directory   on\n  Show toolbar             on\n  Draft editor             (default .txt editor)\n" + Rule(240) + "\n" + SettingsMenu.TabKeys + "\n", _console.Output);
+        Assert.Contains(Rule(240) + "\n" + Titled(Strip) + "\n \n▸ Profile                      default (" + _settings.ProfileDirectory + ")\n  New profile mode             basic\n  Working directory (cwd)      " + cwd + "\n  Queue messages               on\n  Queue cancel mode            empty\n  Memory                       on\n  Copy user prompt             on\n  Show image thumbnails        on\n  Image thumbnail size         small\n  Transcript markdown          on\n  Paste preview lines          25 lines\n  Hide /exit autocomplete      on\n  Command typo intercept       on\n  Welcome splash               on\n  Working directory in header  off\n  Show toolbar                 on\n  Draft editor                 (default .txt editor)\n" + Rule(240) + "\n" + SettingsMenu.TabKeys + "\n", _console.Output);
         Assert.DoesNotContain("File /tree max length", _console.Output);   // the Files tab's since 2026-09-15
         Assert.DoesNotContain("LLM URL", _console.Output);
         Assert.False(pane.OverlayOpen);
@@ -2730,24 +2713,6 @@ public class SettingsMenuTests : IDisposable
         pane.Dispose();
     }
 
-    /// <summary>With the glyph switched off (the screen ties it to Mouse in menus) the strip row is bare and a click at the corner is nothing.</summary>
-    [Fact]
-    public async Task OnThePane_WithTheCloseGlyphOff_TheStripIsBare_AndTheCornerIsNothing()
-    {
-        _console.Profile.Width = 240;
-        var (menu, pane, input) = ClickablePaneMenu(cursorTop: 100);
-        pane.CloseGlyphShown = () => false;
-        input.PushClick(238, 100);
-        input.Push(Keys.Escape);
-
-        Assert.Equal(SettingsChanges.None, await menu.ShowAsync(CancellationToken.None));
-
-        Assert.Contains("\n" + Strip + "\n \n▸ Profile", _console.Output);
-        Assert.DoesNotContain(ScreenPane.CloseGlyph, _console.Output);
-        Assert.False(input.IsAvailable);
-        pane.Dispose();
-    }
-
     /// <summary>The user's example (2026-09-18): a double-click on General's Memory row opens its on/off page as Enter would, a double-click on off picks it.</summary>
     [Fact]
     public async Task OnThePane_ADoubleClickOnARow_OpensItsPage_AndOneOnAChoice_PicksIt()
@@ -2765,8 +2730,8 @@ public class SettingsMenuTests : IDisposable
 
         Assert.False(_settings.Current.Memory);
         Assert.Contains("\n" + Titled(SettingsMenu.Breadcrumb("Memory")) + "\n \n▸ on  " + SettingsMenu.ToggleDescribe(SettingsField.Memory, true) + "\n  off " + SettingsMenu.ToggleDescribe(SettingsField.Memory, false) + "\n", _console.Output);
-        Assert.Contains("\n" + Titled(Strip) + "\n  · Memory: off\n  Profile                  default (", _console.Output);
-        Assert.Contains("\n▸ Memory                   off\n", _console.Output);
+        Assert.Contains("\n" + Titled(Strip) + "\n  · Memory: off\n  Profile                      default (", _console.Output);
+        Assert.Contains("\n▸ Memory                       off\n", _console.Output);
         Assert.False(pane.OverlayOpen);
         pane.Dispose();
     }
@@ -3050,7 +3015,7 @@ public class SettingsMenuTests : IDisposable
 
         Assert.Equal(Profiles.DefaultName, _settings.ProfileName);
         Assert.Contains(Rule(240) + "\n" + Titled(SettingsMenu.Breadcrumb(SettingsMenu.ProfileTitle)) + "\n \n▸ default\n  work\n" + Rule(240) + "\n" + SettingsMenu.SwitchKeys + "\n", _console.Output);
-        Assert.Contains("\n" + Titled(Strip) + "\n  · " + SettingsMenu.UnchangedNotice + "\n▸ Profile                  default (", _console.Output);
+        Assert.Contains("\n" + Titled(Strip) + "\n  · " + SettingsMenu.UnchangedNotice + "\n▸ Profile                      default (", _console.Output);
         Assert.False(pane.OverlayOpen);
         pane.Dispose();
     }
@@ -3369,9 +3334,9 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task Toggle_TtsVoicePreview_IsRow46_NotATtsChange()
+    public async Task Toggle_TtsVoicePreview_IsRow45_NotATtsChange()
     {
-        Down(45);
+        Down(44);
         Push(Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape);   // the on/off picker (2026-09-17): the saved value under the cursor, the other row picked
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -3383,9 +3348,9 @@ public class SettingsMenuTests : IDisposable
     // ── File tools / Web search method (2026-09-15) ─────────────────────
 
     [Fact]
-    public async Task Toggle_FileTools_IsRow47_NoReconnect()
+    public async Task Toggle_FileTools_IsRow46_NoReconnect()
     {
-        Down(46);
+        Down(45);
         Push(Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape);   // the on/off picker (2026-09-17): the saved value under the cursor, the other row picked
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -3396,9 +3361,9 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task WebSearchMethod_IsRow48_APicker_NoReconnect()
+    public async Task WebSearchMethod_IsRow47_APicker_NoReconnect()
     {
-        Down(47);
+        Down(46);
         Push(Keys.Enter);                           // the picker opens on duckduckgo (the first row)
         Push(Keys.Down, Keys.Enter);                // searxng
         Push(Keys.Escape);
@@ -3416,9 +3381,9 @@ public class SettingsMenuTests : IDisposable
     // ── The Ask tab (2026-09-15) ───────────────────────────────────────────
 
     [Fact]
-    public async Task Toggle_AskUser_IsRow49_NoReconnect()
+    public async Task Toggle_AskUser_IsRow48_NoReconnect()
     {
-        Down(48);
+        Down(47);
         Push(Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape);   // the on/off picker (2026-09-17): the saved value under the cursor, the other row picked
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -3429,9 +3394,9 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task AskMaxQuestions_IsRow50_Typed_NoReconnect_AndOutOfRangeIsRefused()
+    public async Task AskMaxQuestions_IsRow49_Typed_NoReconnect_AndOutOfRangeIsRefused()
     {
-        Down(49);
+        Down(48);
         Push(Keys.Enter);                           // Ask max questions shows "10"
         Push(Keys.Backspace, Keys.Backspace);
         _console.Input.PushText("0");
@@ -3453,9 +3418,9 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task AskMaxChoices_IsRow51_Typed_NoReconnect_AndOutOfRangeIsRefused()
+    public async Task AskMaxChoices_IsRow50_Typed_NoReconnect_AndOutOfRangeIsRefused()
     {
-        Down(50);
+        Down(49);
         Push(Keys.Enter);                           // Ask max choices per question shows "10"
         Push(Keys.Backspace, Keys.Backspace);
         _console.Input.PushText("1");
@@ -3479,9 +3444,9 @@ public class SettingsMenuTests : IDisposable
     // ── The Skills tab (2026-09-16) ─────────────────────────────────────────
 
     [Fact]
-    public async Task Toggle_AgentSkills_IsRow55_NoReconnect()
+    public async Task Toggle_AgentSkills_IsRow54_NoReconnect()
     {
-        Down(54);
+        Down(53);
         Push(Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape);   // the on/off picker (2026-09-17): the saved value under the cursor, the other row picked
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -3492,9 +3457,9 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task Toggle_ExternalSkills_IsRow56_OffByDefault_NoReconnect()
+    public async Task Toggle_ExternalSkills_IsRow55_OffByDefault_NoReconnect()
     {
-        Down(55);
+        Down(54);
         Push(Keys.Enter, Keys.Up, Keys.Enter, Keys.Escape);   // the on/off picker (2026-09-17): the saved value under the cursor, the other row picked
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -3507,7 +3472,7 @@ public class SettingsMenuTests : IDisposable
     [Fact]
     public async Task SkillCompactMode_IsAPicker_TheLastRow()
     {
-        Down(56);
+        Down(55);
         Push(Keys.Enter);                           // Skill compact mode: the picker opens on the default (the first row)
         Push(Keys.Down, Keys.Enter);                // unprotected
         Push(Keys.Escape);
@@ -3522,9 +3487,9 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task Toggle_HashMention_IsRow61_TheLast_OnByDefault_NoReconnect()
+    public async Task Toggle_HashMention_IsRow60_TheLast_OnByDefault_NoReconnect()
     {
-        Down(60);
+        Down(59);
         Push(Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape);
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -3536,10 +3501,10 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task Toggle_DollarMention_IsRow80_TheLast_OnByDefault_NoReconnect()
+    public async Task Toggle_DollarMention_IsRow79_TheLast_OnByDefault_NoReconnect()
     {
         // The $-mention switch (2026-09-19): the enum's last member, /tools' Options tab on the pane.
-        Down(79);
+        Down(78);
         Push(Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape);
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -3555,11 +3520,11 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task DraftEditor_IsRow84_TheLast_Typed_AnyTextIsKept_AndEmptyMeansTheShellsDefault()
+    public async Task DraftEditor_IsRow83_TheLast_Typed_AnyTextIsKept_AndEmptyMeansTheShellsDefault()
     {
         // 2026-09-19: the enum's last member, the General tab's last row on the pane; a command line, not a path, so nothing is checked here.
         _console.Profile.Width = 240;
-        Down(83);
+        Down(82);
         Push(Keys.Enter);                           // Draft editor: empty
         _console.Input.PushText("code --wait");
         Push(Keys.Enter);                           // saved
@@ -3576,11 +3541,11 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task ReflectionMaxRequests_IsRow66_SavedRangeChecked_NoReconnect()
+    public async Task ReflectionMaxRequests_IsRow65_SavedRangeChecked_NoReconnect()
     {
-        // Flat row 66 since the stale line number guard went with edit_lines later still on 2026-09-19 (67 since Reflection verbose went earlier that day, 68 before); the enum's last member from 2026-09-17 until the two General switches of 2026-09-18: the Reflection tab's fifth row.
+        // Flat row 65 since Mouse in menus went on 2026-09-21 (66 since the stale line number guard went with edit_lines later still on 2026-09-19 (67 since Reflection verbose went earlier that day, 68 before); the enum's last member from 2026-09-17 until the two General switches of 2026-09-18: the Reflection tab's fifth row.
         _console.Profile.Width = 240;
-        Down(65);
+        Down(64);
         Push(Keys.Enter);                       // Reflection max requests "4"
         Push(Keys.Backspace);
         _console.Input.PushText("7");
@@ -3603,9 +3568,9 @@ public class SettingsMenuTests : IDisposable
     // ── Transcript markdown (2026-09-16) ────────────────────────────────────
 
     [Fact]
-    public async Task Toggle_TranscriptMarkdown_IsRow58_OnByDefault_NoReconnect()
+    public async Task Toggle_TranscriptMarkdown_IsRow57_OnByDefault_NoReconnect()
     {
-        Down(57);
+        Down(56);
         Push(Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape);   // the on/off picker (2026-09-17): the saved value under the cursor, the other row picked
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -3618,7 +3583,7 @@ public class SettingsMenuTests : IDisposable
     [Fact]
     public async Task Toggle_TranscriptMarkdown_MidTurn_IsAllowed()
     {
-        Down(57);
+        Down(56);
         Push(Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape);   // the on/off picker (2026-09-17): the saved value under the cursor, the other row picked
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None, midTurn: true));
@@ -3628,10 +3593,10 @@ public class SettingsMenuTests : IDisposable
     // ── Paste preview lines (2026-09-16) ────────────────────────────────────
 
     [Fact]
-    public async Task PastePreviewLines_IsRow59_Typed_ZeroIsOff_NoReconnect_AndOutOfRangeIsRefused()
+    public async Task PastePreviewLines_IsRow58_Typed_ZeroIsOff_NoReconnect_AndOutOfRangeIsRefused()
     {
         _console.Profile.Width = 240;
-        Down(58);
+        Down(57);
         Push(Keys.Enter);                       // Paste preview lines shows "25"
         Push(Keys.Backspace, Keys.Backspace);
         _console.Input.PushText("-1");
@@ -3656,7 +3621,7 @@ public class SettingsMenuTests : IDisposable
     [Fact]
     public async Task PastePreviewLines_MidTurn_IsAllowed()
     {
-        Down(58);
+        Down(57);
         Push(Keys.Enter);
         Push(Keys.Backspace, Keys.Backspace);
         _console.Input.PushText("40");
@@ -3751,37 +3716,35 @@ public class SettingsMenuTests : IDisposable
 
         Assert.Equal("on  " + Theme.DimMarkup("replies are read aloud"), SettingsMenu.ToggleLabel(SettingsField.TtsOutput, true));
         Assert.Equal("off " + Theme.DimMarkup("replies are text only"), SettingsMenu.ToggleLabel(SettingsField.TtsOutput, false));
-        Assert.Equal("the memories open every conversation; save_memory, recall_memory work", SettingsMenu.ToggleDescribe(SettingsField.Memory, true));
-        Assert.Equal("no memory call, no memory tool; the file is left as it is", SettingsMenu.ToggleDescribe(SettingsField.Memory, false));
+        Assert.Equal("memory enabled", SettingsMenu.ToggleDescribe(SettingsField.Memory, true));   // the user's words, 2026-09-21
+        Assert.Equal("memory disabled", SettingsMenu.ToggleDescribe(SettingsField.Memory, false));
         Assert.Equal("no tools at all; a change starts a new conversation", SettingsMenu.ToggleDescribe(SettingsField.LlmOfferTools, false));
         Assert.Equal("an edit keeps the previous version in .trash first, delete moves there", SettingsMenu.ToggleDescribe(SettingsField.FileSafeEdits, true));
         Assert.Equal("an edit writes in place and delete removes for good", SettingsMenu.ToggleDescribe(SettingsField.FileSafeEdits, false));
         Assert.Equal("%USERPROFILE%\\.agents\\skills is read too", SettingsMenu.ToggleDescribe(SettingsField.ExternalSkills, true));
-        Assert.Equal("a double-click picks a row, closes a pane from outside, opens /settings", SettingsMenu.ToggleDescribe(SettingsField.MouseInMenus, true));
-        Assert.Equal("the terminal keeps the mouse under a menu or pane; the keys move", SettingsMenu.ToggleDescribe(SettingsField.MouseInMenus, false));
         // 2026-09-18: the user's own sentences for /copy, and the two new line switches.
         Assert.Equal("/copy copies user prompts and model replies", SettingsMenu.ToggleDescribe(SettingsField.CopyUserPrompt, true));
         Assert.Equal("/copy copies model replies only", SettingsMenu.ToggleDescribe(SettingsField.CopyUserPrompt, false));
-        Assert.Equal("the / list leaves /exit out; typed in full it still exits", SettingsMenu.ToggleDescribe(SettingsField.HideExitAutocomplete, true));
-        Assert.Equal("/exit is in the / list like every command", SettingsMenu.ToggleDescribe(SettingsField.HideExitAutocomplete, false));
+        Assert.Equal("hide '/exit' from the autocomplete list", SettingsMenu.ToggleDescribe(SettingsField.HideExitAutocomplete, true));   // the user's words, 2026-09-21
+        Assert.Equal("show '/exit' in the autocomplete list", SettingsMenu.ToggleDescribe(SettingsField.HideExitAutocomplete, false));
         Assert.Equal("a line that is only a command's name offers the command first", SettingsMenu.ToggleDescribe(SettingsField.CommandTypoIntercept, true));
         Assert.Equal("a line that is only a command's name is sent as typed", SettingsMenu.ToggleDescribe(SettingsField.CommandTypoIntercept, false));
         Assert.Equal("a picture greets you under the banner at startup, until the first line", SettingsMenu.ToggleDescribe(SettingsField.WelcomeSplash, true));
         Assert.Equal("the banner alone at startup", SettingsMenu.ToggleDescribe(SettingsField.WelcomeSplash, false));
-        Assert.Equal("the working directory sits at the banner's right edge", SettingsMenu.ToggleDescribe(SettingsField.ShowWorkingDirectory, true));
-        Assert.Equal("the banner is the title and the version alone", SettingsMenu.ToggleDescribe(SettingsField.ShowWorkingDirectory, false));
-        Assert.Equal("the pane glyphs and the working directory sit under the hint row", SettingsMenu.ToggleDescribe(SettingsField.ShowToolbar, true));
-        Assert.Equal("the hint row is the pane's last row", SettingsMenu.ToggleDescribe(SettingsField.ShowToolbar, false));
+        Assert.Equal("show the working directory in the header", SettingsMenu.ToggleDescribe(SettingsField.ShowWorkingDirectory, true));   // the user's words, 2026-09-21
+        Assert.Equal("hide the working directory in the header", SettingsMenu.ToggleDescribe(SettingsField.ShowWorkingDirectory, false));
+        Assert.Equal("show the toolbar", SettingsMenu.ToggleDescribe(SettingsField.ShowToolbar, true));
+        Assert.Equal("hide the toolbar", SettingsMenu.ToggleDescribe(SettingsField.ShowToolbar, false));
         Assert.Equal("a message sent while a reply runs is queued and sent when the reply ends", SettingsMenu.ToggleDescribe(SettingsField.QueueMessages, true));
         Assert.Equal("a message sent during a reply stays type-ahead; /queue leaves the / list", SettingsMenu.ToggleDescribe(SettingsField.QueueMessages, false));
     }
 
     [Fact]
-    public async Task Toggle_HideExitAutocomplete_IsRow67_OnByDefault_PersistsAndNeedsNoReconnect()
+    public async Task Toggle_HideExitAutocomplete_IsRow66_OnByDefault_PersistsAndNeedsNoReconnect()
     {
         // 2026-09-18: the first of the two General switches appended after Reflection max requests; the General tab's row after Paste preview lines.
         Assert.True(_settings.Current.HideExitAutocomplete);
-        Down(66);
+        Down(65);
         Push(Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape);   // the on/off picker: the saved value under the cursor, the other row picked
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -3792,11 +3755,11 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task Toggle_CommandTypoIntercept_IsRow68_OnByDefault_PersistsAndNeedsNoReconnect()
+    public async Task Toggle_CommandTypoIntercept_IsRow67_OnByDefault_PersistsAndNeedsNoReconnect()
     {
         // 2026-09-18: the General tab's row before Welcome splash (the last of both until it landed, later that day).
         Assert.True(_settings.Current.CommandTypoIntercept);
-        Down(67);
+        Down(66);
         Push(Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape);
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -3807,11 +3770,11 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task Toggle_WelcomeSplash_IsRow69_OnByDefault_PersistsAndNeedsNoReconnect()
+    public async Task Toggle_WelcomeSplash_IsRow68_OnByDefault_PersistsAndNeedsNoReconnect()
     {
         // 2026-09-18: the General tab's row before Show working directory (the user's order).
         Assert.True(_settings.Current.WelcomeSplash);
-        Down(68);
+        Down(67);
         Push(Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape);
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -3822,26 +3785,26 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task Toggle_ShowWorkingDirectory_IsRow70_OnByDefault_PersistsAndNeedsNoReconnect()
+    public async Task Toggle_ShowWorkingDirectory_IsRow69_OffByDefault_PersistsAndNeedsNoReconnect()
     {
-        // 2026-09-18: the General tab's last row (the enum's last member until the queue's two, later that day); the banner reads it at its next draw.
-        Assert.True(_settings.Current.ShowWorkingDirectory);
-        Down(69);
+        // 2026-09-18: the General tab's last row (the enum's last member until the queue's two, later that day); the banner reads it at its next draw. Off by default since 2026-09-21, so the flip lands on on.
+        Assert.False(_settings.Current.ShowWorkingDirectory);
+        Down(68);
         Push(Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape);
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
 
-        Assert.False(_settings.Current.ShowWorkingDirectory);
-        Assert.Contains("  · Show working directory: off", _console.Output);
+        Assert.True(_settings.Current.ShowWorkingDirectory);
+        Assert.Contains("  · Working directory in header: on", _console.Output);
         Assert.Equal(0, _synth.ListCalls);
     }
 
     [Fact]
-    public async Task Toggle_ShowToolbar_IsRow105_OnByDefault_PersistsAndNeedsNoReconnect()
+    public async Task Toggle_ShowToolbar_IsRow104_OnByDefault_PersistsAndNeedsNoReconnect()
     {
         // 2026-09-21: the enum's last member (the General tab's row after Show working directory); the pane reads it at its next draw.
         Assert.True(_settings.Current.ShowToolbar);
-        Down(104);
+        Down(103);
         Push(Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape);
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -3852,11 +3815,11 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task Toggle_QueueMessages_IsRow71_OnByDefault_PersistsAndNeedsNoReconnect()
+    public async Task Toggle_QueueMessages_IsRow70_OnByDefault_PersistsAndNeedsNoReconnect()
     {
         // 2026-09-18: the General tab's row under Working directory (the user's place), the enum's second-to-last member; the line hook reads it at each mid-turn Enter.
         Assert.True(_settings.Current.QueueMessages);
-        Down(70);
+        Down(69);
         Push(Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape);
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -3869,11 +3832,11 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task QueueCancelMode_IsRow72_TheLast_APicker_EmptyByDefault_PersistsAndNeedsNoReconnect()
+    public async Task QueueCancelMode_IsRow71_TheLast_APicker_EmptyByDefault_PersistsAndNeedsNoReconnect()
     {
         // 2026-09-18: the enum's last member, the General tab's row under Queue messages; read when a turn ends. Empty by default since 2026-09-20 (hold before).
         Assert.Equal("empty", _settings.Current.QueueCancelMode);
-        Down(71);
+        Down(70);
         Push(Keys.Enter);                           // the picker opens on empty (the last row)
         Push(Keys.Up, Keys.Up, Keys.Enter);         // hold
         Push(Keys.Escape);
@@ -3890,11 +3853,11 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task Toggle_AllowSkillDelete_IsRow73_OffByDefault_NoReconnect()
+    public async Task Toggle_AllowSkillDelete_IsRow72_OffByDefault_NoReconnect()
     {
-        // Flat row 73 (74 from Reflection verbose going later still on 2026-09-19 until the stale line number guard went with edit_lines; 75 on 2026-09-18, 77 until Always return line numbers went that morning), the enum's last member; the Skills tab's sixth row; off out of the box, the cursor on the off row.
+        // Flat row 72 since Mouse in menus went on 2026-09-21 (73 before; 74 from Reflection verbose going later still on 2026-09-19 until the stale line number guard went with edit_lines; 75 on 2026-09-18, 77 until Always return line numbers went that morning), the enum's last member; the Skills tab's sixth row; off out of the box, the cursor on the off row.
         Assert.False(_settings.Current.AllowSkillDelete);
-        Down(72);
+        Down(71);
         Push(Keys.Enter, Keys.Up, Keys.Enter, Keys.Escape);
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -3947,7 +3910,7 @@ public class SettingsMenuTests : IDisposable
     [Fact]
     public async Task Toggle_LlmTools_TheSavedValuePickedAgain_ClearsNothing()
     {
-        Down(31);
+        Down(30);
         Push(Keys.Enter, Keys.Enter, Keys.Escape);   // LLM offer tools: on picked again
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));

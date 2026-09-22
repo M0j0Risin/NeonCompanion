@@ -54,12 +54,12 @@ public class ReasoningLevelTests
     }
 
     [Theory]
-    [InlineData("none", "")]        // nothing: the bare model name on the hint row
+    [InlineData("none", "○")]       // U+25CB: the empty circle, always shown (2026-09-21; nothing until then)
     [InlineData("low", "◔")]        // U+25D4
     [InlineData("medium", "◑")]     // U+25D1
     [InlineData("high", "◕")]       // U+25D5
     [InlineData("xhigh", "●")]      // U+25CF
-    [InlineData("turbo", "")]       // a hand-edited level: nothing, never a throw
+    [InlineData("turbo", "○")]      // a hand-edited level: none's circle (Resolve treats it as none), never a throw
     public void Glyph_IsPinned(string level, string expected)
     {
         Assert.Equal(expected, ReasoningLevel.Glyph(level));

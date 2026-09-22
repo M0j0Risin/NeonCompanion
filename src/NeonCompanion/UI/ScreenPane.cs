@@ -65,8 +65,8 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
     /// <summary>
     /// The close glyph at the right edge of an overlay's first row (2026-09-18): the ESC key under
     /// the mouse — a menu backs out one level, an info pane closes. Drawn for an overlay shown with
-    /// <c>close</c> while <see cref="CloseGlyphShown"/> says so (the screen ties it to <c>Mouse in menus</c>:
-    /// a button nobody can press is not drawn), in column <c>Width − 2</c> — the last column left
+    /// <c>close</c> (until 2026-09-21 only while the <c>Mouse in menus</c> setting let the pane keep
+    /// the mouse; the pane always does now), in column <c>Width − 2</c> — the last column left
     /// empty as the hint row leaves it. Pinned.
     /// </summary>
     public const string CloseGlyph = "×";
@@ -190,6 +190,7 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
     // column the trailer starts in, −1 without one or under the busy row.
     private string _hintStrip = "";
     private int _trailerColumn = -1;
+    private int _markColumn = -1;
 
     // The queued part (Queued) as last drawn, in either row: its first column and its width in
     // cells, −1 / 0 when none was drawn (nothing queued, cut by a narrow window, or under an
@@ -230,7 +231,7 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
         /// <summary>One of the speech strip's glyphs at the row's start (<see cref="HintHit.Glyph"/> says which).</summary>
         Strip,
 
-        /// <summary>The model name and its reasoning mark at the right edge.</summary>
+        /// <summary>The model name at the right edge, and the separator ahead of its reasoning mark (the mark itself is <see cref="Mark"/> since 2026-09-21).</summary>
         Trailer,
 
         /// <summary>The queued-messages count after the strip (<see cref="Queued"/>, 2026-09-18).</summary>
@@ -246,9 +247,16 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
         /// <summary>
         /// The token tally on the standing row (<see cref="Usage"/>), or the spinner and its label
         /// on the busy row (2026-09-21, the user's ask): a double-click on either opens <c>/usage</c>.
-        /// Last so <c>InputLine.HintPairKey</c>'s values stand.
+        /// After <see cref="Scrolled"/> so <c>InputLine.HintPairKey</c>'s values stand.
         /// </summary>
         Usage,
+
+        /// <summary>
+        /// The reasoning mark on the row's last cells (<see cref="TrailerMark"/>; 2026-09-21, the
+        /// user's ask): a double-click there opens <c>/reasoning</c> where the name opens <c>/model</c>.
+        /// Last, for the same reason.
+        /// </summary>
+        Mark,
     }
 
     /// <summary>Where on the hint row a click landed: the zone, the strip glyph under it (<c>""</c> elsewhere) and the zone's first column (−1 for the row).</summary>
@@ -303,9 +311,6 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
 
     /// <summary>The pane is on the screen: the geometry is known and the console draws menus.</summary>
     public bool Enabled { get; }
-
-    /// <summary>Whether an overlay's <see cref="CloseGlyph"/> is drawn, read at every draw; the screen answers with <c>Mouse in menus</c>.</summary>
-    public Func<bool> CloseGlyphShown { get; set; } = () => true;
 
     /// <summary>
     /// The close-everything signal (2026-09-18): set by <see cref="Dismiss"/> while an overlay is
@@ -2073,8 +2078,7 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
     /// Whether a click at buffer cell (<paramref name="x"/>, <paramref name="y"/>) lands on the
     /// drawn overlay's <see cref="CloseGlyph"/> (2026-09-18): its first row, from the cell before
     /// the glyph to the screen's last column — three cells, a target for a mouse. False when no
-    /// glyph was drawn (no overlay, one shown without <c>close</c>, <see cref="CloseGlyphShown"/>
-    /// false, no room), when the pane is lifted, or when the console cannot say where the cursor is.
+    /// glyph was drawn (no overlay, one shown without <c>close</c>, no room), when the pane is lifted, or when the console cannot say where the cursor is.
     /// The readers treat a hit as the ESC key.
     /// </summary>
     public bool TryHitClose(int x, int y)
@@ -2136,8 +2140,8 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
     /// <summary>
     /// <see cref="TryHitHint(int, int)"/> naming the part of the row under the click
     /// (2026-09-18): <see cref="HintZone.Strip"/> with the speech glyph and its first column,
-    /// <see cref="HintZone.Trailer"/> over the model name and its reasoning mark at the right
-    /// edge, <see cref="HintZone.Usage"/> over the token tally (2026-09-21), <see cref="HintZone.Row"/>
+    /// <see cref="HintZone.Trailer"/> over the model name at the right edge and <see cref="HintZone.Mark"/>
+    /// over its reasoning mark on the last cells (2026-09-21), <see cref="HintZone.Usage"/> over the token tally (2026-09-21), <see cref="HintZone.Row"/>
     /// anywhere else — the separators between the glyphs included.
     /// The zones are those of the standing row as last drawn; under the busy row the spinner and
     /// its label are <see cref="HintZone.Usage"/> and every other hit is the row.
@@ -2165,7 +2169,7 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
                 return false;
             }
 
-            hit = HintHitAt(_hintStrip, _trailerColumn, _busyLabel is null ? _queuedColumn : -1, _queuedCells, _usageColumn, _usageCells, x, _hintScrolled);
+            hit = HintHitAt(_hintStrip, _trailerColumn, _markColumn, _busyLabel is null ? _queuedColumn : -1, _queuedCells, _usageColumn, _usageCells, x, _hintScrolled);
             return true;
         }
     }
@@ -2217,9 +2221,23 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
     /// standing row, the spinner and its label on the busy row; behind the trailer and the queued
     /// part, ahead of the strip. Pinned.
     /// </summary>
-    public static HintHit HintHitAt(string strip, int trailerColumn, int queuedColumn, int queuedCells, int usageColumn, int usageCells, int x, bool scrolled = false)
+    public static HintHit HintHitAt(string strip, int trailerColumn, int queuedColumn, int queuedCells, int usageColumn, int usageCells, int x, bool scrolled = false) =>
+        HintHitAt(strip, trailerColumn, -1, queuedColumn, queuedCells, usageColumn, usageCells, x, scrolled);
+
+    /// <summary>
+    /// <see cref="HintHitAt(string, int, int, int, int, int, int, bool)"/> with the mark's place
+    /// (2026-09-21): from <paramref name="markColumn"/> (−1 for none) to the row's end is
+    /// <see cref="HintZone.Mark"/>, its first column the hit's, ahead of the trailer — which is
+    /// then the name and the separator before the mark. Pinned.
+    /// </summary>
+    public static HintHit HintHitAt(string strip, int trailerColumn, int markColumn, int queuedColumn, int queuedCells, int usageColumn, int usageCells, int x, bool scrolled = false)
     {
         ArgumentNullException.ThrowIfNull(strip);
+        if (markColumn >= 0 && x >= markColumn)
+        {
+            return new HintHit(HintZone.Mark, "", markColumn);
+        }
+
         if (trailerColumn >= 0 && x >= trailerColumn)
         {
             return new HintHit(HintZone.Trailer, "", trailerColumn);
@@ -2551,7 +2569,7 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
         {
             overlayLines = Segment.SplitLines(overlay.Content.GetSegments(_inner), w);
             overlayRows = Math.Clamp(overlayLines.Count, 0, MaxOverlayRows(h - toolbarRows, shown?.Rows.Count ?? 0));
-            if (overlay.Close && overlayRows > 0 && CloseGlyphShown())
+            if (overlay.Close && overlayRows > 0)
             {
                 // The close glyph in column w − 2 of the first row, TrailerGap cells clear of the
                 // title or the strip; a first row that leaves no room (a strip wider than the
@@ -2966,6 +2984,8 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
             _shownHint = hint;
             _hintStrip = _strip();
             _trailerColumn = right.Length == 0 ? -1 : max - TextCells.Width(right);
+            // The mark's place (2026-09-21): the row's last cells, since Trail never cuts it.
+            _markColumn = right.Length == 0 || mark.Length == 0 ? -1 : max - TextCells.Width(mark);
             // The queued part's place: after the strip and its separator — when the fit left it whole.
             int cells = right.Length == 0 ? max : max - TextCells.Width(right) - TrailerGap;
             RecordQueued(StandingQueued(), 0, _hintStrip.Length == 0 ? 0 : TextCells.Width(_hintStrip) + HintSeparator.Length, row, cells);
@@ -2980,6 +3000,7 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
         {
             _hintStrip = "";
             _trailerColumn = -1;
+            _markColumn = -1;
         }
 
         // Either row carries the scroll's hint while scrolled (an overlay's hint wins on both).

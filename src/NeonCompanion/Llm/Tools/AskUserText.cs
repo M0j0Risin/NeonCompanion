@@ -4,7 +4,7 @@ namespace NeonCompanion.Llm.Tools;
 
 /// <summary>
 /// The words <see cref="AskUserTool"/> speaks: the result the model reads (and, line by line, the
-/// dim <c>⚙</c> lines the transcript shows) and the error sentences for a call the tool cannot
+/// dim <c>🛠️</c> lines the transcript shows) and the error sentences for a call the tool cannot
 /// put to the user. Pure statics, every string pinned.
 /// </summary>
 public static class AskUserText

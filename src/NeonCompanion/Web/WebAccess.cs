@@ -40,7 +40,7 @@ public sealed class WebAccess
     /// <summary>
     /// The engine the settings name: SearXNG when <see cref="AppSettingsData.WebSearchMethod"/> is
     /// <c>searxng</c> AND <see cref="AppSettingsData.WebSearxngUrl"/> is an http(s) URL, else DuckDuckGo
-    /// (a <c>searxng</c> pick with no usable URL falls back quietly — the ⚙ header names the engine
+    /// (a <c>searxng</c> pick with no usable URL falls back quietly — the 🛠️ header names the engine
     /// that ran). Under <c>duckduckgo</c> the URL is ignored, so it keeps its value between switches.
     /// </summary>
     public ISearchEngine Engine(AppSettingsData effective)

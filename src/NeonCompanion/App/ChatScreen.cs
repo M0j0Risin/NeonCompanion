@@ -158,6 +158,19 @@ public enum CopyActionKind
 /// <summary><see cref="Count"/> is set for <see cref="CopyActionKind.Count"/>, and is at least 1.</summary>
 public readonly record struct CopyAction(CopyActionKind Kind, int Count);
 
+/// <summary>What a <c>/queue</c> argument asks for (2026-09-21). Top-level like <see cref="CopyAction"/>, so the test project can pin the grammar.</summary>
+public enum QueueAction
+{
+    /// <summary>Nothing: the pane.</summary>
+    List,
+
+    /// <summary><c>clear</c>: every queued message dropped.</summary>
+    Clear,
+
+    /// <summary>Anything else; <see cref="ChatScreen.QueueUsageError"/>.</summary>
+    Invalid,
+}
+
 /// <summary>
 /// The interactive chat: connect, read a line, dispatch a command or run a turn, repeat. Owns the
 /// transcript, the input line and the menus; <see cref="CompanionApp"/> owns the banner and the
@@ -326,6 +339,11 @@ internal sealed partial class ChatScreen
 
     /// <summary>The <c>/cwd</c> word that opens the folder picker (<see cref="FolderPane"/>, 2026-09-21); case folded.</summary>
     public const string CwdBrowseWord = "browse";
+
+    /// <summary>The <c>/queue</c> word that drops every queued message (2026-09-21, the user's ask); case folded.</summary>
+    public const string QueueClearWord = "clear";
+    public const string QueueClearNote = "drop every queued message";
+    public const string QueueUsageError = "/queue lists the queued messages; /queue clear drops them all.";
 
     /// <summary>The <c>/copy</c> word for every exchange.</summary>
     public const string CopyAllWord = "all";
@@ -601,7 +619,7 @@ internal sealed partial class ChatScreen
     /// <param name="time">The clock the clock tools, the timers and the pane's tick read; tests pass a manual one.</param>
     /// <param name="geometry">Where the console's cursor is, for the bottom pane; null (tests, a redirected console) draws the input line where the transcript ends.</param>
     /// <param name="clipboard">The text the input row's own paste (a right click, Ctrl+V where the terminal lets it through, Alt+V) puts on the line; null = nothing.</param>
-    /// <param name="mouse">Takes the mouse (true) while the input row has a draft or, with <see cref="AppSettingsData.MouseInMenus"/> on, a menu or the info pane is open, and hands it back to the terminal (false) otherwise (<see cref="WindowsConsoleInput.Capture"/> in the app); null = the terminal keeps it.</param>
+    /// <param name="mouse">Takes the mouse (true) for the screen's run and under every pane (<see cref="WindowsConsoleInput.Capture"/> in the app; the <c>Mouse in menus</c> setting that could hand it back under a pane went on 2026-09-21); null = the terminal keeps it.</param>
     /// <param name="copyToClipboard">What <c>/copy</c> writes the markdown with, true on success (<see cref="WindowsClipboard.TrySetText"/> in the app; tests record the text); null = every copy fails.</param>
     /// <param name="random">What picks the thinking spinner's verb under <see cref="AppSettingsData.LlmUseFunVerbs"/>; null = <see cref="Random.Shared"/> (tests seed one).</param>
     /// <param name="clipboardImage">The picture the same paste takes ahead of the text, as an image file's bytes (<see cref="WindowsClipboard.TryReadImage"/> in the app; tests a lambda); null = never.</param>
@@ -718,9 +736,6 @@ internal sealed partial class ChatScreen
             // per draw and on the tick, so a /cwd change or a flipped Show toolbar shows at once.
             Toolbar = () => _effective() is { ShowToolbar: true } shown ? new ScreenPane.ToolbarParts(ToolbarStrip, WorkingDirectory.Resolve(shown.WorkingDirectory, _settings.ProfileDirectory)) : null,
             Placeholder = InputPlaceholder,
-            // A pane's × close glyph only while the pane holds the mouse (2026-09-18): the same
-            // setting the panes' mouse hook reads, so an unclickable button is never drawn.
-            CloseGlyphShown = () => _effective().MouseInMenus,
         };
         _keys.Mirror = _pane;
         _transcript = new TranscriptRenderer(_pane);
@@ -731,14 +746,13 @@ internal sealed partial class ChatScreen
         _mouse = mouse;
         _holdWheel = holdWheel;
         // The screen holds the mouse and the wheel from its start (RunAsync; the user's call,
-        // 2026-09-17, once the transcript was the app's to scroll). A pane keeps the hold while
-        // the setting says so, read on every take; off, the pane hands the mouse to the terminal
-        // (drag-select over its text) and its close is the standing hold again.
-        Action<bool>? menuMouse = mouse is null ? null : on =>
+        // 2026-09-17, once the transcript was the app's to scroll). A pane keeps the hold: its
+        // open and its close both re-assert it (until 2026-09-21 the Mouse in menus setting could
+        // hand the mouse to the terminal under a pane; the user made the pane's mouse permanent).
+        Action<bool>? menuMouse = mouse is null ? null : _ =>
         {
-            bool hold = !on || _effective().MouseInMenus;
-            mouse(hold);
-            holdWheel?.Invoke(hold);
+            mouse(true);
+            holdWheel?.Invoke(true);
         };
         _info = new InfoPane(_pane, keys, menuMouse);
         _folderPane = new FolderPane(_pane, keys, menuMouse);
@@ -946,8 +960,9 @@ internal sealed partial class ChatScreen
 
     /// <summary>
     /// The mark after the trailer: the reasoning level's glyph (<see cref="ReasoningLevel.Glyph"/>,
-    /// nothing for <c>none</c>) — <c>Qwen3-30B ◕</c> in place of <c>(high)</c>, the user's call
-    /// 2026-09-15; empty while no server is connected, like the label. Pinned.
+    /// the empty circle for <c>none</c> since 2026-09-21) — <c>Qwen3-30B ◕</c> in place of
+    /// <c>(high)</c>, the user's call 2026-09-15; empty while no server is connected, like the label.
+    /// A double-click on it opens <c>/reasoning</c>, one on the name <c>/model</c>. Pinned.
     /// </summary>
     public static string ModelMark(string? modelId, string reasoning)
     {
@@ -1180,8 +1195,7 @@ internal sealed partial class ChatScreen
 
     /// <summary>
     /// The watcher's click hook (2026-09-18), on the watcher task: two left clicks on the busy row's
-    /// queued count within <see cref="DoubleClick.Interval"/> (under <c>Mouse in menus</c>, like
-    /// the idle row's) answer <see cref="SlashCommands.QueueWord"/>, which the line hook runs as the
+    /// queued count within <see cref="DoubleClick.Interval"/> (like the idle row's) answer <see cref="SlashCommands.QueueWord"/>, which the line hook runs as the
     /// typed command — the Queue pane; two on the scroll's hint (<see cref="ScreenPane.HintZone.Scrolled"/>,
     /// later that day) are the bottom again, as Ctrl+End through <see cref="ScrollInput"/> — spent
     /// here, nothing answered; two on the spinner and its label (<see cref="ScreenPane.HintZone.Usage"/>,
@@ -1194,7 +1208,7 @@ internal sealed partial class ChatScreen
     /// </summary>
     private string? HintClickLine(InputEvent.Click click)
     {
-        if (click.Button == MouseButton.Left && _effective().MouseInMenus)
+        if (click.Button == MouseButton.Left)
         {
             if (_pane.TryHitQueued(click.X, click.Y))
             {
@@ -1267,6 +1281,55 @@ internal sealed partial class ChatScreen
         if (_queue.Clear() is > 0 and var dropped)
         {
             _transcript.Notice(QueueDroppedNotice(dropped));
+        }
+    }
+
+    /// <summary>The <c>/queue</c> grammar, pure (2026-09-21): nothing ⇒ the pane; <c>clear</c> (ignoring case) ⇒ drop every one; anything else ⇒ invalid.</summary>
+    public static QueueAction ParseQueueArgs(string args)
+    {
+        string text = (args ?? "").Trim();
+        return text.Length == 0 ? QueueAction.List
+            : text.Equals(QueueClearWord, StringComparison.OrdinalIgnoreCase) ? QueueAction.Clear
+            : QueueAction.Invalid;
+    }
+
+    /// <summary>
+    /// <c>/queue</c> at the idle line: the pane, or with <c>clear</c> the drop and its notice —
+    /// <see cref="QueueMenu.EmptyNotice"/> when there was nothing to drop, as the pane says it —, or
+    /// <see cref="QueueUsageError"/>. The pane's clear-all button is the same drop from inside the pane.
+    /// </summary>
+    private async Task HandleQueueAsync(string args, CancellationToken cancellationToken)
+    {
+        switch (ParseQueueArgs(args))
+        {
+            case QueueAction.List:
+                await _queueMenu.ShowAsync(cancellationToken).ConfigureAwait(false);
+                break;
+            default:
+                HandleQueueArgs(args);
+                break;
+        }
+    }
+
+    /// <summary>The half of <see cref="HandleQueueAsync"/> that needs no pane: the mid-turn quick act for <c>/queue clear</c> (2026-09-21), on the turn task.</summary>
+    private void HandleQueueArgs(string args)
+    {
+        switch (ParseQueueArgs(args))
+        {
+            case QueueAction.Clear:
+                if (_queue.Count == 0)
+                {
+                    _transcript.Notice(QueueMenu.EmptyNotice);
+                }
+                else
+                {
+                    DropQueue();
+                }
+
+                break;
+            case QueueAction.Invalid:
+                _transcript.Error(QueueUsageError);
+                break;
         }
     }
 
@@ -2157,6 +2220,9 @@ internal sealed partial class ChatScreen
             case SlashCommand.Copy:
                 return MentionCompleter.Matches([new("all", CopyAllNote)], argText);
 
+            case SlashCommand.Queue:
+                return MentionCompleter.Matches([new(QueueClearWord, QueueClearNote)], argText);
+
             case SlashCommand.Persona:
                 return MentionCompleter.Matches([new(ResetWord, PromptFileResetNote(PersonaFile.FileName))], argText);
 
@@ -2540,7 +2606,7 @@ internal sealed partial class ChatScreen
 
     /// <summary>
     /// The tools whose call line the transcript skips, showing the result alone as one dim
-    /// <c>⚙</c> line: the result sentence says it all and the arguments would repeat it
+    /// <c>🛠️</c> line: the result sentence says it all and the arguments would repeat it
     /// (<c>ask_user</c>'s answers one line each, <see cref="TranscriptRenderer.ToolNotes"/>).
     /// Headless keeps the generic lines.
     /// </summary>
@@ -3218,7 +3284,7 @@ internal sealed partial class ChatScreen
     /// redrawn, the history set to the stored messages with the <c>/skill</c> counter
     /// (<see cref="ConversationHistory.Restore"/>; the opening pairs are in the list, so the next turn
     /// keeps them current rather than seeding them again), then each turn replayed under the
-    /// notice — the user's row, one <c>⚙ N tool calls</c> line when the model called any, the reply
+    /// notice — the user's row, one <c>🛠️ N tool calls</c> line when the model called any, the reply
     /// through the live slot as <c>/speak</c> prints a file (styled as a live reply would be). The
     /// pictures of a turn are not redrawn. New turns append to the restored row. The one on screen
     /// already is <see cref="SessionsMenu.CurrentNotice"/>.
@@ -4542,11 +4608,12 @@ internal sealed partial class ChatScreen
                         draft = alert.Draft;
                         break;
                     case InputResult.HintRow hint:
-                        // A double-click on the hint row (Mouse in menus on, 2026-09-18), as if the
+                        // A double-click on the hint row (2026-09-18), as if the
                         // command were sent — the tail silenced, the timers acknowledged — without
                         // the transcript row or the history; the draft comes back after: the model
-                        // name is /model, the brain the reflection's cancel, a speech glyph its
-                        // switch off, the token tally /usage (2026-09-21), anywhere else /settings.
+                        // name is /model, the reasoning mark after it /reasoning (2026-09-21), the
+                        // brain the reflection's cancel, a speech glyph its switch off, the token
+                        // tally /usage (2026-09-21), anywhere else /settings.
                         _timers.Acknowledge();
                         DisarmExit();
                         await _speech.StopAsync().ConfigureAwait(false);
@@ -4554,6 +4621,10 @@ internal sealed partial class ChatScreen
                         if (hint.Hit.Zone == ScreenPane.HintZone.Trailer)
                         {
                             await PickModelAsync("", cancellationToken).ConfigureAwait(false);
+                        }
+                        else if (hint.Hit.Zone == ScreenPane.HintZone.Mark)
+                        {
+                            await PickReasoningAsync("", cancellationToken).ConfigureAwait(false);
                         }
                         else if (hint.Hit.Zone == ScreenPane.HintZone.Strip && hint.Hit.Glyph == LearnStripGlyph)
                         {
@@ -4771,7 +4842,6 @@ internal sealed partial class ChatScreen
                 softEscape: StopTailFirst,
                 interrupt: InterruptFirst,
                 intercept: TypoInterceptAsync,
-                hintDoubleClick: _effective().MouseInMenus,
                 beforeCommit: DismissSplash,
                 replay: replay,
                 emptyArrow: CycleSplash).ConfigureAwait(false);
@@ -5580,8 +5650,21 @@ internal sealed partial class ChatScreen
     }
 
     /// <summary>
-    /// The settings menu (<c>/settings</c>, or a double-click on the hint row under <c>Mouse in menus</c>,
-    /// 2026-09-18) and what its changes ask for afterwards: a profile switch reconnects everything,
+    /// The reasoning picker (<c>/reasoning [level]</c>, or a double-click on the reasoning mark in
+    /// the hint row, 2026-09-21) and the quiet reconnect a pick asks for: the saved notice is the
+    /// feedback and the endpoint is unchanged, so the reconnect prints only what went wrong (the
+    /// <c>/settings</c> rule; <c>/model</c>'s <c>LLM:</c> line IS its answer).
+    /// </summary>
+    private async Task PickReasoningAsync(string args, CancellationToken cancellationToken)
+    {
+        if (await _menu.PickReasoningAsync(args, _effective().LlmReasoning, cancellationToken).ConfigureAwait(false))
+        {
+            await ConnectLlmAsync(cancellationToken, quiet: true).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// The settings menu (<c>/settings</c>, or a double-click on the hint row, 2026-09-18) and what its changes ask for afterwards: a profile switch reconnects everything,
     /// an LLM / TTS / STT change its own session quietly, the tools switch forgets the conversation.
     /// </summary>
     private async Task OpenSettingsAsync(CancellationToken cancellationToken)
@@ -5714,13 +5797,7 @@ internal sealed partial class ChatScreen
                 return false;
 
             case SlashCommand.Reasoning:
-                // The saved notice is the feedback and the endpoint is unchanged, so the reconnect
-                // prints only what went wrong (the /settings rule; /model's LLM: line IS its answer).
-                if (await _menu.PickReasoningAsync(args, _effective().LlmReasoning, cancellationToken).ConfigureAwait(false))
-                {
-                    await ConnectLlmAsync(cancellationToken, quiet: true).ConfigureAwait(false);
-                }
-
+                await PickReasoningAsync(args, cancellationToken).ConfigureAwait(false);
                 return false;
 
             case SlashCommand.Settings:
@@ -5745,7 +5822,7 @@ internal sealed partial class ChatScreen
                 return false;
 
             case SlashCommand.Queue:
-                await _queueMenu.ShowAsync(cancellationToken).ConfigureAwait(false);
+                await HandleQueueAsync(args, cancellationToken).ConfigureAwait(false);
                 return false;
             case SlashCommand.Session:
                 await HandleSessionAsync(args, cancellationToken).ConfigureAwait(false);
@@ -6960,7 +7037,7 @@ internal sealed partial class ChatScreen
         var trace = new TurnTrace();
         _lastTrace = null;
 
-        // The opening calls' ⚙ lines above the reply's glyph, once, whichever way the wait ended.
+        // The opening calls' 🛠️ lines above the reply's glyph, once, whichever way the wait ended.
         void RenderOpening()
         {
             foreach (var evt in opening)
@@ -6997,7 +7074,7 @@ internal sealed partial class ChatScreen
             _transcript.BeginAssistant(styled);
             while (more)
             {
-                // The stage ahead of the event's own lines (the ⚙ line under a tool's name, not a
+                // The stage ahead of the event's own lines (the 🛠️ line under a tool's name, not a
                 // stale one); the opening calls above never reach it — buffered, already done.
                 if (busy is not null && stages.Advance(events.Current) is { } stage)
                 {
@@ -7271,7 +7348,7 @@ internal sealed partial class ChatScreen
         return tiles;
     }
 
-    /// <param name="thumbnails">The thumbnail box, read once at the turn's start (null with <c>Show image thumbnails</c> off): the pictures a tool fetched are drawn under its ⚙ line the way sent ones are drawn under the user's.</param>
+    /// <param name="thumbnails">The thumbnail box, read once at the turn's start (null with <c>Show image thumbnails</c> off): the pictures a tool fetched are drawn under its 🛠️ line the way sent ones are drawn under the user's.</param>
     private void Render(TurnEvent evt, SpeechOutput? speaker, StringBuilder reply, ThumbnailBox? thumbnails)
     {
         switch (evt)
@@ -7282,7 +7359,7 @@ internal sealed partial class ChatScreen
                 reply.Append(delta.Text);
                 break;
             case TurnEvent.ToolCall call when QuietTools.Contains(call.Name):
-                // The result line says it all (⚙ remembered: …, ⚙ Friday 11 September 2026, …).
+                // The result line says it all (🛠️ remembered: …, 🛠️ Friday 11 September 2026, …).
                 break;
             case TurnEvent.ToolCall call:
                 _transcript.Tool(call.Name, call.ArgumentsJson);
