@@ -22,8 +22,8 @@ public sealed record ToolsFacts(IReadOnlyList<ToolGroup> Groups, bool ToolsEnabl
 /// </summary>
 public static class ToolsText
 {
-    /// <summary>The pane's strip label.</summary>
-    public const string Label = "Tools";
+    /// <summary>The pane's strip label: the toolbar's glyph, then the name (the glyph since later on 2026-09-21).</summary>
+    public const string Label = ChatScreen.ToolsToolGlyph + " Tools";
 
     /// <summary>The first tab: <c>Offered</c> (the same word heads the Skills pane's catalog since 2026-09-19, the user's call).</summary>
     public const string OfferedTabTitle = "Offered";

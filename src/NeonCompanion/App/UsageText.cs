@@ -14,8 +14,8 @@ namespace NeonCompanion.App;
 /// </summary>
 public static class UsageText
 {
-    /// <summary>The info pane's strip label.</summary>
-    public const string Label = "Usage";
+    /// <summary>The info pane's strip label (the glyph since later on 2026-09-21).</summary>
+    public const string Label = "📊 Usage";
 
     /// <summary>The tab titles.</summary>
     public const string TokensTabTitle = "Tokens";

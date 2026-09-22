@@ -75,7 +75,7 @@ public static class TimerText
 
     /// <summary>
     /// <see cref="TryParseDuration(string, out TimeSpan)"/> with a day unit (<c>2d</c>, <c>1 day</c>,
-    /// <c>1d 6h</c>) when <paramref name="withDays"/> is set: the form <c>/session purge older</c>
+    /// <c>1d 6h</c>) when <paramref name="withDays"/> is set: the form <c>/sessions purge older</c>
     /// takes (2026-09-21), kept off for <c>/timer</c>, whose ceiling is 24 hours and whose bare
     /// number is still minutes.
     /// </summary>

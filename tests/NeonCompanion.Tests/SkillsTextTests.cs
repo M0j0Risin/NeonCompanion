@@ -19,7 +19,7 @@ public class SkillsTextTests
     [Fact]
     public void Labels_ArePinned()
     {
-        Assert.Equal("Skills", SkillsText.Label);
+        Assert.Equal("🎓 Skills", SkillsText.Label);
         Assert.Equal("Offered", SkillsText.OfferedTabTitle);
         Assert.Equal("Options", SkillsText.OptionsTabTitle);   // Loaded until 2026-09-19 (the user's call: the same word as /tools' first tab)
         Assert.Equal("Project", SkillsText.ProjectTabTitle);   // the Roots tab after it until later on 2026-09-19

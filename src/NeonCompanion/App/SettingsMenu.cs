@@ -363,8 +363,10 @@ public enum SettingsChanges
 internal sealed class SettingsMenu
 {
     // The labels and the key hints: the pane shows the label as its title and the keys in its hint
-    // row; the prompt host joins them (PromptTitle). Pinned.
-    public const string Title = "Settings";
+    // row; the prompt host joins them (PromptTitle). Every pane's title leads with its glyph since
+    // later on 2026-09-21 (the user's ask; the toolbar's where the pane has one), so the crumbs
+    // (Breadcrumb) carry it too. Pinned.
+    public const string Title = ChatScreen.SettingsToolGlyph + " Settings";
     public const string TitleKeys = "Enter = edit · ESC = close";
 
     /// <summary>The settings list's hint on the pane, where the rows sit under tabs.</summary>
@@ -388,10 +390,10 @@ internal sealed class SettingsMenu
 
     /// <summary>The status line for a settings row that cannot change while a reply runs (a reconnect, the profile, the sandbox, the tools flip). Pinned.</summary>
     public const string NotWhileReplyRunsNotice = "(not while a reply runs)";
-    public const string ModelTitle = "Model";
+    public const string ModelTitle = "🤖 Model";
 
     /// <summary>The <c>/reasoning</c> picker's label; ESC keeps the level in use. The settings row's level is <see cref="Breadcrumb"/> over <see cref="FieldName"/>.</summary>
-    public const string ReasoningTitle = "LLM reasoning";
+    public const string ReasoningTitle = "🤔 LLM reasoning";
 
     /// <summary>What <c>/reasoning &lt;level&gt;</c> answers to a word that is not one of <see cref="Llm.ReasoningLevel.Levels"/>. Pinned.</summary>
     public static readonly string ReasoningLevelError = "/reasoning takes " + string.Join(", ", Llm.ReasoningLevel.Levels[..^1]) + " or " + Llm.ReasoningLevel.Levels[^1] + ", or nothing to pick from a list.";
@@ -469,15 +471,15 @@ internal sealed class SettingsMenu
     /// <summary>What the voice pickers speak in the highlighted voice, and the mix and speed rows in the saved blend at the saved speed, while <see cref="SettingsField.TtsVoicePreview"/> is on. Pinned.</summary>
     public const string VoicePreviewText = "Hello. I am Neon, your friendly and concise terminal companion.";
 
-    /// <summary><c>/profile</c>'s picker label; ESC keeps the loaded profile. The settings row's level is <see cref="Breadcrumb"/> + <see cref="SwitchKeys"/>.</summary>
-    public const string ProfileTitle = "Profile";
+    /// <summary><c>/profile</c>'s picker label; ESC keeps the loaded profile. The settings row's level is <see cref="Breadcrumb"/> over <see cref="FieldName"/> (no glyph under the crumb) + <see cref="SwitchKeys"/>.</summary>
+    public const string ProfileTitle = "🪪 Profile";
     public const string ProfileKeys = "Enter = switch · ESC = keep";
 
     /// <summary>The <c>/server</c> picker's label; ESC keeps the server in use.</summary>
-    public const string ServerTitle = "LLM server";
+    public const string ServerTitle = "🖥️ LLM server";
 
     /// <summary>The startup picker's label, when several local servers answered; ESC takes the first listed, as before.</summary>
-    public const string StartupServerTitle = "Several LLM servers answered";
+    public const string StartupServerTitle = "🖥️ Several LLM servers answered";
     public const string StartupServerKeys = "Enter = choose · ESC = the first listed";
 
     private static readonly SettingsField[] Fields = Enum.GetValues<SettingsField>();
@@ -1359,7 +1361,7 @@ internal sealed class SettingsMenu
 
                 if (field == SettingsField.Profile)
                 {
-                    if (await PickProfileAsync(Crumb(ProfileTitle), SwitchKeys, close: false, cancellationToken).ConfigureAwait(false))
+                    if (await PickProfileAsync(Crumb(FieldName(SettingsField.Profile)), SwitchKeys, close: false, cancellationToken).ConfigureAwait(false))
                     {
                         changes |= SettingsChanges.Profile;
                     }

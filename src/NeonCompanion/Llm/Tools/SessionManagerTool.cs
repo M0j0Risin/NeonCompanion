@@ -11,7 +11,7 @@ namespace NeonCompanion.Llm.Tools;
 /// it (each with its best turn's snippet), <c>list</c> the newest, <c>read</c> one by id for its turns
 /// as <c>You:</c> / <c>Neon:</c> text. The conversation on screen is left out of a search and a list
 /// (the model already has it). Never restores, renames or purges: those are the user's, through
-/// <c>/session</c>. Every result starts with a header line, so the transcript's one-line note
+/// <c>/sessions</c>. Every result starts with a header line, so the transcript's one-line note
 /// (<see cref="Note"/>) reads <c>Searched "…" (3 sessions):</c>. The reads run off the caller's
 /// thread (<see cref="SearchFilesTool"/>'s shape): the store is synchronous and the turn loop is the UI's.
 /// </summary>

@@ -3529,6 +3529,80 @@ public class ScreenPaneTests : IDisposable
         Assert.False(pane.TryHitToolbar(0, 103, out _));   // under an overlay the row is the overlay's dismiss
     }
 
+    /// <summary>
+    /// The off-pane parts under an overlay (later on 2026-09-21): the toolbar's glyph, path and
+    /// blanks, the hint row's model name, mark and blanks — each with its own outside key, the
+    /// transcript and the rules the readers' −2; nothing lifted or under the busy row.
+    /// </summary>
+    [Fact]
+    public void OffPaneHitAt_AndOutsideKey_NameThePartUnderAnOverlay()
+    {
+        _cursorTop = 100;
+        using var pane = Pane();
+        pane.Hint = () => "idle";
+        pane.Strip = () => "🔊";
+        pane.Trailer = () => "llama";
+        pane.TrailerMark = () => "◕";
+        pane.Toolbar = () => new ScreenPane.ToolbarParts("🔧 🎓", @"D:\x");
+        pane.Show();
+        pane.ShowOverlay(new Markup("a\nb"), "keys", close: true);   // rows 100–101, the rule 102, the hint row 103, the toolbar 104
+
+        Assert.Equal(new ScreenPane.OffPaneHit(null, new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "🔧", 0)), pane.OffPaneHitAt(1, 104));
+        Assert.Equal(new ScreenPane.OffPaneHit(null, new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "🎓", 3)), pane.OffPaneHitAt(3, 104));
+        Assert.Equal(new ScreenPane.OffPaneHit(null, new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Row, "", -1)), pane.OffPaneHitAt(10, 104));
+        Assert.Equal(new ScreenPane.OffPaneHit(null, new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Path, "", 35)), pane.OffPaneHitAt(37, 104));
+        Assert.Equal(new ScreenPane.OffPaneHit(new ScreenPane.HintHit(ScreenPane.HintZone.Trailer, "", 32), null), pane.OffPaneHitAt(33, 103));
+        Assert.Equal(new ScreenPane.OffPaneHit(new ScreenPane.HintHit(ScreenPane.HintZone.Mark, "", 38), null), pane.OffPaneHitAt(38, 103));
+        Assert.Equal(new ScreenPane.OffPaneHit(new ScreenPane.HintHit(ScreenPane.HintZone.Strip, "🔊", 0), null), pane.OffPaneHitAt(0, 103));
+        Assert.Equal(new ScreenPane.OffPaneHit(new ScreenPane.HintHit(ScreenPane.HintZone.Row, "", -1), null), pane.OffPaneHitAt(10, 103));
+        Assert.Null(pane.OffPaneHitAt(5, 50));     // the transcript
+        Assert.Null(pane.OffPaneHitAt(5, 99));     // the upper rule
+        Assert.Null(pane.OffPaneHitAt(5, 102));    // the lower rule
+        Assert.Null(pane.OffPaneHitAt(0, 100));    // the overlay's row
+        Assert.False(pane.TryHitToolbar(1, 104, out _));   // the guarded test still refuses under the overlay
+        Assert.False(pane.TryHitHint(33, 103, out _));
+
+        // The keys: one per part, −2 elsewhere, none the pairing's −1.
+        Assert.Equal(-5, pane.OutsideKey(1, 104));
+        Assert.Equal(-8, pane.OutsideKey(3, 104));
+        Assert.Equal(-4, pane.OutsideKey(10, 104));
+        Assert.Equal(-3, pane.OutsideKey(37, 104));
+        Assert.Equal(-102, pane.OutsideKey(33, 103));
+        Assert.Equal(-106, pane.OutsideKey(38, 103));
+        Assert.Equal(-200, pane.OutsideKey(0, 103));
+        Assert.Equal(-100, pane.OutsideKey(10, 103));
+        Assert.Equal(MenuPane.OutsideRow, pane.OutsideKey(5, 50));
+        Assert.Equal(MenuPane.OutsideRow, ScreenPane.OutsideKeyOf(null));
+
+        // The dismiss keeps the part, once; a Dismiss() without a click keeps nothing; a new overlay forgets it.
+        pane.Dismiss(3, 104);
+        Assert.True(pane.Dismissed);
+        Assert.Equal(new ScreenPane.OffPaneHit(null, new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "🎓", 3)), pane.TakeDismissHit());
+        Assert.Null(pane.TakeDismissHit());
+        pane.Dismiss(5, 50);
+        Assert.Null(pane.TakeDismissHit());
+        pane.Dismiss(3, 104);
+        pane.ShowOverlay(new Markup("a\nb"), "keys", close: true);
+        Assert.Null(pane.TakeDismissHit());
+        pane.Dismiss(3, 104);
+        pane.CloseOverlay();
+        Assert.Equal(new ScreenPane.OffPaneHit(null, new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "🎓", 3)), pane.TakeDismissHit());   // the close keeps it for the host's caller
+
+        // Lifted: nothing.
+        using (pane.Batch())
+        {
+            Assert.Null(pane.OffPaneHitAt(1, 104));
+        }
+
+        // The busy row names nothing on the hint row; the toolbar still answers.
+        pane.ShowOverlay(new Markup("a\nb"), "keys", close: true);
+        using (pane.BeginBusy("thinking"))
+        {
+            Assert.Null(pane.OffPaneHitAt(33, 103));
+            Assert.Equal(new ScreenPane.OffPaneHit(null, new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "🔧", 0)), pane.OffPaneHitAt(0, 104));
+        }
+    }
+
     /// <summary>The drawn row's zones from the cursor's row: the hint row still two under it, the toolbar three; the glyphs and the path answer under the busy row too, the blanks are the row.</summary>
     [Fact]
     public void TryHitToolbar_NamesTheGlyphsAndThePath_TheHintRowStaysAbove()

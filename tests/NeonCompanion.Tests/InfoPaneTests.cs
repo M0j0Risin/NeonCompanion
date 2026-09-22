@@ -387,7 +387,8 @@ public class InfoPaneTests : IDisposable
         input.PushClick(5, 50);                          // the transcript: a first
         input.Push(Keys.Right);                          // a key ends the pair (Two)
         input.PushClick(5, 50);                          // a first again
-        input.PushClick(20, 104);                        // the hint row (strip, spacer, "second" at 100–102, the rule at 103): the pair
+        input.PushClick(20, 104);                        // the hint row (strip, spacer, "second" at 100–102, the rule at 103): another part (later on 2026-09-21), no pair
+        input.PushClick(20, 104);                        // the hint row again: the pair
         input.Push(Keys.Escape);                         // never read
 
         await new InfoPane(pane, keys).ShowAsync(InfoPane.Title, [Tab("One", "first"), Tab("Two", "second")], 0, CancellationToken.None);

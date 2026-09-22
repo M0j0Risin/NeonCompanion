@@ -5,7 +5,7 @@ using NeonCompanion.Diagnostics;
 
 namespace NeonCompanion.Sessions;
 
-/// <summary>Who wrote a session's title: the first sent line, the model (<c>Session naming mode</c> = <c>model-written</c>) or the user (<c>/session title</c>, the pane's rename).</summary>
+/// <summary>Who wrote a session's title: the first sent line, the model (<c>Session naming mode</c> = <c>model-written</c>) or the user (<c>/sessions title</c>, the pane's rename).</summary>
 public enum TitleSource
 {
     FirstLine,
@@ -13,7 +13,7 @@ public enum TitleSource
     User,
 }
 
-/// <summary>One session row without its turns: the <c>/session</c> list's view and a hit's header.</summary>
+/// <summary>One session row without its turns: the <c>/sessions</c> list's view and a hit's header.</summary>
 public sealed record SessionSummary(long Id, DateTimeOffset StartedAt, DateTimeOffset UpdatedAt, string Title, TitleSource TitleSource, string Model, int Turns);
 
 /// <summary>

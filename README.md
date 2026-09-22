@@ -17,12 +17,12 @@ On the Roadmap: Full terminal execution, coding capabilities, and official macOS
 - [Why "Neon"](#why-neon)
 
 ## License
-[⬆ Back to Top](#readme)
+[↑ Back to top](#neon-companion)
 
 Neon Companion is released under the GPLv3 license.
 
 ## Features
-[⬆ Back to Top](#readme)
+[↑ Back to top](#neon-companion)
 
 ### Core Architecture & UI
 * Built on **.NET 10 NativeAOT** for lightweight, high-performance execution.
@@ -38,7 +38,7 @@ Neon Companion is released under the GPLv3 license.
 * **Message Queue:** Built-in queue for stacking and executing sequential messages.
 
 ### Profiles, Sessions & Skills
-* **Multi-Profile Support:** Switch between distinct configurations, each featuring its own configured working directory, fully independent settings and isolated session logging.
+* **Multi-Profile Support:** Switch between distinct configurations, each featuring its own working directory, independent settings and isolated session logging.
 * **Advanced Session Management:** Easily manage, resume, and reflect on past sessions.
 * **Hierarchical Skills System:** Define and manage agent skills at the global, profile, project, or machine (`.agents\skills`) level.
 * **Self-Learning:** An automatic self-reflection system that dynamically updates and creates new skills based on interactions and tool outcomes.
@@ -51,7 +51,7 @@ Neon Companion is released under the GPLv3 license.
 * **Text-to-Speech:** Includes in-process Kokoro TTS, with support for an external HTTP Kokoro endpoint.
 
 ## Components & Libraries
-[⬆ Back to Top](#readme)
+[↑ Back to top](#neon-companion)
 
 * `.NET 10 (NativeAOT)`
 * `Spectre.Console`
@@ -68,9 +68,9 @@ Neon Companion is released under the GPLv3 license.
 * `LibGit2Sharp`
 
 ## Settings & menus
-[⬆ Back to Top](#readme)
+[↑ Back to top](#neon-companion)
 
-Every setting lives in a profile and is edited from a pane inside the app — `←`/`→` switch tabs, `↑`/`↓` move, Enter edits or flips a row, ESC backs out. The app keeps the mouse under every pane: a click moves the cursor, a double-click picks a row or a tab, one off the pane closes it, and the `×` at the top-right corner is ESC. On the hint row a double-click on the model name opens `/model`, on the reasoning glyph after it `/reasoning`, on the token tally (or on the reply's spinner mid-turn) `/usage`, on the queued count `/queue`, and anywhere else `/settings`. Five panes carry them: `/settings` for the app, the sessions, the LLM and the voice stack; `/skills` for the agent skills and the self-reflection; `/tools` for what the model may call; `/mcp` for external MCP servers; and `/sys`, a read-only view of what the model is about to be sent.
+Every setting lives in a profile and is edited from a pane inside the app — `←`/`→` switch tabs, `↑`/`↓` move, Enter edits or flips a row, ESC backs out. The app keeps the mouse under every pane: a click moves the cursor, a double-click picks a row or a tab, and the `×` at the top-right corner is ESC. Every pane's title leads with its glyph. On the hint row a double-click on the model name opens `/model`, on the reasoning glyph after it `/reasoning`, on the token tally (or on the reply's spinner mid-turn) `/usage`, on the queued count `/queue`, and anywhere else `/settings`; on the toolbar a double-click on a glyph opens its pane, on the working directory `/cwd browse`, and on the blanks `/settings`. While a pane is open, a double-click on the glyph or text that belongs to it closes it, one that belongs to another pane closes it and opens that one, and two clicks anywhere else off the pane close it. Five panes carry them: `/settings` for the app, the sessions, the LLM and the voice stack; `/skills` for the agent skills and the self-reflection; `/tools` for what the model may call; `/mcp` for external MCP servers; and `/sys`, a read-only view of what the model is about to be sent.
 
 ### Settings (`/settings`)
 
@@ -93,14 +93,14 @@ Every setting lives in a profile and is edited from a pane inside the app — `�
 | Command typo intercept | A line that is exactly a command's name without its slash (`clear`) asks *Did you mean /clear?* before sending it as text. | on |
 | Welcome splash | Shows one of the splash pictures under the banner at startup until the first line is sent (`←`/`→` walk the set; a profile's own `splash\` folder replaces the built-in pictures). | on |
 | Working directory in header | Prints the working directory at the right edge of the banner's title line. | off |
-| Show toolbar | Draws a toolbar under the hint row: at its left the glyphs a double-click opens — `/settings`, `/tools`, `/mcp`, `/skills`, `/sys` — and at its right the working directory, a double-click on which is `/cwd browse`. | on |
+| Show toolbar | Draws a toolbar under the hint row: at its left the glyphs a double-click opens — ⚙️ `/settings`, 🛠️ `/tools`, 🔌 `/mcp`, 🎓 `/skills`, 🎭 `/sys` — at its right the working directory, a double-click on which is `/cwd browse`, and between them blanks a double-click on which is `/settings`. | on |
 | Draft editor | The command `/draft` opens its temporary file with (`code --wait`, `notepad`…); empty uses whatever Windows opens `.txt` files with. | (default .txt editor) |
 
 #### Sessions
 
 | Setting | What it does | Default |
 |---|---|---|
-| Session logging | Writes every completed turn to the profile's `sessions.db`, so `/session` can list, search and restore it. | on |
+| Session logging | Writes every completed turn to the profile's `sessions.db`, so `/sessions` can list, search and restore it. | on |
 | Session retention (days) | Sessions whose last turn is older than this are purged at startup (0–3650; 0 = keep forever). | 0 |
 | Session naming mode | How a session gets its title: `model-written` asks the model for a short slug after the first turn; `first-line` uses the first line you sent. | `model-written` |
 | Session show name | Which titles show on the rule above the input row: `all-names`, `model-written` (a model-written or typed name only) or `none`. | `all-names` |
@@ -287,7 +287,7 @@ The system prompt section by section, each with its status — **Persona** (defa
 Every tool the reply may call, grouped — Clock, Timers, Files, Git, Web, Memory, Skills, Sessions, one group per connected MCP server, Questions — each with the description the model reads, and a note on any that is switched off and why.
 
 ## Slash commands
-[⬆ Back to Top](#readme)
+[↑ Back to top](#neon-companion)
 
 Type `/` and the list opens with every command and its summary; after the command and a space, the argument list follows for any argument that can be listed. `//`, `///` and `////` are the aliases (for `/settings`, `/tools` and `/skills`); they are never listed.
 
@@ -321,7 +321,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/reasoning [level]` | Pick the reasoning effort (`none`, `low`, `medium`, `high`, `xhigh`). |
 | `/remember <text>` | Add a memory. |
 | `/server [url]` | Pick an LLM server found on the usual ports, or set one; the model picker and then the reasoning picker follow, and one reconnect carries all three. |
-| `/session [id \| purge <id> \| purge older <age> \| purge all \| title <text>]` | List, restore, rename and purge the stored sessions. An age is days as a bare number (`30`, `0`), or a duration with units: `12h`, `90m`, `2 hours`, `1d 6h`. |
+| `/sessions [id \| purge <id> \| purge older <age> \| purge all \| title <text>]` | List, restore, rename and purge the stored sessions. An age is days as a bare number (`30`, `0`), or a duration with units: `12h`, `90m`, `2 hours`, `1d 6h`. |
 | `/settings`, `//` | Edit and save the settings. |
 | `/skills`, `////` | List the skills and edit the skill, reflection and project-file settings. |
 | `/skills edit <name>` | Open a skill's `SKILL.md` in your editor. |
@@ -340,7 +340,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/window` | Show the terminal window's width and height. |
 
 ## Tools
-[⬆ Back to Top](#readme)
+[↑ Back to top](#neon-companion)
 
 What the model can call, in the groups `/tools` and `/sys` show. A group's switch (`File tools`, `Git native tools`, `Shell command policy`, `Web tools`, `Memory`, `Agent skills`, `Session tool`, `Ask user`, `MCP servers`) offers or withholds the whole group; a single tool goes on or off on `/tools`' Offered tab. Required arguments come first; `?` marks an optional one.
 
@@ -450,7 +450,7 @@ A command line on your machine. It **starts** in the working directory (`workdir
 Every connected MCP server is a group of its own, its tools offered as `<server>__<tool>` with the descriptions the server publishes — a gateway's `get_current_time` never collides with the app's. They come and go with the server: switch one off on `/mcp`' Servers tab and its group is gone; switch a single tool off on the Tools tab and the rest stay. No approval step stands before a call — enabling the server is the consent.
 
 ## Screenshots
-[⬆ Back to Top](#readme)
+[↑ Back to top](#neon-companion)
 
 ### Markdown rendering
 ![markdon](./assets/screenshots/screenshot_markdown.png)
@@ -558,6 +558,6 @@ Every connected MCP server is a group of its own, its tools offered as `<server>
 ![splash](./assets/screenshots/screenshot_splash.png)
 
 ## Why "Neon"
-[⬆ Back to Top](#readme)
+[↑ Back to top](#neon-companion)
 
 During early development, I was experimenting with synthwave-style themes in Spectre.Console while simultaneously testing the Vosk voice integration. I needed a short, punchy wake word, and "Neon" fit the aesthetic perfectly. The name stuck for the project. Today, while the default profile is still named "Neon," the system is completely configurable—allowing you to create as many custom profiles, personas, and wake words as you like.

@@ -447,7 +447,7 @@ public sealed class CompanionApp
         var operata = BuildOperataFile();
         var vocalia = BuildVocaliaFile();
         // The session store (2026-09-18): headless logs its turns and offers the tool like the
-        // screen; no /session, no restore, the first line always the title.
+        // screen; no /sessions, no restore, the first line always the title.
         using var sessions = new Sessions.SessionStore(_settings.ProfileDirectory, _time);
         long? sessionId = null;
         var sessionTools = ChatScreen.SessionTools(sessions, () => EffectiveSettings, () => sessionId, _time);

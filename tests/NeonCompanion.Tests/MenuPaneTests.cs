@@ -753,13 +753,17 @@ public class MenuPaneTests : IDisposable
         pane.Show();
         var menu = new MenuPane(pane, keys);
         input.PushClick(3, 99);                          // the upper rule
-        input.PushClick(20, 106);                        // the hint row: the pair, anywhere off the pane
+        input.PushClick(20, 106);                        // the hint row: another part (later on 2026-09-21), no pair
+        input.PushClick(20, 106);                        // the hint row again: the pair
         input.Push(Keys.Escape);                         // never read
 
         Assert.Null(await menu.PickAsync(Page("one", "two", "three"), 0, CancellationToken.None));
         Assert.True(pane.Dismissed);
         Assert.True(pane.OverlayOpen);
         Assert.True(input.IsAvailable);
+        // The dismissing click's part, once: the hint row's blanks (nothing under the hint's zones: no trailer drawn).
+        Assert.Equal(new ScreenPane.OffPaneHit(new ScreenPane.HintHit(ScreenPane.HintZone.Row, "", -1), null), pane.TakeDismissHit());
+        Assert.Null(pane.TakeDismissHit());
 
         // A host re-showing its parent list finds the signal: null, no draw, the ESC still queued.
         int mark = Output.Length;
@@ -823,11 +827,13 @@ public class MenuPaneTests : IDisposable
         Assert.Equal("old", Assert.IsType<InputResult.Submitted>(await menu.EditAsync(Page("one", "two"), 1, line, "old", allowEmpty: false, CancellationToken.None)).Text);
         Assert.False(pane.Dismissed);
 
-        input.PushClick(3, 40);                          // the transcript
-        input.PushClick(30, 102);                        // the hint row: the pair
+        input.PushClick(30, 102);                        // the hint row: its own part (later on 2026-09-21)
+        input.PushClick(3, 40);                          // the transcript: another part, no pair — a first
+        input.PushClick(3, 40);                          // the transcript again: the pair
         input.Push(Keys.Enter);                          // never read
         Assert.IsType<InputResult.Cancelled>(await menu.EditAsync(Page("one", "two"), 1, line, "old", allowEmpty: false, CancellationToken.None));
         Assert.True(pane.Dismissed);
+        Assert.Null(pane.TakeDismissHit());              // the transcript names no part
         Assert.True(input.IsAvailable);
         Assert.Null(await menu.PickAsync(Page("one", "two"), 0, CancellationToken.None));
         menu.Close();

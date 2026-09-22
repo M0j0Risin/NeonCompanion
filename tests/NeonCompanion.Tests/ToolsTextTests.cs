@@ -54,7 +54,7 @@ public class ToolsTextTests : IDisposable
     [Fact]
     public void Labels_ArePinned()
     {
-        Assert.Equal("Tools", ToolsText.Label);
+        Assert.Equal("🛠️ Tools", ToolsText.Label);
         Assert.Equal("Offered", ToolsText.OfferedTabTitle);
         Assert.Equal(["Offered", "Options", "Web", "Files", "Shell", "Ask", "Git (native)"], ToolsText.TabTitles);   // Options second since later on 2026-09-19; Git since 2026-09-20, Shell since 2026-09-21; the user's order and Git (native) since later on 2026-09-21 (alphabetical before)
         Assert.Equal("Git (native)", ToolsText.GitTabTitle);

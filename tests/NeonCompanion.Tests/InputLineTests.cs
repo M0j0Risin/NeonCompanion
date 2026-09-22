@@ -965,15 +965,16 @@ public class InputLineTests : IDisposable
         Assert.Equal(ScreenPane.HintZone.Row, hint.Hit.Zone);
     }
 
-    /// <summary>The toolbar pair key (2026-09-21): below the outside key and the pairing's own −1, never a hint key — the path its own, each glyph column its own.</summary>
+    /// <summary>The toolbar pair key (2026-09-21): below the outside key and the pairing's own −1, never a hint key — the path its own, the blanks their own (later that day), each glyph column its own.</summary>
     [Fact]
     public void ToolbarPairKey_IsDistinctFromEveryHintKey_AndTheOutsideKey()
     {
         Assert.Equal(-3, InputLine.ToolbarPairKey(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Path, "", 200)));
-        Assert.Equal(-4, InputLine.ToolbarPairKey(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "⚙️", 0)));
-        Assert.Equal(-7, InputLine.ToolbarPairKey(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "🛠️", 3)));
-        Assert.Equal(-16, InputLine.ToolbarPairKey(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "🕵️", 12)));
-        var keys = new[] { -3, -4, -7, -10, -13, -16 };
+        Assert.Equal(-4, InputLine.ToolbarPairKey(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Row, "", -1)));
+        Assert.Equal(-5, InputLine.ToolbarPairKey(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "⚙️", 0)));
+        Assert.Equal(-8, InputLine.ToolbarPairKey(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "🛠️", 3)));
+        Assert.Equal(-17, InputLine.ToolbarPairKey(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "🎭", 12)));
+        var keys = new[] { -3, -4, -5, -8, -11, -14, -17 };
         Assert.DoesNotContain(-1, keys);
         Assert.DoesNotContain(InputLine.OutsidePairKey, keys);
         Assert.All(keys, key => Assert.True(key < InputLine.HintPairKey(new ScreenPane.HintHit(ScreenPane.HintZone.Row, "", -1))));
@@ -1009,8 +1010,15 @@ public class InputLineTests : IDisposable
         tool = Assert.IsType<InputResult.ToolbarRow>(await line.ReadAsync(initialText: "a draft"));
         Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Path, "", 35), tool.Hit);
 
-        // Two on the blanks: nothing, and Enter sends the draft.
+        // Two on the blanks (later on 2026-09-21): the row's own part, the screen's /settings.
         scripted.PushClick(20, 103);
+        scripted.PushClick(20, 103);
+        tool = Assert.IsType<InputResult.ToolbarRow>(await line.ReadAsync(initialText: "a draft"));
+        Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Row, "", -1), tool.Hit);
+        Assert.Equal("a draft", tool.Draft);
+
+        // A glyph then the blanks: two parts, no pair; Enter sends the draft.
+        scripted.PushClick(0, 103);
         scripted.PushClick(20, 103);
         scripted.Push(Keys.Enter);
         Assert.Equal("a draft", Assert.IsType<InputResult.Submitted>(await line.ReadAsync(initialText: "a draft")).Text);

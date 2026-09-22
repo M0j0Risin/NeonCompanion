@@ -117,7 +117,7 @@ public enum SlashCommand
     /// <summary><c>/queue</c>: the messages queued while a reply runs, on a pane where Enter removes one and a button drops them all (2026-09-18, behind <c>Queue messages</c>); <c>/queue clear</c> (2026-09-21) drops them all without the pane.</summary>
     Queue,
 
-    /// <summary><c>/session</c>: this profile's stored sessions on a pane (restore, rename, purge), or <c>/session &lt;id&gt; | purge &lt;id&gt; | purge older &lt;age&gt; | purge all | title &lt;text&gt;</c> typed (2026-09-18).</summary>
+    /// <summary><c>/sessions</c>: this profile's stored sessions on a pane (restore, rename, purge), or <c>/sessions &lt;id&gt; | purge &lt;id&gt; | purge older &lt;age&gt; | purge all | title &lt;text&gt;</c> typed (2026-09-18; <c>/session</c> until later on 2026-09-21, the user's call — the singular reads as an unknown command now).</summary>
     Session,
 
     /// <summary><c>/exit</c>: leave the app (<c>/quit</c> until 2026-09-17, the user's call; the old word is unknown now, as the aliases are).</summary>
@@ -152,9 +152,9 @@ public static class SlashCommands
     /// beside <c>/about</c>, <c>/compact</c> under <c>/reasoning</c> since 2026-09-16; <c>/help</c> at the bottom above <c>/about</c>
     /// and <c>/memory</c> heading its group, the user's call later that day; <c>/speak</c> and <c>/view</c> a group of their own
     /// under <c>/windowsize</c>'s, 2026-09-17; the tool switches <c>/ask</c>, <c>/files</c>, <c>/web</c> — a group of their own
-    /// from 2026-09-15 — gone later on 2026-09-18, the same day <c>/session</c> moved under <c>/profile</c> and <c>/copy</c>
+    /// from 2026-09-15 — gone later on 2026-09-18, the same day <c>/sessions</c> moved under <c>/profile</c> and <c>/copy</c>
     /// under <c>/queue</c>, leaving <c>/skills</c> + <c>/learn</c> and <c>/timer</c> + <c>/windowsize</c> as groups, the user's call;
-    /// later still on 2026-09-19 (the user's call again) <c>/skills</c> + <c>/learn</c> went under <c>/session</c>, <c>/windowsize</c>
+    /// later still on 2026-09-19 (the user's call again) <c>/skills</c> + <c>/learn</c> went under <c>/sessions</c>, <c>/windowsize</c>
     /// became <c>/window</c> under <c>/view</c> and <c>/timer</c> went under <c>/help</c> — nine groups; <c>/draft</c> under <c>/copy</c>, 2026-09-19; later still that day <c>/splash</c> under <c>/new</c> and <c>/help</c> under <c>/timer</c>, the user's ask). Pinned by tests.
     /// </summary>
     public static readonly IReadOnlyList<IReadOnlyList<HelpEntry>> HelpGroups =
@@ -164,7 +164,7 @@ public static class SlashCommands
             new("/tools", "switch the model's tools on or off and edit the Options, Ask, Files and Web settings on a pane", "///"),
             new("/mcp", "connect external MCP servers and switch their tools on or off on a pane"),
             new("/profile", "switch profiles, or /profile <name> | add <name> | delete <name> | rename <name> <new-name> | reset [name] | edit | reload"),
-            new("/session", "list, restore and purge sessions: /session [<id> | purge <id> | purge older <age> | purge all | title <text>]"),
+            new("/sessions", "list, restore and purge sessions: /sessions [<id> | purge <id> | purge older <age> | purge all | title <text>]"),
             new("/skills", "list the skills, edit the skill settings and the project file on a pane, or /skills edit <name> to open its SKILL.md", "////"),
             new("/learn", "write or improve a skill from the last turn or the stored sessions, in the background: /learn [what to keep] | sessions [N | what to search]"),
         ],
@@ -278,7 +278,7 @@ public static class SlashCommands
     }
 
     /// <summary>Every command word, for help and completion.</summary>
-    public static readonly string[] Words = { "/help", "/clear", "/new", "/splash", "/queue", "/session", "/compact", "/server", "/model", "/reasoning", "/settings", "//", "/tools", "///", "/mcp", "/tts", "/stt", "/wake", "/interrupt", "/speak", "/remember", "/memory", "/forget", "/memcopy", "/persona", "/operata", "/vocalia", "/sys", "/usage", "/profile", "/timer", "/cwd", "/tree", "/explore", "/view", "/echo", "/emptytrash", "/git", "/copy", "/draft", "/loop", "/window", "/skills", "////", "/learn", "/about", "/exit" };
+    public static readonly string[] Words = { "/help", "/clear", "/new", "/splash", "/queue", "/sessions", "/compact", "/server", "/model", "/reasoning", "/settings", "//", "/tools", "///", "/mcp", "/tts", "/stt", "/wake", "/interrupt", "/speak", "/remember", "/memory", "/forget", "/memcopy", "/persona", "/operata", "/vocalia", "/sys", "/usage", "/profile", "/timer", "/cwd", "/tree", "/explore", "/view", "/echo", "/emptytrash", "/git", "/copy", "/draft", "/loop", "/window", "/skills", "////", "/learn", "/about", "/exit" };
 
     /// <summary>The <c>/queue</c> word: what a double-click on the hint row's queued part sends through the mid-turn line hook, so the pane opens exactly as the typed command's does (2026-09-18). Pinned.</summary>
     public const string QueueWord = "/queue";
@@ -292,6 +292,10 @@ public static class SlashCommands
     public const string ToolsWord = "/tools";
     public const string McpWord = "/mcp";
     public const string SysWord = "/sys";
+
+    /// <summary>The words the hint row's model name and reasoning mark send through the screen's dispatch at idle (later on 2026-09-21, so a double-click off the pane they open can switch panes). Pinned.</summary>
+    public const string ModelWord = "/model";
+    public const string ReasoningWord = "/reasoning";
 
     /// <summary>Classifies <paramref name="line"/>; <c>Args</c> is the trimmed remainder — meaningful for the commands <see cref="TakesArgument"/> names, and carried by <see cref="SlashCommand.Overloaded"/> for the error line.</summary>
     public static (SlashCommand Command, string Args) Parse(string line)
@@ -342,7 +346,7 @@ public static class SlashCommands
             "/view" => SlashCommand.View,
             "/echo" => SlashCommand.Echo,
             "/queue" => SlashCommand.Queue,
-            "/session" => SlashCommand.Session,
+            "/sessions" => SlashCommand.Session,
             "/copy" => SlashCommand.Copy,
             "/draft" => SlashCommand.Draft,
             "/loop" => SlashCommand.Loop,

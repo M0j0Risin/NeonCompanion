@@ -53,9 +53,9 @@ public abstract record InputResult
 
     /// <summary>
     /// A double-click on the pane's toolbar (2026-09-21): <see cref="Hit"/>
-    /// says which part — a pane glyph or the path (the screen opens the pane, or the folder
-    /// picker); <see cref="Draft"/> as <see cref="HintRow"/>'s. Never the row itself: a pair
-    /// there is nobody's.
+    /// says which part — a pane glyph, the path or the blanks (the screen opens the pane, the
+    /// folder picker, or the settings as for the hint row's blanks — the last since later that
+    /// day); <see cref="Draft"/> as <see cref="HintRow"/>'s.
     /// </summary>
     public sealed record ToolbarRow(string Draft, ScreenPane.ToolbarHit Hit) : InputResult;
 }
@@ -237,9 +237,15 @@ public sealed class InputLine
     /// <summary>
     /// What two toolbar clicks must share to pair (2026-09-21), in the hint pairing's own key space:
     /// below <see cref="OutsidePairKey"/>, never the pairing's −1 and never a <see cref="HintPairKey"/>
-    /// value — the path, then one key per glyph column. Pinned.
+    /// value — the path, the blanks (their own key since later that day: a pair there is
+    /// <c>/settings</c>, as the hint row's blanks are), then one key per glyph column. Pinned.
     /// </summary>
-    public static int ToolbarPairKey(ScreenPane.ToolbarHit hit) => hit.Zone == ScreenPane.ToolbarZone.Path ? -3 : -4 - hit.Column;
+    public static int ToolbarPairKey(ScreenPane.ToolbarHit hit) => hit.Zone switch
+    {
+        ScreenPane.ToolbarZone.Path => -3,
+        ScreenPane.ToolbarZone.Row => -4,
+        _ => -5 - hit.Column,
+    };
 
     public static string SubmittedMarkup(string text)
     {
@@ -441,13 +447,15 @@ public sealed class InputLine
                     // Off the pane under a typed value (later on 2026-09-18): the second click within
                     // the interval closes every level (ScreenPane.Dismiss) through the ESC key's own
                     // path; the first is nothing. Ahead of the click branch, whose miss resets the pair.
+                    // The pair is per part (later on 2026-09-21, ScreenPane.OutsideKey): two on the
+                    // same toolbar glyph, say, and the dismiss remembers it for the screen's switch.
                     anchor = -1;
-                    if (!_hintClicks.Second(OutsidePairKey))
+                    if (!_hintClicks.Second(_pane.OutsideKey(outside.X, outside.Y)))
                     {
                         continue;
                     }
 
-                    _pane.Dismiss();
+                    _pane.Dismiss(outside.X, outside.Y);
                     input = new InputEvent.Key(Keys.Escape);
                 }
 
@@ -485,10 +493,11 @@ public sealed class InputLine
                                 return new InputResult.HintRow(text.ToString(), hit);
                             }
                         }
-                        else if (_pane.TryHitToolbar(click.X, click.Y, out var tool) && tool.Zone != ScreenPane.ToolbarZone.Row)
+                        else if (_pane.TryHitToolbar(click.X, click.Y, out var tool))
                         {
-                            // The toolbar (2026-09-21): a glyph or the path, paired per part like
-                            // the hint row's; the blanks between them are a miss.
+                            // The toolbar (2026-09-21): a glyph, the path or the blanks (a pair
+                            // there since later that day: the screen's /settings, as the hint
+                            // row's blanks), paired per part like the hint row's.
                             anchor = -1;
                             if (_hintClicks.Second(ToolbarPairKey(tool)))
                             {

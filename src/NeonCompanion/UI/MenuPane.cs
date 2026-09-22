@@ -381,10 +381,12 @@ public sealed class MenuPane : INoticeSink
                             continue;
                         }
 
-                        if (_clicks.Second(OutsideRow))
+                        if (_clicks.Second(_pane.OutsideKey(click.X, click.Y)))
                         {
                             // The whole stack, not one level: the hosts above read ScreenPane.Dismissed.
-                            _pane.Dismiss();
+                            // The click goes with it (later on 2026-09-21): the screen reads which
+                            // toolbar glyph or hint-row part it was, and closes or switches panes.
+                            _pane.Dismiss(click.X, click.Y);
                             return null;
                         }
 

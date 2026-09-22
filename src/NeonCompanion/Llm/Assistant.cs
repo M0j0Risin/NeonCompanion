@@ -230,7 +230,7 @@ public sealed class Assistant
         "Your earlier conversations with the user are stored: when they ask what was said, decided or done before, or refer to something you cannot see in this conversation, call " +
         NeonCompanion.Llm.Tools.SessionManagerTool.ToolName + " — " + NeonCompanion.Llm.Tools.SessionManagerTool.SearchAction + " with the words they remember, " +
         NeonCompanion.Llm.Tools.SessionManagerTool.ListAction + " for the newest, then " + NeonCompanion.Llm.Tools.SessionManagerTool.ReadAction + " a session by its id for the turns; never guess at them. " +
-        "The user restores, renames or removes a session with /session, not you.";
+        "The user restores, renames or removes a session with /sessions, not you.";
 
     /// <summary>
     /// The sentence the default rules gain while any MCP server's tools are offered (2026-09-20):

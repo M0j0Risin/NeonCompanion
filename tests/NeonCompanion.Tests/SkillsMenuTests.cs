@@ -114,7 +114,7 @@ public class SkillsMenuTests : IDisposable
     /// <summary>A title row as the pane prints it: the text, then the × close glyph in column width − 2.</summary>
     private static string Titled(string row, int width = 100) => row + new string(' ', width - 2 - TextCells.Width(row)) + ScreenPane.CloseGlyph;
 
-    private const string Strip = "Skills   Offered    Options    Reflection    Project ";   // Loaded until 2026-09-19; Options (the settings rows, /settings' Skills tab until then) since later that day; Reflection (the reflection's rows out of Options) later still; the Roots tab after Project until later still that day
+    private const string Strip = SkillsText.Label + "   Offered    Options    Reflection    Project ";   // Loaded until 2026-09-19; Options (the settings rows, /settings' Skills tab until then) since later that day; Reflection (the reflection's rows out of Options) later still; the Roots tab after Project until later still that day
 
     /// <summary>The Options tab's five rows at their defaults, padded to the tab's own column (38: the external-skills label), as the pane prints them. Pinned.</summary>
     private const string OptionsRows = "▸ Agent skills                          on\n  Use external skills (.agents\\skills)  off\n  Skill compact mode                    protected\n  #-mention enabled                     on\n  Allow skill delete                    off\n";
@@ -135,7 +135,7 @@ public class SkillsMenuTests : IDisposable
         Assert.Equal("(kept)", SkillsMenu.KeptNotice);
         Assert.Equal("(external skills are read only here; move the folder by hand)", SkillsMenu.ExternalReadOnlyNotice);
         Assert.Equal([SkillScope.Profile, SkillScope.Global], SkillsMenu.ScopeRows);
-        Assert.Equal("Skills › haiku", SkillsMenu.ScopeTitle("haiku"));
+        Assert.Equal(SkillsText.Label + " › haiku", SkillsMenu.ScopeTitle("haiku"));
         Assert.Equal(1, SkillsMenu.OptionsTab);
         Assert.Equal(2, SkillsMenu.ReflectionTab);
         Assert.Equal(["Options", "Reflection"], SkillsMenu.SettingsTabTitles);
@@ -472,7 +472,7 @@ public class SkillsMenuTests : IDisposable
         await menu.ShowAsync(CancellationToken.None);
 
         Assert.Contains("\n" + Fitted("▸ " + SkillsText.OffLine) + "\n", _console.Output);
-        Assert.DoesNotContain("Skills › ", _console.Output);
+        Assert.DoesNotContain(SkillsText.Label + " › ", _console.Output);
         pane.Dispose();
     }
 
@@ -516,7 +516,7 @@ public class SkillsMenuTests : IDisposable
         Assert.Contains("\n" + Titled(Strip) + "\n \n" + OptionsRows + Rule(100) + "\n" + SettingsMenu.TabKeys + "\n", _console.Output);
         Assert.Contains("\n" + Titled(Strip) + "\n \n" + ReflectionRows + Rule(100) + "\n" + SettingsMenu.TabKeys + "\n", _console.Output);   // the flip's notice dropped by the tab switch (2026-09-20)
         Assert.DoesNotContain("\n  · Agent skills: off\n" + ReflectionRows, _console.Output);
-        Assert.Contains("\n" + Titled("Skills › Reflection includes sessions") + "\n", _console.Output);
+        Assert.Contains("\n" + Titled(SkillsText.Label + " › Reflection includes sessions") + "\n", _console.Output);
         Assert.Contains("\n" + Titled(Strip) + "\n  · Reflection includes sessions: off\n", _console.Output);
         Assert.Contains("\n" + Titled(Strip) + "\n  · Agent skills: off\n▸ Agent skills                          off\n", _console.Output);
         Assert.Contains("\n▸ Project file  on   " + SkillsText.NoNotesLine + "\n", _console.Output);   // the Project tab leads with the off line too, the cursor on the toggle under it
@@ -538,8 +538,8 @@ public class SkillsMenuTests : IDisposable
         await menu.ShowAsync(CancellationToken.None);
 
         Assert.Equal("unprotected", _settings.Current.SkillCompactMode);
-        Assert.Contains("\n" + Titled("Skills › Skill compact mode") + "\n", _console.Output);
-        Assert.DoesNotContain("Settings › Skill compact mode", _console.Output);
+        Assert.Contains("\n" + Titled(SkillsText.Label + " › Skill compact mode") + "\n", _console.Output);
+        Assert.DoesNotContain(SettingsMenu.Title + " › Skill compact mode", _console.Output);
         Assert.Contains("  · Skill compact mode: unprotected\n", _console.Output);
         Assert.Equal(SettingsMenu.Title, settings.Root);   // restored for /settings
         pane.Dispose();
@@ -560,7 +560,7 @@ public class SkillsMenuTests : IDisposable
         Assert.True(_settings.Current.AllowSkillDelete);
         Assert.Contains("  · " + SettingsMenu.NotWhileReplyRunsNotice + "\n", _console.Output);
         Assert.DoesNotContain(SkillsMenu.ScopeTitle("haiku"), _console.Output);
-        Assert.Contains("\n" + Titled("Skills › Allow skill delete") + "\n", _console.Output);
+        Assert.Contains("\n" + Titled(SkillsText.Label + " › Allow skill delete") + "\n", _console.Output);
         pane.Dispose();
     }
 }

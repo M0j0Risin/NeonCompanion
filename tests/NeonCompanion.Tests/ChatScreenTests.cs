@@ -2508,8 +2508,26 @@ public partial class ChatScreenTests : IDisposable
     /// <summary>A pane's title or strip row as it prints since 2026-09-18: the text, then the × close glyph in column width − 2 (the console's width as the test set it).</summary>
     private string Titled(string row) => row + new string(' ', _console.Profile.Width - 2 - TextCells.Width(row)) + ScreenPane.CloseGlyph;
 
+    /// <summary>
+    /// The rows of the pane drawn last (its title row, ending with the × glyph, to the rule under
+    /// it), so a script can find the hint row and the toolbar under an open pane: with the
+    /// fixture's cursor pinned at row 100 the overlay starts there and the rows below follow it —
+    /// the lower rule, the hint row, the toolbar.
+    /// </summary>
+    private int OverlayRowsDrawn()
+    {
+        var lines = _console.Output.Split('\n');
+        int title = Array.FindLastIndex(lines, l => l.EndsWith(ScreenPane.CloseGlyph, StringComparison.Ordinal));
+        int rule = Array.FindIndex(lines, title, l => l == new string(ScreenPane.RuleGlyph, _console.Profile.Width));
+        return rule - title;
+    }
+
+    private int HintRowUnderPane() => 100 + OverlayRowsDrawn() + 1;
+
+    private int ToolbarUnderPane() => 100 + OverlayRowsDrawn() + 2;
+
     /// <summary>The queue pane's title row since 2026-09-21: the label, then its clear-all button as a dim tab (a space either side), two spaces between.</summary>
-    private const string QueueStrip = "Queue   ⊠ clear all ";
+    private const string QueueStrip = QueueMenu.Title + "   ⊠ clear all ";
 
     /// <summary>The rule above the input row with the session's name at its right edge (2026-09-18), at the console's width.</summary>
     private string TitledRule(string title) => ScreenPane.RuleWithTitle(title, _console.Profile.Width);
@@ -3892,7 +3910,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("MCP   Servers    Tools    Options ", output);
+        Assert.Contains(McpText.Label + "   Servers    Tools    Options ", output);
         Assert.Contains("\n▸ pipe        on   connected · 2 tools  stdio: pipe-server\n", output);
         Assert.Contains("  · pipe: off\n  · pipe: stopped\n▸ pipe        off  off  stdio: pipe-server\n", output);
         Assert.Contains(McpText.NoToolsLine, output);   // the Tools tab after the stop
@@ -3953,7 +3971,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("MCP   Servers    Tools    Options ", output);
+        Assert.Contains(McpText.Label + "   Servers    Tools    Options ", output);
         Assert.Contains("  · " + SettingsMenu.NotWhileReplyRunsNotice + "\n▸ pipe", output);
         Assert.Contains("  · pipe__echo: off", output);
         Assert.Equal(["pipe__echo"], _settings.Current.ToolsDisabled);
@@ -4021,7 +4039,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("Tools   Offered    Options    Web    Files    Shell    Ask    Git (native) ", output);
+        Assert.Contains(ToolsText.Label + "   Offered    Options    Web    Files    Shell    Ask    Git (native) ", output);
         Assert.Contains("\n  Clock (3)\n▸ get_current_time      on   ", output);
         Assert.Contains("\n  · get_current_time: off\n  Clock (2 of 3)\n▸ get_current_time      off  ", output);
         Assert.Equal(["get_current_time"], _settings.Current.ToolsDisabled);
@@ -4088,7 +4106,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("Tools   Offered    Options    Web    Files    Shell    Ask    Git (native) ", output);
+        Assert.Contains(ToolsText.Label + "   Offered    Options    Web    Files    Shell    Ask    Git (native) ", output);
         Assert.Contains("  · get_current_time: off", output);
         Assert.Equal(["get_current_time"], _settings.Current.ToolsDisabled);
         Assert.DoesNotContain(ChatScreen.MidTurnRefusedNotice("/tools"), output);
@@ -5028,7 +5046,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        const string strip = "Settings   General    Sessions    LLM    TTS    STT ";   // five tabs since 2026-09-19 (Ask, Files and Web are /tools', Skills is /skills' Options tab)
+        const string strip = SettingsMenu.Title + "   General    Sessions    LLM    TTS    STT ";   // five tabs since 2026-09-19 (Ask, Files and Web are /tools', Skills is /skills' Options tab)
         Assert.Contains("\n" + Titled(strip) + "\n  · LLM offer tools: off\n", output);
         Assert.Contains("  · " + ChatScreen.ToolsChangedNotice(false) + "\n", output);
         Assert.Equal("(LLM offer tools off; conversation cleared)", ChatScreen.ToolsChangedNotice(false));
@@ -6969,7 +6987,7 @@ public partial class ChatScreenTests : IDisposable
 
         string rule = new(ScreenPane.RuleGlyph, 240);
         // The list in the pane under the rule, its tab strip and its own hint; the toggle and the save on its status line.
-        const string strip = "Settings   General    Sessions    LLM    TTS    STT ";   // five tabs since 2026-09-19 (Ask, Files and Web are /tools', Skills is /skills' Options tab)
+        const string strip = SettingsMenu.Title + "   General    Sessions    LLM    TTS    STT ";   // five tabs since 2026-09-19 (Ask, Files and Web are /tools', Skills is /skills' Options tab)
         Assert.Contains(rule + "\n" + Titled(strip) + "\n \n▸ Profile", output);
         Assert.Contains(rule + "\n" + Row(SettingsMenu.TabKeys) + "\n", output);
         Assert.Contains("\n" + Titled(strip) + "\n  · Memory: off\n", output);
@@ -7016,7 +7034,7 @@ public partial class ChatScreenTests : IDisposable
 
         string rule = new(ScreenPane.RuleGlyph, 240);
         // The Prompt tab: the default persona, the rules, memory on with nothing stored, no voice directive, the clock seed still to come.
-        Assert.Contains(rule + "\n" + Titled("System prompt   Prompt    Tools ") + "\n \nPersona — default\n" + Assistant.DefaultPersona + "\n \nOperating rules — default\n", output);
+        Assert.Contains(rule + "\n" + Titled(SystemPromptSummary.Label + "   Prompt    Tools ") + "\n \nPersona — default\n" + Assistant.DefaultPersona + "\n \nOperating rules — default\n", output);
         Assert.Contains("\nMemory — on, directive (the list rides the opening recall_memory call)\n" + MemoryPrompt.Directive[..120], output);
         Assert.Contains("\nVoice directive — not included: speech output is off\n", output);
         Assert.Contains("\n" + SystemPromptSummary.AlsoSentHeading + "\n \nOpening clock call — seeded with the first message\nget_current_time → Friday 11 September 2026, 14:05", output);
@@ -7025,7 +7043,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains("\nRequest — reasoning_effort none · chat_template_kwargs.enable_thinking=false\n", output);
         Assert.Contains(rule + "\n" + Row(InfoPane.HintText) + "\n", output);
         // → the Tools tab: every group, the memory group offered.
-        Assert.Contains(rule + "\n" + Titled("System prompt   Prompt    Tools ") + "\n \nClock (3)", output);
+        Assert.Contains(rule + "\n" + Titled(SystemPromptSummary.Label + "   Prompt    Tools ") + "\n \nClock (3)", output);
         Assert.Matches(ToolsHeading("Clock (3)", null, "get_current_time"), output);
         Assert.Matches(ToolsHeading("Timers (3)", null, "start_timer"), output);
         Assert.Matches(ToolsHeading("Files (15)", null, "get_working_directory"), output);
@@ -7062,7 +7080,7 @@ public partial class ChatScreenTests : IDisposable
 
         string rule = new(ScreenPane.RuleGlyph, 240);
         // 12 rows: 8 overlay rows, 6 of content, one of them the more row: the first page is five lines.
-        Assert.Contains(rule + "\n" + Titled("System prompt   Prompt    Tools ") + "\n \nPersona — persona.md (24 chars)\nYou are Rex, a [pirate].\n \nOperating rules — default\n", output);
+        Assert.Contains(rule + "\n" + Titled(SystemPromptSummary.Label + "   Prompt    Tools ") + "\n \nPersona — persona.md (24 chars)\nYou are Rex, a [pirate].\n \nOperating rules — default\n", output);
         Assert.Contains("\n" + MenuPane.MoreHint + "\n" + rule + "\n" + Row(InfoPane.HintText, strip: ChatScreen.TtsGlyph) + "\n", output);   // speech on here: the strip stays under the pane's hint
         Assert.DoesNotContain("Memory — on", output[..output.IndexOf(MenuPane.MoreHint, StringComparison.Ordinal)]);
         // Paged to the end: the last page ends on the request line; the memory and the directive were on the way.
@@ -7263,7 +7281,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        const string strip = "Settings   General    Sessions    LLM    TTS    STT ";   // five tabs since 2026-09-19 (Ask, Files and Web are /tools', Skills is /skills' Options tab)
+        const string strip = SettingsMenu.Title + "   General    Sessions    LLM    TTS    STT ";   // five tabs since 2026-09-19 (Ask, Files and Web are /tools', Skills is /skills' Options tab)
         Assert.Contains("\n" + Titled(strip) + "\n \n▸ Profile", output);
         Assert.DoesNotContain("› /settings", output);
         Assert.Contains("› hi!", output);
@@ -7300,8 +7318,8 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         Assert.StartsWith("25 tokens", UsageText.HintPart(_session.Usage, _session.ContextLength));
-        int usage = output.IndexOf("\n" + Titled("Usage   Tokens    Notes ") + "\n", StringComparison.Ordinal);
-        int settings = output.IndexOf("\n" + Titled("Settings   General    Sessions    LLM    TTS    STT ") + "\n", StringComparison.Ordinal);
+        int usage = output.IndexOf("\n" + Titled(UsageText.Label + "   Tokens    Notes ") + "\n", StringComparison.Ordinal);
+        int settings = output.IndexOf("\n" + Titled(SettingsMenu.Title + "   General    Sessions    LLM    TTS    STT ") + "\n", StringComparison.Ordinal);
         Assert.True(usage > 0 && settings > usage, output);
         Assert.DoesNotContain("› /usage", output);
         Assert.Contains("› ok!", output);
@@ -7336,12 +7354,12 @@ public partial class ChatScreenTests : IDisposable
             Key(Keys.Escape),
             input => { input.PushClick(9, 103); input.PushClick(9, 103); },      // 🎓
             Key(Keys.Escape),
-            input => { input.PushClick(12, 103); input.PushClick(12, 103); },    // 🕵️
+            input => { input.PushClick(12, 103); input.PushClick(12, 103); },    // 🎭
+            Key(Keys.Escape),
+            input => { input.PushClick(120, 103); input.PushClick(120, 103); },  // the blanks: /settings (later on 2026-09-21; nothing before)
             Key(Keys.Escape),
             input =>
             {
-                input.PushClick(120, 103);                       // the blanks: nothing
-                input.PushClick(120, 103);
                 input.PushClick(238, 103);                       // the path ends on the last cell (239 cells)
                 input.PushClick(237, 103);
             },
@@ -7353,17 +7371,129 @@ public partial class ChatScreenTests : IDisposable
 
         string cwd = WorkingDirectory.Resolve("", _settings.ProfileDirectory);
         Assert.Contains("\n" + ScreenPane.ToolbarRow(ChatScreen.ToolbarStrip, cwd, 239), output);
-        int settings = output.IndexOf("\n" + Titled("Settings   General    Sessions    LLM    TTS    STT ") + "\n", StringComparison.Ordinal);
-        int tools = output.IndexOf("Tools   Offered    Options    Web    Files    Shell    Ask    Git (native) ", StringComparison.Ordinal);
-        int mcp = output.IndexOf("MCP   Servers    Tools    Options ", StringComparison.Ordinal);
-        int skills = output.IndexOf("Skills   Offered    Options    Reflection    Project ", StringComparison.Ordinal);
-        int sys = output.IndexOf("\n" + Titled("System prompt   Prompt    Tools ") + "\n", StringComparison.Ordinal);
+        int settings = output.IndexOf("\n" + Titled(SettingsMenu.Title + "   General    Sessions    LLM    TTS    STT ") + "\n", StringComparison.Ordinal);
+        int tools = output.IndexOf(ToolsText.Label + "   Offered    Options    Web    Files    Shell    Ask    Git (native) ", StringComparison.Ordinal);
+        int mcp = output.IndexOf(McpText.Label + "   Servers    Tools    Options ", StringComparison.Ordinal);
+        int skills = output.IndexOf(SkillsText.Label + "   Offered    Options    Reflection    Project ", StringComparison.Ordinal);
+        int sys = output.IndexOf("\n" + Titled(SystemPromptSummary.Label + "   Prompt    Tools ") + "\n", StringComparison.Ordinal);
+        int blanks = output.LastIndexOf("\n" + Titled(SettingsMenu.Title + "   General    Sessions    LLM    TTS    STT ") + "\n", StringComparison.Ordinal);
         int folder = output.IndexOf("\n" + Titled(FolderText.Title + "   " + FolderText.CollapseAllButton + " ") + "\n" + cwd + "\n", StringComparison.Ordinal);
-        Assert.True(settings > 0 && tools > settings && mcp > tools && skills > mcp && sys > skills && folder > sys, output);
+        Assert.True(settings > 0 && tools > settings && mcp > tools && skills > mcp && sys > skills && blanks > sys && folder > blanks, output);
         Assert.Contains("  · " + FolderText.KeptNotice + "\n", output);
         Assert.All(new[] { "/settings", "/skills", "/tools", "/mcp", "/sys", "/cwd" }, word => Assert.DoesNotContain("› " + word, output));
         Assert.Contains("› hi!", output);
         Assert.Equal("hi!", Assert.Single(_chat.Requests).Last(m => m.Role == ChatRole.User).Text);
+    }
+
+    /// <summary>What a double-click off an open pane names (later on 2026-09-21): the toolbar's words, the path's browse line, the blanks' /settings; the hint row's model name, mark and blanks; nothing for a strip glyph, the queued count or the tally.</summary>
+    [Fact]
+    public void OffPaneLine_IsPinned()
+    {
+        static ScreenPane.OffPaneHit Tool(ScreenPane.ToolbarZone zone, string glyph, int column) => new(null, new ScreenPane.ToolbarHit(zone, glyph, column));
+        static ScreenPane.OffPaneHit Hint(ScreenPane.HintZone zone, string glyph, int column) => new(new ScreenPane.HintHit(zone, glyph, column), null);
+        Assert.Equal("/settings", ChatScreen.OffPaneLine(Tool(ScreenPane.ToolbarZone.Glyph, ChatScreen.SettingsToolGlyph, 0)));
+        Assert.Equal("/sys", ChatScreen.OffPaneLine(Tool(ScreenPane.ToolbarZone.Glyph, ChatScreen.SysToolGlyph, 12)));
+        Assert.Null(ChatScreen.OffPaneLine(Tool(ScreenPane.ToolbarZone.Glyph, "🧰", 0)));
+        Assert.Equal("/cwd browse", ChatScreen.OffPaneLine(Tool(ScreenPane.ToolbarZone.Path, "", 200)));
+        Assert.Equal("/settings", ChatScreen.OffPaneLine(Tool(ScreenPane.ToolbarZone.Row, "", -1)));
+        Assert.Equal("/model", ChatScreen.OffPaneLine(Hint(ScreenPane.HintZone.Trailer, "", 232)));
+        Assert.Equal("/reasoning", ChatScreen.OffPaneLine(Hint(ScreenPane.HintZone.Mark, "", 238)));
+        Assert.Equal("/settings", ChatScreen.OffPaneLine(Hint(ScreenPane.HintZone.Row, "", -1)));
+        Assert.Equal("/settings", ChatScreen.OffPaneLine(Hint(ScreenPane.HintZone.Scrolled, "", -1)));
+        Assert.Null(ChatScreen.OffPaneLine(Hint(ScreenPane.HintZone.Strip, "🔊", 0)));
+        Assert.Null(ChatScreen.OffPaneLine(Hint(ScreenPane.HintZone.Queued, "", 3)));
+        Assert.Null(ChatScreen.OffPaneLine(Hint(ScreenPane.HintZone.Usage, "", 5)));
+        Assert.Null(ChatScreen.OffPaneLine(new ScreenPane.OffPaneHit(null, null)));
+    }
+
+    /// <summary>
+    /// Under an open pane (later on 2026-09-21, the user's ask): a double-click on the toolbar glyph
+    /// of the open pane closes it and nothing more; on another pane's glyph, or the blanks (the
+    /// settings'), closes it and opens that one — from a typed word or a toolbar pair alike.
+    /// </summary>
+    [Fact]
+    public async Task UnderAPane_ADoubleClickOnItsOwnToolbarGlyph_ClosesIt_OnAnothers_SwitchesToThatPane()
+    {
+        _settings.Update(d => { d.TtsOutput = false; d.ShowToolbar = true; });
+        _console.Profile.Height = 40;
+        _console.Profile.Width = 240;
+        _geometry = new ScreenGeometry(() => null, () => 100);
+        StepsWhenIdle(
+            Line("/tools"),                                                       // typed: the Tools pane
+            input => { int y = ToolbarUnderPane(); input.PushClick(0, y); input.PushClick(1, y); },       // ⚙️ under it: Tools closed, Settings opened
+            input => { int y = ToolbarUnderPane(); input.PushClick(0, y); input.PushClick(0, y); },       // ⚙️ under the Settings: closed, nothing more
+            input => { input.PushClick(3, 103); input.PushClick(3, 103); },                               // 🛠️ at the idle line (the toolbar at 103 there): Tools
+            input => { int y = ToolbarUnderPane(); input.PushClick(120, y); input.PushClick(120, y); },   // the blanks under it: Tools closed, Settings opened
+            input => { int y = ToolbarUnderPane(); input.PushClick(120, y); input.PushClick(120, y); },   // the blanks under the Settings: closed
+            Line("/help"),
+            input => { int y = ToolbarUnderPane(); input.PushClick(12, y); input.PushClick(12, y); },     // 🎭 under Help: Help closed, the system prompt opened
+            input => { int y = ToolbarUnderPane(); input.PushClick(3, y); input.PushClick(3, y); },       // 🛠️ under it: Tools
+            input => { int y = ToolbarUnderPane(); input.PushClick(3, y); input.PushClick(3, y); },       // 🛠️ again: closed
+            input => input.Push(Keys.Char('h'), Keys.Char('i'), Keys.Enter),      // the idle line again: a message
+            Line("/exit"));
+
+        string output = await RunAsync();
+
+        string settings = "\n" + Titled(SettingsMenu.Title + "   General    Sessions    LLM    TTS    STT ") + "\n";
+        string tools = "\n" + Titled(ToolsText.Label + "   Offered    Options    Web    Files    Shell    Ask    Git (native) ") + "\n";
+        string help = "\n" + Titled(InfoPane.Title + "   Commands    Keys ") + "\n";
+        string sys = "\n" + Titled(SystemPromptSummary.Label + "   Prompt    Tools ") + "\n";
+        int[] at = [output.IndexOf(tools, StringComparison.Ordinal), output.IndexOf(settings, StringComparison.Ordinal)];
+        Assert.True(at[0] > 0 && at[1] > at[0], output);
+        Assert.Equal(3, output.Split(tools).Length - 1);       // typed, the 🛠️ pair, under the system prompt
+        Assert.Equal(2, output.Split(settings).Length - 1);    // from under Tools twice; never from its own glyph or blanks
+        Assert.True(output.IndexOf(help, StringComparison.Ordinal) < output.IndexOf(sys, StringComparison.Ordinal), output);
+        Assert.True(output.IndexOf(sys, StringComparison.Ordinal) < output.LastIndexOf(tools, StringComparison.Ordinal), output);
+        Assert.All(new[] { "/settings", "/sys", "/cwd" }, word => Assert.DoesNotContain("› " + word, output));
+        Assert.Contains("› hi", output);
+        Assert.Equal("hi", Assert.Single(_chat.Requests).Last(m => m.Role == ChatRole.User).Text);
+    }
+
+    /// <summary>
+    /// The same on the hint row and the path (later on 2026-09-21): the model name under the model
+    /// picker closes it, under the settings it switches to the picker; the reasoning mark the same
+    /// for its picker; the path under the folder picker closes it (the directory kept); the hint
+    /// row's blanks under the settings close them.
+    /// </summary>
+    [Fact]
+    public async Task UnderAPane_ADoubleClickOnTheModelName_TheMark_ThePath_OrTheBlanks_ClosesOrSwitches()
+    {
+        _settings.Update(d => { d.TtsOutput = false; d.ShowToolbar = true; });
+        _console.Profile.Height = 40;
+        _console.Profile.Width = 240;
+        _geometry = new ScreenGeometry(() => null, () => 100);   // the hint row 102 ("llama ○" ends at 238), the toolbar 103
+        StepsWhenIdle(
+            input => { input.PushClick(236, 102); input.PushClick(236, 102); },                             // the name at the idle line: the model picker
+            input => { int y = HintRowUnderPane(); input.PushClick(236, y); input.PushClick(236, y); },   // the name under it: closed
+            Line("/settings"),
+            input => { int y = HintRowUnderPane(); input.PushClick(236, y); input.PushClick(236, y); },   // the name under the settings: the picker
+            input => { int y = HintRowUnderPane(); input.PushClick(238, y); input.PushClick(238, y); },   // the mark under the picker: the reasoning picker
+            input => { int y = HintRowUnderPane(); input.PushClick(238, y); input.PushClick(238, y); },   // the mark under it: closed
+            input => { input.PushClick(238, 103); input.PushClick(237, 103); },                             // the path at the idle line: the folder picker
+            input => { int y = ToolbarUnderPane(); input.PushClick(238, y); input.PushClick(237, y); },   // the path under it: closed, the directory kept
+            Line("/settings"),
+            input => { int y = HintRowUnderPane(); input.PushClick(60, y); input.PushClick(60, y); },     // the hint row's blanks under the settings: closed
+            input => input.Push(Keys.Char('h'), Keys.Char('i'), Keys.Enter),
+            Line("/exit"));
+
+        string output = await RunAsync();
+
+        string model = "\n" + Titled(SettingsMenu.ModelTitle) + "\n";
+        string reasoning = "\n" + Titled(SettingsMenu.ReasoningTitle) + "\n";
+        string settings = "\n" + Titled(SettingsMenu.Title + "   General    Sessions    LLM    TTS    STT ") + "\n";
+        string folder = "\n" + Titled(FolderText.Title + "   " + FolderText.CollapseAllButton + " ") + "\n";
+        Assert.Equal(2, output.Split(model).Length - 1);
+        Assert.Equal(1, output.Split(reasoning).Length - 1);
+        Assert.Equal(2, output.Split(settings).Length - 1);
+        Assert.Equal(1, output.Split(folder).Length - 1);
+        Assert.True(output.IndexOf(settings, StringComparison.Ordinal) < output.LastIndexOf(model, StringComparison.Ordinal), output);
+        Assert.True(output.LastIndexOf(model, StringComparison.Ordinal) < output.IndexOf(reasoning, StringComparison.Ordinal), output);
+        Assert.True(output.IndexOf(reasoning, StringComparison.Ordinal) < output.IndexOf(folder, StringComparison.Ordinal), output);
+        Assert.Contains("  · " + FolderText.KeptNotice + "\n", output);
+        Assert.Equal("none", _settings.Current.LlmReasoning);
+        Assert.All(new[] { "/model", "/reasoning", "/cwd" }, word => Assert.DoesNotContain("› " + word, output));
+        Assert.Contains("› hi", output);
+        Assert.Equal("hi", Assert.Single(_chat.Requests).Last(m => m.Role == ChatRole.User).Text);
     }
 
     /// <summary>Show toolbar off (the fixture's default here): no row under the hint row, and clicks where it would be are nothing — Enter sends the draft.</summary>
@@ -7388,7 +7518,7 @@ public partial class ChatScreenTests : IDisposable
 
         Assert.DoesNotContain(ChatScreen.SysToolGlyph, output);
         Assert.DoesNotContain(ChatScreen.ToolbarStrip, output);   // the strip, not its 🛠️ alone: the transcript's tool lines carry that glyph since 2026-09-21
-        Assert.DoesNotContain("Settings   General", output);
+        Assert.DoesNotContain(SettingsMenu.Title + "   General", output);
         Assert.Contains("› hi", output);
         Assert.Equal("hi", Assert.Single(_chat.Requests).Last(m => m.Role == ChatRole.User).Text);
     }
@@ -7397,7 +7527,7 @@ public partial class ChatScreenTests : IDisposable
     [Fact]
     public void ToolbarWord_IsPinned()
     {
-        Assert.Equal("⚙️ 🛠️ 🔌 🎓 🕵️", ChatScreen.ToolbarStrip);
+        Assert.Equal("⚙️ 🛠️ 🔌 🎓 🎭", ChatScreen.ToolbarStrip);   // the masks since later on 2026-09-21 (the detective before)
         Assert.Equal(McpText.Glyph, ChatScreen.McpToolGlyph);
         Assert.Equal("/cwd browse", ChatScreen.CwdBrowseLine);
         Assert.Equal("/settings", ChatScreen.ToolbarWord(ChatScreen.SettingsToolGlyph));
@@ -7449,7 +7579,7 @@ public partial class ChatScreenTests : IDisposable
         int tail = after.IndexOf("row12", StringComparison.Ordinal);
         int draft = after.IndexOf('!');   // the typed character alone: the input row's redraw writes the changed cell
         Assert.True(tail >= 0 && draft > tail, after);
-        Assert.DoesNotContain("Settings   General", output);
+        Assert.DoesNotContain(SettingsMenu.Title + "   General", output);
         Assert.Equal("!", _chat.Requests[1].Last(m => m.Role == ChatRole.User).Text);
     }
 
@@ -7528,7 +7658,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains(ChatScreen.SpeechGlyphs(true, true, false, false), output);   // both glyphs were up before the click
         Assert.EndsWith(rule + "\n" + Row(ChatScreen.HintLine(null), strip: ChatScreen.SpeechGlyphs(true, false, false, false)) + "\n", output);
         Assert.DoesNotContain("› /stt", output);
-        Assert.DoesNotContain("Settings   General", output);
+        Assert.DoesNotContain(SettingsMenu.Title + "   General", output);
     }
 
     /// <summary>The map behind the strip's double-click: each glyph its switch, anything else null. Pinned.</summary>
@@ -7605,12 +7735,12 @@ public partial class ChatScreenTests : IDisposable
         }
 
         Assert.Equal(lines.Length, line);
-        Assert.Equal(52, lines.Length);   // 44 commands + 8 blank rows: /loop under /draft 2026-09-21; /git under /emptytrash 2026-09-21; /mcp under /tools 2026-09-20; /splash under /new later still on 2026-09-19; /draft under /copy since 2026-09-19; nine groups since later on 2026-09-19 (/skills + /learn under /session, /window under /view, /timer under /help); 39 + 10 with /tools under /settings that morning (38 + 10 since the three tool switches went, 2026-09-18)
+        Assert.Equal(52, lines.Length);   // 44 commands + 8 blank rows: /loop under /draft 2026-09-21; /git under /emptytrash 2026-09-21; /mcp under /tools 2026-09-20; /splash under /new later still on 2026-09-19; /draft under /copy since 2026-09-19; nine groups since later on 2026-09-19 (/skills + /learn under /sessions, /window under /view, /timer under /help); 39 + 10 with /tools under /settings that morning (38 + 10 since the three tool switches went, 2026-09-18)
         Assert.StartsWith(HelpRow("/settings, //", "edit and save settings"), lines[0]);
         Assert.StartsWith(HelpRow("/tools, ///", "switch the model's tools on or off and edit the Options, Ask, Files and Web settings on a pane"), lines[1]);   // 2026-09-19; the alias 2026-09-21
         Assert.StartsWith(HelpRow("/mcp", "connect external MCP servers and switch their tools on or off on a pane"), lines[2]);   // 2026-09-20
-        Assert.StartsWith(HelpRow("/session", "list, restore and purge sessions: /session [<id> | purge <id> | purge older <age> | purge all | title <text>]"), lines[4]);   // under /profile since later on 2026-09-18
-        Assert.StartsWith(HelpRow("/skills, ////", "list the skills, edit the skill settings and the project file on a pane, or /skills edit <name> to open its SKILL.md"), lines[5]);   // the alias and edit 2026-09-21;   // under /session since later on 2026-09-19 (/ask /files /web ahead of it until 2026-09-18)
+        Assert.StartsWith(HelpRow("/sessions", "list, restore and purge sessions: /sessions [<id> | purge <id> | purge older <age> | purge all | title <text>]"), lines[4]);   // under /profile since later on 2026-09-18
+        Assert.StartsWith(HelpRow("/skills, ////", "list the skills, edit the skill settings and the project file on a pane, or /skills edit <name> to open its SKILL.md"), lines[5]);   // the alias and edit 2026-09-21;   // under /sessions since later on 2026-09-19 (/ask /files /web ahead of it until 2026-09-18)
         Assert.StartsWith(HelpRow("/learn", "write or improve a skill from the last turn or the stored sessions, in the background: /learn [what to keep] | sessions [N | what to search]"), lines[6]);   // 2026-09-17; the sessions form 2026-09-19
         Assert.True(string.IsNullOrWhiteSpace(lines[7]));
         Assert.StartsWith(HelpRow("/server", "pick an LLM server found on the usual ports, or /server <url>"), lines[8]);
@@ -8051,12 +8181,12 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         string rule = new(ScreenPane.RuleGlyph, 240);
-        string strip = rule + "\n" + Titled("Usage   Tokens    Notes ") + "\n\n";
+        string strip = rule + "\n" + Titled(UsageText.Label + "   Tokens    Notes ") + "\n\n";
         // The grid pads its cells to the widest value: compare with the row ends trimmed.
         output = string.Join("\n", output.Split('\n').Select(l => l.TrimEnd()));
         Assert.Contains(strip + UsageText.NothingCounted + "\n", output);
         // After the reply the upper rule names the session (2026-09-18), the pane's title row under it.
-        strip = TitledRule("hi") + "\n" + Titled("Usage   Tokens    Notes ") + "\n\n";
+        strip = TitledRule("hi") + "\n" + Titled(UsageText.Label + "   Tokens    Notes ") + "\n\n";
         // The Tokens tab after the reply: the Context section (no window from the stub's server), then the three scopes, the last reply's with its timings.
         Assert.Contains(strip + "Context              unknown\nWindow               unknown\nIn use               25\n\nLast reply\nTotal                25\nPrompt               10\nCompletion           15\nReasoning            —\nRequests             1\nTime to first token  0.5 s\nSpeed                3.0 tok/s\n\nThis conversation    every request summed\nTotal                25\n", output);
         Assert.Contains("\nSince launch         every request summed\nTotal                25\nPrompt               10\nCompletion           15\nReasoning            —\nRequests             1\nTime to first token  0.5 s\nSpeed                3.0 tok/s\n", output);
@@ -8164,7 +8294,7 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         string rule = new(ScreenPane.RuleGlyph, 240);
-        string strip = rule + "\n" + Titled("Usage   Tokens    Notes ") + "\n\n";
+        string strip = rule + "\n" + Titled(UsageText.Label + "   Tokens    Notes ") + "\n\n";
         output = string.Join("\n", output.Split('\n').Select(l => l.TrimEnd()));
         // Before the reply: the Context section over the empty note (the label column sized to that note).
         Assert.Contains(strip + "Context                  loaded_context_length on /api/v0/models\nWindow                   100\n\n" + UsageText.NothingCounted + "\n", output);
@@ -8798,7 +8928,7 @@ public partial class ChatScreenTests : IDisposable
 
         // The pane under the busy row, its keys named after the spinner's count; the reply whole and uncancelled.
         output = string.Join("\n", output.Split('\n').Select(l => l.TrimEnd()));
-        int pane = output.IndexOf("\n" + Titled("Usage   Tokens    Notes ") + "\n", StringComparison.Ordinal);
+        int pane = output.IndexOf("\n" + Titled(UsageText.Label + "   Tokens    Notes ") + "\n", StringComparison.Ordinal);
         Assert.True(pane > 0);
         // The first delta has streamed by then: the row reads the writing stage.
         Assert.Contains(" " + ScreenPane.BusyRow(TurnStages.WritingLabel, TimeSpan.Zero, InfoPane.HintText), output);
@@ -8829,7 +8959,7 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         output = string.Join("\n", output.Split('\n').Select(l => l.TrimEnd()));
-        int pane = output.IndexOf("\n" + Titled("Usage   Tokens    Notes ") + "\n", StringComparison.Ordinal);
+        int pane = output.IndexOf("\n" + Titled(UsageText.Label + "   Tokens    Notes ") + "\n", StringComparison.Ordinal);
         Assert.True(pane > 0, output);
         Assert.True(pane < output.LastIndexOf("three.", StringComparison.Ordinal));
         Assert.DoesNotContain("› /usage", output);
@@ -8851,7 +8981,7 @@ public partial class ChatScreenTests : IDisposable
             }
             else if (i == 1)
             {
-                Scripted().PushClick(12, 103);                   // 🕵️: the busy row at 102, the toolbar at 103
+                Scripted().PushClick(12, 103);                   // 🎭: the busy row at 102, the toolbar at 103
                 Scripted().PushClick(13, 103);
             }
             else if (i == 2)
@@ -8866,7 +8996,7 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         output = string.Join("\n", output.Split('\n').Select(l => l.TrimEnd()));
-        int pane = output.IndexOf("\n" + Titled("System prompt   Prompt    Tools ") + "\n", StringComparison.Ordinal);
+        int pane = output.IndexOf("\n" + Titled(SystemPromptSummary.Label + "   Prompt    Tools ") + "\n", StringComparison.Ordinal);
         Assert.True(pane > 0, output);
         Assert.True(pane < output.LastIndexOf("three.", StringComparison.Ordinal));
         Assert.DoesNotContain("› /sys", output);
@@ -8875,6 +9005,60 @@ public partial class ChatScreenTests : IDisposable
         Assert.DoesNotContain(ChatScreen.CancelledNotice, output);
         Assert.Single(_chat.Requests);
         Assert.Equal(1, _session.History.TurnCount);
+    }
+
+    /// <summary>
+    /// Under a reply (later on 2026-09-21): a pane opened from the toolbar switches to another
+    /// pane's glyph as at idle; the path under it closes it alone (/cwd is refused mid-turn, and a
+    /// click gets no refusal notice); the blanks are the settings'; the reply runs on.
+    /// </summary>
+    [Fact]
+    public async Task MidTurn_UnderAPane_ADoubleClickOnAnotherGlyph_Switches_OnThePath_ClosesAlone()
+    {
+        MidTurnFixture(i =>
+        {
+            switch (i)
+            {
+                case 0:
+                    Scripted().PushClick(3, 103);                    // 🛠️: the Tools pane under the reply
+                    Scripted().PushClick(3, 103);
+                    break;
+                case 1:
+                    Scripted().PushClick(12, ToolbarUnderPane());    // 🎭 under it: Tools closed, the system prompt opened
+                    Scripted().PushClick(12, ToolbarUnderPane());
+                    break;
+                case 2:
+                    Scripted().PushClick(238, ToolbarUnderPane());   // the path under it: closed, nothing opened
+                    Scripted().PushClick(238, ToolbarUnderPane());
+                    break;
+                case 3:
+                    Scripted().PushClick(120, 103);                  // the blanks at the busy row: the settings
+                    Scripted().PushClick(120, 103);
+                    break;
+                case 4:
+                    Scripted().Push(Keys.Escape);
+                    break;
+            }
+        }, "One ", "two ", "three ", "four ", "five ", "six.");
+        _settings.Update(d => d.ShowToolbar = true);
+        _console.Profile.Width = 240;
+        _geometry = new ScreenGeometry(() => null, () => 100);
+
+        string output = await RunAsync();
+
+        output = string.Join("\n", output.Split('\n').Select(l => l.TrimEnd()));
+        string tools = "\n" + Titled(ToolsText.Label + "   Offered    Options    Web    Files    Shell    Ask    Git (native) ") + "\n";
+        string sys = "\n" + Titled(SystemPromptSummary.Label + "   Prompt    Tools ") + "\n";
+        string settings = "\n" + Titled(SettingsMenu.Title + "   General    Sessions    LLM    TTS    STT ") + "\n";
+        int at = output.IndexOf(tools, StringComparison.Ordinal);
+        Assert.True(at > 0, output);
+        Assert.True(output.IndexOf(sys, StringComparison.Ordinal) > at, output);
+        Assert.True(output.IndexOf(settings, StringComparison.Ordinal) > output.IndexOf(sys, StringComparison.Ordinal), output);
+        Assert.DoesNotContain(FolderText.Title + "   ", output);
+        Assert.DoesNotContain(ChatScreen.MidTurnRefusedNotice("/cwd"), output);
+        Assert.Contains("six.", output);
+        Assert.All(new[] { "/tools", "/sys", "/settings", "/cwd" }, word => Assert.DoesNotContain("› " + word, output));
+        Assert.Single(_chat.Requests);
     }
 
     // ── ask_user (2026-09-15): the model's questions on the pane, mid-turn ──
@@ -11824,7 +12008,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("Skills   Offered    Options    Reflection    Project ", output);
+        Assert.Contains(SkillsText.Label + "   Offered    Options    Reflection    Project ", output);
         Assert.DoesNotContain("Roots", output);
         Assert.False(_settings.Current.ProjectFile);
         Assert.Contains("\n▸ Reflection (auto-learn)        off\n  Reflection reasoning           none\n", output);   // the Reflection tab, padded to its own column (the fixture turns the auto-learn off)
@@ -12304,7 +12488,7 @@ public partial class ChatScreenTests : IDisposable
             Assert.True(seeded.SetTitle(id, "vosk-model-wiring", TitleSource.Model));
         }
 
-        StepsWhenIdle(Line("/session " + id), Line("/session title Wiring notes"), Line("/exit"));
+        StepsWhenIdle(Line("/sessions " + id), Line("/sessions title Wiring notes"), Line("/exit"));
 
         string output = await RunAsync();
 
@@ -12357,7 +12541,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.DoesNotContain("learning failed", output);
         Assert.False(_session.IsLearning);
         Assert.False(Directory.Exists(Path.Combine(ProfileSkills, "greeting")));
-        Assert.DoesNotContain("Settings   General", output);   // the click was the brain's, never the row's /settings
+        Assert.DoesNotContain(SettingsMenu.Title + "   General", output);   // the click was the brain's, never the row's /settings
     }
 
     [Fact]
@@ -13159,7 +13343,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("Skills   Offered    Options    Reflection    Project ", output);   // no Roots tab since later on 2026-09-19
+        Assert.Contains(SkillsText.Label + "   Offered    Options    Reflection    Project ", output);   // no Roots tab since later on 2026-09-19
         Assert.Contains("▸ haiku  profile  Writes haiku. Use when asked for one.", output);
         Assert.DoesNotContain(ChatScreen.MidTurnRefusedNotice("/skills"), output);
         Assert.DoesNotContain(ChatScreen.CancelledNotice, output);
@@ -13534,7 +13718,7 @@ public partial class ChatScreenTests : IDisposable
         long id = SeedSession(toolCalls: 2);
         _chat.EnqueueText("First.").EnqueueText("Continued.");
         PushLine("unrelated");
-        PushLine("/session " + id);
+        PushLine("/sessions " + id);
         PushLine("so what next?");
         PushLine("/exit");
 
@@ -13565,10 +13749,10 @@ public partial class ChatScreenTests : IDisposable
     {
         _settings.Update(d => d.TtsOutput = false);
         _chat.EnqueueText("Hello.");
-        PushLine("/session 42");
-        PushLine("/session #7x");
+        PushLine("/sessions 42");
+        PushLine("/sessions #7x");
         PushLine("hi");
-        PushLine("/session 1");
+        PushLine("/sessions 1");
         PushLine("/exit");
 
         string output = await RunAsync();
@@ -13586,7 +13770,7 @@ public partial class ChatScreenTests : IDisposable
         _console.Profile.Height = 40;
         _geometry = new ScreenGeometry(() => null);
         long id = SeedSession();
-        StepsWhenIdle(Line("/session"), Key(Keys.Enter), Key(Keys.Enter), Line("/exit"));
+        StepsWhenIdle(Line("/sessions"), Key(Keys.Enter), Key(Keys.Enter), Line("/exit"));
 
         string output = await RunAsync();
 
@@ -13604,7 +13788,7 @@ public partial class ChatScreenTests : IDisposable
     public async Task Session_Empty_SaysSo_AndAMidTurnPaneIsAllowed()
     {
         _settings.Update(d => d.TtsOutput = false);
-        PushLine("/session");
+        PushLine("/sessions");
         PushLine("/exit");
 
         string output = await RunAsync();
@@ -13620,7 +13804,7 @@ public partial class ChatScreenTests : IDisposable
         _settings.Update(d => d.TtsOutput = false);
         _geometry = new ScreenGeometry(() => null);
         long id = SeedSession();
-        StepsWhenIdle(Line("/session purge " + id), Key(Keys.Char('y')), Key(Keys.Enter), Line("/session purge " + id), Line("/exit"));
+        StepsWhenIdle(Line("/sessions purge " + id), Key(Keys.Char('y')), Key(Keys.Enter), Line("/sessions purge " + id), Line("/exit"));
 
         string output = await RunAsync();
 
@@ -13639,7 +13823,7 @@ public partial class ChatScreenTests : IDisposable
         long old = SeedSession("old one");
         _time.Advance(TimeSpan.FromDays(3));
         long recent = SeedSession("recent one");
-        StepsWhenIdle(Line("/session purge all"), Key(Keys.Enter), Line("/session purge older 2"), Key(Keys.Down), Key(Keys.Enter), Line("/session purge older 30"), Line("/exit"));
+        StepsWhenIdle(Line("/sessions purge all"), Key(Keys.Enter), Line("/sessions purge older 2"), Key(Keys.Down), Key(Keys.Enter), Line("/sessions purge older 30"), Line("/exit"));
 
         string output = await RunAsync();
 
@@ -13662,7 +13846,7 @@ public partial class ChatScreenTests : IDisposable
         long old = SeedSession("old one");
         _time.Advance(TimeSpan.FromHours(3));
         long recent = SeedSession("recent one");
-        StepsWhenIdle(Line("/session purge older 1d"), Line("/session purge older 2h"), Key(Keys.Down), Key(Keys.Enter), Line("/session purge older 90m"), Line("/exit"));
+        StepsWhenIdle(Line("/sessions purge older 1d"), Line("/sessions purge older 2h"), Key(Keys.Down), Key(Keys.Enter), Line("/sessions purge older 90m"), Line("/exit"));
 
         string output = await RunAsync();
 
@@ -13683,7 +13867,7 @@ public partial class ChatScreenTests : IDisposable
         _geometry = new ScreenGeometry(() => null);
         SeedSession();
         _chat.EnqueueText("Hello.").EnqueueText("Again.");
-        StepsWhenIdle(Line("hi"), Line("/session purge all"), Key(Keys.Char('y')), Key(Keys.Enter), Line("again"), Line("/exit"));
+        StepsWhenIdle(Line("hi"), Line("/sessions purge all"), Key(Keys.Char('y')), Key(Keys.Enter), Line("again"), Line("/exit"));
 
         string output = await RunAsync();
 
@@ -13701,10 +13885,10 @@ public partial class ChatScreenTests : IDisposable
     {
         _settings.Update(d => d.TtsOutput = false);
         _chat.EnqueueText("Hello.");
-        PushLine("/session title too early");
+        PushLine("/sessions title too early");
         PushLine("hi");
-        PushLine("/session title  Vosk notes ");
-        PushLine("/session title");
+        PushLine("/sessions title  Vosk notes ");
+        PushLine("/sessions title");
         PushLine("/exit");
 
         string output = await RunAsync();
@@ -13858,15 +14042,15 @@ public partial class ChatScreenTests : IDisposable
     {
         var sources = Sources() with { Sessions = () => [new("#12", "Vosk wiring (" + SessionsMenu.CurrentNote + ")"), new("#7", "Dinner")] };
 
-        Assert.Equal(["#12", "#7", "purge", "title"], Texts(ChatScreen.ArgumentItems("/session", "", sources)));
-        Assert.Equal(["#12"], Texts(ChatScreen.ArgumentItems("/session", "#1", sources)));
-        Assert.Empty(ChatScreen.ArgumentItems("/session", "#7", sources));   // typed in full: Enter sends
-        Assert.Equal([new CompletionItem("purge all", ChatScreen.SessionPurgeAllNote), new CompletionItem("purge older", ChatScreen.SessionPurgeOlderNote), new CompletionItem("purge #12", "Vosk wiring (" + SessionsMenu.CurrentNote + ")"), new CompletionItem("purge #7", "Dinner")], ChatScreen.ArgumentItems("/session", "purge ", sources));
-        Assert.Equal(["purge #12"], Texts(ChatScreen.ArgumentItems("/session", "purge #1", sources)));
-        Assert.Empty(ChatScreen.ArgumentItems("/session", "purge #7", sources));
-        Assert.Empty(ChatScreen.ArgumentItems("/session", "purge older 3", sources));
-        Assert.Empty(ChatScreen.ArgumentItems("/session", "title My", sources));   // free text
-        Assert.Equal(["purge", "title"], Texts(ChatScreen.ArgumentItems("/session", "", Sources())));   // no store wired: the verbs alone
+        Assert.Equal(["#12", "#7", "purge", "title"], Texts(ChatScreen.ArgumentItems("/sessions", "", sources)));
+        Assert.Equal(["#12"], Texts(ChatScreen.ArgumentItems("/sessions", "#1", sources)));
+        Assert.Empty(ChatScreen.ArgumentItems("/sessions", "#7", sources));   // typed in full: Enter sends
+        Assert.Equal([new CompletionItem("purge all", ChatScreen.SessionPurgeAllNote), new CompletionItem("purge older", ChatScreen.SessionPurgeOlderNote), new CompletionItem("purge #12", "Vosk wiring (" + SessionsMenu.CurrentNote + ")"), new CompletionItem("purge #7", "Dinner")], ChatScreen.ArgumentItems("/sessions", "purge ", sources));
+        Assert.Equal(["purge #12"], Texts(ChatScreen.ArgumentItems("/sessions", "purge #1", sources)));
+        Assert.Empty(ChatScreen.ArgumentItems("/sessions", "purge #7", sources));
+        Assert.Empty(ChatScreen.ArgumentItems("/sessions", "purge older 3", sources));
+        Assert.Empty(ChatScreen.ArgumentItems("/sessions", "title My", sources));   // free text
+        Assert.Equal(["purge", "title"], Texts(ChatScreen.ArgumentItems("/sessions", "", Sources())));   // no store wired: the verbs alone
         Assert.Equal("Vosk wiring", ChatScreen.SessionNote(new SessionSummary(12, ManualTimeProvider.DefaultUtcNow, ManualTimeProvider.DefaultUtcNow, "Vosk wiring", TitleSource.FirstLine, "llama", 1), null));
         Assert.Equal("Vosk wiring (this conversation)", ChatScreen.SessionNote(new SessionSummary(12, ManualTimeProvider.DefaultUtcNow, ManualTimeProvider.DefaultUtcNow, "Vosk wiring", TitleSource.FirstLine, "llama", 1), 12));
     }
@@ -13875,8 +14059,8 @@ public partial class ChatScreenTests : IDisposable
     public void SessionSentences_ArePinned()
     {
         var summary = new SessionSummary(12, ManualTimeProvider.DefaultUtcNow, ManualTimeProvider.DefaultUtcNow, "Vosk wiring", TitleSource.FirstLine, "llama", 12);
-        Assert.Equal("/session lists the sessions, or /session <id> | purge <id> | purge older <age> | purge all | title <text>", ChatScreen.SessionUsageError);
-        Assert.Equal("No session #12; /session lists them.", ChatScreen.SessionMissingError(12));
+        Assert.Equal("/sessions lists the sessions, or /sessions <id> | purge <id> | purge older <age> | purge all | title <text>", ChatScreen.SessionUsageError);
+        Assert.Equal("No session #12; /sessions lists them.", ChatScreen.SessionMissingError(12));
         Assert.Equal("Could not restore session #12: bad json", ChatScreen.SessionRestoreFailedError(12, "bad json"));
         Assert.Equal("(restored session #12 \"Vosk wiring\" · 12 turns · 2026-09-11 14:05)", ChatScreen.SessionRestoredNotice(summary, ManualTimeProvider.DefaultZone));
         Assert.Equal("Purge 3 sessions older than 30 days?", ChatScreen.PurgeOlderPrompt(TimeSpan.FromDays(30), 3));
@@ -14168,7 +14352,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal("Tail stopped by ESC.", ChatScreen.TailStoppedLogLine);
         Assert.Equal("App", ChatScreen.AppCategory);
         Assert.Equal(["/exit", "Ctrl+C twice", "end of input", "the app token"], new[] { ChatScreen.ExitByCommand, ChatScreen.ExitByInterrupt, ChatScreen.ExitByEndOfInput, ChatScreen.ExitByAppToken });
-        Assert.Equal("Command /session: purge older 7", ChatScreen.CommandLogLine(SlashCommand.Session, "/session purge older 7"));
+        Assert.Equal("Command /sessions: purge older 7", ChatScreen.CommandLogLine(SlashCommand.Session, "/sessions purge older 7"));
         Assert.Equal("Command /clear", ChatScreen.CommandLogLine(SlashCommand.Clear, "  /clear  "));
         Assert.Equal("Command /bogus (unknown): now", ChatScreen.CommandLogLine(SlashCommand.Unknown, "/bogus now"));
         Assert.Equal("Command /about (overloaded): me", ChatScreen.CommandLogLine(SlashCommand.Overloaded, "/about me"));

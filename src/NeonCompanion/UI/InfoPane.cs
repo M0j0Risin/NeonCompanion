@@ -191,8 +191,11 @@ public sealed class InfoPane
 
                     if (click.Button == MouseButton.Left && _pane.TryHitOutside(click.X, click.Y))
                     {
-                        if (_clicks.Second(MenuPane.OutsideRow))
+                        // Per part (later on 2026-09-21): two on the same toolbar glyph or hint-row
+                        // part, and the dismiss keeps it for the screen's close-or-switch.
+                        if (_clicks.Second(_pane.OutsideKey(click.X, click.Y)))
                         {
+                            _pane.Dismiss(click.X, click.Y);
                             return;
                         }
 

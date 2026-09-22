@@ -83,7 +83,7 @@ public class McpMenuTests : IAsyncDisposable
     private string Titled(string row) => row + new string(' ', _console.Profile.Width - 2 - TextCells.Width(row)) + ScreenPane.CloseGlyph;
 
     /// <summary>The strip as the pane prints it. Pinned.</summary>
-    private const string Strip = "MCP   Servers    Tools    Options ";
+    private const string Strip = McpText.Label + "   Servers    Tools    Options ";
 
     [Fact]
     public async Task OnThePane_OpensOnTheFirstServer_TheThreeTabsOnTheStrip()
@@ -281,7 +281,7 @@ public class McpMenuTests : IAsyncDisposable
         Assert.False(_settings.Current.McpServers);
         Assert.Equal(45, _settings.Current.McpConnectTimeoutSeconds);
         Assert.Contains("\n" + Titled(Strip) + "\n \n▸ MCP servers              on\n  MCP connect timeout (s)  30\n" + Rule(100), _console.Output);
-        Assert.Contains("MCP › MCP servers", _console.Output);
+        Assert.Contains(McpText.Label + " › MCP servers", _console.Output);
         Assert.Contains("no MCP server is started; the pane still lists the config", _console.Output);
         Assert.Contains("  · MCP servers: off\n", _console.Output);
         Assert.Contains("  · MCP connect timeout (s): 45\n", _console.Output);

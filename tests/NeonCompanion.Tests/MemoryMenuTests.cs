@@ -68,7 +68,7 @@ public class MemoryMenuTests : IDisposable
 
         await _menu.ShowAsync(CancellationToken.None);
 
-        Assert.Contains("Memory   Enter = remove · ESC = back", _console.Output);
+        Assert.Contains(MemoryMenu.Title + "   Enter = remove · ESC = back", _console.Output);
         Assert.Contains("one", _console.Output);
         Assert.Contains("two", _console.Output);
         Assert.Equal(new[] { "one", "two" }, _store.Snapshot());
@@ -217,9 +217,9 @@ public class MemoryMenuTests : IDisposable
         var dated = new MemoryEntry { Text = "x [y]", SavedAt = new DateTimeOffset(2026, 9, 11, 18, 0, 0, TimeSpan.Zero) };
         var undated = new MemoryEntry { Text = "z" };
 
-        Assert.Equal("Memory", MemoryMenu.Title);
+        Assert.Equal("💾 Memory", MemoryMenu.Title);
         Assert.Equal("Enter = remove · ESC = back", MemoryMenu.Keys);
-        Assert.Equal("Memory   Enter = remove · ESC = back", SettingsMenu.PromptTitle(MemoryMenu.Title, MemoryMenu.Keys));
+        Assert.Equal(MemoryMenu.Title + "   Enter = remove · ESC = back", SettingsMenu.PromptTitle(MemoryMenu.Title, MemoryMenu.Keys));
         Assert.Equal("(nothing remembered)", MemoryMenu.EmptyNotice);
         Assert.Equal("(removed: x)", MemoryMenu.RemovedNotice("x"));
         Assert.Equal("Could not remove the memory: locked", MemoryMenu.RemoveFailedError("locked"));

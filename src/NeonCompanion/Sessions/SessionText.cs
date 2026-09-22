@@ -189,7 +189,7 @@ public static class SessionText
     // ---- ages (2026-09-21) ----
 
     /// <summary>
-    /// The age <c>/session purge older</c> takes: a bare number is days (the 2026-09-18 grammar,
+    /// The age <c>/sessions purge older</c> takes: a bare number is days (the 2026-09-18 grammar,
     /// <c>purge older 30</c>, kept so the README and habit still hold; <c>0</c> stays legal, every
     /// session but one updated this instant), otherwise a <see cref="Timers.TimerText.TryParseDuration(string, bool, out TimeSpan)"/>
     /// duration with days on: <c>12h</c>, <c>90m</c>, <c>2 hours</c>, <c>1d 6h</c>, <c>1h30m</c>,

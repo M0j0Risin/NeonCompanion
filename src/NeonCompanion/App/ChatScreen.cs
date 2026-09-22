@@ -79,7 +79,7 @@ public enum GitActionKind
 /// <summary>The parsed <c>/git</c> argument; <paramref name="Force"/> is the <c>force</c> word after <c>user</c>.</summary>
 public readonly record struct GitAction(GitActionKind Kind, bool Force = false);
 
-/// <summary>What a <c>/session</c> argument asks for (2026-09-18). Top-level like <see cref="ProfileAction"/>, so the test project can pin the grammar.</summary>
+/// <summary>What a <c>/sessions</c> argument asks for (2026-09-18). Top-level like <see cref="ProfileAction"/>, so the test project can pin the grammar.</summary>
 public enum SessionActionKind
 {
     /// <summary>No argument: the pane.</summary>
@@ -104,7 +104,7 @@ public enum SessionActionKind
     Invalid,
 }
 
-/// <summary>The parsed <c>/session</c> argument; <paramref name="Id"/> for a restore or a purge, <paramref name="Age"/> for <see cref="SessionActionKind.PurgeOlder"/>, <paramref name="Text"/> for <see cref="SessionActionKind.Title"/>.</summary>
+/// <summary>The parsed <c>/sessions</c> argument; <paramref name="Id"/> for a restore or a purge, <paramref name="Age"/> for <see cref="SessionActionKind.PurgeOlder"/>, <paramref name="Text"/> for <see cref="SessionActionKind.Title"/>.</summary>
 public readonly record struct SessionAction(SessionActionKind Kind, long Id = 0, TimeSpan Age = default, string Text = "");
 
 /// <summary>What a <c>/timer</c> argument asks for. Top-level like <see cref="ProfileAction"/>, so the test project can pin the grammar.</summary>
@@ -843,7 +843,8 @@ internal sealed partial class ChatScreen
     /// glyph opens the pane (<see cref="ToolbarWord"/> names the command), one on the path is
     /// <c>/cwd browse</c> (a folder glyph carried that until later that day; the user's call).
     /// Every glyph is two cells: a surrogate pair, or a character with the variation selector
-    /// (the gear, the tools, the detective — the user's picks), which <see cref="UI.TextCells"/>
+    /// (the gear, the tools — the user's picks; the masks took the detective's place for the
+    /// system prompt later on 2026-09-21), which <see cref="UI.TextCells"/>
     /// counts as the terminal draws it and the pane's strip walk keeps with its glyph.
     /// <c>Show toolbar</c> in the settings hides the row. Pinned.
     /// </summary>
@@ -851,11 +852,38 @@ internal sealed partial class ChatScreen
     public const string ToolsToolGlyph = "🛠️";
     public const string McpToolGlyph = McpText.Glyph;
     public const string SkillsToolGlyph = "🎓";
-    public const string SysToolGlyph = "🕵️";
+    public const string SysToolGlyph = "🎭";
     public static readonly string ToolbarStrip = string.Join(GlyphSeparator, SettingsToolGlyph, ToolsToolGlyph, McpToolGlyph, SkillsToolGlyph, SysToolGlyph);
 
     /// <summary>The line the path's double-click runs: <c>/cwd browse</c>, the picker on the pane. Pinned.</summary>
     public const string CwdBrowseLine = "/cwd " + CwdBrowseWord;
+
+    /// <summary>
+    /// The command a double-click off an open pane names (later on 2026-09-21, the user's ask): a
+    /// toolbar glyph's word, the path's <see cref="CwdBrowseLine"/>, the toolbar's blanks
+    /// <c>/settings</c>; on the hint row the model name <c>/model</c>, its reasoning mark
+    /// <c>/reasoning</c>, the blanks <c>/settings</c> (scrolled or not). A strip glyph names
+    /// nothing (the switches are the idle line's), nor do the queued count and the tally (never
+    /// drawn under a pane). The screen closes the pane the word owns, or switches to the one it
+    /// names (<see cref="HandleAsync"/>, <see cref="RunPaneAsync"/>). Pinned.
+    /// </summary>
+    public static string? OffPaneLine(ScreenPane.OffPaneHit hit) => hit switch
+    {
+        { Toolbar: { } tool } => tool.Zone switch
+        {
+            ScreenPane.ToolbarZone.Path => CwdBrowseLine,
+            ScreenPane.ToolbarZone.Row => SlashCommands.SettingsWord,
+            _ => ToolbarWord(tool.Glyph),
+        },
+        { Hint: { } row } => row.Zone switch
+        {
+            ScreenPane.HintZone.Trailer => SlashCommands.ModelWord,
+            ScreenPane.HintZone.Mark => SlashCommands.ReasoningWord,
+            ScreenPane.HintZone.Row or ScreenPane.HintZone.Scrolled => SlashCommands.SettingsWord,
+            _ => null,
+        },
+        _ => null,
+    };
 
     /// <summary>The command a double-click on a toolbar glyph runs (2026-09-21), as the typed word; null for anything else. Pinned.</summary>
     public static string? ToolbarWord(string glyph) => glyph switch
@@ -1217,8 +1245,15 @@ internal sealed partial class ChatScreen
 
             if (_pane.TryHitToolbar(click.X, click.Y, out var tool))
             {
-                // The path (the folder picker) is inert here: only a glyph's word answers.
-                if (tool.Zone == ScreenPane.ToolbarZone.Glyph && ToolbarWord(tool.Glyph) is { } word)
+                // The path (the folder picker) is inert here: a glyph's word answers, and the
+                // blanks' /settings (later on 2026-09-21, a pane under the reply as at idle).
+                string? word = tool.Zone switch
+                {
+                    ScreenPane.ToolbarZone.Glyph => ToolbarWord(tool.Glyph),
+                    ScreenPane.ToolbarZone.Row => SlashCommands.SettingsWord,
+                    _ => null,
+                };
+                if (word is not null)
                 {
                     return _queuedClicks.Second(InputLine.ToolbarPairKey(tool)) ? word : null;
                 }
@@ -2068,19 +2103,19 @@ internal sealed partial class ChatScreen
     /// <summary>The notes on a profile name on the <c>/profile</c> list. Pinned.</summary>
     public const string SwitchToProfileNote = "switch to it";
 
-    // The /session grammar's words (2026-09-18). Pinned.
+    // The /sessions grammar's words (2026-09-18). Pinned.
     public const string SessionPurgeWord = "purge";
     public const string SessionOlderWord = "older";
     public const string SessionAllWord = "all";
     public const string SessionTitleWord = "title";
-    public const string SessionPurgeAllNote = "purge every session: /session purge all";
-    public const string SessionPurgeOlderNote = "purge the sessions older than an age: /session purge older <age> (30 = days, 12h, 90m, 1d 6h)";
+    public const string SessionPurgeAllNote = "purge every session: /sessions purge all";
+    public const string SessionPurgeOlderNote = "purge the sessions older than an age: /sessions purge older <age> (30 = days, 12h, 90m, 1d 6h)";
 
-    /// <summary>The verbs the <c>/session</c> argument list offers after the ids; the ids' rows come first (<see cref="SessionChoices"/>).</summary>
+    /// <summary>The verbs the <c>/sessions</c> argument list offers after the ids; the ids' rows come first (<see cref="SessionChoices"/>).</summary>
     public static readonly IReadOnlyList<CompletionItem> SessionVerbs =
     [
-        new(SessionPurgeWord, "purge a session: /session purge <id> | older <days> | all"),
-        new(SessionTitleWord, "rename this session: /session title <text>"),
+        new(SessionPurgeWord, "purge a session: /sessions purge <id> | older <days> | all"),
+        new(SessionTitleWord, "rename this session: /sessions title <text>"),
     ];
 
     /// <summary>The note beside a session's id on the list: its title, and <see cref="SessionsMenu.CurrentNote"/> for the one on screen.</summary>
@@ -3158,11 +3193,11 @@ internal sealed partial class ChatScreen
     /// Appending skips what the target already holds (<see cref="MemoryStore.Import"/>); the
     /// <c>Memory</c> switch has no say (a file operation, like <c>/forget</c>).
     /// </summary>
-    // ── /session (2026-09-18) ──────────────────────────────────────────────
+    // ── /sessions (2026-09-18) ──────────────────────────────────────────────
 
-    public const string SessionUsageError = "/session lists the sessions, or /session <id> | purge <id> | purge older <age> | purge all | title <text>";
+    public const string SessionUsageError = "/sessions lists the sessions, or /sessions <id> | purge <id> | purge older <age> | purge all | title <text>";
 
-    public static string SessionMissingError(long id) => $"No session {SessionText.Id(id)}; /session lists them.";
+    public static string SessionMissingError(long id) => $"No session {SessionText.Id(id)}; /sessions lists them.";
 
     public static string SessionRestoreFailedError(long id, string detail) => $"Could not restore session {SessionText.Id(id)}: {detail}";
 
@@ -3186,7 +3221,7 @@ internal sealed partial class ChatScreen
     public const string SessionNoneYetNotice = "(no session yet: send a message first)";
 
     /// <summary>
-    /// The <c>/session</c> grammar: nothing = the pane; <c>12</c> or <c>#12</c> = restore; <c>purge 12</c>,
+    /// The <c>/sessions</c> grammar: nothing = the pane; <c>12</c> or <c>#12</c> = restore; <c>purge 12</c>,
     /// <c>purge older 30</c> (or <c>12h</c>, <c>90m</c>, <c>1d 6h</c>: the rest of the line is one
     /// <see cref="SessionText.TryParseAge"/> age, 2026-09-21), <c>purge all</c>; <c>title</c> and the
     /// rest of the line. Case-insensitive words; an id is a positive whole number. Pure; pinned by tests.
@@ -3238,7 +3273,7 @@ internal sealed partial class ChatScreen
         return long.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out id) && id > 0;
     }
 
-    /// <summary><c>/session</c>: the pane (a <c>restore</c> picked there lands here), or the typed forms of <see cref="ParseSessionArgs"/>. At the idle line only (refused mid-turn with an argument; the pane alone mid-turn).</summary>
+    /// <summary><c>/sessions</c>: the pane (a <c>restore</c> picked there lands here), or the typed forms of <see cref="ParseSessionArgs"/>. At the idle line only (refused mid-turn with an argument; the pane alone mid-turn).</summary>
     private async Task HandleSessionAsync(string args, CancellationToken cancellationToken)
     {
         var action = ParseSessionArgs(args);
@@ -3350,7 +3385,7 @@ internal sealed partial class ChatScreen
         }
     }
 
-    /// <summary><c>/session purge &lt;id&gt;</c>: the row and its turns, after a yes/no; the one on screen forgets its row (the next turn starts a new one).</summary>
+    /// <summary><c>/sessions purge &lt;id&gt;</c>: the row and its turns, after a yes/no; the one on screen forgets its row (the next turn starts a new one).</summary>
     private async Task PurgeSessionAsync(long id, CancellationToken cancellationToken)
     {
         if (_sessions.Load(id) is not { } record)
@@ -3381,7 +3416,7 @@ internal sealed partial class ChatScreen
     }
 
     /// <summary>
-    /// <c>/session purge older &lt;age&gt;</c>: every session last updated longer ago, after a yes/no
+    /// <c>/sessions purge older &lt;age&gt;</c>: every session last updated longer ago, after a yes/no
     /// naming the count; an age of 0 is every session but one updated this instant. An age past the
     /// start of the calendar (a six-digit day count) means everything, not a throw from the subtraction.
     /// </summary>
@@ -3412,7 +3447,7 @@ internal sealed partial class ChatScreen
         _transcript.Notice(SessionsPurgedOlderNotice(purged, age));
     }
 
-    /// <summary><c>/session purge all</c>: every session, after a yes/no naming the count; the conversation on screen goes on and starts a new row at its next turn.</summary>
+    /// <summary><c>/sessions purge all</c>: every session, after a yes/no naming the count; the conversation on screen goes on and starts a new row at its next turn.</summary>
     private async Task PurgeAllSessionsAsync(CancellationToken cancellationToken)
     {
         int count = _sessions.Count;
@@ -3433,7 +3468,7 @@ internal sealed partial class ChatScreen
         _transcript.Notice(SessionsPurgedNotice(purged));
     }
 
-    /// <summary><c>/session title &lt;text&gt;</c>: the session on screen renamed by the user (never overwritten by the model's title afterwards); nothing to rename before its first turn.</summary>
+    /// <summary><c>/sessions title &lt;text&gt;</c>: the session on screen renamed by the user (never overwritten by the model's title afterwards); nothing to rename before its first turn.</summary>
     private void TitleSession(string text)
     {
         if (_sessionId is not { } id)
@@ -4614,19 +4649,13 @@ internal sealed partial class ChatScreen
                         // name is /model, the reasoning mark after it /reasoning (2026-09-21), the
                         // brain the reflection's cancel, a speech glyph its switch off, the token
                         // tally /usage (2026-09-21), anywhere else /settings.
+                        // The pane zones go through HandleAsync as the typed word would (later on
+                        // 2026-09-21), so a double-click off the pane it opens can switch panes.
                         _timers.Acknowledge();
                         DisarmExit();
                         await _speech.StopAsync().ConfigureAwait(false);
                         draft = hint.Draft;
-                        if (hint.Hit.Zone == ScreenPane.HintZone.Trailer)
-                        {
-                            await PickModelAsync("", cancellationToken).ConfigureAwait(false);
-                        }
-                        else if (hint.Hit.Zone == ScreenPane.HintZone.Mark)
-                        {
-                            await PickReasoningAsync("", cancellationToken).ConfigureAwait(false);
-                        }
-                        else if (hint.Hit.Zone == ScreenPane.HintZone.Strip && hint.Hit.Glyph == LearnStripGlyph)
+                        if (hint.Hit.Zone == ScreenPane.HintZone.Strip && hint.Hit.Glyph == LearnStripGlyph)
                         {
                             // The brain is drawn only while a reflection runs, so the click is its
                             // cancel (the idle line's alone: the busy row records no strip). The job
@@ -4638,31 +4667,39 @@ internal sealed partial class ChatScreen
                         {
                             await HandleSwitchAsync(glyphSwitch, "off", midTurn: false, cancellationToken).ConfigureAwait(false);
                         }
-                        else if (hint.Hit.Zone == ScreenPane.HintZone.Queued)
-                        {
-                            // The held count (2026-09-18): /queue, as the typed command.
-                            await _queueMenu.ShowAsync(cancellationToken).ConfigureAwait(false);
-                        }
-                        else if (hint.Hit.Zone == ScreenPane.HintZone.Usage)
-                        {
-                            await ShowUsageAsync(cancellationToken).ConfigureAwait(false);
-                        }
                         else
                         {
-                            await OpenSettingsAsync(cancellationToken).ConfigureAwait(false);
+                            string hintLine = hint.Hit.Zone switch
+                            {
+                                ScreenPane.HintZone.Trailer => SlashCommands.ModelWord,
+                                ScreenPane.HintZone.Mark => SlashCommands.ReasoningWord,
+                                ScreenPane.HintZone.Queued => SlashCommands.QueueWord,   // the held count (2026-09-18): /queue, as the typed command
+                                ScreenPane.HintZone.Usage => SlashCommands.UsageWord,
+                                _ => SlashCommands.SettingsWord,
+                            };
+                            if (await HandleAsync(hintLine, [], cancellationToken).ConfigureAwait(false))
+                            {
+                                return 0;
+                            }
                         }
 
                         break;
                     case InputResult.ToolbarRow tool:
-                        // A double-click on the toolbar (2026-09-21): a pane glyph's word, or the
-                        // path's /cwd browse, through the dispatch as the typed line — without
-                        // the transcript row or the history, the draft back after, as the hint
-                        // row's. A glyph the strip does not name (none today) is nothing.
+                        // A double-click on the toolbar (2026-09-21): a pane glyph's word, the
+                        // path's /cwd browse, or the blanks' /settings (later that day, as the hint
+                        // row's blanks), through the dispatch as the typed line — without the
+                        // transcript row or the history, the draft back after, as the hint row's.
+                        // A glyph the strip does not name (none today) is nothing.
                         _timers.Acknowledge();
                         DisarmExit();
                         await _speech.StopAsync().ConfigureAwait(false);
                         draft = tool.Draft;
-                        string? toolbarLine = tool.Hit.Zone == ScreenPane.ToolbarZone.Path ? CwdBrowseLine : ToolbarWord(tool.Hit.Glyph);
+                        string? toolbarLine = tool.Hit.Zone switch
+                        {
+                            ScreenPane.ToolbarZone.Path => CwdBrowseLine,
+                            ScreenPane.ToolbarZone.Row => SlashCommands.SettingsWord,
+                            _ => ToolbarWord(tool.Hit.Glyph),
+                        };
                         if (toolbarLine is not null && await HandleAsync(toolbarLine, [], cancellationToken).ConfigureAwait(false))
                         {
                             return 0;
@@ -5729,11 +5766,39 @@ internal sealed partial class ChatScreen
     }
 
     /// <summary>
+    /// Dispatches one submitted line (<see cref="HandleOnceAsync"/>), then what a double-click off
+    /// the pane it opened named (later on 2026-09-21, the user's ask): the pane's own word — its
+    /// toolbar glyph, the model name under the model picker, the path under the folder picker, the
+    /// blanks under the settings — ends there, the pane closed; another pane's word opens that
+    /// pane, which may be switched from in turn (<see cref="ScreenPane.TakeDismissHit"/>,
+    /// <see cref="OffPaneLine"/>). Returns true when the shell should exit.
+    /// </summary>
+    private async Task<bool> HandleAsync(string text, IReadOnlyList<ImageAttachment> images, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            var (command, _) = SlashCommands.Parse(text);
+            if (await HandleOnceAsync(text, images, cancellationToken).ConfigureAwait(false))
+            {
+                return true;
+            }
+
+            if (_pane.TakeDismissHit() is not { } hit || OffPaneLine(hit) is not { } next || SlashCommands.Parse(next).Command == command)
+            {
+                return false;
+            }
+
+            text = next;
+            images = [];
+        }
+    }
+
+    /// <summary>
     /// Dispatches one submitted line; <paramref name="images"/> are the pictures its <c>[Image #n]</c>
     /// labels name, which only a message carries (a command drops them with a notice; its
     /// arguments keep the labels). Returns true when the shell should exit.
     /// </summary>
-    private async Task<bool> HandleAsync(string text, IReadOnlyList<ImageAttachment> images, CancellationToken cancellationToken)
+    private async Task<bool> HandleOnceAsync(string text, IReadOnlyList<ImageAttachment> images, CancellationToken cancellationToken)
     {
         var (command, args) = SlashCommands.Parse(text);
         if (command != SlashCommand.None)
@@ -7225,7 +7290,7 @@ internal sealed partial class ChatScreen
     public static string ScreenClosedLogLine(string reason) => "Screen closed: " + reason;
 
     /// <summary>
-    /// A sent command in the log: <c>Command /session: purge older 7</c> — the word as typed, the
+    /// A sent command in the log: <c>Command /sessions: purge older 7</c> — the word as typed, the
     /// argument cut to <see cref="CommandArgumentChars"/>; <c>(unknown)</c> / <c>(overloaded)</c> after
     /// the word for one the parser refused. Pinned.
     /// </summary>

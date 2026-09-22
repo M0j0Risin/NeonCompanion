@@ -68,12 +68,12 @@ public class QueueMenuTests : IDisposable
     private static string Row(int index, string text) => (index + 1) + "  " + text;
 
     /// <summary>The title row as the pane prints it since 2026-09-21: the label, then the one button as a dim tab (a space either side), two spaces between.</summary>
-    private const string Strip = "Queue   ⊠ clear all ";
+    private const string Strip = QueueMenu.Title + "   ⊠ clear all ";
 
     [Fact]
     public void Strings_ArePinned()
     {
-        Assert.Equal("Queue", QueueMenu.Title);
+        Assert.Equal("⏳ Queue", QueueMenu.Title);
         Assert.Equal("Enter = remove · c = clear all · ESC = back", QueueMenu.Keys);
         Assert.Equal("⊠ clear all", QueueMenu.ClearAllButton);
         Assert.Equal('c', QueueMenu.ClearAllKey);

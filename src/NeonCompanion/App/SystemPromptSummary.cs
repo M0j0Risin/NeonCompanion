@@ -154,8 +154,8 @@ public sealed record ToolGroup(string Name, string Note, IReadOnlyList<AIFunctio
 /// </summary>
 public static class SystemPromptSummary
 {
-    /// <summary>The info pane's strip label.</summary>
-    public const string Label = "System prompt";
+    /// <summary>The info pane's strip label: the toolbar's glyph, then the name (the glyph since later on 2026-09-21).</summary>
+    public const string Label = ChatScreen.SysToolGlyph + " System prompt";
 
     /// <summary>The tab titles.</summary>
     public const string PromptTabTitle = "Prompt";

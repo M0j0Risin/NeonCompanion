@@ -20,7 +20,7 @@ namespace NeonCompanion.App;
 internal sealed class QueueMenu
 {
     // The label and the key hints: the pane shows the label as its title and the keys in its hint row. Pinned.
-    public const string Title = "Queue";
+    public const string Title = "⏳ Queue";
     public const string Keys = "Enter = remove · c = clear all · ESC = back";
     public const string EmptyNotice = "(nothing queued)";
 

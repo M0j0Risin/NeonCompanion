@@ -222,7 +222,7 @@ public class AssistantTests
     {
         Assert.Equal(
             "Your earlier conversations with the user are stored: when they ask what was said, decided or done before, or refer to something you cannot see in this conversation, call session_manager — search with the words they remember, list for the newest, then read a session by its id for the turns; never guess at them. " +
-            "The user restores, renames or removes a session with /session, not you.",
+            "The user restores, renames or removes a session with /sessions, not you.",
             Assistant.SessionRule);
         Assert.Equal(Assistant.DefaultWebSystemPrompt + " " + Assistant.SessionRule, Assistant.SystemPrompt(false, null, web: true, sessions: true));
         Assert.Equal(Assistant.DefaultSystemPrompt + " " + Assistant.SessionRule, Assistant.SystemPrompt(false, null, sessions: true));

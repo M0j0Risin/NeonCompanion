@@ -1383,7 +1383,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("LLM reasoning", SettingsMenu.FieldName(SettingsField.LlmReasoning));
         Assert.Equal("none", SettingsMenu.FieldValue(SettingsField.LlmReasoning, data, _settings.ProfileDirectory));
         Assert.Equal("xhigh   [#9A8BB8]maximum thinking, slowest[/]", SettingsMenu.ReasoningLabel("xhigh"));
-        Assert.Equal("LLM reasoning", SettingsMenu.ReasoningTitle);
+        Assert.Equal("🤔 LLM reasoning", SettingsMenu.ReasoningTitle);
         Assert.Equal("/reasoning takes none, low, medium, high or xhigh, or nothing to pick from a list.", SettingsMenu.ReasoningLevelError);
         Assert.True(SettingsMenu.IsTtsField(SettingsField.TtsVoice2));
         Assert.True(SettingsMenu.IsTtsField(SettingsField.TtsVoiceMix));
@@ -2438,10 +2438,10 @@ public class SettingsMenuTests : IDisposable
     [Fact]
     public void ServerStrings_ArePinned()
     {
-        Assert.Equal("LLM server", SettingsMenu.ServerTitle);
-        Assert.Equal("Several LLM servers answered", SettingsMenu.StartupServerTitle);
+        Assert.Equal("🖥️ LLM server", SettingsMenu.ServerTitle);
+        Assert.Equal("🖥️ Several LLM servers answered", SettingsMenu.StartupServerTitle);
         Assert.Equal("Enter = choose · ESC = the first listed", SettingsMenu.StartupServerKeys);
-        Assert.Equal("LLM server   Enter = choose · ESC = keep", SettingsMenu.PromptTitle(SettingsMenu.ServerTitle, SettingsMenu.KeepKeys));
+        Assert.Equal(SettingsMenu.ServerTitle + "   Enter = choose · ESC = keep", SettingsMenu.PromptTitle(SettingsMenu.ServerTitle, SettingsMenu.KeepKeys));
         Assert.Equal("LM Studio  [#EFE6FF]http://127.0.0.1:1234/v1[/][#9A8BB8]  1 chat model[/]", SettingsMenu.ServerLabel(Server(1234, "LM Studio", "lm")));
         Assert.Equal("Not a usable server URL: bad", SettingsMenu.ServerUrlError("bad"));
         Assert.Equal("http://127.0.0.1:9/v1 did not answer /v1/models (refused); using it anyway because you asked.",
@@ -2451,9 +2451,9 @@ public class SettingsMenuTests : IDisposable
     [Fact]
     public void ProfileStrings_ArePinned()
     {
-        Assert.Equal("Profile", SettingsMenu.ProfileTitle);
+        Assert.Equal("🪪 Profile", SettingsMenu.ProfileTitle);
         Assert.Equal("Enter = switch · ESC = keep", SettingsMenu.ProfileKeys);
-        Assert.Equal("Settings › Profile", SettingsMenu.Breadcrumb(SettingsMenu.ProfileTitle));
+        Assert.Equal(SettingsMenu.Title + " › Profile", SettingsMenu.Breadcrumb(SettingsMenu.FieldName(SettingsField.Profile)));   // the settings row's crumb: the field's name, no glyph (later on 2026-09-21)
         Assert.Equal(@"Profile                               [#EFE6FF]work[/][#9A8BB8] (D:\home\profiles\work)[/]", SettingsMenu.ProfileLabel("work", @"D:\home\profiles\work"));
         Assert.Equal(@"Profile                               [#EFE6FF]p[/][#9A8BB8] (D:\h[[x]]\profiles\p)[/]", SettingsMenu.ProfileLabel("p", @"D:\h[x]\profiles\p"));   // the path escaped
         Assert.Equal("profiles: default (current), work", SettingsMenu.ProfileListLine(new[] { "default", "work" }, "default"));
@@ -2624,7 +2624,7 @@ public class SettingsMenuTests : IDisposable
     private string Titled(string row) => row + new string(' ', _console.Profile.Width - 2 - TextCells.Width(row)) + ScreenPane.CloseGlyph;
 
     /// <summary>The strip as the pane prints it: the label, then every tab title with a space either side, two spaces between. Pinned.</summary>
-    private const string Strip = "Settings   General    Sessions    LLM    TTS    STT ";   // five tabs since 2026-09-19: Ask, Files and Web are /tools' (ToolsMenuTests), Skills is /skills' Options tab (SkillsMenuTests)
+    private const string Strip = SettingsMenu.Title + "   General    Sessions    LLM    TTS    STT ";   // five tabs since 2026-09-19: Ask, Files and Web are /tools' (ToolsMenuTests), Skills is /skills' Options tab (SkillsMenuTests)
 
     [Fact]
     public async Task OnThePane_TheListOpensOnTheGeneralTab_AndEscClosesIt()
@@ -3014,7 +3014,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal(SettingsChanges.None, await menu.ShowAsync(CancellationToken.None));
 
         Assert.Equal(Profiles.DefaultName, _settings.ProfileName);
-        Assert.Contains(Rule(240) + "\n" + Titled(SettingsMenu.Breadcrumb(SettingsMenu.ProfileTitle)) + "\n \n▸ default\n  work\n" + Rule(240) + "\n" + SettingsMenu.SwitchKeys + "\n", _console.Output);
+        Assert.Contains(Rule(240) + "\n" + Titled(SettingsMenu.Breadcrumb("Profile")) + "\n \n▸ default\n  work\n" + Rule(240) + "\n" + SettingsMenu.SwitchKeys + "\n", _console.Output);
         Assert.Contains("\n" + Titled(Strip) + "\n  · " + SettingsMenu.UnchangedNotice + "\n▸ Profile                      default (", _console.Output);
         Assert.False(pane.OverlayOpen);
         pane.Dispose();

@@ -60,7 +60,7 @@ public class McpRowsTests : IAsyncDisposable
     [Fact]
     public void Strings_ArePinned()
     {
-        Assert.Equal("MCP", McpText.Label);
+        Assert.Equal("🔌 MCP", McpText.Label);
         Assert.Equal(["Servers", "Tools", "Options"], McpText.TabTitles);
         Assert.Equal("Enter / Space = on or off · Enter on failed = retry · ←/→ tabs · ESC = close", McpText.ServersKeys);
         Assert.Equal("MCP servers is off (the Options tab)", McpText.OffLine);

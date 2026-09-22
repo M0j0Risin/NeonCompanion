@@ -43,6 +43,9 @@ public class SlashCommandsTests
     [InlineData("/SYS", SlashCommand.Sys)]
     [InlineData("/window", SlashCommand.Window)]
     [InlineData("/windowsize", SlashCommand.Unknown)]   // the old word, later on 2026-09-19
+    [InlineData("/sessions", SlashCommand.Session)]   // the plural since later on 2026-09-21
+    [InlineData("/SESSIONS", SlashCommand.Session)]
+    [InlineData("/session", SlashCommand.Unknown)]   // the old word
     [InlineData("/usage", SlashCommand.Usage)]
     [InlineData("/about", SlashCommand.About)]
     [InlineData("/ABOUT", SlashCommand.About)]
@@ -316,6 +319,7 @@ public class SlashCommandsTests
     [InlineData("/mem 2")]
     [InlineData("/win 80x24")]
     [InlineData("/windowsize")]   // /window took the word later on 2026-09-19
+    [InlineData("/session")]   // /sessions took the word later on 2026-09-21
     [InlineData("/")]
     [InlineData("/bogus")]
     [InlineData("/config")]   // retired 2026-09-16
@@ -400,7 +404,7 @@ public class SlashCommandsTests
         Assert.DoesNotContain(items, i => i.Text is "//" or "///" or "////");   // the three aliases (2026-09-21) are never rows
         Assert.Contains(items, i => i.Text == "/loop");   // 2026-09-21
         Assert.All(SlashCommands.HelpEntries, e => Assert.Contains(new NeonCompanion.UI.CompletionItem(e.Command, e.Summary), items));
-        Assert.Equal(["/server", "/session", "/settings", "/skills", "/speak", "/splash", "/stt", "/sys"], items.Where(i => i.Text.StartsWith("/s", StringComparison.Ordinal)).Select(i => i.Text));
+        Assert.Equal(["/server", "/sessions", "/settings", "/skills", "/speak", "/splash", "/stt", "/sys"], items.Where(i => i.Text.StartsWith("/s", StringComparison.Ordinal)).Select(i => i.Text));
         Assert.Equal(["/timer", "/tools", "/tree", "/tts"], items.Where(i => i.Text.StartsWith("/t", StringComparison.Ordinal)).Select(i => i.Text));   // /tools among them since 2026-09-19
     }
 
@@ -535,22 +539,22 @@ public class SlashCommandsTests
     {
         // Nine groups, the user's order (/exit last beside /about, /compact under /reasoning, 2026-09-16; /speak + /view a
         // group of their own under /windowsize's, 2026-09-17; the three tool switches /ask /files /web — a group of their own
-        // from 2026-09-15 — gone later on 2026-09-18, /session under /profile and /copy under /queue the same day; later still on
-        // 2026-09-19 /skills + /learn under /session, /windowsize → /window under /view, /timer under /help); the flat list is
+        // from 2026-09-15 — gone later on 2026-09-18, /sessions under /profile and /copy under /queue the same day; later still on
+        // 2026-09-19 /skills + /learn under /sessions, /windowsize → /window under /view, /timer under /help); the flat list is
         // the groups end to end.
         Assert.Equal(new[] { 7, 6, 7, 4, 4, 5, 4, 3, 4 }, SlashCommands.HelpGroups.Select(g => g.Count));   // /loop under /draft since 2026-09-21   // /git under /emptytrash since 2026-09-21   // /mcp under /tools since 2026-09-20   // /learn under /skill since 2026-09-17; /skills folded into /skill 2026-09-18; /tools under /settings 2026-09-19; /draft under /copy later that day; /splash under /new later still
         Assert.Equal(44, SlashCommands.HelpEntries.Count);   // 44 with /loop, 43 with /git (2026-09-21)
         Assert.Equal(SlashCommands.HelpGroups.SelectMany(g => g), SlashCommands.HelpEntries);
         // /help moved to the bottom group above /about, and /memory heads its group (the user's call, 2026-09-16).
-        Assert.Equal(["/settings", "/tools", "/mcp", "/profile", "/session", "/skills", "/learn"], SlashCommands.HelpGroups[0].Select(e => e.Command));   // /session under /profile since later on 2026-09-18; /tools under /settings since 2026-09-19; /skills + /learn under /session later that day
+        Assert.Equal(["/settings", "/tools", "/mcp", "/profile", "/sessions", "/skills", "/learn"], SlashCommands.HelpGroups[0].Select(e => e.Command));   // /sessions under /profile since later on 2026-09-18; /tools under /settings since 2026-09-19; /skills + /learn under /sessions later that day
         Assert.Equal("/settings", SlashCommands.HelpEntries[0].Command);
         Assert.Equal("/tools", SlashCommands.HelpEntries[1].Command);
         Assert.Equal("switch the model's tools on or off and edit the Options, Ask, Files and Web settings on a pane", SlashCommands.HelpEntries[1].Summary);
         Assert.Equal("/mcp", SlashCommands.HelpEntries[2].Command);   // under /tools since 2026-09-20
         Assert.Equal("connect external MCP servers and switch their tools on or off on a pane", SlashCommands.HelpEntries[2].Summary);
         Assert.Equal("/profile", SlashCommands.HelpEntries[3].Command);
-        Assert.Equal("/session", SlashCommands.HelpEntries[4].Command);
-        Assert.Equal("list, restore and purge sessions: /session [<id> | purge <id> | purge older <age> | purge all | title <text>]", SlashCommands.HelpEntries[4].Summary);
+        Assert.Equal("/sessions", SlashCommands.HelpEntries[4].Command);
+        Assert.Equal("list, restore and purge sessions: /sessions [<id> | purge <id> | purge older <age> | purge all | title <text>]", SlashCommands.HelpEntries[4].Summary);
         Assert.Equal("/skills", SlashCommands.HelpEntries[5].Command);
         Assert.Equal("list the skills, edit the skill settings and the project file on a pane, or /skills edit <name> to open its SKILL.md", SlashCommands.HelpEntries[5].Summary);   // edit 2026-09-21   // the /skill <name> [message] form went later on 2026-09-18; the Roots tab later on 2026-09-19
         Assert.Equal("/learn", SlashCommands.HelpEntries[6].Command);

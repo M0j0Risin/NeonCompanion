@@ -14,8 +14,8 @@ public static class McpText
     /// <summary>The glyph every MCP status line leads with (U+1F50C, two cells, no variation selector — the strip's rule).</summary>
     public const string Glyph = "🔌";
 
-    /// <summary>The pane's title and the pickers' root: <c>MCP › MCP servers</c>.</summary>
-    public const string Label = "MCP";
+    /// <summary>The pane's title and the pickers' root: <c>🔌 MCP › MCP servers</c> (the glyph since later on 2026-09-21).</summary>
+    public const string Label = Glyph + " MCP";
 
     // ── The status lines (the TTS: / STT: shape) ────────────────────────────
 

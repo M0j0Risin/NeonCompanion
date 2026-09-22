@@ -51,7 +51,7 @@ public class TimerTextTests
         Assert.Equal(TimeSpan.Zero, duration);
     }
 
-    /// <summary>Days are opt-in (2026-09-21, for <c>/session purge older</c>); a bare number is still minutes and zero still refused.</summary>
+    /// <summary>Days are opt-in (2026-09-21, for <c>/sessions purge older</c>); a bare number is still minutes and zero still refused.</summary>
     [Theory]
     [InlineData("2d", 172800)]
     [InlineData("1 day", 86400)]

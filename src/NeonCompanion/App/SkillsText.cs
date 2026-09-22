@@ -35,8 +35,8 @@ public sealed record SkillsFacts(
 /// </summary>
 public static class SkillsText
 {
-    /// <summary>The pane's strip label.</summary>
-    public const string Label = "Skills";
+    /// <summary>The pane's strip label: the toolbar's glyph, then the name (the glyph since later on 2026-09-21).</summary>
+    public const string Label = ChatScreen.SkillsToolGlyph + " Skills";
 
     /// <summary>The first tab: <c>Offered</c> since 2026-09-19 (the user's call, the same word as <c>/tools</c>' first tab; <c>Loaded</c> before), not the pane's own word again.</summary>
     public const string OfferedTabTitle = "Offered";

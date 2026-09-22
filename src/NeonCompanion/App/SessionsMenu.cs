@@ -5,7 +5,7 @@ using Spectre.Console;
 namespace NeonCompanion.App;
 
 /// <summary>
-/// The bare <c>/session</c> screen (2026-09-18): this profile's stored sessions on a
+/// The bare <c>/sessions</c> screen (2026-09-18): this profile's stored sessions on a
 /// <see cref="MenuPane"/> page, newest first, one row each — the id, the last turn's moment and the
 /// turn count dim, then the title, the conversation on screen marked. Enter or a double-click on a
 /// row opens the row page under the list (<see cref="RowTitle"/>): <c>restore</c> hands the id back
@@ -15,12 +15,12 @@ namespace NeonCompanion.App;
 /// the pane opens on the watcher task while a reply runs — the list shows and any pick is refused
 /// (<see cref="SettingsMenu.NotWhileReplyRunsNotice"/>). Every notice goes to the pane's status line
 /// while it is open, else to the transcript. Without the pane the list prints as numbered lines and
-/// nothing else (<see cref="MemoryMenu"/>'s fallback); the typed forms of <c>/session</c> do the rest.
+/// nothing else (<see cref="MemoryMenu"/>'s fallback); the typed forms of <c>/sessions</c> do the rest.
 /// </summary>
 internal sealed class SessionsMenu
 {
     // The key hints. Pinned.
-    public const string Title = "Sessions";
+    public const string Title = "💬 Sessions";
     public const string Keys = "Enter = open · ESC = close";
     public const string RowKeys = SettingsMenu.PickKeys;
 

@@ -222,6 +222,9 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
 
     private sealed record Overlay(IRenderable Content, string Hint, bool Input, bool Close);
 
+    // Where the last dismissing double-click landed (Dismiss(x, y)), until TakeDismissHit.
+    private OffPaneHit? _dismissHit;
+
     /// <summary>The part of the standing hint row a click landed on (<see cref="TryHitHint(int, int, out HintHit)"/>).</summary>
     public enum HintZone
     {
@@ -337,6 +340,112 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
             }
         }
     }
+
+    /// <summary>
+    /// <see cref="Dismiss()"/> by a double-click at buffer cell (<paramref name="x"/>, <paramref name="y"/>)
+    /// (later on 2026-09-21, the user's ask): the part of the hint row or the toolbar under it
+    /// (<see cref="OffPaneHitAt"/>) is kept for <see cref="TakeDismissHit"/>, so the screen can
+    /// tell "the open pane's own glyph" (closed, nothing more) from "another pane's" (that one
+    /// opens next) once the host has backed out.
+    /// </summary>
+    public void Dismiss(int x, int y)
+    {
+        var hit = OffPaneHitAt(x, y);
+        if (!Enabled)
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            if (_overlay is not null)
+            {
+                Dismissed = true;
+                _dismissHit = hit;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The off-pane part the last <see cref="Dismiss(int, int)"/> landed on, once: cleared here,
+    /// by the next <see cref="ShowOverlay"/> and by <see cref="Close"/>. Null after a
+    /// <see cref="Dismiss()"/> without a click, a click on the transcript or a rule, or nothing dismissed.
+    /// </summary>
+    public OffPaneHit? TakeDismissHit()
+    {
+        lock (_gate)
+        {
+            var hit = _dismissHit;
+            _dismissHit = null;
+            return hit;
+        }
+    }
+
+    /// <summary>
+    /// The part of the hint row or the toolbar a click off an open pane names (later on
+    /// 2026-09-21): <see cref="Toolbar"/> on the toolbar row (a glyph, the path or the blanks),
+    /// <see cref="Hint"/> on the standing hint row (the model name, its reasoning mark, a strip
+    /// glyph or the rest — never the queued count or the tally, which are not drawn under a pane).
+    /// </summary>
+    public readonly record struct OffPaneHit(HintHit? Hint, ToolbarHit? Toolbar);
+
+    /// <summary>
+    /// <see cref="OffPaneHit"/> for buffer cell (<paramref name="x"/>, <paramref name="y"/>) —
+    /// <see cref="TryHitToolbar"/> and <see cref="TryHitHint(int, int, out HintHit)"/> without
+    /// their overlay guard, since this is asked while a pane is drawn (the readers' outside pair).
+    /// Null on the transcript, the rules, the overlay's own rows, under the busy row (the spinner's
+    /// row names nothing), when the pane is lifted, batched or modal, or when the console cannot
+    /// say where the cursor is.
+    /// </summary>
+    public OffPaneHit? OffPaneHitAt(int x, int y)
+    {
+        if (!Enabled)
+        {
+            return null;
+        }
+
+        lock (_gate)
+        {
+            if (!_drawn || _batch > 0 || _modal > 0 || _geometry?.CursorTop() is not int top)
+            {
+                return null;
+            }
+
+            if (_toolbarRows > 0 && y == top + LastRowBelowCursor)
+            {
+                return new OffPaneHit(null, ToolbarHitAt(_toolbarStrip, _toolbarPathColumn, _toolbarPathCells, x));
+            }
+
+            if (_busyLabel is null && y == top + HintRowBelowCursor)
+            {
+                return new OffPaneHit(HintHitAt(_hintStrip, _trailerColumn, _markColumn, -1, 0, -1, 0, x, _hintScrolled), null);
+            }
+
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The <see cref="DoubleClick"/> key of a click off an open pane (later on 2026-09-21): the
+    /// readers' <see cref="MenuPane.OutsideRow"/> on the transcript and the rules, else one key per
+    /// off-pane part — the toolbar's path, its blanks, each glyph by column; the hint row's zones,
+    /// each strip glyph by column — so two clicks on different parts never pair (the transcript
+    /// then a toolbar glyph opens nothing). All below −2, never the pairing's own −1. Pinned.
+    /// </summary>
+    public int OutsideKey(int x, int y) => OutsideKeyOf(OffPaneHitAt(x, y));
+
+    /// <summary><see cref="OutsideKey"/> for a hit already taken. Pure.</summary>
+    public static int OutsideKeyOf(OffPaneHit? hit) => hit switch
+    {
+        { Toolbar: { } tool } => tool.Zone switch
+        {
+            ToolbarZone.Path => -3,
+            ToolbarZone.Row => -4,
+            _ => -5 - tool.Column,
+        },
+        { Hint: { } row } => row.Zone == HintZone.Strip ? -200 - row.Column : -100 - (int)row.Zone,
+        _ => MenuPane.OutsideRow,
+    };
 
     /// <summary>The clock the tick and the busy row run on; the overlays share it (a menu's double-click).</summary>
     public TimeProvider Time => _time;
@@ -1330,6 +1439,7 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
         lock (_gate)
         {
             _overlay = new Overlay(content, hint, input, close);
+            _dismissHit = null;
             Redraw();
         }
     }
@@ -1601,6 +1711,7 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
                     _drawnInput = false;
                     _drawnClose = false;
                     Dismissed = false;
+                    _dismissHit = null;
                 }
             }
 
@@ -2303,7 +2414,8 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
     /// drawn toolbar (2026-09-21) — the pane's last row while one is drawn — naming the part under
     /// it (<see cref="ToolbarHitAt"/>). It answers under the busy row (the pane glyphs work under
     /// a reply, as the tally does) and while scrolled; false under an overlay (the row is off the
-    /// pane there: a double-click is the overlay's dismiss, <see cref="TryHitOutside"/>), when no
+    /// pane there: a double-click is the overlay's dismiss, <see cref="TryHitOutside"/>, and
+    /// <see cref="OffPaneHitAt"/> names the part for the screen's switch), when no
     /// toolbar is drawn, when the pane is lifted, or when the console cannot say where the cursor is.
     /// </summary>
     public bool TryHitToolbar(int x, int y, out ToolbarHit hit)
@@ -2574,7 +2686,9 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
                 // The close glyph in column w − 2 of the first row, TrailerGap cells clear of the
                 // title or the strip; a first row that leaves no room (a strip wider than the
                 // window) goes without.
-                int cells = overlayLines[0].CellCount();
+                // TextCells, not Spectre's CellCount (later on 2026-09-21, the title glyphs): Spectre
+                // counts a gear or a screen with its selector (⚙️ 🛠️ 🖥️) as one cell, the terminal two.
+                int cells = TextCells.Width(string.Concat(overlayLines[0].Select(s => s.Text)));
                 int glyph = TextCells.Width(CloseGlyph);
                 if (cells + TrailerGap + glyph <= w - 1)
                 {

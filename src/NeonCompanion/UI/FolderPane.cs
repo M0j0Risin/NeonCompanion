@@ -103,13 +103,16 @@ public sealed class FolderPane
 
                     if (!_pane.TryHitOverlay(click.X, click.Y, out int at))
                     {
-                        // Two off the pane within the interval close it, like every pane's; a gap is nothing.
+                        // Two off the pane within the interval close it, like every pane's — on the
+                        // same part (later on 2026-09-21), the dismiss keeping it for the screen's
+                        // close-or-switch; a gap is nothing.
                         if (!_pane.TryHitOutside(click.X, click.Y))
                         {
                             _clicks.Reset();
                         }
-                        else if (_clicks.Second(MenuPane.OutsideRow))
+                        else if (_clicks.Second(_pane.OutsideKey(click.X, click.Y)))
                         {
+                            _pane.Dismiss(click.X, click.Y);
                             return null;
                         }
 

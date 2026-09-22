@@ -164,7 +164,7 @@ public sealed class AppSettingsData
     /// <summary>
     /// Whether every completed turn is written to this profile's <c>sessions.db</c>
     /// (<see cref="Sessions.SessionStore"/>, 2026-09-18): a session per conversation, restorable with
-    /// <c>/session</c>. Off writes nothing; what is stored still lists, restores and purges. Read at
+    /// <c>/sessions</c>. Off writes nothing; what is stored still lists, restores and purges. Read at
     /// each turn, no reconnect; the Sessions tab's first row. No variable.
     /// </summary>
     public bool SessionLogging { get; set; } = true;
@@ -179,7 +179,7 @@ public sealed class AppSettingsData
 
     /// <summary>
     /// Days a session is kept after its last turn: at startup and after a profile switch, sessions
-    /// last updated longer ago are purged without a word (the <c>/session purge older</c> act run by
+    /// last updated longer ago are purged without a word (the <c>/sessions purge older</c> act run by
     /// the app). <c>0</c> keeps every session forever. <see cref="MinSessionRetentionDays"/> to
     /// <see cref="MaxSessionRetentionDays"/>. No variable.
     /// </summary>

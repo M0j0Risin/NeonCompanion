@@ -185,8 +185,34 @@ internal sealed partial class ChatScreen
         return true;
     }
 
-    /// <summary>The pane phase of a mid-turn pane command, on the watcher task; its acts are posted.</summary>
+    /// <summary>
+    /// The pane phase of a mid-turn pane command, on the watcher task; its acts are posted. Then
+    /// what a double-click off the pane named (later on 2026-09-21, as <c>HandleAsync</c> at idle):
+    /// the pane's own word ends there; another <see cref="MidTurnClass.Pane"/> command's opens that
+    /// pane; a word refused under the reply (<c>/model</c>, <c>/cwd browse</c>) is the close alone —
+    /// a click deserves no refusal notice.
+    /// </summary>
     private async Task RunPaneAsync(SlashCommand command, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            await RunPaneOnceAsync(command, cancellationToken).ConfigureAwait(false);
+            if (_pane.TakeDismissHit() is not { } hit || OffPaneLine(hit) is not { } next)
+            {
+                return;
+            }
+
+            var (nextCommand, args) = SlashCommands.Parse(next);
+            if (nextCommand == command || MidTurnPolicy(nextCommand, args.Length > 0) != MidTurnClass.Pane)
+            {
+                return;
+            }
+
+            command = nextCommand;
+        }
+    }
+
+    private async Task RunPaneOnceAsync(SlashCommand command, CancellationToken cancellationToken)
     {
         switch (command)
         {

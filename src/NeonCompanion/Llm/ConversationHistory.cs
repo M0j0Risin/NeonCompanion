@@ -237,7 +237,7 @@ public sealed class ConversationHistory
     }
 
     /// <summary>
-    /// A stored session back as the transcript (<c>/session</c>, 2026-09-18): <see cref="Replace"/>
+    /// A stored session back as the transcript (<c>/sessions</c>, 2026-09-18): <see cref="Replace"/>
     /// with <paramref name="messages"/>. The opening pairs are in the list; the next turn keeps them
     /// current rather than seeding them again. (Until later on 2026-09-18 it also continued the
     /// <c>/skill</c> activation counter; the name form went with the counter.)

@@ -249,14 +249,14 @@ public class SessionsMenuTests : IDisposable
     {
         var summary = new SessionSummary(12, ManualTimeProvider.DefaultUtcNow, ManualTimeProvider.DefaultUtcNow, "x [y]", TitleSource.FirstLine, "llama", 12);
 
-        Assert.Equal("Sessions", SessionsMenu.Title);
+        Assert.Equal("💬 Sessions", SessionsMenu.Title);
         Assert.Equal("Enter = open · ESC = close", SessionsMenu.Keys);
         Assert.Equal(SettingsMenu.PickKeys, SessionsMenu.RowKeys);
         Assert.Equal("(no sessions)", SessionsMenu.EmptyNotice);
         Assert.Equal("this conversation", SessionsMenu.CurrentNote);
         Assert.Equal("(that is this conversation)", SessionsMenu.CurrentNotice);
         Assert.Equal(new[] { "restore", "rename", "purge" }, SessionsMenu.RowWords);
-        Assert.Equal("Sessions › #12 x [y]", SessionsMenu.RowTitle(summary));
+        Assert.Equal(SessionsMenu.Title + " › #12 x [y]", SessionsMenu.RowTitle(summary));
         Assert.Equal("[#9A8BB8]#12  2026-09-11 14:05  12 turns[/]  x [[y]]", SessionsMenu.RowMarkup(summary, false, ManualTimeProvider.DefaultZone));
         Assert.Equal("[#9A8BB8]#12  2026-09-11 14:05  12 turns[/]  x [[y]]  [#9A8BB8]this conversation[/]", SessionsMenu.RowMarkup(summary, true, ManualTimeProvider.DefaultZone));
         // The widths pad the id and the count (the widest of the list), so a one-digit id and `1 turn` line up.
