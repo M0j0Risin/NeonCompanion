@@ -98,6 +98,38 @@ public partial class ChatScreenTests
         Assert.DoesNotContain("\nhi\n", output);
     }
 
+    /// <summary>The outside-paths police (2026-09-22): a line naming a path outside the sandbox is refused before the pane opens, the transcript line wears 👮, and the rules carry the policed head; off, nothing is policed and the head says only where a command starts.</summary>
+    [Fact]
+    public async Task RunCommand_OutsidePath_IsRefusedByThePolice_BehindTheOfficer_AndNeverAsked()
+    {
+        ShellFixture([Keys.Escape], "Staying inside.", command: @"type C:\Windows\win.ini");
+
+        string output = await RunAsync();
+
+        Assert.Contains(@"👮 Error: outside the working directory: 'C:\Windows\win.ini' — a command or a script may only name paths under it" + "\n", output);
+        Assert.DoesNotContain("🛠️ Error: outside", output);
+        Assert.DoesNotContain(ShellText.ApprovalTitle, output);   // the pane never opened
+        Assert.Contains("Staying inside.", output);
+        Assert.Equal(@"Error: outside the working directory: 'C:\Windows\win.ini' — a command or a script may only name paths under it", ToolResult(_chat.Requests[1], "c1"));
+        Assert.Contains(Assistant.ShellRuleWithoutBridge, _chat.Requests[0][0].Text!, StringComparison.Ordinal);   // the policed head, on by default
+        Assert.DoesNotContain("reach the whole computer", _chat.Requests[0][0].Text!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RunCommand_PoliceOff_TheLineReachesThePane_AndTheRulesSayOnlyWhereACommandStarts()
+    {
+        _settings.Update(d => d.ShellPoliceOutsidePaths = false);
+        ShellFixture([Keys.Down, Keys.Escape], "Denied then.", command: @"type C:\Windows\win.ini");
+
+        string output = await RunAsync();
+
+        Assert.Contains(@"🛠️ Error: the command was denied by the user: type C:\Windows\win.ini; do not retry it or work around the refusal" + "\n", output);
+        Assert.DoesNotContain("👮", output);
+        Assert.Contains(Assistant.ShellRuleWithoutBridgeUnpoliced, _chat.Requests[0][0].Text!, StringComparison.Ordinal);
+        Assert.DoesNotContain("may only name paths under it", _chat.Requests[0][0].Text!, StringComparison.Ordinal);
+        Assert.DoesNotContain("reach the whole computer", _chat.Requests[0][0].Text!, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task RunCommand_EnterOnDeny_Denies_AndTheHotkeyD_IsTheSame()
     {

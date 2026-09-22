@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.AI;
+using NeonCompanion.Diagnostics;
+using NeonCompanion.Files;
 using NeonCompanion.Settings;
 using NeonCompanion.Shell;
 
@@ -16,7 +18,10 @@ namespace NeonCompanion.Llm.Tools;
 /// Every result is one text with a header line (<see cref="ShellText"/>), the output cut at
 /// <c>Shell output max chars</c> without a spill — the ring keeps the last lines, <c>log</c> reaches
 /// them. Any unique prefix of an id will do. Offered with <c>run_command</c>; the gate is not
-/// consulted here — what runs was approved when it started.
+/// consulted here — what runs was approved when it started. The police is (2026-09-22, the user's
+/// call): with <c>Shell police outside paths</c> on, the text <c>write</c> / <c>submit</c> send is read by
+/// <see cref="PathPolice"/> before it goes — a background shell typed <c>cd C:\</c> would be the one
+/// hole left — and refused with <see cref="ShellText.OutsidePath"/>, nothing sent.
 /// </summary>
 public sealed class ProcessTool : AIFunction
 {
@@ -66,11 +71,13 @@ public sealed class ProcessTool : AIFunction
         """);
 
     private readonly ProcessRegistry _registry;
+    private readonly WorkingDirectory _files;
     private readonly Func<AppSettingsData> _effective;
 
-    public ProcessTool(ProcessRegistry registry, Func<AppSettingsData> effective)
+    public ProcessTool(ProcessRegistry registry, WorkingDirectory files, Func<AppSettingsData> effective)
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
+        _files = files ?? throw new ArgumentNullException(nameof(files));
         _effective = effective ?? throw new ArgumentNullException(nameof(effective));
     }
 
@@ -192,6 +199,13 @@ public sealed class ProcessTool : AIFunction
                 if (data.Length == 0 && action == WriteAction)
                 {
                     return ShellText.DataRequired;
+                }
+
+                // The police (Shell police outside paths, 2026-09-22): what goes to a process's stdin is read like a command line, relative paths from where it started.
+                if (_effective().ShellPoliceOutsidePaths && PathPolice.Judge(data, _files, session.Launch.WorkingDirectory, isScript: false) is { } outside)
+                {
+                    DiagnosticLog.Info(ShellKinds.Category, ShellText.PolicedLogLine(new CommandRequest(session.Kind, data, []), outside));
+                    return ShellText.OutsidePath(outside);
                 }
 
                 bool line = action == SubmitAction;

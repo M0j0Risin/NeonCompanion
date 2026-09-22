@@ -50,12 +50,25 @@ public sealed class RunCommandToolTests : IDisposable
     {
         Assert.Equal("run_command", _tool.Name);
         Assert.Equal(["run_command", "process", "execute_code"], ShellToolNames.All);
+        // The description follows Shell police outside paths (2026-09-22): on, the command stays under the working directory; off, it starts there and nothing more — neither says "not confined".
         Assert.Equal(
             "Runs a command line in a shell on the user's computer and returns its exit code and output. " +
-            "It starts in the working directory but is not confined to it, so the user approves a command before it runs and may deny it. " +
+            "It runs in the working directory and may only name paths under it (relative, or absolute under it); the user approves a command before it runs and may deny it. " +
+            "Use it for a program, a build, a test or a script the user asks for; a denied or refused command must not be retried or worked around. " +
+            "Use background for a server or a long job and the process tool to read it.",
+            _tool.Description);
+        Assert.Equal(RunCommandTool.DescriptionPoliced, _tool.Description);
+        _settings.ShellPoliceOutsidePaths = false;
+        Assert.Equal(
+            "Runs a command line in a shell on the user's computer and returns its exit code and output. " +
+            "It starts in the working directory; the user approves a command before it runs and may deny it. " +
             "Use it for a program, a build, a test or a script the user asks for; a denied command must not be retried or worked around. " +
             "Use background for a server or a long job and the process tool to read it.",
             _tool.Description);
+        Assert.Equal(RunCommandTool.DescriptionUnpoliced, _tool.Description);
+        Assert.DoesNotContain("confined", RunCommandTool.DescriptionUnpoliced);
+        Assert.DoesNotContain("under it", RunCommandTool.DescriptionUnpoliced);
+        _settings.ShellPoliceOutsidePaths = true;
         var schema = _tool.JsonSchema;
         Assert.Equal("object", schema.GetProperty("type").GetString());
         Assert.Equal(["command", "shell", "workdir", "timeout", "background", "notify"], schema.GetProperty("properties").EnumerateObject().Select(p => p.Name));
@@ -80,6 +93,27 @@ public sealed class RunCommandToolTests : IDisposable
         Assert.Equal("powershell", _tool.DefaultShell);
         Assert.Equal(600, RunCommandTool.ForegroundCap(new AppSettingsData()));
         Assert.Equal(3600, RunCommandTool.ForegroundCap(new AppSettingsData { ShellForegroundCapSeconds = 99999 }));
+    }
+
+    [Fact]
+    public async Task Police_RefusesAnOutsidePath_BeforeTheGate_AndOffLetsItThrough()
+    {
+        // Shell police outside paths (2026-09-22): under ask, a line naming a path outside the sandbox is refused with the 👮 sentence and the asker is never called.
+        _settings.ShellCommandPolicy = "ask";
+        Directory.CreateDirectory(Path.Combine(_root, "sub"));
+        Assert.Equal(@"Error: outside the working directory: 'C:\Windows\win.ini' — a command or a script may only name paths under it", await Invoke(("command", @"type C:\Windows\win.ini")));
+        Assert.Equal(@"Error: outside the working directory: '..\..' — a command or a script may only name paths under it", await Invoke(("command", @"cd ..\.."), ("workdir", "sub")));   // relative to the workdir: sub\..\.. leaves the root
+        Assert.Equal("Error: outside the working directory: '~' — a command or a script may only name paths under it", await Invoke(("command", "dir ~")));
+        Assert.Equal("Error: outside the working directory: '%USERPROFILE%' — a command or a script may only name paths under it", await Invoke(("command", "dir %USERPROFILE%\\Desktop")));
+        Assert.Empty(_asked);
+        // A line under the root is put to the gate as before (the asker denies here).
+        Assert.Equal("Error: the command was denied by the user: dir " + _root + "; do not retry it or work around the refusal", await Invoke(("command", "dir " + _root)));
+        Assert.Equal("Error: the command was denied by the user: cd ..; do not retry it or work around the refusal", await Invoke(("command", "cd .."), ("workdir", "sub")));   // sub\.. is the root
+        Assert.Equal(2, _asked.Count);
+        // Off: the same line reaches the gate.
+        _settings.ShellPoliceOutsidePaths = false;
+        Assert.Equal(@"Error: the command was denied by the user: type C:\Windows\win.ini; do not retry it or work around the refusal", await Invoke(("command", @"type C:\Windows\win.ini")));
+        Assert.Equal(3, _asked.Count);
     }
 
     [Fact]

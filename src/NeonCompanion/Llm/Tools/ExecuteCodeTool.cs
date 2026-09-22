@@ -23,6 +23,10 @@ namespace NeonCompanion.Llm.Tools;
 /// <c>code:&lt;language&gt;</c>, so "allow python scripts for this session" is one pick. The result
 /// is the <c>run_command</c> shape with the tool-call count in the header; the run folder under
 /// the temp directory goes when the run does. No kernel: state lives in files the script writes.
+/// Since 2026-09-22 the police reads the script before the gate (<see cref="PathPolice"/>, the setting
+/// <c>Shell police outside paths</c>, on by default): a script whose text names a path outside the
+/// working directory is refused with <see cref="ShellText.OutsidePath"/>, and the description and the
+/// <c>code</c> property say the script stays under it (off, neither says a word about where it may reach).
 /// </summary>
 public sealed class ExecuteCodeTool : AIFunction
 {
@@ -68,21 +72,41 @@ public sealed class ExecuteCodeTool : AIFunction
 
     public override string Name => ToolName;
 
-    /// <summary>What the model reads with the bridge on: the script may call the other tools. Pinned.</summary>
+    /// <summary>What the model reads with the bridge on and the police on (2026-09-22, the default): the script may call the other tools and stays under the working directory. Pinned.</summary>
     public const string DescriptionWithBridge =
+        "Runs a script (python, node or powershell) in a fresh process and returns what it printed. " +
+        "The script can call this app's other tools by name through the neon_tools module, so several steps can be done in one call; " +
+        "it runs in the working directory and may only name paths under it, the same approval as run_command applies, and a denied or refused script must not be retried or worked around.";
+
+    /// <summary>What the model reads with the bridge off (<c>Shell tool bridge</c>, later on 2026-09-21) and the police on: not a word about calling tools, so it never tries. Pinned.</summary>
+    public const string DescriptionWithoutBridge =
+        "Runs a script (python, node or powershell) in a fresh process and returns what it printed; " +
+        "it runs in the working directory and may only name paths under it, the same approval as run_command applies, and a denied or refused script must not be retried or worked around.";
+
+    /// <summary><see cref="DescriptionWithBridge"/> with the police off (<c>Shell police outside paths</c>, 2026-09-22): the text until that day — not a word about where the script may reach. Pinned.</summary>
+    public const string DescriptionWithBridgeUnpoliced =
         "Runs a script (python, node or powershell) in a fresh process and returns what it printed. " +
         "The script can call this app's other tools by name through the neon_tools module, so several steps can be done in one call; " +
         "the same approval as run_command applies, and a denied script must not be retried or worked around.";
 
-    /// <summary>What the model reads with the bridge off (<c>Shell tool bridge</c>, later on 2026-09-21): not a word about calling tools, so it never tries. Pinned.</summary>
-    public const string DescriptionWithoutBridge =
+    /// <summary><see cref="DescriptionWithoutBridge"/> with the police off: neither the bridge nor the confinement is named. Pinned.</summary>
+    public const string DescriptionWithoutBridgeUnpoliced =
         "Runs a script (python, node or powershell) in a fresh process and returns what it printed; " +
         "the same approval as run_command applies, and a denied script must not be retried or worked around.";
+
+    /// <summary>The four descriptions by the two settings.</summary>
+    public static string DescribeTool(bool bridge, bool police) => (bridge, police) switch
+    {
+        (true, true) => DescriptionWithBridge,
+        (false, true) => DescriptionWithoutBridge,
+        (true, false) => DescriptionWithBridgeUnpoliced,
+        (false, false) => DescriptionWithoutBridgeUnpoliced,
+    };
 
     /// <summary>The bridge's on/off, read at each look — the description, the schema and the run all follow the setting.</summary>
     private bool Bridge => _effective().ShellToolBridge;
 
-    public override string Description => Bridge ? DescriptionWithBridge : DescriptionWithoutBridge;
+    public override string Description => DescribeTool(Bridge, _effective().ShellPoliceOutsidePaths);
 
     /// <summary>The languages the model may name right now: the setting's, whose interpreter is found, in <see cref="CodeLanguages.Names"/> order.</summary>
     public IReadOnlyList<string> AvailableLanguages => _interpreters.AvailableLanguages(CodeLanguages.Resolve(_effective())).Select(CodeLanguages.Name).ToList();
@@ -95,10 +119,11 @@ public sealed class ExecuteCodeTool : AIFunction
             var effective = _effective();
             int cap = Math.Clamp(effective.ShellCodeTimeoutSeconds, AppSettingsData.MinShellCodeTimeoutSeconds, AppSettingsData.MaxShellCodeTimeoutSeconds);
             bool bridge = effective.ShellToolBridge;
-            string key = string.Join(",", languages) + "|" + cap.ToString(CultureInfo.InvariantCulture) + (bridge ? "|bridge" : "");
+            bool police = effective.ShellPoliceOutsidePaths;
+            string key = string.Join(",", languages) + "|" + cap.ToString(CultureInfo.InvariantCulture) + (bridge ? "|bridge" : "") + (police ? "|police" : "");
             if (_schema.ValueKind == JsonValueKind.Undefined || !string.Equals(key, _schemaKey, StringComparison.Ordinal))
             {
-                _schema = SchemaFor(languages, cap, bridge);
+                _schema = SchemaFor(languages, cap, bridge, police);
                 _schemaKey = key;
             }
 
@@ -112,12 +137,19 @@ public sealed class ExecuteCodeTool : AIFunction
     /// <summary>… and with the bridge off: the script alone. Pinned.</summary>
     public const string CodeDescriptionWithoutBridge = "The script; print what you want back.";
 
-    /// <summary>The schema over the languages offered; with <paramref name="bridge"/> the <c>code</c> property says how a script calls a tool, without it not a word (later on 2026-09-21). Pinned.</summary>
-    public static JsonElement SchemaFor(IReadOnlyList<string> languages, int defaultTimeout, bool bridge = true)
+    /// <summary>What the <c>code</c> property's description gains with the police on (2026-09-22): the one rule a script must keep. Pinned.</summary>
+    public const string CodeDescriptionPolicedSuffix = " Every path in it must stay under the working directory.";
+
+    /// <summary>
+    /// The schema over the languages offered; with <paramref name="bridge"/> the <c>code</c> property says how a script
+    /// calls a tool, without it not a word (later on 2026-09-21); with <paramref name="police"/> it ends with
+    /// <see cref="CodeDescriptionPolicedSuffix"/> (2026-09-22). Pinned.
+    /// </summary>
+    public static JsonElement SchemaFor(IReadOnlyList<string> languages, int defaultTimeout, bool bridge = true, bool police = true)
     {
         ArgumentNullException.ThrowIfNull(languages);
         string names = string.Join(", ", languages.Select(l => "\"" + l + "\""));
-        string code = bridge ? CodeDescriptionWithBridge : CodeDescriptionWithoutBridge;
+        string code = (bridge ? CodeDescriptionWithBridge : CodeDescriptionWithoutBridge) + (police ? CodeDescriptionPolicedSuffix : "");
         return ToolSchema.Parse(
             $$"""
             {
@@ -182,6 +214,13 @@ public sealed class ExecuteCodeTool : AIFunction
         }
 
         var request = new CommandRequest(name, code, [ShellText.ScriptPrefix(name)], IsScript: true);
+        // The police before the gate (Shell police outside paths, 2026-09-22): a script naming a path outside the working directory is refused, and the pane is never asked about it.
+        if (effective.ShellPoliceOutsidePaths && PathPolice.Judge(code, _files, workingDirectory, isScript: true) is { } outside)
+        {
+            DiagnosticLog.Info(ShellKinds.Category, ShellText.PolicedLogLine(request, outside));
+            return ShellText.OutsidePath(outside);
+        }
+
         var verdict = await _gate.JudgeAsync(request, cancellationToken).ConfigureAwait(false);
         if (!verdict.Allowed)
         {

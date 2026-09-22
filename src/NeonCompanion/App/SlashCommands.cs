@@ -302,6 +302,7 @@ public static class SlashCommands
     public const string SysWord = "/sys";
     public const string SessionsWord = "/sessions";   // later on 2026-09-21, the sixth glyph
     public const string CmdListWord = "/cmdlist";     // later still on 2026-09-21, the seventh: the lock, whichever way the policy turns it
+    public const string MemoryWord = "/memory";       // 2026-09-22, the disk between the balloon and the lock, while Memory is on
 
     /// <summary>The words the hint row's model name and reasoning mark send through the screen's dispatch at idle (later on 2026-09-21, so a double-click off the pane they open can switch panes). Pinned.</summary>
     public const string ModelWord = "/model";

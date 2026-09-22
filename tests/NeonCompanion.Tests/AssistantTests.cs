@@ -264,8 +264,8 @@ public class AssistantTests
         Assert.Equal(
             "To run a program, a build, a test or a script the user asks for, call run_command with the command line " +
             "(shell picks powershell, cmd or bash when the user's default will not do; workdir a folder under the working directory); " +
-            "it starts in the working directory but can reach the whole computer, so the user approves each command before it runs and may deny it — " +
-            "never retry or work around a denied command, and say what you ran. " +
+            "it runs in the working directory and may only name paths under it (relative, or absolute under it), and the user approves each command before it runs and may deny it — " +
+            "never retry or work around a denied or refused command, and say what you ran. " +
             "For a server or a long job pass background and use process to poll, read, wait for, write to or kill it; " +
             "with notify you are told at your next turn when it exits. " +
             "For a task with several steps or many tool calls, execute_code runs a python, node or powershell script that can call these same tools through its neon_tools module and returns what it printed.",
@@ -288,8 +288,8 @@ public class AssistantTests
         Assert.Equal(
             "To run a program, a build, a test or a script the user asks for, call run_command with the command line " +
             "(shell picks powershell, cmd or bash when the user's default will not do; workdir a folder under the working directory); " +
-            "it starts in the working directory but can reach the whole computer, so the user approves each command before it runs and may deny it — " +
-            "never retry or work around a denied command, and say what you ran. " +
+            "it runs in the working directory and may only name paths under it (relative, or absolute under it), and the user approves each command before it runs and may deny it — " +
+            "never retry or work around a denied or refused command, and say what you ran. " +
             "For a server or a long job pass background and use process to poll, read, wait for, write to or kill it; " +
             "with notify you are told at your next turn when it exits. " +
             "For a task with several steps, execute_code runs a python, node or powershell script and returns what it printed.",
@@ -299,6 +299,37 @@ public class AssistantTests
         Assert.Equal(Assistant.DefaultSystemPrompt + " " + Assistant.GitRule + " " + Assistant.ShellRuleWithoutBridge, Assistant.SystemPrompt(false, null, git: true, shell: true, bridge: false));
         Assert.Equal(Assistant.DefaultRules(false, true) + " " + Assistant.ShellRuleWithoutBridge, Assistant.DefaultRules(false, true, shell: true));
         Assert.Equal(Assistant.DefaultSystemPrompt, Assistant.SystemPrompt(false, null, bridge: true));   // the bridge rides the shell rule alone
+    }
+
+    /// <summary>The police off (Shell police outside paths, 2026-09-22): the head says a command starts in the working directory and nothing about where it may reach — until that day it said "can reach the whole computer", and no variant does now.</summary>
+    [Fact]
+    public void SystemPrompt_ShellOn_PoliceOff_AppendsTheUnpolicedRule()
+    {
+        const string Unpoliced =
+            "To run a program, a build, a test or a script the user asks for, call run_command with the command line " +
+            "(shell picks powershell, cmd or bash when the user's default will not do; workdir a folder under the working directory); " +
+            "it starts in the working directory, and the user approves each command before it runs and may deny it — " +
+            "never retry or work around a denied command, and say what you ran. " +
+            "For a server or a long job pass background and use process to poll, read, wait for, write to or kill it; " +
+            "with notify you are told at your next turn when it exits. ";
+        Assert.Equal(Unpoliced + "For a task with several steps or many tool calls, execute_code runs a python, node or powershell script that can call these same tools through its neon_tools module and returns what it printed.", Assistant.ShellRuleUnpoliced);
+        Assert.Equal(Unpoliced + "For a task with several steps, execute_code runs a python, node or powershell script and returns what it printed.", Assistant.ShellRuleWithoutBridgeUnpoliced);
+        foreach (string rule in new[] { Assistant.ShellRule, Assistant.ShellRuleWithoutBridge, Assistant.ShellRuleUnpoliced, Assistant.ShellRuleWithoutBridgeUnpoliced })
+        {
+            Assert.DoesNotContain("reach", rule);
+            Assert.DoesNotContain("confined", rule);
+        }
+
+        Assert.DoesNotContain("under it", Assistant.ShellRuleUnpoliced);
+        Assert.DoesNotContain("under it", Assistant.ShellRuleWithoutBridgeUnpoliced);
+        Assert.Equal(Assistant.ShellRule, Assistant.ShellRuleFor(bridge: true, police: true));
+        Assert.Equal(Assistant.ShellRuleWithoutBridge, Assistant.ShellRuleFor(bridge: false, police: true));
+        Assert.Equal(Assistant.ShellRuleUnpoliced, Assistant.ShellRuleFor(bridge: true, police: false));
+        Assert.Equal(Assistant.ShellRuleWithoutBridgeUnpoliced, Assistant.ShellRuleFor(bridge: false, police: false));
+        Assert.Equal(Assistant.DefaultSystemPrompt + " " + Assistant.ShellRuleWithoutBridgeUnpoliced, Assistant.SystemPrompt(false, null, shell: true, police: false));
+        Assert.Equal(Assistant.DefaultSystemPrompt + " " + Assistant.ShellRuleUnpoliced, Assistant.SystemPrompt(false, null, shell: true, bridge: true, police: false));
+        Assert.Equal(Assistant.DefaultRules(false, true) + " " + Assistant.ShellRuleWithoutBridgeUnpoliced, Assistant.DefaultRules(false, true, shell: true, police: false));
+        Assert.Equal(Assistant.DefaultSystemPrompt, Assistant.SystemPrompt(false, null, police: false));   // the police rides the shell rule alone
     }
 
     /// <summary>The MCP rule (2026-09-20): after the session rule, only with tools, only when asked for.</summary>

@@ -227,6 +227,20 @@ public class TranscriptRendererTests : IDisposable
         Assert.Equal("  🎓 created skill 'rain-haiku' (profile, 200 bytes)", _console.Lines[^1]);
     }
 
+    /// <summary>The police's line (2026-09-22): a shell tool's refusal by the outside-paths police wears the officer, the tool note's shape otherwise.</summary>
+    [Fact]
+    public void PoliceNote_IsOneDimLine_BehindTheOfficer_ContinuingABareGlyph()
+    {
+        _t.BeginAssistant();
+        _t.PoliceNote("Error: outside the working directory: 'C:\\Windows'");
+        _t.AppendDelta("I will stay inside.");
+        _t.EndAssistant();
+        Assert.Equal(new[] { "● 👮 Error: outside the working directory: 'C:\\Windows'", "I will stay inside." }, _console.Lines);
+
+        _t.PoliceNote("Error: outside the working directory: '~'");
+        Assert.Equal("  👮 Error: outside the working directory: '~'", _console.Lines[^1]);
+    }
+
     [Fact]
     public void ToolNotes_IsOneDimLinePerLine_BlankLinesSkipped()
     {
@@ -249,6 +263,8 @@ public class TranscriptRendererTests : IDisposable
         Assert.Equal("[#9A8BB8]  🛠️ remembered: [[x]][/]", TranscriptRenderer.ToolNoteMarkup("remembered: [x]"));
         Assert.Equal("[#9A8BB8]  🎓 loaded skill '[[x]]'[/]", TranscriptRenderer.SkillNoteMarkup("loaded skill '[x]'"));   // later on 2026-09-21
         Assert.Equal("  🎓 ", TranscriptRenderer.SkillGlyph);
+        Assert.Equal("[#9A8BB8]  👮 Error: outside the working directory: '[[x]]' — a command or a script may only name paths under it[/]", TranscriptRenderer.PoliceNoteMarkup("Error: outside the working directory: '[x]' — a command or a script may only name paths under it"));   // 2026-09-22
+        Assert.Equal("  👮 ", TranscriptRenderer.PoliceGlyph);
         Assert.Equal(InputLine.SubmittedMarkup("u"), TranscriptRenderer.UserMarkup("u"));
         Assert.Equal("● ", TranscriptRenderer.AssistantGlyph);
     }

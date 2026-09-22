@@ -738,8 +738,9 @@ internal sealed partial class ChatScreen
             // force (the resolved path, what /cwd prints and the banner shows) and the folder; read
             // per draw and on the tick, so a /cwd change or a flipped Show toolbar shows at once —
             // and the lock (later still that day) follows Shell command policy the same way; TryParse,
-            // not Resolve: the draw must not warn on a hand-edited word, the turn does.
-            Toolbar = () => _effective() is { ShowToolbar: true } shown ? new ScreenPane.ToolbarParts(ToolbarStripFor(ToolbarPolicy(shown)), WorkingDirectory.Resolve(shown.WorkingDirectory, _settings.ProfileDirectory)) : null,
+            // not Resolve: the draw must not warn on a hand-edited word, the turn does. The disk and
+            // the officer (2026-09-22) follow Memory and Shell police outside paths the same way.
+            Toolbar = () => _effective() is { ShowToolbar: true } shown ? new ScreenPane.ToolbarParts(ToolbarStripFor(shown.Memory, ToolbarPolicy(shown), shown.ShellPoliceOutsidePaths), WorkingDirectory.Resolve(shown.WorkingDirectory, _settings.ProfileDirectory)) : null,
             Placeholder = InputPlaceholder,
         };
         _keys.Mirror = _pane;
@@ -858,6 +859,14 @@ internal sealed partial class ChatScreen
     /// nothing under <c>off</c> — the row reads the policy at each draw (<see cref="ToolbarStripFor"/>),
     /// so a change on the Tools pane swaps the lock as the pane closes. Either lock's double-click is
     /// <c>/cmdlist</c>: the <c>Shell allowed commands</c> list opened straight, the typed word too.
+    /// Two more come and go the same way (2026-09-22, the user's ask): the disk between the balloon
+    /// and the lock while <c>Memory</c> is on — its pane's title already wore it — whose double-click
+    /// is <c>/memory</c>, the list Enter prunes; and the officer last of all while <c>Shell police
+    /// outside paths</c> is on, the glyph the transcript's refusal line wears, with no click of its
+    /// own yet (the strip does not name it, so a pair is nothing at idle and the close alone under
+    /// a pane — the user's call). Both follow their switch at each draw, so a flip on its pane shows
+    /// as the pane closes; the columns after the balloon move with the disk, which the hit-test walk
+    /// and the column-keyed pairing take as they come.
     /// </summary>
     public const string SettingsToolGlyph = "⚙️";
     public const string ToolsToolGlyph = "🛠️";
@@ -865,17 +874,43 @@ internal sealed partial class ChatScreen
     public const string SkillsToolGlyph = "🎓";
     public const string SysToolGlyph = "🎭";
     public const string SessionsToolGlyph = "💬";
+    public const string MemoryToolGlyph = "💾";
     public const string CmdAskToolGlyph = "🔒";
     public const string CmdYoloToolGlyph = "🔓";
+    public const string PoliceToolGlyph = "👮";
     public static readonly string ToolbarStrip = string.Join(GlyphSeparator, SettingsToolGlyph, ToolsToolGlyph, McpToolGlyph, SkillsToolGlyph, SysToolGlyph, SessionsToolGlyph);
 
-    /// <summary>The strip drawn under <paramref name="policy"/>: <see cref="ToolbarStrip"/> alone under <c>off</c>, the closed lock after it under <c>ask</c>, the open one under <c>yolo</c>. Pinned.</summary>
-    public static string ToolbarStripFor(Shell.CommandPolicyMode policy) => policy switch
+    /// <summary>
+    /// The strip drawn for the switches, in the strip's order: <see cref="ToolbarStrip"/>, the disk
+    /// while <paramref name="memory"/> is on, the closed lock under <c>ask</c> or the open one under
+    /// <c>yolo</c> (neither under <c>off</c>), the officer while <paramref name="police"/> is on.
+    /// The six alone with everything off. Pinned.
+    /// </summary>
+    public static string ToolbarStripFor(bool memory, Shell.CommandPolicyMode policy, bool police)
     {
-        Shell.CommandPolicyMode.Ask => ToolbarStrip + GlyphSeparator + CmdAskToolGlyph,
-        Shell.CommandPolicyMode.Yolo => ToolbarStrip + GlyphSeparator + CmdYoloToolGlyph,
-        _ => ToolbarStrip,
-    };
+        var strip = new StringBuilder(ToolbarStrip);
+        if (memory)
+        {
+            strip.Append(GlyphSeparator).Append(MemoryToolGlyph);
+        }
+
+        switch (policy)
+        {
+            case Shell.CommandPolicyMode.Ask:
+                strip.Append(GlyphSeparator).Append(CmdAskToolGlyph);
+                break;
+            case Shell.CommandPolicyMode.Yolo:
+                strip.Append(GlyphSeparator).Append(CmdYoloToolGlyph);
+                break;
+        }
+
+        if (police)
+        {
+            strip.Append(GlyphSeparator).Append(PoliceToolGlyph);
+        }
+
+        return strip.ToString();
+    }
 
     /// <summary>The policy the toolbar's lock shows for <paramref name="shown"/>: the saved word parsed, a hand-edited one read as <c>ask</c> without a warning (<see cref="Shell.CommandPolicy.Resolve"/> warns once, at the turn).</summary>
     private static Shell.CommandPolicyMode ToolbarPolicy(AppSettingsData shown)
@@ -914,7 +949,7 @@ internal sealed partial class ChatScreen
         _ => null,
     };
 
-    /// <summary>The command a double-click on a toolbar glyph runs (2026-09-21), as the typed word; null for anything else. Pinned.</summary>
+    /// <summary>The command a double-click on a toolbar glyph runs (2026-09-21), as the typed word; null for anything else — the officer included (2026-09-22: no click of its own yet). Pinned.</summary>
     public static string? ToolbarWord(string glyph) => glyph switch
     {
         SettingsToolGlyph => SlashCommands.SettingsWord,
@@ -923,6 +958,7 @@ internal sealed partial class ChatScreen
         McpToolGlyph => SlashCommands.McpWord,
         SysToolGlyph => SlashCommands.SysWord,
         SessionsToolGlyph => SlashCommands.SessionsWord,
+        MemoryToolGlyph => SlashCommands.MemoryWord,
         CmdAskToolGlyph or CmdYoloToolGlyph => SlashCommands.CmdListWord,
         _ => null,
     };
@@ -1932,7 +1968,8 @@ internal sealed partial class ChatScreen
             Without(_gitTools, disabled).Count,
             ShellOffered(effective),
             Without(ShellToolsFor(_shellTools), disabled).Count,
-            effective.ShellToolBridge);
+            effective.ShellToolBridge,
+            effective.ShellPoliceOutsidePaths);
     }
 
     /// <summary>
@@ -2645,7 +2682,7 @@ internal sealed partial class ChatScreen
     public static IReadOnlyList<AIFunction> ShellTools(ShellRunner runner, ProcessRegistry processes, WorkingDirectory files, CommandGate gate, Interpreters interpreters, Func<AppSettingsData> effective, Random random, Func<IReadOnlyList<AIFunction>> turnTools, string? runsFolder = null) => new AIFunction[]
     {
         new RunCommandTool(runner, processes, files, gate, interpreters, effective, random),
-        new ProcessTool(processes, effective),
+        new ProcessTool(processes, files, effective),
         new ExecuteCodeTool(runner, files, gate, interpreters, effective, turnTools, random, runsFolder),
     };
 
@@ -2797,7 +2834,7 @@ internal sealed partial class ChatScreen
     /// (<see cref="Assistant.TimerRule"/>, 2026-09-20) rides only while a timer tool is among <paramref name="standingTools"/>:
     /// headless passes the clock alone (nothing could ring the alert), and the pane loses the three on <c>/tools</c>. Shared with headless.
     /// </summary>
-    public static void PrepareTurn(Assistant assistant, MemoryStore memory, IReadOnlyList<AIFunction> memoryTools, IReadOnlyList<AIFunction> standingTools, PersonaFile persona, OperataFile operata, VocaliaFile vocalia, bool memoryEnabled, bool speechOutput, int maxToolIterations = Assistant.DefaultMaxToolIterations, bool toolsEnabled = true, IReadOnlyList<AIFunction>? webTools = null, bool webEnabled = false, Assistant.TurnContextGuard? contextGuard = null, IReadOnlyList<AIFunction>? fileTools = null, bool filesEnabled = false, IReadOnlyList<AIFunction>? askTools = null, SkillsForTurn? skills = null, bool markdown = false, IReadOnlyList<AIFunction>? sessionTools = null, bool sessionsEnabled = false, IReadOnlySet<string>? disabledTools = null, IReadOnlyList<AIFunction>? mcpTools = null, bool mcpEnabled = false, bool safeEdits = true, IReadOnlyList<AIFunction>? gitTools = null, bool gitEnabled = false, IReadOnlyList<AIFunction>? shellTools = null, bool shellEnabled = false, ProcessRegistry? processes = null, bool shellBridge = false)
+    public static void PrepareTurn(Assistant assistant, MemoryStore memory, IReadOnlyList<AIFunction> memoryTools, IReadOnlyList<AIFunction> standingTools, PersonaFile persona, OperataFile operata, VocaliaFile vocalia, bool memoryEnabled, bool speechOutput, int maxToolIterations = Assistant.DefaultMaxToolIterations, bool toolsEnabled = true, IReadOnlyList<AIFunction>? webTools = null, bool webEnabled = false, Assistant.TurnContextGuard? contextGuard = null, IReadOnlyList<AIFunction>? fileTools = null, bool filesEnabled = false, IReadOnlyList<AIFunction>? askTools = null, SkillsForTurn? skills = null, bool markdown = false, IReadOnlyList<AIFunction>? sessionTools = null, bool sessionsEnabled = false, IReadOnlySet<string>? disabledTools = null, IReadOnlyList<AIFunction>? mcpTools = null, bool mcpEnabled = false, bool safeEdits = true, IReadOnlyList<AIFunction>? gitTools = null, bool gitEnabled = false, IReadOnlyList<AIFunction>? shellTools = null, bool shellEnabled = false, ProcessRegistry? processes = null, bool shellBridge = false, bool shellPolice = true)
     {
         ArgumentNullException.ThrowIfNull(assistant);
         ArgumentNullException.ThrowIfNull(memory);
@@ -2866,6 +2903,8 @@ internal sealed partial class ChatScreen
         offered = shell ? [.. offered, .. shellTools!] : offered;
         // The shell rule's execute_code sentence promises neon_tools only while the setting Shell tool bridge is on (later on 2026-09-21).
         bool bridge = shell && shellBridge;
+        // … and its head says the shell stays under the working directory only while the setting Shell police outside paths is on (2026-09-22); off, it says a command starts there and no more.
+        bool police = !shell || shellPolice;
         IReadOnlyList<AIFunction> tools = (web, memoryEnabled) switch
         {
             (true, true) => [.. offered, .. webTools!, .. memoryTools],
@@ -2916,7 +2955,7 @@ internal sealed partial class ChatScreen
         assistant.OpeningCalls = opening;
         // The notified exits since the last turn ride in as seeded polls (2026-09-21), on every turn, while process is offered.
         assistant.PendingCalls = processes is null ? [] : PendingProcessPolls(processes, assistant.Tools);
-        assistant.History.SystemPrompt = Assistant.SystemPrompt(speechOutput, memoryEnabled ? memory.Snapshot() : null, persona.Read(), operata.Read(), vocalia.Read(), web: web, files: files, ask: ask, project: project, skills: catalog, markdown: markdown, sessions: sessions, download: download, recall: recall is not null, delete: delete, mcp: mcp, safeEdits: safeEdits, timers: timers, git: git, shell: shell, bridge: bridge);
+        assistant.History.SystemPrompt = Assistant.SystemPrompt(speechOutput, memoryEnabled ? memory.Snapshot() : null, persona.Read(), operata.Read(), vocalia.Read(), web: web, files: files, ask: ask, project: project, skills: catalog, markdown: markdown, sessions: sessions, download: download, recall: recall is not null, delete: delete, mcp: mcp, safeEdits: safeEdits, timers: timers, git: git, shell: shell, bridge: bridge, police: police);
     }
 
     /// <summary>
@@ -4930,7 +4969,7 @@ internal sealed partial class ChatScreen
                         // path's /cwd browse, or the blanks' /settings (later that day, as the hint
                         // row's blanks), through the dispatch as the typed line — without the
                         // transcript row or the history, the draft back after, as the hint row's.
-                        // A glyph the strip does not name (none today) is nothing.
+                        // A glyph the strip does not name (the officer, 2026-09-22) is nothing.
                         _timers.Acknowledge();
                         DisarmExit();
                         await _speech.StopAsync().ConfigureAwait(false);
@@ -7289,7 +7328,7 @@ internal sealed partial class ChatScreen
         bool styled = StyledReply(effective.TranscriptMarkdown, _pane.Enabled);
         // The shells found are probed afresh per turn (2026-09-21): an install during the session shows without a restart, and the schema and the run agree.
         _interpreters.Refresh();
-        PrepareTurn(assistant, _memory, _memoryTools, [.. _clockTools, .. _timerTools], _persona, _operata, _vocalia, effective.Memory, speaker is not null, effective.LlmMaxToolIterations, effective.LlmOfferTools, _webTools, effective.WebTools, ContextGuardFor(effective, _session.ContextLength), _fileTools, effective.FileTools, _pane.Enabled && effective.AskUser ? _askTools : null, SkillsFor(effective), markdown, _sessionTools, effective.SessionTool, ToolsText.DisabledSet(effective.ToolsDisabled), _mcp.Tools, effective.McpServers, effective.FileSafeEdits, _gitTools, effective.GitNativeTools, _shellTools, ShellOffered(effective), _processes, effective.ShellToolBridge);
+        PrepareTurn(assistant, _memory, _memoryTools, [.. _clockTools, .. _timerTools], _persona, _operata, _vocalia, effective.Memory, speaker is not null, effective.LlmMaxToolIterations, effective.LlmOfferTools, _webTools, effective.WebTools, ContextGuardFor(effective, _session.ContextLength), _fileTools, effective.FileTools, _pane.Enabled && effective.AskUser ? _askTools : null, SkillsFor(effective), markdown, _sessionTools, effective.SessionTool, ToolsText.DisabledSet(effective.ToolsDisabled), _mcp.Tools, effective.McpServers, effective.FileSafeEdits, _gitTools, effective.GitNativeTools, _shellTools, ShellOffered(effective), _processes, effective.ShellToolBridge, effective.ShellPoliceOutsidePaths);
         bool armed = false;
         EchoProbe? probe = null;
         if (speaker is not null && _voice.InterruptReady)
@@ -7701,6 +7740,10 @@ internal sealed partial class ChatScreen
             case TurnEvent.ToolResult result when GitToolNames.Contains(result.Name):
                 // A status, a log, a patch is the model's to read; the line is the result's header (GitText.Note, 2026-09-20).
                 _transcript.ToolNote(GitText.Note(result.Text));
+                break;
+            case TurnEvent.ToolResult result when ShellToolNames.Contains(result.Name) && ShellText.IsOutside(result.Text):
+                // The outside-paths police refused it (2026-09-22): the same one line, behind the officer rather than the tools' glyph.
+                _transcript.PoliceNote(ShellText.Note(result.Text));
                 break;
             case TurnEvent.ToolResult result when ShellToolNames.Contains(result.Name):
                 // A command's output is the model's to read; the line is the result's header: the exit code, the time, the command (ShellText.Note, 2026-09-21).

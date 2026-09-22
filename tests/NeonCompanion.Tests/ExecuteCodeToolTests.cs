@@ -80,7 +80,7 @@ public sealed class ExecuteCodeToolTests : IDisposable
         Assert.Equal(
             "Runs a script (python, node or powershell) in a fresh process and returns what it printed. " +
             "The script can call this app's other tools by name through the neon_tools module, so several steps can be done in one call; " +
-            "the same approval as run_command applies, and a denied script must not be retried or worked around.",
+            "it runs in the working directory and may only name paths under it, the same approval as run_command applies, and a denied or refused script must not be retried or worked around.",
             _tool.Description);
         Assert.Equal(ExecuteCodeTool.DescriptionWithBridge, _tool.Description);
         var schema = _tool.JsonSchema;
@@ -91,6 +91,7 @@ public sealed class ExecuteCodeToolTests : IDisposable
         Assert.Equal(_tool.AvailableLanguages, languages);
         Assert.Equal("Seconds before the script is stopped, 1 to 3600 (default 300).", schema.GetProperty("properties").GetProperty("timeout").GetProperty("description").GetString());
         Assert.Contains("from neon_tools import", schema.GetProperty("properties").GetProperty("code").GetProperty("description").GetString());
+        Assert.EndsWith(" Every path in it must stay under the working directory.", schema.GetProperty("properties").GetProperty("code").GetProperty("description").GetString());   // the police on (2026-09-22)
 
         // The setting narrows the enum; a language switched off is refused by name.
         _settings.ShellCodeLanguages = ["python"];
@@ -134,11 +135,11 @@ public sealed class ExecuteCodeToolTests : IDisposable
         _settings.ShellToolBridge = false;
         Assert.Equal(
             "Runs a script (python, node or powershell) in a fresh process and returns what it printed; " +
-            "the same approval as run_command applies, and a denied script must not be retried or worked around.",
+            "it runs in the working directory and may only name paths under it, the same approval as run_command applies, and a denied or refused script must not be retried or worked around.",
             _tool.Description);
         Assert.Equal(ExecuteCodeTool.DescriptionWithoutBridge, _tool.Description);
         var schema = _tool.JsonSchema;
-        Assert.Equal("The script; print what you want back.", schema.GetProperty("properties").GetProperty("code").GetProperty("description").GetString());
+        Assert.Equal("The script; print what you want back. Every path in it must stay under the working directory.", schema.GetProperty("properties").GetProperty("code").GetProperty("description").GetString());
         Assert.DoesNotContain("neon_tools", schema.GetRawText());
         Assert.Equal(["language", "code", "timeout"], schema.GetProperty("properties").EnumerateObject().Select(p => p.Name));
 
@@ -147,6 +148,52 @@ public sealed class ExecuteCodeToolTests : IDisposable
         Assert.Contains("from neon_tools import", _tool.JsonSchema.GetProperty("properties").GetProperty("code").GetProperty("description").GetString());
         _settings.ShellToolBridge = false;
         Assert.DoesNotContain("neon_tools", _tool.JsonSchema.GetRawText());
+    }
+
+    [Fact]
+    public void PoliceOff_TheDescriptionAndSchema_NeverMentionTheWorkingDirectory()
+    {
+        // Shell police outside paths off (2026-09-22): the text until that day — nothing tells the model where a script may reach, so it does not try to leave.
+        _settings.ShellPoliceOutsidePaths = false;
+        Assert.Equal(
+            "Runs a script (python, node or powershell) in a fresh process and returns what it printed. " +
+            "The script can call this app's other tools by name through the neon_tools module, so several steps can be done in one call; " +
+            "the same approval as run_command applies, and a denied script must not be retried or worked around.",
+            _tool.Description);
+        Assert.Equal(ExecuteCodeTool.DescriptionWithBridgeUnpoliced, _tool.Description);
+        Assert.DoesNotContain("working directory", _tool.JsonSchema.GetRawText());
+        _settings.ShellToolBridge = false;
+        Assert.Equal(
+            "Runs a script (python, node or powershell) in a fresh process and returns what it printed; " +
+            "the same approval as run_command applies, and a denied script must not be retried or worked around.",
+            _tool.Description);
+        Assert.Equal(ExecuteCodeTool.DescriptionWithoutBridgeUnpoliced, _tool.Description);
+        Assert.Equal("The script; print what you want back.", _tool.JsonSchema.GetProperty("properties").GetProperty("code").GetProperty("description").GetString());
+        Assert.Equal(ExecuteCodeTool.DescriptionWithBridge, ExecuteCodeTool.DescribeTool(bridge: true, police: true));
+        Assert.Equal(ExecuteCodeTool.DescriptionWithoutBridge, ExecuteCodeTool.DescribeTool(bridge: false, police: true));
+        Assert.Equal(ExecuteCodeTool.DescriptionWithBridgeUnpoliced, ExecuteCodeTool.DescribeTool(bridge: true, police: false));
+        Assert.Equal(ExecuteCodeTool.DescriptionWithoutBridgeUnpoliced, ExecuteCodeTool.DescribeTool(bridge: false, police: false));
+
+        // Back on: the cached schema follows.
+        _settings.ShellPoliceOutsidePaths = true;
+        Assert.EndsWith(ExecuteCodeTool.CodeDescriptionPolicedSuffix, _tool.JsonSchema.GetProperty("properties").GetProperty("code").GetProperty("description").GetString());
+    }
+
+    [Fact]
+    public async Task Police_RefusesAScriptNamingAnOutsidePath_BeforeTheGate()
+    {
+        // Shell police outside paths (2026-09-22): the script's text is read before the gate; a refusal never asks, and off it goes through to the gate.
+        _settings.ShellCommandPolicy = "ask";
+        _answer = CommandChoice.Deny;
+        Assert.Equal(@"Error: outside the working directory: 'C:\Users\x.txt' — a command or a script may only name paths under it", await Invoke(("language", "powershell"), ("code", "Get-Content 'C:\\Users\\x.txt'")));   // powershell: always installed
+        Assert.Equal("Error: outside the working directory: 'GetFolderPath(' — a command or a script may only name paths under it", await Invoke(("language", "powershell"), ("code", "Write-Output ([Environment]::GetFolderPath('Desktop'))")));
+        Assert.Equal("Error: outside the working directory: '$env:APPDATA' — a command or a script may only name paths under it", await Invoke(("language", "powershell"), ("code", "Get-ChildItem $env:APPDATA")));
+        Assert.Empty(_asked);
+        Assert.Equal("Error: the script was denied by the user (powershell); do not retry it or work around the refusal", await Invoke(("language", "powershell"), ("code", "Get-ChildItem '" + _root + "'")));   // under the root: the gate's turn
+        Assert.Single(_asked);
+        _settings.ShellPoliceOutsidePaths = false;
+        Assert.Equal("Error: the script was denied by the user (powershell); do not retry it or work around the refusal", await Invoke(("language", "powershell"), ("code", "Get-ChildItem $env:APPDATA")));
+        Assert.Equal(2, _asked.Count);
     }
 
     [Fact]

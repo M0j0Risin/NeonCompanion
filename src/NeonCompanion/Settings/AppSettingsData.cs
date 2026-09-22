@@ -73,7 +73,9 @@ public sealed class AppSettingsData
     /// <summary>
     /// Whether long-term memory is on: the model is offered <c>save_memory</c> and sees what is
     /// remembered on every turn, and <c>/remember</c> works. Off leaves <c>memory.json</c>
-    /// untouched; <c>/forget</c> erases it. No environment variable, like the other switches.
+    /// untouched; <c>/forget</c> erases it. The toolbar wears 💾 while it is on (2026-09-22), whose
+    /// double-click is <c>/memory</c> — the typed word works either way. No environment variable,
+    /// like the other switches.
     /// </summary>
     public bool Memory { get; set; } = true;
 
@@ -127,10 +129,14 @@ public sealed class AppSettingsData
 
     /// <summary>
     /// Whether the toolbar is drawn under the hint row (2026-09-21, the user's ask): the pane
-    /// glyphs at its left (a double-click opens <c>/settings</c>, <c>/skills</c>, <c>/tools</c>,
-    /// <c>/mcp</c> or <c>/sys</c>), the working directory in force and the folder glyph
-    /// (<c>/cwd browse</c>) at its right. Read on every pane draw and on its tick, so a flip
-    /// shows when the settings pane closes. No variable.
+    /// glyphs at its left (a double-click opens <c>/settings</c>, <c>/tools</c>, <c>/mcp</c>,
+    /// <c>/skills</c>, <c>/sys</c>, <c>/sessions</c>, then 💾 <c>/memory</c> while
+    /// <see cref="Memory"/> is on, the lock <c>/cmdlist</c> that follows
+    /// <see cref="ShellCommandPolicy"/>, and 👮 while <see cref="ShellPoliceOutsidePaths"/> is on —
+    /// the lock since later that day, the disk and the officer since 2026-09-22), the working
+    /// directory in force (<c>/cwd browse</c>) at its
+    /// right. Read on every pane draw and on its tick, so a flip shows when the settings pane
+    /// closes. No variable.
     /// </summary>
     public bool ShowToolbar { get; set; } = true;
 
@@ -820,6 +826,22 @@ public sealed class AppSettingsData
     /// <see cref="EnvironmentOverrides.CommandPolicyVariable"/> outranks it, so a scripted headless run can say yolo.
     /// </summary>
     public string ShellCommandPolicy { get; set; } = Shell.CommandPolicy.Default;
+
+    /// <summary>
+    /// Whether a <c>run_command</c> line, an <c>execute_code</c> script or the text <c>process</c> writes to
+    /// a background process may name a path outside the working directory (2026-09-22, the user's ask;
+    /// on by default). On, <see cref="Shell.PathPolice"/> reads the text before the gate is asked: an
+    /// absolute path not under the working directory (<c>C:\…</c>, a UNC share, a rooted <c>/…</c>), a
+    /// <c>..</c> that climbs out, <c>~</c> or a folder variable (<c>%USERPROFILE%</c>, <c>$env:TEMP</c>,
+    /// <c>$HOME</c>…) refuses the call with an <c>Error:</c> the model is told not to work around, the
+    /// transcript line wears 👮, and the tool descriptions and the operating rules say the shell stays
+    /// under the working directory. It is a lexical guard — the text the model sends, not what runs: a
+    /// script that computes a path is not seen. Off, any path goes — and nothing tells the model it
+    /// may leave (neither wording says a command can reach outside), so it does not try unless asked.
+    /// The toolbar wears 👮 while it is on (later that day), with no click of its own yet.
+    /// Read at each call and at each turn's prompt, no reconnect. No variable.
+    /// </summary>
+    public bool ShellPoliceOutsidePaths { get; set; } = true;
 
     /// <summary>
     /// The shell a <c>run_command</c> without <c>shell</c> runs in (2026-09-21): one of

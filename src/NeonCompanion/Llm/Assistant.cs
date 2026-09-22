@@ -190,23 +190,59 @@ public sealed class Assistant
     /// go together; a custom <c>operata.md</c> stands verbatim. Its last sentence, on <c>execute_code</c>, says the
     /// script can call the tools through <c>neon_tools</c> — only while the setting <c>Shell tool bridge</c> is on;
     /// off (later on 2026-09-21) the rules carry <see cref="ShellRuleWithoutBridge"/>, which does not, so the prompt
-    /// never promises a module the run does not write. Pinned.
+    /// never promises a module the run does not write. Since 2026-09-22 (the user's ask) the head follows the setting
+    /// <c>Shell police outside paths</c> too: on (the default), it says the shell may only name paths under the working
+    /// directory (<see cref="ShellRuleHeadPoliced"/>); off, it says only that a command starts there (<see cref="ShellRuleHeadUnpoliced"/>,
+    /// the <c>…Unpoliced</c> variants) — until that day the head said a command "can reach the whole computer", and
+    /// neither variant says so now, so the model does not try to leave unless asked. Pinned.
     /// </summary>
-    public const string ShellRule = ShellRuleHead +
-        "For a task with several steps or many tool calls, " + NeonCompanion.Llm.Tools.ExecuteCodeTool.ToolName + " runs a python, node or powershell script that can call these same tools through its neon_tools module and returns what it printed.";
+    public const string ShellRule = ShellRuleHeadPoliced + ShellRuleBridgeTail;
 
     /// <summary><see cref="ShellRule"/> with the bridge off: the same head, and <c>execute_code</c> runs a script that does everything itself. Pinned.</summary>
-    public const string ShellRuleWithoutBridge = ShellRuleHead +
-        "For a task with several steps, " + NeonCompanion.Llm.Tools.ExecuteCodeTool.ToolName + " runs a python, node or powershell script and returns what it printed.";
+    public const string ShellRuleWithoutBridge = ShellRuleHeadPoliced + ShellRulePlainTail;
 
-    /// <summary>What the two shell rules share: <c>run_command</c>, the approval, and the background job with <c>process</c>.</summary>
-    private const string ShellRuleHead =
+    /// <summary><see cref="ShellRule"/> with the setting <c>Shell police outside paths</c> off (2026-09-22): the head says a command starts in the working directory and no more. Pinned.</summary>
+    public const string ShellRuleUnpoliced = ShellRuleHeadUnpoliced + ShellRuleBridgeTail;
+
+    /// <summary><see cref="ShellRuleWithoutBridge"/> with the police off (2026-09-22): neither the bridge nor the confinement is named. Pinned.</summary>
+    public const string ShellRuleWithoutBridgeUnpoliced = ShellRuleHeadUnpoliced + ShellRulePlainTail;
+
+    /// <summary>What every shell rule opens with: <c>run_command</c> and its two picks.</summary>
+    private const string ShellRuleOpening =
         "To run a program, a build, a test or a script the user asks for, call " + NeonCompanion.Llm.Tools.RunCommandTool.ToolName + " with the command line " +
-        "(" + NeonCompanion.Llm.Tools.RunCommandTool.ShellArgument + " picks powershell, cmd or bash when the user's default will not do; " + NeonCompanion.Llm.Tools.RunCommandTool.WorkdirArgument + " a folder under the working directory); " +
-        "it starts in the working directory but can reach the whole computer, so the user approves each command before it runs and may deny it — " +
-        "never retry or work around a denied command, and say what you ran. " +
+        "(" + NeonCompanion.Llm.Tools.RunCommandTool.ShellArgument + " picks powershell, cmd or bash when the user's default will not do; " + NeonCompanion.Llm.Tools.RunCommandTool.WorkdirArgument + " a folder under the working directory); ";
+
+    /// <summary>The head with the police on: the shell stays under the working directory, and a refused path is final like a denied command.</summary>
+    private const string ShellRuleHeadPoliced = ShellRuleOpening +
+        "it runs in the working directory and may only name paths under it (relative, or absolute under it), and the user approves each command before it runs and may deny it — " +
+        "never retry or work around a denied or refused command, and say what you ran. " + ShellRuleProcess;
+
+    /// <summary>The head with the police off: a command starts in the working directory; nothing said about where it may reach.</summary>
+    private const string ShellRuleHeadUnpoliced = ShellRuleOpening +
+        "it starts in the working directory, and the user approves each command before it runs and may deny it — " +
+        "never retry or work around a denied command, and say what you ran. " + ShellRuleProcess;
+
+    /// <summary>What every head closes with: the background job and <c>process</c>.</summary>
+    private const string ShellRuleProcess =
         "For a server or a long job pass " + NeonCompanion.Llm.Tools.RunCommandTool.BackgroundArgument + " and use " + NeonCompanion.Llm.Tools.ProcessTool.ToolName + " to poll, read, wait for, write to or kill it; " +
         "with " + NeonCompanion.Llm.Tools.RunCommandTool.NotifyArgument + " you are told at your next turn when it exits. ";
+
+    /// <summary>The <c>execute_code</c> sentence with the bridge on.</summary>
+    private const string ShellRuleBridgeTail =
+        "For a task with several steps or many tool calls, " + NeonCompanion.Llm.Tools.ExecuteCodeTool.ToolName + " runs a python, node or powershell script that can call these same tools through its neon_tools module and returns what it printed.";
+
+    /// <summary>The <c>execute_code</c> sentence with the bridge off.</summary>
+    private const string ShellRulePlainTail =
+        "For a task with several steps, " + NeonCompanion.Llm.Tools.ExecuteCodeTool.ToolName + " runs a python, node or powershell script and returns what it printed.";
+
+    /// <summary>The shell rule for a turn: the bridge picks the <c>execute_code</c> sentence, the police (2026-09-22) the head.</summary>
+    public static string ShellRuleFor(bool bridge, bool police) => (bridge, police) switch
+    {
+        (true, true) => ShellRule,
+        (false, true) => ShellRuleWithoutBridge,
+        (true, false) => ShellRuleUnpoliced,
+        (false, false) => ShellRuleWithoutBridgeUnpoliced,
+    };
 
     /// <summary>
     /// The sentence the default rules gain while <c>ask_user</c> is offered (the setting <c>Ask user</c>
@@ -291,11 +327,12 @@ public sealed class Assistant
     /// Timers group emptied on <c>/tools</c>, 2026-09-20); <see cref="ShellRule"/> rides after the git sentence with
     /// <paramref name="shell"/> (the shell tools offered: <c>Shell command policy</c> not off, 2026-09-21), as
     /// <see cref="ShellRuleWithoutBridge"/> unless <paramref name="bridge"/> (the setting <c>Shell tool bridge</c>, off by
-    /// default, later that day). With <paramref name="markdown"/> false it is <see cref="OperatingRules"/> and its variants byte for byte.
+    /// default, later that day), and as the <c>…Unpoliced</c> variant with <paramref name="police"/> false (the setting <c>Shell police
+    /// outside paths</c> off, 2026-09-22; <see cref="ShellRuleFor"/>). With <paramref name="markdown"/> false it is <see cref="OperatingRules"/> and its variants byte for byte.
     /// </summary>
-    public static string DefaultRules(bool markdown, bool tools, bool files = true, bool web = false, AskLimits? ask = null, bool sessions = false, bool download = true, bool delete = true, bool mcp = false, bool safeEdits = true, bool timers = true, bool git = false, bool shell = false, bool bridge = false) =>
+    public static string DefaultRules(bool markdown, bool tools, bool files = true, bool web = false, AskLimits? ask = null, bool sessions = false, bool download = true, bool delete = true, bool mcp = false, bool safeEdits = true, bool timers = true, bool git = false, bool shell = false, bool bridge = false, bool police = true) =>
         tools
-            ? TextRule(markdown) + " " + (timers ? ToolRules : ToolRulesWithoutTimers) + (files ? " " + (delete ? (safeEdits ? FileRule : FileRuleDeleteInPlace) : FileRuleWithoutDelete) : "") + (web ? " " + WebRule : "") + (web && files && download ? " " + DownloadRule : "") + (git ? " " + GitRule : "") + (shell ? " " + (bridge ? ShellRule : ShellRuleWithoutBridge) : "") + (ask is { } limits ? " " + AskRule(limits) : "") + (sessions ? " " + SessionRule : "") + (mcp ? " " + McpRule : "")
+            ? TextRule(markdown) + " " + (timers ? ToolRules : ToolRulesWithoutTimers) + (files ? " " + (delete ? (safeEdits ? FileRule : FileRuleDeleteInPlace) : FileRuleWithoutDelete) : "") + (web ? " " + WebRule : "") + (web && files && download ? " " + DownloadRule : "") + (git ? " " + GitRule : "") + (shell ? " " + ShellRuleFor(bridge, police) : "") + (ask is { } limits ? " " + AskRule(limits) : "") + (sessions ? " " + SessionRule : "") + (mcp ? " " + McpRule : "")
             : TextRule(markdown);
 
     /// <summary>
@@ -335,11 +372,11 @@ public sealed class Assistant
     /// the third (2026-09-20) is a whole group: <paramref name="timers"/> false (no timer tool offered — headless, or the
     /// three switched off) drops <see cref="TimerRule"/>.
     /// </summary>
-    public static string SystemPrompt(bool speechOutput, IReadOnlyList<string>? memories, string? persona = null, string? operatingRules = null, string? voiceDirective = null, bool tools = true, bool web = false, bool files = true, AskLimits? ask = null, ProjectNotes? project = null, IReadOnlyList<Skills.Skill>? skills = null, bool markdown = false, bool sessions = false, bool download = true, bool recall = true, bool delete = true, bool mcp = false, bool safeEdits = true, bool timers = true, bool git = false, bool shell = false, bool bridge = false)
+    public static string SystemPrompt(bool speechOutput, IReadOnlyList<string>? memories, string? persona = null, string? operatingRules = null, string? voiceDirective = null, bool tools = true, bool web = false, bool files = true, AskLimits? ask = null, ProjectNotes? project = null, IReadOnlyList<Skills.Skill>? skills = null, bool markdown = false, bool sessions = false, bool download = true, bool recall = true, bool delete = true, bool mcp = false, bool safeEdits = true, bool timers = true, bool git = false, bool shell = false, bool bridge = false, bool police = true)
     {
         bool customPersona = !string.IsNullOrWhiteSpace(persona);
         bool customRules = !string.IsNullOrWhiteSpace(operatingRules);
-        string defaultRules = DefaultRules(markdown, tools, files, web, ask, sessions, download, delete, mcp, safeEdits, timers, git, shell, bridge);
+        string defaultRules = DefaultRules(markdown, tools, files, web, ask, sessions, download, delete, mcp, safeEdits, timers, git, shell, bridge, police);
         var sb = new StringBuilder(!customPersona && !customRules
             ? DefaultPersona + " " + defaultRules
             : (customPersona ? persona!.Trim() : DefaultPersona) + "\n\n" + (customRules ? operatingRules!.Trim() : defaultRules));

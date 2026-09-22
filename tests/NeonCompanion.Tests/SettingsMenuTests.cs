@@ -748,7 +748,7 @@ public class SettingsMenuTests : IDisposable
                 SettingsField.McpServers, SettingsField.McpConnectTimeoutSeconds, SettingsField.GitNativeTools, SettingsField.GitNativeDiffMaxLines, SettingsField.GitNativeLogMaxCommits,
                 SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars,
                 SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellCodeMaxToolCalls,
-                SettingsField.LlmCompactShowSummary, SettingsField.GitNativeEmail, SettingsField.GitNativeName, SettingsField.ShellToolBridge, SettingsField.FileBrowserMode, SettingsField.ShowToolbar,
+                SettingsField.LlmCompactShowSummary, SettingsField.GitNativeEmail, SettingsField.GitNativeName, SettingsField.ShellToolBridge, SettingsField.FileBrowserMode, SettingsField.ShowToolbar, SettingsField.ShellPoliceOutsidePaths,
             },
             Enum.GetValues<SettingsField>());
         // The compact rows: on the LLM tab after the context length but no reconnect; the type a picker, the two others typed.
@@ -1006,8 +1006,8 @@ public class SettingsMenuTests : IDisposable
         // The web rows (2026-09-15): the Web tab (titled Browser until later that day; /tools' last from 2026-09-19, third since later on 2026-09-21), in this order, none a reconnect — one toggle, three pickers (the network mode in the LAN switch's slot since 2026-09-18; the search method above the URL it governs), two typed rows that may be empty, a typed count.
         Assert.Equal(new[] { SettingsField.WebTools, SettingsField.WebBrowserMode, SettingsField.WebBrowserPath, SettingsField.WebBrowserNetworkMode, SettingsField.WebSearchMethod, SettingsField.WebSearxngUrl, SettingsField.WebSearchMaxResults }, SettingsMenu.ToolsTabFields[1]);
         // The shell rows (2026-09-21): the Shell tab (between Git and Web that day, between Files and Ask since later on) — the policy (the group's switch, a picker), the allowed list, the default shell (a picker), then the three typed caps,
-        // the languages, their timeout, the tool bridge (the tab's one toggle, later that day) above the tool-call cap it governs; none a reconnect.
-        Assert.Equal(new[] { SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellToolBridge, SettingsField.ShellCodeMaxToolCalls }, SettingsMenu.ToolsTabFields[3]);
+        // the languages, their timeout, the tool bridge (the tab's one toggle, later that day) above the tool-call cap it governs; none a reconnect. The outside-paths police (2026-09-22) sits third, under the list it guards beside.
+        Assert.Equal(new[] { SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellPoliceOutsidePaths, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellToolBridge, SettingsField.ShellCodeMaxToolCalls }, SettingsMenu.ToolsTabFields[3]);
         Assert.Equal("Shell tool bridge", SettingsMenu.FieldName(SettingsField.ShellToolBridge));
         Assert.True(SettingsMenu.IsToggle(SettingsField.ShellToolBridge));
         Assert.False(SettingsMenu.IsLlmField(SettingsField.ShellToolBridge));
@@ -1015,6 +1015,13 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("on", SettingsMenu.FieldValue(SettingsField.ShellToolBridge, new AppSettingsData { ShellToolBridge = true }, _settings.ProfileDirectory));
         Assert.Equal("a script may call this app's other tools through its neon_tools module", SettingsMenu.ToggleDescribe(SettingsField.ShellToolBridge, true));
         Assert.Equal("a script does everything itself: no neon_tools module, no tool calls", SettingsMenu.ToggleDescribe(SettingsField.ShellToolBridge, false));
+        Assert.Equal("Shell police outside paths", SettingsMenu.FieldName(SettingsField.ShellPoliceOutsidePaths));
+        Assert.True(SettingsMenu.IsToggle(SettingsField.ShellPoliceOutsidePaths));
+        Assert.False(SettingsMenu.IsLlmField(SettingsField.ShellPoliceOutsidePaths));
+        Assert.Equal("on", SettingsMenu.FieldValue(SettingsField.ShellPoliceOutsidePaths, data, _settings.ProfileDirectory));
+        Assert.Equal("off", SettingsMenu.FieldValue(SettingsField.ShellPoliceOutsidePaths, new AppSettingsData { ShellPoliceOutsidePaths = false }, _settings.ProfileDirectory));
+        Assert.Equal("a command or script may only name paths under the working directory", SettingsMenu.ToggleDescribe(SettingsField.ShellPoliceOutsidePaths, true));
+        Assert.Equal("paths anywhere on the computer are allowed", SettingsMenu.ToggleDescribe(SettingsField.ShellPoliceOutsidePaths, false));
         Assert.Equal("Shell code languages", SettingsMenu.FieldName(SettingsField.ShellCodeLanguages));
         Assert.Equal("Shell code timeout (s)", SettingsMenu.FieldName(SettingsField.ShellCodeTimeoutSeconds));
         Assert.Equal("Shell tool bridge max calls", SettingsMenu.FieldName(SettingsField.ShellCodeMaxToolCalls));
@@ -1036,7 +1043,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("Shell timeout (s)", SettingsMenu.FieldName(SettingsField.ShellTimeoutSeconds));
         Assert.Equal("Shell foreground cap (s)", SettingsMenu.FieldName(SettingsField.ShellForegroundCapSeconds));
         Assert.Equal("Shell output max chars", SettingsMenu.FieldName(SettingsField.ShellOutputMaxChars));
-        Assert.Equal([SettingsField.ShellToolBridge], SettingsMenu.ToolsTabFields[3].Where(SettingsMenu.IsToggle));
+        Assert.Equal([SettingsField.ShellPoliceOutsidePaths, SettingsField.ShellToolBridge], SettingsMenu.ToolsTabFields[3].Where(SettingsMenu.IsToggle));
         Assert.All(SettingsMenu.ToolsTabFields[3], f => Assert.False(SettingsMenu.RefusedMidTurn(f)));
         Assert.Equal("ask", SettingsMenu.FieldValue(SettingsField.ShellCommandPolicy, data, _settings.ProfileDirectory));
         Assert.Equal("none", SettingsMenu.FieldValue(SettingsField.ShellCommandAllowed, data, _settings.ProfileDirectory));

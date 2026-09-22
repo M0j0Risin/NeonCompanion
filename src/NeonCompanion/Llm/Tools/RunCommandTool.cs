@@ -18,7 +18,12 @@ namespace NeonCompanion.Llm.Tools;
 /// <c>workdir</c> goes through the sandbox's judge) but is not confined to it: the sandbox is where
 /// a command begins, and the guard is the gate (<see cref="CommandGate"/>) — under the default
 /// policy the user approves a command whose prefixes are not on the allow list before it runs,
-/// and a denial is an <c>Error:</c> sentence the model is told not to work around. The shell is the
+/// and a denial is an <c>Error:</c> sentence the model is told not to work around. Since 2026-09-22
+/// the police stands before the gate (<see cref="PathPolice"/>, the setting <c>Shell police outside
+/// paths</c>, on by default): a line whose text names a path outside the working directory is refused
+/// with <see cref="ShellText.OutsidePath"/> and never put to the pane — lexical, the text and not what
+/// runs — and the description says the command stays under the working directory (off, it says only
+/// where the command starts). The shell is the
 /// argument's, else the setting <c>Shell default</c>; the <c>shell</c> enum the model sees is the
 /// shells actually installed (<see cref="Interpreters.AvailableShells"/>), rebuilt when that set or
 /// the default changes (the <see cref="AskUserTool"/> shape). The wait is bounded by <c>timeout</c>
@@ -70,11 +75,28 @@ public sealed class RunCommandTool : AIFunction
 
     public override string Name => ToolName;
 
-    public override string Description =>
+    /// <summary>
+    /// What the model reads with the setting <c>Shell police outside paths</c> on (2026-09-22): the command may only
+    /// name paths under the working directory, and a refusal is final like a denial. Until that day the one
+    /// description said the command "is not confined to" the working directory; neither variant says so now. Pinned.
+    /// </summary>
+    public const string DescriptionPoliced =
         "Runs a command line in a shell on the user's computer and returns its exit code and output. " +
-        "It starts in the working directory but is not confined to it, so the user approves a command before it runs and may deny it. " +
+        "It runs in the working directory and may only name paths under it (relative, or absolute under it); the user approves a command before it runs and may deny it. " +
+        "Use it for a program, a build, a test or a script the user asks for; a denied or refused command must not be retried or worked around. " +
+        "Use background for a server or a long job and the process tool to read it.";
+
+    /// <summary>… and with the police off: the command starts in the working directory, and not a word about where it may reach. Pinned.</summary>
+    public const string DescriptionUnpoliced =
+        "Runs a command line in a shell on the user's computer and returns its exit code and output. " +
+        "It starts in the working directory; the user approves a command before it runs and may deny it. " +
         "Use it for a program, a build, a test or a script the user asks for; a denied command must not be retried or worked around. " +
         "Use background for a server or a long job and the process tool to read it.";
+
+    /// <summary>The two descriptions by the setting (<see cref="DescriptionPoliced"/>, <see cref="DescriptionUnpoliced"/>).</summary>
+    public static string DescribeTool(bool police) => police ? DescriptionPoliced : DescriptionUnpoliced;
+
+    public override string Description => DescribeTool(_effective().ShellPoliceOutsidePaths);
 
     /// <summary>The shells the model may name right now, in <see cref="ShellKinds.Names"/> order.</summary>
     public IReadOnlyList<string> AvailableShells => _interpreters.AvailableShells().Select(ShellKinds.Name).ToList();
@@ -203,6 +225,13 @@ public sealed class RunCommandTool : AIFunction
         var timeout = TimeSpan.FromSeconds(seconds);
 
         var request = new CommandRequest(ShellKinds.Name(kind), command, CommandPrefix.All(command));
+        // The police before the gate (Shell police outside paths, 2026-09-22): a line naming a path outside the working directory is refused, and the pane is never asked about it.
+        if (effective.ShellPoliceOutsidePaths && PathPolice.Judge(command, _files, workdir, isScript: false) is { } outside)
+        {
+            DiagnosticLog.Info(ShellKinds.Category, ShellText.PolicedLogLine(request, outside));
+            return ShellText.OutsidePath(outside);
+        }
+
         var verdict = await _gate.JudgeAsync(request, cancellationToken).ConfigureAwait(false);
         if (!verdict.Allowed)
         {

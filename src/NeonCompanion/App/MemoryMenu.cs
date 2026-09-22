@@ -22,7 +22,7 @@ internal sealed class MemoryMenu
 {
     // The label and the key hints: the pane shows the label as its title and the keys in its hint
     // row; the prompt host joins them (SettingsMenu.PromptTitle). Pinned.
-    public const string Title = "💾 Memory";
+    public const string Title = ChatScreen.MemoryToolGlyph + " Memory";   // the glyph the toolbar wears for the pane too (2026-09-22)
     public const string Keys = "Enter = remove · ESC = back";
     public const string EmptyNotice = "(nothing remembered)";
 

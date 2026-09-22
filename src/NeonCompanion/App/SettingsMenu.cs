@@ -301,6 +301,9 @@ public enum SettingsField
 
     /// <summary>A toggle: whether the toolbar is drawn under the hint row (<see cref="Settings.AppSettingsData.ShowToolbar"/>). The General tab's row after Show working directory (2026-09-21); no reconnect (read at each pane draw).</summary>
     ShowToolbar,
+
+    /// <summary>A toggle: whether a command line, a script or text to a background process may name a path outside the working directory (<see cref="Settings.AppSettingsData.ShellPoliceOutsidePaths"/>). The Shell tab's third row (2026-09-22), under the list it guards beside; no reconnect (read at each call and each turn). Last in the enum, as every newcomer: the flat no-pane list's row numbers are pinned.</summary>
+    ShellPoliceOutsidePaths,
 }
 
 /// <summary>The tabs of <c>/settings</c> on the pane, in strip order (Sessions right after General — the user's order, 2026-09-18; STT last since 2026-09-19, when the Ask, Files and Web tabs moved to <c>/tools</c> — <see cref="SettingsMenu.ToolsTabFields"/> — and, later that day, the Skills tab to <c>/skills</c> as its Options tab — <see cref="SettingsMenu.SkillsTabFields"/>); the value is the index into <see cref="SettingsMenu.TabTitles"/> and <see cref="SettingsMenu.TabFields"/>.</summary>
@@ -539,7 +542,7 @@ internal sealed class SettingsMenu
     /// Since later still on 2026-09-19 (the user's ask) every Files and Web row carries its tab's word (<c>File /tree max length</c>, <c>Web SearXNG URL</c>, …) and the six JSON keys that
     /// differed followed (<c>FileTreeMaxLength</c>, <c>FileTreeShowSizes</c>, <c>FileMentionFolderMode</c>, <c>FileViewImageMaxPerCall</c>, <c>WebSearxngUrl</c>) — no migration, the old key skipped on load.
     /// Git (2026-09-20; Git (native) since 2026-09-21, its rows <c>Git native …</c>) is its switch, the diff cap, the log cap and the identity pair;
-    /// Shell (2026-09-21) is the policy (its switch), the allowed list, the default shell, the two timeouts and the output cap,
+    /// Shell (2026-09-21) is the policy (its switch), the allowed list, the outside-paths police (2026-09-22), the default shell, the two timeouts and the output cap,
     /// then the script rows: the languages, their timeout, the tool bridge switch (later that day) and the tool-call cap it governs.
     /// With <see cref="TabFields"/> and <see cref="SkillsTabFields"/> they are every <see cref="SettingsField"/> once (pinned); the flat no-pane list keeps them all.
     /// </summary>
@@ -548,7 +551,7 @@ internal sealed class SettingsMenu
         [SettingsField.ToolsDollarMention],
         [SettingsField.WebTools, SettingsField.WebBrowserMode, SettingsField.WebBrowserPath, SettingsField.WebBrowserNetworkMode, SettingsField.WebSearchMethod, SettingsField.WebSearxngUrl, SettingsField.WebSearchMaxResults],
         [SettingsField.FileTools, SettingsField.FileSafeEdits, SettingsField.FileTreeMaxLength, SettingsField.FileTreeShowSizes, SettingsField.FileMentionFolderMode, SettingsField.FileBrowserMode, SettingsField.FileViewImageMaxPerCall],
-        [SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellToolBridge, SettingsField.ShellCodeMaxToolCalls],
+        [SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellPoliceOutsidePaths, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellToolBridge, SettingsField.ShellCodeMaxToolCalls],
         [SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices],
         [SettingsField.GitNativeTools, SettingsField.GitNativeDiffMaxLines, SettingsField.GitNativeLogMaxCommits, SettingsField.GitNativeEmail, SettingsField.GitNativeName],
     ];
@@ -782,7 +785,7 @@ internal sealed class SettingsMenu
             or SettingsField.HideExitAutocomplete or SettingsField.CommandTypoIntercept or SettingsField.WelcomeSplash or SettingsField.ShowWorkingDirectory or SettingsField.ShowToolbar
             or SettingsField.QueueMessages or SettingsField.AllowSkillDelete or SettingsField.SessionLogging or SettingsField.SessionTool
             or SettingsField.ToolsDollarMention or SettingsField.ReflectionIncludesSessions or SettingsField.McpServers or SettingsField.GitNativeTools
-            or SettingsField.LlmCompactShowSummary or SettingsField.ShellToolBridge;
+            or SettingsField.LlmCompactShowSummary or SettingsField.ShellToolBridge or SettingsField.ShellPoliceOutsidePaths;
 
     public static string FieldName(SettingsField field) => field switch
     {
@@ -836,6 +839,7 @@ internal sealed class SettingsMenu
         SettingsField.GitNativeDiffMaxLines => "Git native diff max lines",
         SettingsField.ShellCommandPolicy => "Shell command policy",
         SettingsField.ShellCommandAllowed => "Shell allowed commands",
+        SettingsField.ShellPoliceOutsidePaths => "Shell police outside paths",
         SettingsField.ShellDefault => "Shell default",
         SettingsField.ShellTimeoutSeconds => "Shell timeout (s)",
         SettingsField.ShellForegroundCapSeconds => "Shell foreground cap (s)",
@@ -963,6 +967,7 @@ internal sealed class SettingsMenu
             SettingsField.GitNativeDiffMaxLines => Lines(data.GitNativeDiffMaxLines),
             SettingsField.ShellCommandPolicy => data.ShellCommandPolicy,
             SettingsField.ShellCommandAllowed => Prefixes(data.ShellCommandAllowed.Count),
+            SettingsField.ShellPoliceOutsidePaths => OnOff(data.ShellPoliceOutsidePaths),
             SettingsField.ShellDefault => data.ShellDefault,
             SettingsField.ShellTimeoutSeconds => Seconds(data.ShellTimeoutSeconds),
             SettingsField.ShellForegroundCapSeconds => Seconds(data.ShellForegroundCapSeconds),
@@ -2681,6 +2686,7 @@ internal sealed class SettingsMenu
             SettingsField.SessionLogging => data.SessionLogging,
             SettingsField.SessionTool => data.SessionTool,
             SettingsField.ShellToolBridge => data.ShellToolBridge,
+            SettingsField.ShellPoliceOutsidePaths => data.ShellPoliceOutsidePaths,
             _ => false,
         };
     }
@@ -2725,6 +2731,7 @@ internal sealed class SettingsMenu
             case SettingsField.SessionLogging: data.SessionLogging = on; break;
             case SettingsField.SessionTool: data.SessionTool = on; break;
             case SettingsField.ShellToolBridge: data.ShellToolBridge = on; break;
+            case SettingsField.ShellPoliceOutsidePaths: data.ShellPoliceOutsidePaths = on; break;
         }
     }
 
@@ -2773,6 +2780,7 @@ internal sealed class SettingsMenu
         SettingsField.SessionLogging => on ? "every completed turn is written to this profile's session store" : "nothing is written; what is stored still lists, restores and purges",
         SettingsField.SessionTool => on ? "the model can search, list and read this profile's earlier sessions" : "the model never sees an earlier session",
         SettingsField.ShellToolBridge => on ? "a script may call this app's other tools through its neon_tools module" : "a script does everything itself: no neon_tools module, no tool calls",
+        SettingsField.ShellPoliceOutsidePaths => on ? "a command or script may only name paths under the working directory" : "paths anywhere on the computer are allowed",
         _ => "",
     };
 

@@ -297,6 +297,23 @@ public static class ShellText
         return $"Error: the command was not approved: no screen to ask on (Shell command policy is ask; {Settings.EnvironmentOverrides.CommandPolicyVariable}=yolo or the profile's Shell allowed commands would let it run); allowed prefixes: {list}";
     }
 
+    /// <summary>
+    /// What a result the police refused opens with (<see cref="PathPolice"/>, 2026-09-22); the transcript keys its
+    /// 👮 line on it (<see cref="IsOutside"/>). The sentence names the token and the rule, never the setting: told a
+    /// switch is on, the model reasons about a switch it cannot reach (the File safe edits lesson).
+    /// </summary>
+    public const string OutsideHead = "Error: outside the working directory: ";
+
+    /// <summary><c>Error: outside the working directory: 'C:\Windows\win.ini' — a command or a script may only name paths under it</c>. Pinned.</summary>
+    public static string OutsidePath(string token) => OutsideHead + $"'{token}' — a command or a script may only name paths under it";
+
+    /// <summary>Whether <paramref name="result"/> is the police's refusal: the transcript draws it behind 👮 rather than 🛠️.</summary>
+    public static bool IsOutside(string result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        return result.StartsWith(OutsideHead, StringComparison.Ordinal);
+    }
+
     public static string ShellNotInstalled(ShellKind kind) => $"Error: {ShellKinds.Name(kind)} is not installed (no {ShellKinds.FileName(kind)} found)";
     public static string WorkdirOutside(string path) => $"Error: workdir '{path}' is outside the working directory";
     public static string WorkdirNotFolder(string path) => $"Error: workdir '{path}' is not a folder";
@@ -316,6 +333,13 @@ public static class ShellText
     {
         ArgumentNullException.ThrowIfNull(request);
         return $"approval: refused ({why}) — {request.Kind} {Quote(request.Command)}";
+    }
+
+    /// <summary><c>police: refused ('C:\Windows') — powershell "type C:\Windows\win.ini"</c>: the police's line, before the gate is asked (2026-09-22).</summary>
+    public static string PolicedLogLine(CommandRequest request, string token)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return $"police: refused ('{token}') — {request.Kind} {Quote(request.Command)}";
     }
 
     /// <summary><c>run_command: powershell "git status" → exit 0 in 1.2 s (2,340 chars)</c>.</summary>

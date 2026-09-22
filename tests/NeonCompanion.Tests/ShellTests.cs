@@ -407,6 +407,14 @@ public sealed class ShellTests
         Assert.Equal("approval: allowed once — cmd \"dir a\"", ShellText.ApprovedLogLine(new CommandRequest("cmd", "dir\na", ["dir"]), "allowed once"));
         Assert.Equal("approval: refused (denied by the user) — cmd \"dir\"", ShellText.RefusedLogLine(new CommandRequest("cmd", "dir", ["dir"]), "denied by the user"));
         Assert.Equal("run_command: cmd \"dir\" → exit 0 in 0.1 s (2,340 chars)", ShellText.RunLogLine("cmd", "dir", "exit 0 in 0.1 s", 2340));
+        // The police (2026-09-22): the sentence names the token and the rule, never the setting; the transcript keys 👮 on its head.
+        Assert.Equal("Error: outside the working directory: ", ShellText.OutsideHead);
+        Assert.Equal(@"Error: outside the working directory: 'C:\Windows\win.ini' — a command or a script may only name paths under it", ShellText.OutsidePath(@"C:\Windows\win.ini"));
+        Assert.True(ShellText.IsOutside(ShellText.OutsidePath("~")));
+        Assert.False(ShellText.IsOutside(ShellText.WorkdirOutside("..")));
+        Assert.False(ShellText.IsOutside("exit 0 in 0.0 s (cmd): dir\n"));
+        Assert.DoesNotContain("police", ShellText.OutsidePath("~"), StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("police: refused ('C:\\') — cmd \"cd C:\\ dir\"", ShellText.PolicedLogLine(new CommandRequest("cmd", "cd C:\\\ndir", ["cd", "dir"]), "C:\\"));
 
         var request = new CommandRequest("powershell", "git push origin main && rm x", ["git push", "rm"]);
         Assert.Equal("Run this command?", ShellText.ApprovalTitle);

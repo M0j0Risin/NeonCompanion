@@ -44,8 +44,9 @@ public class SystemPromptSummaryTests : IDisposable
         bool safeEdits = true,
         int gitTools = 0,
         int shellTools = 0,
-        bool shellBridge = false) =>
-        new(persona, operatingRules, voiceDirective, memoryEnabled, memories ?? [], speechOutput, speechReady, turnCount, "Friday 11 September 2026, 14:05 (Pacific Daylight Time, UTC-07:00)", reasoning, @"The working directory is 'D:\files' (the profile's default folder); every path you pass to a file tool is relative to it.", tools, files, skills, catalog, project, markdown, pane, disabled is null ? null : ToolsText.DisabledSet(disabled), projectFile, FileSafeEdits: safeEdits, GitTools: gitTools, ShellTools: shellTools, ShellBridge: shellBridge);
+        bool shellBridge = false,
+        bool shellPolice = true) =>
+        new(persona, operatingRules, voiceDirective, memoryEnabled, memories ?? [], speechOutput, speechReady, turnCount, "Friday 11 September 2026, 14:05 (Pacific Daylight Time, UTC-07:00)", reasoning, @"The working directory is 'D:\files' (the profile's default folder); every path you pass to a file tool is relative to it.", tools, files, skills, catalog, project, markdown, pane, disabled is null ? null : ToolsText.DisabledSet(disabled), projectFile, FileSafeEdits: safeEdits, GitTools: gitTools, ShellTools: shellTools, ShellBridge: shellBridge, ShellPolice: shellPolice);
 
     /// <summary>The section heading for a working directory with neither notes file. Pinned.</summary>
     private const string NoNotesHeading = "Project notes — none (NEON.md / AGENTS.md not in the working directory)";
@@ -727,6 +728,14 @@ public class SystemPromptSummaryTests : IDisposable
         Assert.Equal(Assistant.DefaultRules(false, true, git: true, shell: true, bridge: true), SystemPromptSummary.PromptSections(Facts(gitTools: 11, shellTools: 1, shellBridge: true))[1].Body);
         Assert.Equal(Assistant.SystemPrompt(false, [], skills: [], shell: true), SystemPromptSummary.SystemPrompt(Facts(shellTools: 1)));
         Assert.Equal(Assistant.SystemPrompt(false, [], skills: [], shell: true, bridge: true), SystemPromptSummary.SystemPrompt(Facts(shellTools: 1, shellBridge: true)));
+        // The head follows the setting Shell police outside paths (2026-09-22): off, the …Unpoliced variant, which says nothing about where a command may reach.
+        Assert.Contains(Assistant.ShellRuleWithoutBridgeUnpoliced, SystemPromptSummary.PromptSections(Facts(shellTools: 1, shellPolice: false))[1].Body);
+        Assert.Contains(Assistant.ShellRuleUnpoliced, SystemPromptSummary.PromptSections(Facts(shellTools: 1, shellBridge: true, shellPolice: false))[1].Body);
+        Assert.DoesNotContain("under it", SystemPromptSummary.PromptSections(Facts(shellTools: 1, shellPolice: false))[1].Body);
+        Assert.Equal(Assistant.DefaultRules(false, true, git: true, shell: true, police: false), SystemPromptSummary.PromptSections(Facts(gitTools: 11, shellTools: 1, shellPolice: false))[1].Body);
+        Assert.Equal(Assistant.SystemPrompt(false, [], skills: [], shell: true, police: false), SystemPromptSummary.SystemPrompt(Facts(shellTools: 1, shellPolice: false)));
+        Assert.True(Facts(shellPolice: false).Police);   // the police rides the shell rule alone: no shell tool, the default holds
+        Assert.False(Facts(shellTools: 1, shellPolice: false).Police);
     }
 
     [Fact]

@@ -48,6 +48,13 @@ public sealed class TranscriptRenderer : INoticeSink
     /// the skills' and not as any other tool's. A surrogate pair, two cells, the indent <see cref="ToolGlyph"/>'s.
     /// </summary>
     public const string SkillGlyph = "  🎓 ";
+
+    /// <summary>
+    /// The police's line (2026-09-22, the user's call): a shell tool's result the outside-paths police refused
+    /// (<see cref="Shell.ShellText.IsOutside"/>) wears the officer in place of the tools' glyph, so a refusal
+    /// reads as the police's and not as the command's own error. A surrogate pair, two cells, the indent <see cref="ToolGlyph"/>'s.
+    /// </summary>
+    public const string PoliceGlyph = "  👮 ";
     public const string AlertGlyph = "  ⏰ ";
 
     /// <summary>A background process's exit (2026-09-21): its own glyph, so it never reads as a timer.</summary>
@@ -131,6 +138,10 @@ public sealed class TranscriptRenderer : INoticeSink
     /// <summary>A skill tool's outcome as <see cref="ToolNoteMarkup"/> is a tool's, behind <see cref="SkillGlyph"/>.</summary>
     public static string SkillNoteMarkup(string text) =>
         Theme.ColorMarkup(Theme.Dim, SkillGlyph + Truncate(text, ToolTextLimit));
+
+    /// <summary>A shell tool's refusal by the police as <see cref="ToolNoteMarkup"/> is a tool's, behind <see cref="PoliceGlyph"/>.</summary>
+    public static string PoliceNoteMarkup(string text) =>
+        Theme.ColorMarkup(Theme.Dim, PoliceGlyph + Truncate(text, ToolTextLimit));
 
     public static string DiagnosticMarkup(DiagnosticEvent evt) =>
         Theme.ColorMarkup(DiagnosticColor(evt.Level), $"  [{evt.Category}] {evt.Message}");
@@ -216,6 +227,9 @@ public sealed class TranscriptRenderer : INoticeSink
 
     /// <summary><see cref="ToolNote"/> for a skill tool's result: the same dim line behind <see cref="SkillGlyph"/>.</summary>
     public void SkillNote(string text) => Line(SkillNoteMarkup(text), Theme.ColorMarkup(Theme.Dim, SkillGlyph.TrimStart() + Truncate(text, ToolTextLimit)));
+
+    /// <summary><see cref="ToolNote"/> for a result the police refused: the same dim line behind <see cref="PoliceGlyph"/>.</summary>
+    public void PoliceNote(string text) => Line(PoliceNoteMarkup(text), Theme.ColorMarkup(Theme.Dim, PoliceGlyph.TrimStart() + Truncate(text, ToolTextLimit)));
 
     /// <summary>A quiet tool's result as one <see cref="ToolNote"/> per line of <paramref name="text"/> (the question tool's answers), blank lines skipped; nothing for a blank text.</summary>
     public void ToolNotes(string text)
