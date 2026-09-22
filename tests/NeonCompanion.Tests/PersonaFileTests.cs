@@ -67,6 +67,29 @@ public class PersonaFileTests : IDisposable
     }
 
     [Fact]
+    public void CopyTo_CreatesTheDirectory_AndReplacesWhatIsThere()
+    {
+        // 2026-09-21: /persona copy <profile> [force] — byte for byte, the directory made, a file there replaced (the force rule is the caller's).
+        WriteFile("You are Rex.");
+        var persona = new PersonaFile(_dir);
+        string other = Path.Combine(_dir, "other");
+        Assert.False(Directory.Exists(other));
+
+        persona.CopyTo(other);
+        string copy = Path.Combine(other, PersonaFile.FileName);
+        Assert.Equal("You are Rex.", File.ReadAllText(copy));
+        Assert.Equal("You are Rex.", persona.Read());   // the source stays
+
+        WriteFile("You are Morgan, a calm librarian.");
+        persona.CopyTo(other);
+        Assert.Equal("You are Morgan, a calm librarian.", File.ReadAllText(copy));
+
+        File.Delete(FilePath);
+        Assert.Throws<FileNotFoundException>(() => persona.CopyTo(other));   // an IOException: the command reports it
+        Assert.Throws<ArgumentException>(() => persona.CopyTo(""));
+    }
+
+    [Fact]
     public void Rewrite_IsPickedUpOnTheNextRead_AndDeletionFallsBackToNull()
     {
         WriteFile("You are Rex.");

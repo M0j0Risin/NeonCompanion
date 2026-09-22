@@ -247,6 +247,27 @@ public static class Profiles
         _ => "",
     };
 
+    /// <summary>
+    /// Reads a <c>profile.json</c> that is not the loaded one, to edit and <see cref="WriteProfileFile"/>
+    /// back (<c>/cmdcopy</c>, 2026-09-21). A missing file is the compiled defaults: the profile is
+    /// logical, as <c>default</c>'s can be, or was never saved, and that is what loading it would give.
+    /// A corrupt file, or one that parses to null, <b>throws</b> <see cref="JsonException"/> — the
+    /// opposite of <c>AppSettings.Load</c>'s fall-back, because a copy that quietly fell back would
+    /// then overwrite the user's file with the defaults plus the copied field. The caller reports.
+    /// <see cref="IOException"/> / <see cref="UnauthorizedAccessException"/> pass through too.
+    /// </summary>
+    public static AppSettingsData ReadProfileFile(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        if (!File.Exists(path))
+        {
+            return new AppSettingsData();
+        }
+
+        return JsonSerializer.Deserialize(File.ReadAllText(path), SettingsJsonContext.Default.AppSettingsData)
+            ?? throw new JsonException("The settings file parsed to null.");
+    }
+
     /// <summary>Writes <paramref name="data"/> to <paramref name="path"/> atomically. Throws; the temp file is removed on failure.</summary>
     public static void WriteProfileFile(string path, AppSettingsData data)
     {

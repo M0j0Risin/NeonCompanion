@@ -1,6 +1,6 @@
 # Neon Companion
 
-Neon Companion is a streamlined agentic TUI harness for local LLMs, built on .NET 10. It attempts to combine and improve on many of my favorite features from tools like Claude Code, Hermes Agent, and Cline with a local-first workflow.
+Neon Companion is a streamlined agentic TUI harness for local LLMs, built on .NET 10. I built this to combine and expand on my favorite features from Claude Code, Hermes Agent, and Cline—with a focus on local execution.
 
 Current State: A foundational shell for continued tool development (Windows-first).
 On the Roadmap: Expanded coding capabilities and official macOS/Linux support.
@@ -39,7 +39,7 @@ Neon Companion is released under the GPLv3 license.
 
 ### Profiles, Sessions & Skills
 * **Multi-Profile Support:** Switch between distinct configurations, each featuring its own working directory, independent settings and isolated session logging.
-* **Advanced Session Management:** Easily manage, resume, and reflect on past sessions.
+* **Advanced Session Management:** Easily manage, resume, search and reflect on past sessions.
 * **Hierarchical Skills System:** Define and manage agent skills at the global, profile, project, or machine (`.agents\skills`) level.
 * **Self-Learning:** An automatic self-reflection system that dynamically updates and creates new skills based on interactions and tool outcomes.
 
@@ -228,7 +228,7 @@ Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Web, Memory, 
 | Setting | What it does | Default |
 |---|---|---|
 | Shell command policy | What stands between `run_command` and the shell: `off` (no shell tool is offered — the group's switch), `ask` (a command whose prefixes are not all allowed is put to you on the pane first: Deny, Allow once, Allow the prefixes for this session, or Allow them always; with no pane to ask on it is refused), `yolo` (everything runs, nothing is asked). `NEONCOMPANION_COMMAND_POLICY` outranks it, so a scripted `--headless` run can say `yolo`. | `ask` |
-| Shell allowed commands | The prefixes allowed for good — `git status`, `dotnet build`, `python` (the program, plus its subcommand for git, dotnet, npm, pip, gh, docker, cargo, go, winget and the like). Enter on one removes it; the pane's *Allow … always* adds one. | none |
+| Shell allowed commands | The prefixes allowed for good — `git status`, `dotnet build`, `python` (the program, plus its subcommand for git, dotnet, npm, pip, gh, docker, cargo, go, winget and the like). Enter on one removes it; the pane's *Allow … always* adds one; `/cmdcopy` copies the list into another profile. | none |
 | Shell default | The shell a `run_command` without `shell` runs in: `powershell` (pwsh when installed, else Windows PowerShell 5.1), `cmd`, or `bash` (Git Bash, when found). | `powershell` |
 | Shell timeout (s) | How long a foreground command without `timeout` may run before it is killed (1–3600). | 180 |
 | Shell foreground cap (s) | The most a foreground command may wait, whatever its `timeout` says (10–3600). | 600 |
@@ -294,6 +294,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 |---|---|
 | `/about` | Show the app's version, runtime, folders, components and licence. |
 | `/clear` | Start a new conversation and clear the screen. |
+| `/cmdcopy <profile> [overwrite]` | Copy this profile's allowed shell commands (the *Shell allowed commands* prefixes) into another: added to its list, or in place of it. |
 | `/compact [focus]` | Shrink the current context; a focus steers the summary. |
 | `/copy [n \| all]` | Copy the last reply to the clipboard as Markdown, or reply *n*, or the whole transcript. |
 | `/cwd [path \| ~ \| browse]` | Show or change the working directory; `browse` opens a folder picker on the pane: the profile's own `files\` folder as `⌂ profile` above the drives, opened on the directory in force (Enter chooses — the profile row saves the default, like `~` — Space/→/← open and close, `-` collapses all; a click on a folder's glyph or a double-click on its name opens or closes it; only Enter chooses). |
@@ -313,8 +314,8 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/memory` | List and prune the memory items. |
 | `/model [id]` | Pick a model from the server's list, or set one. |
 | `/new` | Start a new conversation without clearing the screen. |
-| `/operata [reset]` | Edit `operata.md` (the operating rules) in your editor, or go back to the default. |
-| `/persona [reset]` | Edit `persona.md` (the personality) in your editor, or go back to the default. |
+| `/operata [reset \| copy <profile> [force]]` | Edit `operata.md` (the operating rules) in your editor, go back to the default, or copy it into another profile (`force` replaces the one it has). |
+| `/persona [reset \| copy <profile> [force]]` | Edit `persona.md` (the personality) in your editor, go back to the default, or copy it into another profile (`force` replaces the one it has). |
 | `/profile [name \| add <name> \| delete <name> \| rename <name> <new> \| reset [name] \| edit \| reload]` | Switch, create, delete, rename or reset a profile; `edit` opens the loaded profile's `profile.json` in your editor and `reload` reads it back from disk, reconnecting only what changed. A name is 1 to 32 letters, digits, `-` or `_`, and not `neon` or one of the verbs. |
 | `/queue [clear]` | List and prune the messages queued while a reply runs (the pane's `⊠ clear all` button, or `c`, drops them all); `/queue clear` drops them all without the pane. |
 | `/reasoning [level]` | Pick the reasoning effort (`none`, `low`, `medium`, `high`, `xhigh`). |
@@ -334,7 +335,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/tts [on\|off]` | Toggle speech output. |
 | `/usage` | Show token usage and performance statistics. |
 | `/view <image>` | Show an image from the working directory in the transcript. |
-| `/vocalia [reset]` | Edit `vocalia.md` (the spoken-reply directive) in your editor, or go back to the default. |
+| `/vocalia [reset \| copy <profile> [force]]` | Edit `vocalia.md` (the spoken-reply directive) in your editor, go back to the default, or copy it into another profile (`force` replaces the one it has). |
 | `/wake [on\|off]` | Toggle the speech-input wake word. |
 | `/window` | Show the terminal window's width and height. |
 

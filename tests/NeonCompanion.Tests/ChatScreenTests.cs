@@ -4304,7 +4304,7 @@ public partial class ChatScreenTests : IDisposable
     public void PromptFileText_IsPinned()
     {
         Assert.Equal("reset", ChatScreen.ResetWord);
-        Assert.Equal("/operata takes nothing (open operata.md in your editor) or reset.", ChatScreen.PromptFileUsageError("/operata", "operata.md"));
+        Assert.Equal("/operata takes nothing (open operata.md in your editor), reset, or copy <profile> [force].", ChatScreen.PromptFileUsageError("/operata", "operata.md"));   // copy 2026-09-21
         Assert.Equal("Remove vocalia.md and go back to the default voice directive?", ChatScreen.PromptFileResetPrompt("vocalia.md", "voice directive"));
         Assert.Equal("(removed operata.md; the next reply uses the default operating rules)", ChatScreen.PromptFileResetNotice("operata.md", "operating rules", spoken: false));
         Assert.Equal("(removed vocalia.md; the next spoken reply uses the default voice directive)", ChatScreen.PromptFileResetNotice("vocalia.md", "voice directive", spoken: true));
@@ -4313,6 +4313,174 @@ public partial class ChatScreenTests : IDisposable
         Assert.EndsWith("; /persona reset goes back to the default)", ChatScreen.PersonaCreatedNotice);
         Assert.EndsWith("; /operata reset goes back to the default)", ChatScreen.OperataCreatedNotice);
         Assert.EndsWith("; /vocalia reset goes back to the default)", ChatScreen.VocaliaCreatedNotice);
+    }
+
+    // ── /persona copy <profile> [force] and its siblings (2026-09-21) ───────
+
+    private string MyPromptFile(string fileName, string text)
+    {
+        Directory.CreateDirectory(_settings.ProfileDirectory);
+        string path = Path.Combine(_settings.ProfileDirectory, fileName);
+        File.WriteAllText(path, text);
+        return path;
+    }
+
+    [Fact]
+    public async Task Persona_Copy_Yes_WritesTheFileIntoTheOtherProfile()
+    {
+        Profiles.Create(_dir, "work", new AppSettingsData());   // no persona.md there
+        MyPromptFile(PersonaFile.FileName, "You are Rex.");
+        PushLine("/persona copy work");
+        PickYes();
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains(SettingsMenu.PromptTitle("Copy persona.md into \"work\"?", SettingsMenu.ConfirmKeys), output);
+        Assert.Contains("  · (copied persona.md into \"work\")", output);
+        Assert.Equal("You are Rex.", File.ReadAllText(Path.Combine(ProfileDir("work"), PersonaFile.FileName)));
+        Assert.Equal("You are Rex.", File.ReadAllText(Path.Combine(_settings.ProfileDirectory, PersonaFile.FileName)));   // the source stays
+        Assert.Empty(_openedFiles);
+        Assert.Empty(_chat.Requests);
+    }
+
+    [Fact]
+    public async Task Persona_Copy_TargetHasOne_IsAnError_AndAsksNothing()
+    {
+        WorkProfile();   // work holds "You are Rex."
+        MyPromptFile(PersonaFile.FileName, "You are Max.");
+        PushLine("/persona copy work");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains("  ✗ " + ChatScreen.PromptFileTargetExistsError("/persona", "persona.md", "work"), output);
+        Assert.DoesNotContain("Copy ", output);
+        Assert.Equal("You are Rex.", File.ReadAllText(Path.Combine(ProfileDir("work"), PersonaFile.FileName)));
+    }
+
+    [Fact]
+    public async Task Persona_Copy_Force_Yes_ReplacesTheFile()
+    {
+        WorkProfile();
+        MyPromptFile(PersonaFile.FileName, "You are Max.");
+        PushLine("/persona COPY Work FORCE");
+        PickYes();
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains(SettingsMenu.PromptTitle("Replace \"work\"'s persona.md with this one?", SettingsMenu.ConfirmKeys), output);
+        Assert.Contains("  · (replaced \"work\"'s persona.md)", output);
+        Assert.Equal("You are Max.", File.ReadAllText(Path.Combine(ProfileDir("work"), PersonaFile.FileName)));
+    }
+
+    [Fact]
+    public async Task Persona_Copy_Force_OntoNothing_IsAPlainCopy()
+    {
+        Profiles.Create(_dir, "work", new AppSettingsData());
+        MyPromptFile(PersonaFile.FileName, "You are Max.");
+        PushLine("/persona copy work force");
+        PickYes();
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains(SettingsMenu.PromptTitle("Copy persona.md into \"work\"?", SettingsMenu.ConfirmKeys), output);
+        Assert.Contains("  · (copied persona.md into \"work\")", output);
+        Assert.Equal("You are Max.", File.ReadAllText(Path.Combine(ProfileDir("work"), PersonaFile.FileName)));
+    }
+
+    [Fact]
+    public async Task Persona_Copy_No_Keeps()
+    {
+        WorkProfile();
+        Profiles.Create(_dir, "chef", new AppSettingsData());
+        MyPromptFile(PersonaFile.FileName, "You are Max.");
+        PushLine("/persona copy work force");
+        _console.Input.PushKey(Keys.Enter);   // No is on the cursor
+        PushLine("/persona copy chef");
+        _console.Input.PushKey(Keys.Escape);
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Equal(2, output.Split("  · " + ChatScreen.KeptNotice).Length - 1);
+        Assert.Equal("You are Rex.", File.ReadAllText(Path.Combine(ProfileDir("work"), PersonaFile.FileName)));
+        Assert.False(File.Exists(Path.Combine(ProfileDir("chef"), PersonaFile.FileName)));
+    }
+
+    [Fact]
+    public async Task Persona_Copy_Refusals_AreOneLineEach_AndAskNothing()
+    {
+        Profiles.Create(_dir, "work", new AppSettingsData());
+        PushLine("/persona copy");                 // usage: no profile
+        PushLine("/persona copy work extra");      // usage: a third word that is not force
+        PushLine("/persona copy work force now");  // usage: four words
+        PushLine("/persona copy ghost");
+        PushLine("/persona copy default");
+        PushLine("/persona copy work");            // no persona.md here: the default is in use
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Equal(3, output.Split("  ✗ " + ChatScreen.PromptFileUsageError("/persona", "persona.md")).Length - 1);
+        Assert.Contains("  ✗ " + ChatScreen.ProfileMissingError("ghost"), output);
+        Assert.Contains("  ✗ " + ChatScreen.PromptFileCopySelfError("/persona"), output);
+        Assert.Contains("  · " + ChatScreen.PromptFileNothingToCopyNotice("persona.md", "persona"), output);
+        Assert.DoesNotContain("Copy ", output);
+        Assert.False(File.Exists(Path.Combine(ProfileDir("work"), PersonaFile.FileName)));
+        Assert.Empty(_openedFiles);
+    }
+
+    [Fact]
+    public async Task Operata_Copy_Yes_WritesOperataMd()
+    {
+        Profiles.Create(_dir, "work", new AppSettingsData());
+        MyPromptFile(OperataFile.FileName, "Answer in haiku.");
+        PushLine("/operata copy work");
+        PickYes();
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains("  · (copied operata.md into \"work\")", output);
+        Assert.Equal("Answer in haiku.", File.ReadAllText(Path.Combine(ProfileDir("work"), OperataFile.FileName)));
+        Assert.False(File.Exists(Path.Combine(ProfileDir("work"), PersonaFile.FileName)));
+    }
+
+    [Fact]
+    public async Task Vocalia_Copy_Force_Yes_ReplacesVocaliaMd()
+    {
+        WorkProfile();   // work holds "Speak like a pirate."
+        MyPromptFile(VocaliaFile.FileName, "Whisper.");
+        PushLine("/vocalia copy work");
+        PushLine("/vocalia copy work force");
+        PickYes();
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains("  ✗ " + ChatScreen.PromptFileTargetExistsError("/vocalia", "vocalia.md", "work"), output);
+        Assert.Contains("  · (replaced \"work\"'s vocalia.md)", output);
+        Assert.Equal("Whisper.", File.ReadAllText(Path.Combine(ProfileDir("work"), VocaliaFile.FileName)));
+        Assert.Equal("You are Rex.", File.ReadAllText(Path.Combine(ProfileDir("work"), PersonaFile.FileName)));   // the siblings untouched
+    }
+
+    [Fact]
+    public void PromptFileCopyText_IsPinned()
+    {
+        Assert.Equal("copy", ChatScreen.CopyWord);
+        Assert.Equal("force", ChatScreen.ForceWord);
+        Assert.Equal(ChatScreen.ForceWord, ChatScreen.GitForceWord);
+        Assert.Equal("/persona copy copies into another profile; that one is loaded.", ChatScreen.PromptFileCopySelfError("/persona"));
+        Assert.Equal("(operata.md is not there; the default operating rules is in use, so there is nothing to copy)", ChatScreen.PromptFileNothingToCopyNotice("operata.md", "operating rules"));
+        Assert.Equal("\"work\" already has a vocalia.md; /vocalia copy work force replaces it.", ChatScreen.PromptFileTargetExistsError("/vocalia", "vocalia.md", "work"));
+        Assert.Equal("Copy persona.md into \"work\"?", ChatScreen.PromptFileCopyPrompt("persona.md", "work", replacing: false));
+        Assert.Equal("Replace \"work\"'s persona.md with this one?", ChatScreen.PromptFileCopyPrompt("persona.md", "work", replacing: true));
+        Assert.Equal("(copied persona.md into \"work\")", ChatScreen.PromptFileCopiedNotice("persona.md", "work", replacing: false));
+        Assert.Equal("(replaced \"work\"'s persona.md)", ChatScreen.PromptFileCopiedNotice("persona.md", "work", replacing: true));
+        Assert.Equal("Could not copy persona.md: locked", ChatScreen.PromptFileCopyFailedError("persona.md", "locked"));
     }
 
     [Fact]
@@ -6378,6 +6546,138 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal("overwrite", ChatScreen.OverwriteWord);
     }
 
+    // ── /cmdcopy (2026-09-21) ───────────────────────────────────────────────
+
+    private static AppSettingsData ReadProfile(string path) =>
+        JsonSerializer.Deserialize(File.ReadAllText(path), SettingsJsonContext.Default.AppSettingsData)!;
+
+    [Fact]
+    public async Task CmdCopy_Yes_AppendsIntoTheOtherProfile_SkippingWhatItHolds()
+    {
+        Profiles.Create(_dir, "work", new AppSettingsData { LlmModel = "work-model", ShellCommandAllowed = ["echo", "dir"] });
+        _settings.Update(d => d.ShellCommandAllowed = ["ECHO ", "git status"]);
+        PushLine("/cmdcopy work");
+        PickYes();
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains(SettingsMenu.PromptTitle("Copy 2 allowed commands into \"work\"?", SettingsMenu.ConfirmKeys), output);
+        Assert.Contains("  · (1 allowed command copied into \"work\", 1 already there)", output);
+        var work = ReadProfile(Profiles.ProfileFile(_dir, "work"));
+        Assert.Equal(new[] { "dir", "echo", "git status" }, work.ShellCommandAllowed);   // normalised: lower case, sorted
+        Assert.Equal("work-model", work.LlmModel);                                        // the rest of the file round-trips
+        Assert.Equal(new[] { "ECHO ", "git status" }, _settings.Current.ShellCommandAllowed);   // the source untouched
+        Assert.Equal(Profiles.DefaultName, _settings.ProfileName);
+        Assert.Empty(_chat.Requests);
+    }
+
+    [Fact]
+    public async Task CmdCopy_Overwrite_Yes_ReplacesTheOtherProfilesList()
+    {
+        Profiles.Create(_dir, "work", new AppSettingsData { ShellCommandAllowed = ["echo", "dir"] });
+        _settings.Update(d => d.ShellCommandAllowed = ["git status"]);
+        PushLine("/cmdcopy WORK Overwrite");
+        PickYes();
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains(SettingsMenu.PromptTitle("Replace \"work\"'s allowed commands with these 1 allowed command?", SettingsMenu.ConfirmKeys), output);
+        Assert.Contains("  · (replaced \"work\"'s allowed commands with 1 allowed command)", output);
+        Assert.Equal(new[] { "git status" }, ReadProfile(Profiles.ProfileFile(_dir, "work")).ShellCommandAllowed);
+    }
+
+    [Fact]
+    public async Task CmdCopy_IntoTheDefault_FromAnotherProfile_CreatesItsFile()
+    {
+        // default is an ordinary target (its profile.json written by the fixture's saves, or created when it is only logical); only the one field changes.
+        Profiles.Create(_dir, "work", new AppSettingsData { ShellCommandAllowed = ["echo"] });
+        PushLine("/profile work");
+        PushLine("/cmdcopy default");
+        PickYes();
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains("  · (1 allowed command copied into \"default\")", output);
+        var data = ReadProfile(Profiles.ProfileFile(_dir, Profiles.DefaultName));
+        Assert.Equal(new[] { "echo" }, data.ShellCommandAllowed);
+        Assert.Equal(new AppSettingsData().LlmModel, data.LlmModel);
+    }
+
+    [Fact]
+    public async Task CmdCopy_No_Keeps()
+    {
+        Profiles.Create(_dir, "work", new AppSettingsData { ShellCommandAllowed = ["dir"] });
+        _settings.Update(d => d.ShellCommandAllowed = ["echo"]);
+        PushLine("/cmdcopy work");
+        _console.Input.PushKey(Keys.Enter);   // No is on the cursor
+        PushLine("/cmdcopy work overwrite");
+        _console.Input.PushKey(Keys.Escape);
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Equal(2, output.Split("  · " + ChatScreen.KeptNotice).Length - 1);
+        Assert.Equal(new[] { "dir" }, ReadProfile(Profiles.ProfileFile(_dir, "work")).ShellCommandAllowed);
+    }
+
+    [Fact]
+    public async Task CmdCopy_Refusals_AreOneLineEach_AndAskNothing()
+    {
+        Profiles.Create(_dir, "work", new AppSettingsData { ShellCommandAllowed = ["dir"] });
+        PushLine("/cmdcopy");
+        PushLine("/cmdcopy work now");
+        PushLine("/cmdcopy work overwrite please");
+        PushLine("/cmdcopy ghost");
+        PushLine("/cmdcopy default");
+        PushLine("/cmdcopy work");   // nothing allowed here yet
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Equal(3, output.Split("  ✗ " + ChatScreen.CmdCopyUsageError).Length - 1);
+        Assert.Contains("  ✗ " + ChatScreen.ProfileMissingError("ghost"), output);
+        Assert.Contains("  ✗ " + ChatScreen.CmdCopySelfError, output);
+        Assert.Contains("  · " + ChatScreen.CmdCopyNothingNotice, output);
+        Assert.DoesNotContain("Copy ", output);
+        Assert.Equal(new[] { "dir" }, ReadProfile(Profiles.ProfileFile(_dir, "work")).ShellCommandAllowed);
+    }
+
+    [Fact]
+    public async Task CmdCopy_CorruptTarget_IsAnError_AndTheFileIsLeftAlone()
+    {
+        // A profile.json that does not parse is never overwritten with the defaults plus the prefixes (Profiles.ReadProfileFile throws).
+        Profiles.Create(_dir, "work", new AppSettingsData());
+        File.WriteAllText(Profiles.ProfileFile(_dir, "work"), "{ not json");
+        _settings.Update(d => d.ShellCommandAllowed = ["echo"]);
+        PushLine("/cmdcopy work");
+        PickYes();
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains("  ✗ " + ChatScreen.CmdCopyFailedError(""), output);
+        Assert.Equal("{ not json", File.ReadAllText(Profiles.ProfileFile(_dir, "work")));
+    }
+
+    [Fact]
+    public void CmdCopyText_IsPinned()
+    {
+        Assert.Equal("/cmdcopy takes a profile name, and overwrite to replace its allowed commands: /cmdcopy <profile> [overwrite]", ChatScreen.CmdCopyUsageError);
+        Assert.Equal("/cmdcopy copies into another profile; that one is loaded.", ChatScreen.CmdCopySelfError);
+        Assert.Equal("(nothing to copy: this profile has no allowed commands)", ChatScreen.CmdCopyNothingNotice);
+        Assert.Equal("Copy 3 allowed commands into \"work\"?", ChatScreen.CmdCopyPrompt(3, "work", overwrite: false));
+        Assert.Equal("Copy 1 allowed command into \"work\"?", ChatScreen.CmdCopyPrompt(1, "work", overwrite: false));
+        Assert.Equal("Replace \"work\"'s allowed commands with these 3 allowed commands?", ChatScreen.CmdCopyPrompt(3, "work", overwrite: true));
+        Assert.Equal("(3 allowed commands copied into \"work\")", ChatScreen.CmdCopiedNotice(3, 0, "work", overwrite: false));
+        Assert.Equal("(2 allowed commands copied into \"work\", 1 already there)", ChatScreen.CmdCopiedNotice(2, 1, "work", overwrite: false));
+        Assert.Equal("(0 allowed commands copied into \"work\", 3 already there)", ChatScreen.CmdCopiedNotice(0, 3, "work", overwrite: false));
+        Assert.Equal("(replaced \"work\"'s allowed commands with 3 allowed commands)", ChatScreen.CmdCopiedNotice(3, 0, "work", overwrite: true));
+        Assert.Equal("Could not write the profile's settings: x", ChatScreen.CmdCopyFailedError("x"));
+    }
+
     [Fact]
     public async Task Profile_Reset_AnythingElse_Keeps()
     {
@@ -7754,7 +8054,7 @@ public partial class ChatScreenTests : IDisposable
         }
 
         Assert.Equal(lines.Length, line);
-        Assert.Equal(52, lines.Length);   // 44 commands + 8 blank rows: /loop under /draft 2026-09-21; /git under /emptytrash 2026-09-21; /mcp under /tools 2026-09-20; /splash under /new later still on 2026-09-19; /draft under /copy since 2026-09-19; nine groups since later on 2026-09-19 (/skills + /learn under /sessions, /window under /view, /timer under /help); 39 + 10 with /tools under /settings that morning (38 + 10 since the three tool switches went, 2026-09-18)
+        Assert.Equal(53, lines.Length);   // 45 commands + 8 blank rows: /cmdcopy under /memcopy 2026-09-21; /loop under /draft 2026-09-21; /git under /emptytrash 2026-09-21; /mcp under /tools 2026-09-20; /splash under /new later still on 2026-09-19; /draft under /copy since 2026-09-19; nine groups since later on 2026-09-19 (/skills + /learn under /sessions, /window under /view, /timer under /help); 39 + 10 with /tools under /settings that morning (38 + 10 since the three tool switches went, 2026-09-18)
         Assert.StartsWith(HelpRow("/settings, //", "edit and save settings"), lines[0]);
         Assert.StartsWith(HelpRow("/tools", "switch the model's tools on or off and edit the Options, Ask, Files and Web settings on a pane"), lines[1]);   // 2026-09-19; the alias /// came and went on 2026-09-21
         Assert.StartsWith(HelpRow("/mcp", "connect external MCP servers and switch their tools on or off on a pane"), lines[2]);   // 2026-09-20
@@ -7780,21 +8080,22 @@ public partial class ChatScreenTests : IDisposable
         Assert.StartsWith(HelpRow("/remember", "add a memory: /remember <text>"), lines[29]);
         Assert.StartsWith(HelpRow("/forget", "forget all memory"), lines[30]);
         Assert.StartsWith(HelpRow("/memcopy", "copy this profile's memory into another: /memcopy <profile> [overwrite]"), lines[31]);   // 2026-09-17
-        Assert.StartsWith(HelpRow("/tree", "print a tree of the working directory's folders and files, or /tree <path>"), lines[34]);
-        Assert.StartsWith(HelpRow("/emptytrash", "empty the working directory's .trash for good (asks first)"), lines[36]);
-        Assert.StartsWith(HelpRow("/git", "write the Git native email and Git native name settings into the working directory's repository: /git user [force]"), lines[37]);   // 2026-09-21
-        Assert.True(string.IsNullOrWhiteSpace(lines[38]));
+        Assert.StartsWith(HelpRow("/cmdcopy", "copy this profile's allowed shell commands into another: /cmdcopy <profile> [overwrite]"), lines[32]);   // 2026-09-21
+        Assert.StartsWith(HelpRow("/tree", "print a tree of the working directory's folders and files, or /tree <path>"), lines[35]);
+        Assert.StartsWith(HelpRow("/emptytrash", "empty the working directory's .trash for good (asks first)"), lines[37]);
+        Assert.StartsWith(HelpRow("/git", "write the Git native email and Git native name settings into the working directory's repository: /git user [force]"), lines[38]);   // 2026-09-21
+        Assert.True(string.IsNullOrWhiteSpace(lines[39]));
         // /speak and /view: a group of their own (the user's call, 2026-09-17); /window (/windowsize until then) under /view since later on 2026-09-19.
-        Assert.StartsWith(HelpRow("/speak", "read a text file from the working directory aloud, as a reply: /speak <file> [n], or /speak to resume, or /speak <n> from sentence n"), lines[39]);
-        Assert.StartsWith(HelpRow("/echo", "print a line as a reply and read it aloud when speech is on: /echo <text>"), lines[40]);
-        Assert.StartsWith(HelpRow("/view", "show an image from the working directory in the transcript, as large as the window allows: /view <image>"), lines[41]);
-        Assert.StartsWith(HelpRow("/window", "show the terminal window's width and height"), lines[42]);
-        Assert.True(string.IsNullOrWhiteSpace(lines[43]));
-        Assert.StartsWith(HelpRow("/persona", "export and manage persona.md (the personality) in your editor, or /persona reset to go back to the default"), lines[44]);
-        Assert.True(string.IsNullOrWhiteSpace(lines[47]));
-        Assert.StartsWith(HelpRow("/timer", "list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all"), lines[48]);   // the bottom group's first row since later still on 2026-09-19 (under /help from earlier that day)
-        Assert.StartsWith(HelpRow("/help", "show help"), lines[49]);   // the bottom group since 2026-09-16, above /about; under /timer since later still on 2026-09-19
-        Assert.StartsWith(HelpRow("/about", "show general information about the app and profile"), lines[50]);
+        Assert.StartsWith(HelpRow("/speak", "read a text file from the working directory aloud, as a reply: /speak <file> [n], or /speak to resume, or /speak <n> from sentence n"), lines[40]);
+        Assert.StartsWith(HelpRow("/echo", "print a line as a reply and read it aloud when speech is on: /echo <text>"), lines[41]);
+        Assert.StartsWith(HelpRow("/view", "show an image from the working directory in the transcript, as large as the window allows: /view <image>"), lines[42]);
+        Assert.StartsWith(HelpRow("/window", "show the terminal window's width and height"), lines[43]);
+        Assert.True(string.IsNullOrWhiteSpace(lines[44]));
+        Assert.StartsWith(HelpRow("/persona", "export and manage persona.md (the personality) in your editor, or /persona reset to go back to the default, or /persona copy <profile> [force] to copy it into another profile"), lines[45]);   // copy 2026-09-21
+        Assert.True(string.IsNullOrWhiteSpace(lines[48]));
+        Assert.StartsWith(HelpRow("/timer", "list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all"), lines[49]);   // the bottom group's first row since later still on 2026-09-19 (under /help from earlier that day)
+        Assert.StartsWith(HelpRow("/help", "show help"), lines[50]);   // the bottom group since 2026-09-16, above /about; under /timer since later still on 2026-09-19
+        Assert.StartsWith(HelpRow("/about", "show general information about the app and profile"), lines[51]);
         Assert.StartsWith(HelpRow("/exit", "exit/quit the application"), lines[^1]);   // the very last row since 2026-09-16
         Assert.DoesNotContain("/windowsize", _console.Output);
         Assert.DoesNotContain("(also", _console.Output);
@@ -8901,6 +9202,7 @@ public partial class ChatScreenTests : IDisposable
     [InlineData(SlashCommand.Exit, false, MidTurnClass.Cancel)]
     [InlineData(SlashCommand.Profile, true, MidTurnClass.Refused)]
     [InlineData(SlashCommand.MemCopy, true, MidTurnClass.Refused)]
+    [InlineData(SlashCommand.CmdCopy, true, MidTurnClass.Refused)]   // 2026-09-21
     [InlineData(SlashCommand.Server, false, MidTurnClass.Refused)]
     [InlineData(SlashCommand.Model, false, MidTurnClass.Refused)]
     [InlineData(SlashCommand.Compact, false, MidTurnClass.Refused)]
@@ -14177,6 +14479,11 @@ public partial class ChatScreenTests : IDisposable
         Assert.Empty(ChatScreen.ArgumentItems("/memcopy", "default ", sources));   // not a target: the source
         Assert.Equal(["chef", "default", "work"], Texts(ChatScreen.ArgumentItems("/memcopy", "", Sources(loaded: "other"))));
 
+        // /cmdcopy: the same shape, its own notes (2026-09-21).
+        Assert.Equal([new CompletionItem("chef", ChatScreen.CmdCopyTargetNote), new CompletionItem("work", ChatScreen.CmdCopyTargetNote)], ChatScreen.ArgumentItems("/cmdcopy", "", sources));
+        Assert.Equal([new CompletionItem("work overwrite", ChatScreen.CmdCopyOverwriteNote)], ChatScreen.ArgumentItems("/cmdcopy", "work ", sources));
+        Assert.Empty(ChatScreen.ArgumentItems("/cmdcopy", "default ", sources));
+
         // /timer: stop, then stop all | <name> with the names whole.
         Assert.Equal([new CompletionItem("stop", ChatScreen.TimerStopNote)], ChatScreen.ArgumentItems("/timer", "", sources));
         Assert.Equal(["stop all", "stop tea", "stop the big pot of soup"], Texts(ChatScreen.ArgumentItems("/timer", "stop ", sources)));
@@ -14192,8 +14499,16 @@ public partial class ChatScreenTests : IDisposable
         Assert.Empty(ChatScreen.ArgumentItems("/speak", "", sources));   // a path list, ArgumentPaths (2026-09-17)
         Assert.Equal([new CompletionItem("all", ChatScreen.CopyAllNote)], ChatScreen.ArgumentItems("/copy", "", sources));
         Assert.Equal([new CompletionItem("reset", ChatScreen.PromptFileResetNote("persona.md"))], ChatScreen.ArgumentItems("/persona", "re", sources));
-        Assert.Equal([new CompletionItem("reset", ChatScreen.PromptFileResetNote("operata.md"))], ChatScreen.ArgumentItems("/operata", "", sources));
-        Assert.Equal([new CompletionItem("reset", ChatScreen.PromptFileResetNote("vocalia.md"))], ChatScreen.ArgumentItems("/vocalia", "", sources));
+        Assert.Equal([new CompletionItem("reset", ChatScreen.PromptFileResetNote("operata.md")), new CompletionItem("copy", ChatScreen.PromptFileCopyNote("operata.md"))], ChatScreen.ArgumentItems("/operata", "", sources));   // copy 2026-09-21
+        Assert.Equal([new CompletionItem("reset", ChatScreen.PromptFileResetNote("vocalia.md")), new CompletionItem("copy", ChatScreen.PromptFileCopyNote("vocalia.md"))], ChatScreen.ArgumentItems("/vocalia", "", sources));
+        Assert.Equal([new CompletionItem("copy", ChatScreen.PromptFileCopyNote("persona.md"))], ChatScreen.ArgumentItems("/persona", "co", sources));
+        // After "copy " every profile but the loaded one; after "copy <name> " the force word; a name that is not a profile offers nothing.
+        Assert.Equal([new CompletionItem("copy chef", ChatScreen.PromptFileCopyTargetNote("persona.md")), new CompletionItem("copy work", ChatScreen.PromptFileCopyTargetNote("persona.md"))], ChatScreen.ArgumentItems("/persona", "copy ", sources));
+        Assert.Empty(ChatScreen.ArgumentItems("/persona", "copy default ", sources));   // not a target: the source
+        Assert.Equal([new CompletionItem("copy work", ChatScreen.PromptFileCopyTargetNote("vocalia.md"))], ChatScreen.ArgumentItems("/vocalia", "copy w", sources));
+        Assert.Equal([new CompletionItem("copy work force", ChatScreen.PromptFileCopyForceNote("operata.md"))], ChatScreen.ArgumentItems("/operata", "copy work ", sources));
+        Assert.Equal([new CompletionItem("copy work force", ChatScreen.PromptFileCopyForceNote("operata.md"))], ChatScreen.ArgumentItems("/operata", "copy WORK f", sources));
+        Assert.Empty(ChatScreen.ArgumentItems("/persona", "copy ghost ", sources));
         // /skill took nothing from later on 2026-09-18 (the catalog listed under it from 2026-09-16 until then); edit, then the catalog after it, since 2026-09-21.
         Assert.Equal([new CompletionItem("edit", ChatScreen.SkillsEditNote)], ChatScreen.ArgumentItems("/skills", "", sources));
         Assert.Empty(ChatScreen.ArgumentItems("/skills", "h", sources));
@@ -14244,7 +14559,12 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal("the loaded profile", ChatScreen.LoadedProfileNote);
         Assert.Equal("copy this profile's memory into it", ChatScreen.MemCopyTargetNote);
         Assert.Equal("replace its memory instead of adding to it", ChatScreen.MemCopyOverwriteNote);
+        Assert.Equal("copy this profile's allowed commands into it", ChatScreen.CmdCopyTargetNote);   // 2026-09-21
+        Assert.Equal("replace its allowed commands instead of adding to it", ChatScreen.CmdCopyOverwriteNote);
         Assert.Equal("remove persona.md and go back to the default", ChatScreen.PromptFileResetNote("persona.md"));
+        Assert.Equal("copy persona.md into another profile", ChatScreen.PromptFileCopyNote("persona.md"));   // 2026-09-21
+        Assert.Equal("copy operata.md into it", ChatScreen.PromptFileCopyTargetNote("operata.md"));
+        Assert.Equal("replace its vocalia.md if it has one", ChatScreen.PromptFileCopyForceNote("vocalia.md"));
         Assert.Equal(["add", "delete", "edit", "reload", "rename", "reset"], ChatScreen.ProfileVerbs.Select(v => v.Text));
         Assert.Equal("add a profile: /profile add <name>", ChatScreen.ProfileVerbs[0].Note);
         Assert.Equal("open this profile's profile.json in your editor: /profile edit", ChatScreen.ProfileVerbs[2].Note);

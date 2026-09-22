@@ -102,6 +102,22 @@ public abstract class PromptFile
     }
 
     /// <summary>
+    /// Copies the file, byte for byte, into <paramref name="directory"/> under its own name
+    /// (<c>/persona copy &lt;profile&gt; [force]</c> and its siblings, 2026-09-21: another profile's
+    /// folder), creating the directory and replacing a file already there. Whether replacing is
+    /// allowed is the caller's rule (the <c>force</c> word, checked before the confirmation); this
+    /// just copies. Throws <see cref="IOException"/> / <see cref="UnauthorizedAccessException"/>
+    /// (a missing source among them); the slash command reports those.
+    /// </summary>
+    public void CopyTo(string directory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(directory);
+        string root = Path.GetFullPath(directory);
+        Directory.CreateDirectory(root);
+        File.Copy(FilePath, Path.Combine(root, CurrentFileName), overwrite: true);
+    }
+
+    /// <summary>
     /// The text for this turn: the file's, normalised, or null when the file is missing, blank or
     /// unreadable — null means the default.
     /// </summary>

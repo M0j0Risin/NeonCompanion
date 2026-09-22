@@ -100,6 +100,35 @@ public class ProfilesTests : IDisposable
     }
 
     [Fact]
+    public void ReadProfileFile_MissingIsTheDefaults_AndAWrittenFileRoundTrips()
+    {
+        // 2026-09-21: the reader /cmdcopy edits another profile's settings with.
+        string path = Profiles.ProfileFile(_dir, "work");
+        var missing = Profiles.ReadProfileFile(path);
+        Assert.Equal(new AppSettingsData().LlmModel, missing.LlmModel);
+        Assert.Empty(missing.ShellCommandAllowed);
+        Assert.False(File.Exists(path));
+
+        Profiles.WriteProfileFile(path, new AppSettingsData { LlmModel = "seeded", ShellCommandAllowed = ["echo", "git status"] });
+        var read = Profiles.ReadProfileFile(path);
+        Assert.Equal("seeded", read.LlmModel);
+        Assert.Equal(new[] { "echo", "git status" }, read.ShellCommandAllowed);
+    }
+
+    [Fact]
+    public void ReadProfileFile_CorruptThrows_RatherThanFallingBack()
+    {
+        // Unlike AppSettings.Load: a copy that fell back would overwrite the file with the defaults.
+        string path = Profiles.ProfileFile(_dir, "work");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, "{ not json");
+        Assert.Throws<System.Text.Json.JsonException>(() => Profiles.ReadProfileFile(path));
+        File.WriteAllText(path, "null");
+        Assert.Throws<System.Text.Json.JsonException>(() => Profiles.ReadProfileFile(path));
+        Assert.Throws<ArgumentException>(() => Profiles.ReadProfileFile(" "));
+    }
+
+    [Fact]
     public void Create_WritesTheSeed_AndNothingElse()
     {
         Profiles.Create(_dir, "work", new AppSettingsData { LlmModel = "seeded", TtsVoice = "bm_george" });

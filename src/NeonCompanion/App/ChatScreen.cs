@@ -327,7 +327,10 @@ internal sealed partial class ChatScreen
 
     // The /git words (2026-09-21). Pinned.
     public const string GitUserWord = "user";
-    public const string GitForceWord = "force";
+    public const string GitForceWord = ForceWord;
+
+    /// <summary>The <c>force</c> word: <c>/git user force</c> (2026-09-21) and, later that day, <c>/persona copy &lt;profile&gt; force</c> and its siblings. Pinned.</summary>
+    public const string ForceWord = "force";
     public const string GitUsageError = "/git takes user [force].";
     public const string GitUserNote = "write the Git native email and Git native name settings into this repository's .git/config";
     public const string GitUserForceNote = "the same, replacing a [user] section already there";
@@ -2133,6 +2136,10 @@ internal sealed partial class ChatScreen
     public const string MemCopyTargetNote = "copy this profile's memory into it";
     public const string MemCopyOverwriteNote = "replace its memory instead of adding to it";
 
+    /// <summary>The <c>/cmdcopy</c> notes (2026-09-21), the shape of the <c>/memcopy</c> pair.</summary>
+    public const string CmdCopyTargetNote = "copy this profile's allowed commands into it";
+    public const string CmdCopyOverwriteNote = "replace its allowed commands instead of adding to it";
+
     /// <summary>The <c>/timer</c> list's entries. Pinned.</summary>
     public const string TimerStopNote = "stop a timer: /timer stop <name> | all";
     public const string TimerStopAllNote = "stop every timer";
@@ -2145,6 +2152,11 @@ internal sealed partial class ChatScreen
 
     /// <summary>The note on <c>reset</c> after a prompt-file command. Pinned.</summary>
     public static string PromptFileResetNote(string fileName) => $"remove {fileName} and go back to the default";
+
+    /// <summary>The notes on <c>copy</c>, the profile after it and <c>force</c> after that (2026-09-21). Pinned.</summary>
+    public static string PromptFileCopyNote(string fileName) => $"copy {fileName} into another profile";
+    public static string PromptFileCopyTargetNote(string fileName) => $"copy {fileName} into it";
+    public static string PromptFileCopyForceNote(string fileName) => $"replace its {fileName} if it has one";
 
     /// <summary>
     /// The input line's argument list (<see cref="MentionCompleter.TryFindArgument"/>): what
@@ -2234,19 +2246,21 @@ internal sealed partial class ChatScreen
                 return MentionCompleter.Matches([new("stop", TimerStopNote)], argText);
             }
 
-            case SlashCommand.MemCopy:
+            case SlashCommand.MemCopy or SlashCommand.CmdCopy:
             {
                 // Every profile but the loaded one (the source); after a name and a space, the one word that replaces.
+                // /cmdcopy (2026-09-21) shares the grammar, its own notes.
+                bool memory = kind == SlashCommand.MemCopy;
                 var targets = sources.Profiles().Where(name => !Profiles.NameEquals(name, sources.LoadedProfile)).ToList();
                 foreach (var name in targets)
                 {
                     if (argText.StartsWith(name + " ", StringComparison.OrdinalIgnoreCase))
                     {
-                        return MentionCompleter.Matches([new(name + " " + OverwriteWord, MemCopyOverwriteNote)], argText);
+                        return MentionCompleter.Matches([new(name + " " + OverwriteWord, memory ? MemCopyOverwriteNote : CmdCopyOverwriteNote)], argText);
                     }
                 }
 
-                return MentionCompleter.Matches(targets.Select(name => new CompletionItem(name, MemCopyTargetNote)).ToList(), argText);
+                return MentionCompleter.Matches(targets.Select(name => new CompletionItem(name, memory ? MemCopyTargetNote : CmdCopyTargetNote)).ToList(), argText);
             }
 
             case SlashCommand.Cwd:
@@ -2261,14 +2275,27 @@ internal sealed partial class ChatScreen
             case SlashCommand.Queue:
                 return MentionCompleter.Matches([new(QueueClearWord, QueueClearNote)], argText);
 
-            case SlashCommand.Persona:
-                return MentionCompleter.Matches([new(ResetWord, PromptFileResetNote(PersonaFile.FileName))], argText);
+            case SlashCommand.Persona or SlashCommand.Operata or SlashCommand.Vocalia:
+            {
+                // reset or copy; after "copy " every profile but the loaded one; after "copy <name> " the force word (2026-09-21).
+                string fileName = kind switch { SlashCommand.Persona => PersonaFile.FileName, SlashCommand.Operata => OperataFile.FileName, _ => VocaliaFile.FileName };
+                if (argText.StartsWith(CopyWord + " ", StringComparison.OrdinalIgnoreCase))
+                {
+                    string rest = argText[(CopyWord.Length + 1)..].TrimStart();
+                    var targets = sources.Profiles().Where(name => !Profiles.NameEquals(name, sources.LoadedProfile)).ToList();
+                    foreach (var name in targets)
+                    {
+                        if (rest.StartsWith(name + " ", StringComparison.OrdinalIgnoreCase))
+                        {
+                            return MentionCompleter.Matches([new(CopyWord + " " + name + " " + ForceWord, PromptFileCopyForceNote(fileName))], argText);
+                        }
+                    }
 
-            case SlashCommand.Operata:
-                return MentionCompleter.Matches([new(ResetWord, PromptFileResetNote(OperataFile.FileName))], argText);
+                    return MentionCompleter.Matches(targets.Select(name => new CompletionItem(CopyWord + " " + name, PromptFileCopyTargetNote(fileName))).ToList(), argText);
+                }
 
-            case SlashCommand.Vocalia:
-                return MentionCompleter.Matches([new(ResetWord, PromptFileResetNote(VocaliaFile.FileName))], argText);
+                return MentionCompleter.Matches([new(ResetWord, PromptFileResetNote(fileName)), new(CopyWord, PromptFileCopyNote(fileName))], argText);
+            }
 
             case SlashCommand.Learn:
                 return MentionCompleter.Matches([new(LearnSessionsWord, LearnSessionsNote)], argText);
@@ -2959,8 +2986,30 @@ internal sealed partial class ChatScreen
     /// <summary>The word after <c>/persona</c>, <c>/operata</c> or <c>/vocalia</c> that removes the file (2026-09-16).</summary>
     public const string ResetWord = "reset";
 
-    /// <summary>The usage line for a prompt-file command with a word that is not <see cref="ResetWord"/>. Pinned.</summary>
-    public static string PromptFileUsageError(string command, string fileName) => $"{command} takes nothing (open {fileName} in your editor) or {ResetWord}.";
+    /// <summary>The word after <c>/persona</c>, <c>/operata</c> or <c>/vocalia</c> that copies the file into another profile: <c>copy &lt;profile&gt; [force]</c> (2026-09-21).</summary>
+    public const string CopyWord = "copy";
+
+    /// <summary>The usage line for a prompt-file command with words that are neither <see cref="ResetWord"/> nor <c>copy &lt;profile&gt; [force]</c>. Pinned.</summary>
+    public static string PromptFileUsageError(string command, string fileName) => $"{command} takes nothing (open {fileName} in your editor), {ResetWord}, or {CopyWord} <profile> [{ForceWord}].";
+
+    /// <summary>The copy names the loaded profile as its target. Pinned.</summary>
+    public static string PromptFileCopySelfError(string command) => $"{command} {CopyWord} copies into another profile; that one is loaded.";
+
+    /// <summary>A copy with no file to copy: the default is in use here. Pinned.</summary>
+    public static string PromptFileNothingToCopyNotice(string fileName, string defaultLabel) => $"({fileName} is not there; the default {defaultLabel} is in use, so there is nothing to copy)";
+
+    /// <summary>The target has the file and <c>force</c> was not given (the user's rule, 2026-09-21): an error naming the way past it, nothing written. Pinned.</summary>
+    public static string PromptFileTargetExistsError(string command, string fileName, string profile) => $"\"{profile}\" already has a {fileName}; {command} {CopyWord} {profile} {ForceWord} replaces it.";
+
+    /// <summary>The question before a copy (the yes/no pane's title; <see cref="TypedConfirm"/> where menus cannot open); <paramref name="replacing"/> when the target's file goes under it. Pinned.</summary>
+    public static string PromptFileCopyPrompt(string fileName, string profile, bool replacing) =>
+        replacing ? $"Replace \"{profile}\"'s {fileName} with this one?" : $"Copy {fileName} into \"{profile}\"?";
+
+    /// <summary><c>(copied persona.md into "work")</c>, or <c>(replaced "work"'s persona.md)</c>. Pinned.</summary>
+    public static string PromptFileCopiedNotice(string fileName, string profile, bool replacing) =>
+        replacing ? $"(replaced \"{profile}\"'s {fileName})" : $"(copied {fileName} into \"{profile}\")";
+
+    public static string PromptFileCopyFailedError(string fileName, string detail) => $"Could not copy {fileName}: {detail}";
 
     /// <summary>The question before a <c>/persona reset</c> (the yes/no pane's title; <see cref="TypedConfirm"/> where menus cannot open); <c>y</c> or <c>yes</c> removes, anything else keeps. Pinned.</summary>
     public static string PromptFileResetPrompt(string fileName, string defaultLabel) => $"Remove {fileName} and go back to the default {defaultLabel}?";
@@ -2977,19 +3026,30 @@ internal sealed partial class ChatScreen
     /// <c>/persona</c>, <c>/operata</c> and <c>/vocalia</c> with their argument: nothing opens the
     /// file (<see cref="OpenPromptFile"/>); <see cref="ResetWord"/> removes it after a confirmation
     /// (the user's call, 2026-09-16: the file may hold a hand-written text and the profile folder
-    /// has no trash) so the default is back at the next turn; any other word is the usage line.
+    /// has no trash) so the default is back at the next turn; <c>copy &lt;profile&gt; [force]</c>
+    /// (2026-09-21, the user's ask) is <see cref="CopyPromptFileAsync"/>; any other words are the usage line.
     /// </summary>
     private async Task HandlePromptFileAsync(PromptFile file, string command, string args, string createdNotice, string openedNotice, Func<string, string> openFailedError, bool spoken, CancellationToken cancellationToken)
     {
-        string word = args.Trim();
-        if (word.Length == 0)
+        string[] words = args.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length == 0)
         {
             OpenPromptFile(file, createdNotice, openedNotice, openFailedError);
             return;
         }
 
         string fileName = file.CurrentFileName;
-        if (!word.Equals(ResetWord, StringComparison.OrdinalIgnoreCase))
+        if (words[0].Equals(CopyWord, StringComparison.OrdinalIgnoreCase) && words.Length is 2 or 3)
+        {
+            bool force = words.Length == 3 && words[2].Equals(ForceWord, StringComparison.OrdinalIgnoreCase);
+            if (words.Length == 2 || force)
+            {
+                await CopyPromptFileAsync(file, command, words[1], force, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+        }
+
+        if (words.Length != 1 || !words[0].Equals(ResetWord, StringComparison.OrdinalIgnoreCase))
         {
             _transcript.Error(PromptFileUsageError(command, fileName));
             return;
@@ -3015,6 +3075,61 @@ internal sealed partial class ChatScreen
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             _transcript.Error(PromptFileResetFailedError(fileName, ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// <c>/persona copy &lt;profile&gt; [force]</c> and its siblings (2026-09-21, the user's ask): the loaded
+    /// profile's file into another profile's folder, byte for byte (<see cref="PromptFile.CopyTo"/>). The
+    /// target is named as <c>/profile</c> resolves it and is never the loaded one; no file here is a notice
+    /// (the default is in use, nothing to copy); a file already there is an error unless <c>force</c> (the
+    /// user's rule: a hand-written text, no trash); either way the copy asks first (the user's call, like
+    /// <c>/memcopy</c>). <c>force</c> on a target without the file is a plain copy, and reads as one.
+    /// </summary>
+    private async Task CopyPromptFileAsync(PromptFile file, string command, string typed, bool force, CancellationToken cancellationToken)
+    {
+        string fileName = file.CurrentFileName;
+        string home = _settings.StorageDirectory;
+        if (Profiles.Resolve(home, typed) is not { } target)
+        {
+            _transcript.Error(ProfileMissingError(typed));
+            return;
+        }
+
+        if (Profiles.NameEquals(target, _settings.ProfileName))
+        {
+            _transcript.Error(PromptFileCopySelfError(command));
+            return;
+        }
+
+        if (!File.Exists(file.FilePath))
+        {
+            _transcript.Notice(PromptFileNothingToCopyNotice(fileName, file.DefaultLabel));
+            return;
+        }
+
+        string directory = Profiles.Directory(home, target);
+        bool replacing = File.Exists(Path.Combine(directory, fileName));
+        if (replacing && !force)
+        {
+            _transcript.Error(PromptFileTargetExistsError(command, fileName, target));
+            return;
+        }
+
+        if (!await ConfirmAsync(PromptFileCopyPrompt(fileName, target, replacing), cancellationToken).ConfigureAwait(false))
+        {
+            _transcript.Notice(KeptNotice);
+            return;
+        }
+
+        try
+        {
+            file.CopyTo(directory);
+            _transcript.Notice(PromptFileCopiedNotice(fileName, target, replacing));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _transcript.Error(PromptFileCopyFailedError(fileName, ex.Message));
         }
     }
 
@@ -3544,6 +3659,104 @@ internal sealed partial class ChatScreen
     }
 
     private static string Memories(int count) => count == 1 ? "1 memory" : $"{count.ToString(System.Globalization.CultureInfo.InvariantCulture)} memories";
+
+    // ── /cmdcopy (2026-09-21) ───────────────────────────────────────────────
+
+    public const string CmdCopyUsageError = "/cmdcopy takes a profile name, and overwrite to replace its allowed commands: /cmdcopy <profile> [overwrite]";
+
+    public const string CmdCopySelfError = "/cmdcopy copies into another profile; that one is loaded.";
+
+    public const string CmdCopyNothingNotice = "(nothing to copy: this profile has no allowed commands)";
+
+    /// <summary>The question before a copy (the yes/no pane's title; <see cref="TypedConfirm"/> where menus cannot open). Pinned.</summary>
+    public static string CmdCopyPrompt(int count, string profile, bool overwrite) =>
+        overwrite ? $"Replace \"{profile}\"'s allowed commands with these {AllowedCommands(count)}?" : $"Copy {AllowedCommands(count)} into \"{profile}\"?";
+
+    /// <summary>
+    /// <c>(3 allowed commands copied into "work")</c>; <c>(2 allowed commands copied into "work", 1 already there)</c>;
+    /// an overwrite reads <c>replaced "work"'s allowed commands with 3 allowed commands</c>. No "dropped" bucket:
+    /// the list has no cap, unlike the memory's. Pinned.
+    /// </summary>
+    public static string CmdCopiedNotice(int added, int duplicates, string profile, bool overwrite)
+    {
+        var sb = new StringBuilder("(");
+        sb.Append(overwrite ? $"replaced \"{profile}\"'s allowed commands with {AllowedCommands(added)}" : $"{AllowedCommands(added)} copied into \"{profile}\"");
+        if (duplicates > 0)
+        {
+            sb.Append(", ").Append(duplicates.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append(" already there");
+        }
+
+        return sb.Append(')').ToString();
+    }
+
+    public static string CmdCopyFailedError(string detail) => $"Could not write the profile's settings: {detail}";
+
+    /// <summary>
+    /// <c>/cmdcopy &lt;profile&gt; [overwrite]</c> (2026-09-21, the user's ask): this profile's
+    /// <c>Shell allowed commands</c> — the prefixes allowed for good on the approval pane — into
+    /// another's, the grammar, the confirmation and the append-or-replace of <c>/memcopy</c>. The
+    /// target's <c>profile.json</c> is read whole (<see cref="Profiles.ReadProfileFile"/>: a corrupt
+    /// one is an error, never overwritten), the one field changed, the file written back
+    /// (<see cref="Profiles.WriteProfileFile"/>); the loaded profile is never the target, so no
+    /// pending save is at stake. Appending skips what the target holds (<see cref="CommandAllowList.Contains"/>);
+    /// both lists come out normalised (<see cref="CommandAllowList.Merge"/>: lower case, sorted, no doubles).
+    /// </summary>
+    private async Task HandleCmdCopyAsync(string args, CancellationToken cancellationToken)
+    {
+        string[] words = args.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        bool overwrite = words.Length == 2 && string.Equals(words[1], OverwriteWord, StringComparison.OrdinalIgnoreCase);
+        if (words.Length == 0 || words.Length > 2 || (words.Length == 2 && !overwrite))
+        {
+            _transcript.Error(CmdCopyUsageError);
+            return;
+        }
+
+        string home = _settings.StorageDirectory;
+        if (Profiles.Resolve(home, words[0]) is not { } target)
+        {
+            _transcript.Error(ProfileMissingError(words[0]));
+            return;
+        }
+
+        if (Profiles.NameEquals(target, _settings.ProfileName))
+        {
+            _transcript.Error(CmdCopySelfError);
+            return;
+        }
+
+        var source = CommandAllowList.Merge(_settings.Current.ShellCommandAllowed, []);
+        if (source.Count == 0)
+        {
+            _flow.Notice(CmdCopyNothingNotice);
+            return;
+        }
+
+        if (!await ConfirmAsync(CmdCopyPrompt(source.Count, target, overwrite), cancellationToken).ConfigureAwait(false))
+        {
+            _flow.Notice(KeptNotice);
+            return;
+        }
+
+        try
+        {
+            string path = Profiles.ProfileFile(home, target);
+            var data = Profiles.ReadProfileFile(path);
+            int duplicates = overwrite ? 0 : source.Count(prefix => CommandAllowList.Contains(data.ShellCommandAllowed, prefix));
+            data.ShellCommandAllowed = overwrite ? source : CommandAllowList.Merge(data.ShellCommandAllowed, source);
+            Profiles.WriteProfileFile(path, data);
+            _transcript.Notice(CmdCopiedNotice(source.Count - duplicates, duplicates, target, overwrite));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        {
+            _transcript.Error(CmdCopyFailedError(ex.Message));
+        }
+        finally
+        {
+            DrainDiagnostics();
+        }
+    }
+
+    private static string AllowedCommands(int count) => count == 1 ? "1 allowed command" : $"{count.ToString(System.Globalization.CultureInfo.InvariantCulture)} allowed commands";
 
     /// <summary>Whether a typed confirmation means yes.</summary>
     public static bool IsYes(string text) =>
@@ -5934,6 +6147,9 @@ internal sealed partial class ChatScreen
 
             case SlashCommand.MemCopy:
                 await HandleMemCopyAsync(args, cancellationToken).ConfigureAwait(false);
+                return false;
+            case SlashCommand.CmdCopy:
+                await HandleCmdCopyAsync(args, cancellationToken).ConfigureAwait(false);
                 return false;
 
             case SlashCommand.Timer:
