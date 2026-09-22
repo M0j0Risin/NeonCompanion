@@ -532,17 +532,20 @@ Every connected MCP server is a group of its own, its tools offered as `<server>
 ### Tools offered
 ![tools](./assets/screenshots/screenshot_tools.png)
 
-### Ask (questions) settings
-![tools](./assets/screenshots/screenshot_ask_settings.png)
+### Browser settings
+![tools](./assets/screenshots/screenshot_browser_settings.png)
 
 ### File settings
 ![tools](./assets/screenshots/screenshot_file_settings.png)
 
-### Git settings
-![tools](./assets/screenshots/screenshot_git_settings.png)
+### File settings
+![tools](./assets/screenshots/screenshot_shell_settings.png)
 
-### Browser settings
-![tools](./assets/screenshots/screenshot_browser_settings.png)
+### Ask (questions) settings
+![tools](./assets/screenshots/screenshot_ask_settings.png)
+
+### Git (native) settings
+![tools](./assets/screenshots/screenshot_git_settings.png)
 
 ### MCP settings
 ![mcp](./assets/screenshots/screenshot_mcp.png)
