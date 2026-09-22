@@ -52,6 +52,9 @@ public enum SlashCommand
     /// <summary><c>/cmdcopy &lt;profile&gt; [overwrite]</c>: copy this profile's allowed shell commands (the <c>Shell allowed commands</c> prefixes) into another's — appended, the duplicates skipped, or in place of them — after a confirmation (2026-09-21, the user's ask: <c>/memcopy</c> for the approval pane's list).</summary>
     CmdCopy,
 
+    /// <summary><c>/cmdlist</c>: this profile's allowed shell commands (the <c>Shell allowed commands</c> prefixes) on a pane, Enter removing one — the Tools pane's row opened straight, ESC closing the pane (2026-09-21, the user's ask: the toolbar's lock glyph's word, typed). No argument.</summary>
+    CmdList,
+
     /// <summary><c>/persona</c>: open <c>persona.md</c> in the editor Windows associates with it, <c>/persona reset</c> to remove it (2026-09-16), or <c>/persona copy &lt;profile&gt; [force]</c> to copy it into another profile (2026-09-21).</summary>
     Persona,
 
@@ -135,7 +138,7 @@ public enum SlashCommand
 /// The slash-command classifier. A line is a command only when it starts with <c>/</c>, and the
 /// first token must match exactly: <c>/exit the program please</c> is not <c>/exit</c>, and
 /// <c>what does /clear do?</c> is a question for the model. <c>//</c> is <c>/settings</c>, the one alias (<c>///</c> for <c>/tools</c> and <c>////</c> for <c>/skills</c> came and went on 2026-09-21, the user's ask both times); every other one (<c>/?</c>, <c>/cls</c>, <c>/exit</c>, <c>/srv</c>, <c>/prof</c> …) went on 2026-09-16 with the argument completion, the user's call, and reads as an unknown command now (<c>/config</c> had gone the same day). <c>/new</c> is its own command (a new conversation, the screen kept) since 2026-09-16; <c>/splash</c> (a new conversation, the screen wiped and the welcome splash shown) since 2026-09-19. Only <c>/server</c>, <c>/model</c>, <c>/reasoning</c>, <c>/tts</c>,
-/// <c>/stt</c>, <c>/wake</c>, <c>/interrupt</c>, <c>/speak</c>, <c>/echo</c>, <c>/view</c>, <c>/learn</c>, <c>/remember</c>, <c>/memcopy</c>, <c>/cmdcopy</c> (2026-09-21), <c>/profile</c>, <c>/timer</c>, <c>/cwd</c>, <c>/tree</c>, <c>/explore</c>, <c>/copy</c>, <c>/compact</c>, <c>/git</c>, <c>/loop</c>, <c>/skills</c> (2026-09-21) and (since 2026-09-16, <c>reset</c>; since 2026-09-21, <c>copy &lt;profile&gt; [force]</c>) <c>/persona</c>, <c>/operata</c>, <c>/vocalia</c> take an argument (<see cref="TakesArgument"/>); any other command given one is <see cref="SlashCommand.Overloaded"/>, so <c>/about me</c> is told the command takes nothing rather than called unknown (2026-09-17). <c>/draft</c> takes nothing (2026-09-19: the editor is the argument). <c>/skills</c> opens the Skills pane, or <c>/skills edit &lt;name&gt;</c> the skill's file (2026-09-21; it took nothing before) (the plural since 2026-09-19, beside <c>/tools</c>; a bare <c>/skill</c> from later on 2026-09-18, in place of <c>/skill list</c>; <c>/skills</c> before that; <c>/skill &lt;name&gt; [message]</c> took a name until later that day; <c>/skill</c> is unknown now). The three tool switches <c>/web</c>, <c>/files</c>, <c>/ask</c> went later on 2026-09-18 (the user's call: the settings rows <c>Web tools</c>, <c>File tools</c>, <c>Ask user</c> are the one place now) and read as unknown commands.
+/// <c>/stt</c>, <c>/wake</c>, <c>/interrupt</c>, <c>/speak</c>, <c>/echo</c>, <c>/view</c>, <c>/learn</c>, <c>/remember</c>, <c>/memcopy</c>, <c>/cmdcopy</c> (2026-09-21), <c>/profile</c>, <c>/timer</c>, <c>/cwd</c>, <c>/tree</c>, <c>/explore</c>, <c>/copy</c>, <c>/compact</c>, <c>/git</c>, <c>/loop</c>, <c>/skills</c> (2026-09-21) and (since 2026-09-16, <c>reset</c>; since 2026-09-21, <c>copy &lt;profile&gt; [force]</c>) <c>/persona</c>, <c>/operata</c>, <c>/vocalia</c> take an argument (<see cref="TakesArgument"/>); any other command given one is <see cref="SlashCommand.Overloaded"/>, so <c>/about me</c> is told the command takes nothing rather than called unknown (2026-09-17). <c>/draft</c> takes nothing (2026-09-19: the editor is the argument); nor does <c>/cmdlist</c> (later on 2026-09-21: the allowed-commands list on a pane, the toolbar lock glyph's word). <c>/skills</c> opens the Skills pane, or <c>/skills edit &lt;name&gt;</c> the skill's file (2026-09-21; it took nothing before) (the plural since 2026-09-19, beside <c>/tools</c>; a bare <c>/skill</c> from later on 2026-09-18, in place of <c>/skill list</c>; <c>/skills</c> before that; <c>/skill &lt;name&gt; [message]</c> took a name until later that day; <c>/skill</c> is unknown now). The three tool switches <c>/web</c>, <c>/files</c>, <c>/ask</c> went later on 2026-09-18 (the user's call: the settings rows <c>Web tools</c>, <c>File tools</c>, <c>Ask user</c> are the one place now) and read as unknown commands.
 /// </summary>
 public static class SlashCommands
 {
@@ -200,6 +203,7 @@ public static class SlashCommands
             new("/forget", "forget all memory"),
             new("/memcopy", "copy this profile's memory into another: /memcopy <profile> [overwrite]"),
             new("/cmdcopy", "copy this profile's allowed shell commands into another: /cmdcopy <profile> [overwrite]"),
+            new("/cmdlist", "list this profile's allowed shell commands on a pane, Enter removes one"),
         ],
         [
             new("/cwd", "show or change the working directory, or /cwd <path> | ~ | browse"),
@@ -282,7 +286,7 @@ public static class SlashCommands
     }
 
     /// <summary>Every command word, for help and completion.</summary>
-    public static readonly string[] Words = { "/help", "/clear", "/new", "/splash", "/queue", "/sessions", "/compact", "/server", "/model", "/reasoning", "/settings", "//", "/tools", "/mcp", "/tts", "/stt", "/wake", "/interrupt", "/speak", "/remember", "/memory", "/forget", "/memcopy", "/cmdcopy", "/persona", "/operata", "/vocalia", "/sys", "/usage", "/profile", "/timer", "/cwd", "/tree", "/explore", "/view", "/echo", "/emptytrash", "/git", "/copy", "/draft", "/loop", "/window", "/skills", "/learn", "/about", "/exit" };
+    public static readonly string[] Words = { "/help", "/clear", "/new", "/splash", "/queue", "/sessions", "/compact", "/server", "/model", "/reasoning", "/settings", "//", "/tools", "/mcp", "/tts", "/stt", "/wake", "/interrupt", "/speak", "/remember", "/memory", "/forget", "/memcopy", "/cmdcopy", "/cmdlist", "/persona", "/operata", "/vocalia", "/sys", "/usage", "/profile", "/timer", "/cwd", "/tree", "/explore", "/view", "/echo", "/emptytrash", "/git", "/copy", "/draft", "/loop", "/window", "/skills", "/learn", "/about", "/exit" };
 
     /// <summary>The <c>/queue</c> word: what a double-click on the hint row's queued part sends through the mid-turn line hook, so the pane opens exactly as the typed command's does (2026-09-18). Pinned.</summary>
     public const string QueueWord = "/queue";
@@ -297,6 +301,7 @@ public static class SlashCommands
     public const string McpWord = "/mcp";
     public const string SysWord = "/sys";
     public const string SessionsWord = "/sessions";   // later on 2026-09-21, the sixth glyph
+    public const string CmdListWord = "/cmdlist";     // later still on 2026-09-21, the seventh: the lock, whichever way the policy turns it
 
     /// <summary>The words the hint row's model name and reasoning mark send through the screen's dispatch at idle (later on 2026-09-21, so a double-click off the pane they open can switch panes). Pinned.</summary>
     public const string ModelWord = "/model";
@@ -339,6 +344,7 @@ public static class SlashCommands
             "/memory" => SlashCommand.Memory,
             "/memcopy" => SlashCommand.MemCopy,
             "/cmdcopy" => SlashCommand.CmdCopy,
+            "/cmdlist" => SlashCommand.CmdList,
             "/persona" => SlashCommand.Persona,
             "/operata" => SlashCommand.Operata,
             "/vocalia" => SlashCommand.Vocalia,

@@ -2871,9 +2871,10 @@ internal sealed class SettingsMenu
     /// The allowed-commands list under the settings list (2026-09-21): one row per prefix saved for
     /// good, Enter removing it (the list re-shown until ESC); <see cref="NoAllowedCommandsRow"/> alone
     /// while it is empty. The session's own allows are not here: they live in the process, not the file.
-    /// True when anything was removed.
+    /// True when anything was removed. Internal since later on 2026-09-21 for <see cref="ToolsMenu.ShowAllowedCommandsAsync"/>,
+    /// which opens it straight under the Tools crumb (<c>/cmdlist</c>, the toolbar lock).
     /// </summary>
-    private async Task<bool> EditAllowedCommandsAsync(CancellationToken cancellationToken)
+    internal async Task<bool> EditAllowedCommandsAsync(CancellationToken cancellationToken)
     {
         bool changed = false;
         int cursor = 0;

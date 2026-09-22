@@ -491,11 +491,12 @@ public sealed class AppSettingsData
     /// <summary>
     /// Whether the <c>/skills</c> pane's scope picker offers <c>delete</c> (2026-09-18, the
     /// user's call): a skill's folder removed with everything in it, after a confirmation, under the
-    /// profile and global roots alone — the model's tool never deletes. Off by default: moving a skill
-    /// between the two roots is the safe act, and stays offered either way. Read when the picker
-    /// opens, no reconnect; the Options tab of <c>/skills</c>, fifth row, labelled <c>Allow skill delete</c>. No variable.
+    /// profile and global roots alone — the model's tool never deletes. On by default since later on
+    /// 2026-09-21 (the user's call; off out of the box until then: moving a skill between the two roots
+    /// is the safe act, and stays offered either way). Read when the picker opens, no reconnect; the
+    /// Options tab of <c>/skills</c>, fifth row, labelled <c>Allow skill delete</c>. No variable.
     /// </summary>
-    public bool AllowSkillDelete { get; set; }
+    public bool AllowSkillDelete { get; set; } = true;
 
     /// <summary>
     /// Whether the cross-client folder <c>%USERPROFILE%\.agents\skills</c> is scanned too
@@ -640,13 +641,14 @@ public sealed class AppSettingsData
     /// the tool from the next turn whatever its group's switch says (an emptied group loses its rule
     /// too); a name no tool carries is inert and kept. Read at each turn, no reconnect, no
     /// conversation clear. Not a settings row — the one list in the file. No variable.
-    /// <c>delete</c> from the start (2026-09-20, the user's call: the trash tool is opt-in, flipped on
-    /// <c>/tools</c>' Offered tab), and <c>git_delete</c> / <c>git_discard</c> with it (later on 2026-09-20, the
-    /// same call: the two git tools that lose work), and <c>unzip</c> / <c>zip</c> since 2026-09-21 (the
-    /// same call again: a bulk extract and a bulk pack are opt-in too); a saved list stands — a profile
-    /// that holds <c>[]</c> or <c>["delete"]</c> keeps the rest on, so a profile from before keeps zip and unzip.
+    /// <c>git_delete</c> / <c>git_discard</c> (later on 2026-09-20, the user's call: the two git tools that lose
+    /// work), and <c>unzip</c> / <c>zip</c> since 2026-09-21 (the same call again: a bulk extract and a bulk
+    /// pack are opt-in too); a saved list stands — a profile that holds <c>[]</c> or <c>["delete"]</c> keeps the
+    /// rest on, so a profile from before keeps zip and unzip. <c>delete</c> was here from the start (2026-09-20,
+    /// the user's call: the trash tool opt-in, flipped on <c>/tools</c>' Offered tab) until later on 2026-09-21,
+    /// when the user asked for it on out of the box; a profile saved with it off keeps it off.
     /// </summary>
-    public List<string> ToolsDisabled { get; set; } = [Llm.Tools.DeleteTool.ToolName, Llm.Tools.GitDeleteTool.ToolName, Llm.Tools.GitDiscardTool.ToolName, Llm.Tools.UnzipTool.ToolName, Llm.Tools.ZipTool.ToolName];
+    public List<string> ToolsDisabled { get; set; } = [Llm.Tools.GitDeleteTool.ToolName, Llm.Tools.GitDiscardTool.ToolName, Llm.Tools.UnzipTool.ToolName, Llm.Tools.ZipTool.ToolName];
 
     /// <summary>
     /// Whether <c>$</c> and part of a name on the chat line lists the tools the next turn offers

@@ -449,7 +449,7 @@ public class AppSettingsTests : IDisposable
         a.LlmModel = "mutated-locally";
         a.ToolsDisabled.Add("read_file");
         Assert.Equal("", settings.Current.LlmModel);
-        Assert.Equal(["delete", "git_delete", "git_discard", "unzip", "zip"], settings.Current.ToolsDisabled);   // the default since 2026-09-20 (the two git tools later that day, zip and unzip on 2026-09-21), the local Add never reached the store
+        Assert.Equal(["git_delete", "git_discard", "unzip", "zip"], settings.Current.ToolsDisabled);   // the default: the two git tools since 2026-09-20, zip and unzip since 2026-09-21 (delete was here until later that day); the local Add never reached the store
     }
 
     [Fact]
@@ -526,7 +526,7 @@ public class AppSettingsTests : IDisposable
         Assert.Equal("internet", settings.Current.WebBrowserNetworkMode);   // the retired switch, skipped
         Assert.True(settings.Current.SkillHashMention);   // its neighbour untouched by the retired SkillSlashCommands key
         Assert.True(settings.Current.LlmOfferTools);   // the renamed key, skipped; the default stands
-        Assert.Equal(["delete", "git_delete", "git_discard", "unzip", "zip"], settings.Current.ToolsDisabled);   // no ToolsDisabled key in the old file: the default fills it (a saved [] or ["delete"] would stand)
+        Assert.Equal(["git_delete", "git_discard", "unzip", "zip"], settings.Current.ToolsDisabled);   // no ToolsDisabled key in the old file: the default fills it (a saved [] or ["delete"] would stand)
         Assert.Equal(WorkingDirectory.DefaultTreeLength, settings.Current.FileTreeMaxLength);   // the old TreeMaxLength key, skipped
         Assert.Equal("", settings.Current.WebSearxngUrl);   // the old SearxngUrl key, skipped
         Assert.Equal(1, settings.Current.SchemaVersion);   // read as written; the compiled default is 2
@@ -892,7 +892,7 @@ public class AppSettingsTests : IDisposable
         Assert.Equal("vosk-model-small-en-us-0.15", s.SttVoskModel);
         Assert.Equal("folder-remain", s.FileMentionFolderMode);
         Assert.True(s.AgentSkills);
-        Assert.False(s.AllowSkillDelete);   // 2026-09-18: delete is opt-in
+        Assert.True(s.AllowSkillDelete);   // on since later on 2026-09-21 (the user's call; opt-in from 2026-09-18 until then)
         Assert.False(s.ExternalSkills);
         Assert.True(s.ProjectFile);   // later on 2026-09-19: the notes read unless the Project tab's toggle says not
         Assert.Equal("protected", s.SkillCompactMode);
@@ -920,7 +920,7 @@ public class AppSettingsTests : IDisposable
         Assert.False(s.FileSafeEdits);
         Assert.True(s.SkillHashMention);
         Assert.True(s.ToolsDollarMention);   // 2026-09-19
-        Assert.Equal([NeonCompanion.Llm.Tools.DeleteTool.ToolName, NeonCompanion.Llm.Tools.GitDeleteTool.ToolName, NeonCompanion.Llm.Tools.GitDiscardTool.ToolName, NeonCompanion.Llm.Tools.UnzipTool.ToolName, NeonCompanion.Llm.Tools.ZipTool.ToolName], s.ToolsDisabled);   // delete opt-in since 2026-09-20 (the user's call), the two destructive git tools with it later that day, zip and unzip on 2026-09-21; a saved list stands
+        Assert.Equal([NeonCompanion.Llm.Tools.GitDeleteTool.ToolName, NeonCompanion.Llm.Tools.GitDiscardTool.ToolName, NeonCompanion.Llm.Tools.UnzipTool.ToolName, NeonCompanion.Llm.Tools.ZipTool.ToolName], s.ToolsDisabled);   // the two destructive git tools since 2026-09-20 (the user's call), zip and unzip since 2026-09-21; delete was opt-in from 2026-09-20 until later on 2026-09-21 (the user's call both times); a saved list stands
         // The git tools (2026-09-20): on, 500 patch lines (20–5000), 20 commits (1–200).
         Assert.False(s.GitNativeTools);   // off by default since later on 2026-09-21 (on from 2026-09-20): the model reaches git through the shell unless the profile opts in
         Assert.Equal(500, s.GitNativeDiffMaxLines);

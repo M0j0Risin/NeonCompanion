@@ -93,7 +93,7 @@ internal sealed partial class ChatScreen
     /// <summary>
     /// What a line does while a reply runs, by command (the user's lists, 2026-09-15): the info
     /// panes, <c>/settings</c>, <c>/memory</c>, the two confirmations and the <c>/reasoning</c>
-    /// picker and <c>/queue</c> (2026-09-18) are <see cref="MidTurnClass.Pane"/>; the four speech switches, <c>/reasoning</c>
+    /// picker and <c>/queue</c> (2026-09-18) are <see cref="MidTurnClass.Pane"/>, as is <c>/cmdlist</c> (2026-09-21: the <c>Shell allowed commands</c> row, which <c>/tools</c> edits under a reply too); the four speech switches, <c>/reasoning</c>
     /// with a level, <c>/queue</c> with a word (<c>clear</c>, 2026-09-21: the drop on the turn task, or the usage error), <c>/copy</c>, <c>/remember</c>, <c>/explore</c>, <c>/timer</c> and an unknown
     /// command are <see cref="MidTurnClass.Quick"/>; <c>/clear</c>, <c>/new</c>, <c>/splash</c> (2026-09-19) and <c>/exit</c> cancel; the rest
     /// (<c>/profile</c>, <c>/server</c>, <c>/model</c>, <c>/compact</c>, <c>/cwd</c>, <c>/tree</c>,
@@ -103,7 +103,7 @@ internal sealed partial class ChatScreen
     {
         SlashCommand.None => MidTurnClass.Message,
         SlashCommand.Help or SlashCommand.Settings or SlashCommand.Sys or SlashCommand.Memory
-            or SlashCommand.Usage or SlashCommand.About or SlashCommand.Forget or SlashCommand.EmptyTrash or SlashCommand.Tools or SlashCommand.Mcp => MidTurnClass.Pane,
+            or SlashCommand.Usage or SlashCommand.About or SlashCommand.Forget or SlashCommand.EmptyTrash or SlashCommand.Tools or SlashCommand.Mcp or SlashCommand.CmdList => MidTurnClass.Pane,
         SlashCommand.Reasoning or SlashCommand.Queue => hasArgs ? MidTurnClass.Quick : MidTurnClass.Pane,
         SlashCommand.Skills => hasArgs ? MidTurnClass.Refused : MidTurnClass.Pane,
         SlashCommand.Session => hasArgs ? MidTurnClass.Refused : MidTurnClass.Pane,
@@ -235,6 +235,10 @@ internal sealed partial class ChatScreen
             case SlashCommand.Tools:
                 // /tools (2026-09-19): a flip saves and is read at the next turn; the settings rows edit as on /settings mid-turn (none reconnects).
                 await _toolsMenu.ShowAsync(cancellationToken, midTurn: true).ConfigureAwait(false);
+                break;
+            case SlashCommand.CmdList:
+                // /cmdlist (2026-09-21): the allowed-commands row alone, which /tools edits under a reply already; a removal is read at the next approval.
+                await _toolsMenu.ShowAllowedCommandsAsync(cancellationToken).ConfigureAwait(false);
                 break;
             case SlashCommand.Mcp:
                 // /mcp (2026-09-20): a tool flip saves for the next turn and the edit rows open the files; a server flip, a retry, a reload and the master switch are refused under the reply.

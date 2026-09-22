@@ -117,7 +117,7 @@ public class SkillsMenuTests : IDisposable
     private const string Strip = SkillsText.Label + "   Offered    Options    Reflection    Project ";   // Loaded until 2026-09-19; Options (the settings rows, /settings' Skills tab until then) since later that day; Reflection (the reflection's rows out of Options) later still; the Roots tab after Project until later still that day
 
     /// <summary>The Options tab's five rows at their defaults, padded to the tab's own column (38: the external-skills label), as the pane prints them. Pinned.</summary>
-    private const string OptionsRows = "▸ Agent skills                          on\n  Use external skills (.agents\\skills)  off\n  Skill compact mode                    protected\n  #-mention enabled                     on\n  Allow skill delete                    off\n";
+    private const string OptionsRows = "▸ Agent skills                          on\n  Use external skills (.agents\\skills)  off\n  Skill compact mode                    protected\n  #-mention enabled                     on\n  Allow skill delete                    on\n";   // on by default since later on 2026-09-21
 
     /// <summary>The Reflection tab's nine rows at their defaults (later on 2026-09-19), padded to its own column (31: the cooldown minutes label). Pinned.</summary>
     private const string ReflectionRows = "▸ Reflection (auto-learn)        on\n  Reflection reasoning           none\n  Reflection window              3 turns\n  Reflection min tool calls      4 tool calls\n  Reflection max requests        4 requests\n  Reflection cooldown (minutes)  5 minutes\n  Reflection cooldown mode       last-written-skill\n  Reflection includes sessions   on\n";
@@ -489,7 +489,7 @@ public class SkillsMenuTests : IDisposable
         await menu.ShowAsync(CancellationToken.None);
 
         // The Options and Reflection sections between Offered and Project (2026-09-19; Reflection later that day), every row as `label: value`; the Project section the toggle row, no Roots section (later still that day).
-        Assert.Contains("  · Offered\n  ·   haiku  profile  Writes haiku.\n  · Options\n  ·   Agent skills: on\n  ·   Use external skills (.agents\\skills): off\n  ·   Skill compact mode: protected\n  ·   #-mention enabled: on\n  ·   Allow skill delete: off\n  · Reflection\n  ·   Reflection (auto-learn): on\n  ·   Reflection reasoning: none\n  ·   Reflection window: 3 turns\n  ·   Reflection min tool calls: 4 tool calls\n  ·   Reflection max requests: 4 requests\n  ·   Reflection cooldown (minutes): 5 minutes\n  ·   Reflection cooldown mode: last-written-skill\n  ·   Reflection includes sessions: on\n  · Project\n  ·   Project file  on   " + SkillsText.NoNotesLine + "\n", _console.Output);
+        Assert.Contains("  · Offered\n  ·   haiku  profile  Writes haiku.\n  · Options\n  ·   Agent skills: on\n  ·   Use external skills (.agents\\skills): off\n  ·   Skill compact mode: protected\n  ·   #-mention enabled: on\n  ·   Allow skill delete: on\n  · Reflection\n  ·   Reflection (auto-learn): on\n  ·   Reflection reasoning: none\n  ·   Reflection window: 3 turns\n  ·   Reflection min tool calls: 4 tool calls\n  ·   Reflection max requests: 4 requests\n  ·   Reflection cooldown (minutes): 5 minutes\n  ·   Reflection cooldown mode: last-written-skill\n  ·   Reflection includes sessions: on\n  · Project\n  ·   Project file  on   " + SkillsText.NoNotesLine + "\n", _console.Output);
         Assert.DoesNotContain("Roots", _console.Output);
     }
 
@@ -552,12 +552,12 @@ public class SkillsMenuTests : IDisposable
         Put(SkillScope.Profile, "haiku", "Writes haiku.");
         var (menu, pane) = PaneMenu();
         Push(Keys.Enter);                                       // haiku: the scope page refused
-        Push(Keys.Right, Keys.Down, Keys.Down, Keys.Down, Keys.Down, Keys.Enter, Keys.Up, Keys.Enter);   // Options, Allow skill delete: the page (the cursor on the saved off row), on picked
+        Push(Keys.Right, Keys.Down, Keys.Down, Keys.Down, Keys.Down, Keys.Enter, Keys.Down, Keys.Enter);   // Options, Allow skill delete: the page (the cursor on the saved on row, the default since later on 2026-09-21), off picked
         Push(Keys.Escape);
 
         await menu.ShowAsync(CancellationToken.None, midTurn: true);
 
-        Assert.True(_settings.Current.AllowSkillDelete);
+        Assert.False(_settings.Current.AllowSkillDelete);
         Assert.Contains("  · " + SettingsMenu.NotWhileReplyRunsNotice + "\n", _console.Output);
         Assert.DoesNotContain(SkillsMenu.ScopeTitle("haiku"), _console.Output);
         Assert.Contains("\n" + Titled(SkillsText.Label + " › Allow skill delete") + "\n", _console.Output);

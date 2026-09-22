@@ -92,7 +92,7 @@ Every setting lives in a profile and is edited from a pane inside the app — `�
 | Command typo intercept | A line that is exactly a command's name without its slash (`clear`) asks *Did you mean /clear?* before sending it as text. | on |
 | Welcome splash | Shows one of the splash pictures under the banner at startup until the first line is sent (`←`/`→` walk the set; a profile's own `splash\` folder replaces the built-in pictures). | on |
 | Working directory in header | Prints the working directory at the right edge of the banner's title line. | off |
-| Show toolbar | Draws a toolbar under the hint row: at its left the glyphs a double-click opens — ⚙️ `/settings`, 🛠️ `/tools`, 🔌 `/mcp`, 🎓 `/skills`, 🎭 `/sys`, 💬 `/sessions` — at its right the working directory, a double-click on which is `/cwd browse`, and between them blanks a double-click on which is `/settings`. | on |
+| Show toolbar | Draws a toolbar under the hint row: at its left the glyphs a double-click opens — ⚙️ `/settings`, 🛠️ `/tools`, 🔌 `/mcp`, 🎓 `/skills`, 🎭 `/sys`, 💬 `/sessions`, then a lock that follows *Shell command policy* (🔒 under `ask`, 🔓 under `yolo`, none under `off`) `/cmdlist` — at its right the working directory, a double-click on which is `/cwd browse`, and between them blanks a double-click on which is `/settings`. | on |
 | Draft editor | The command `/draft` opens its temporary file with (`code --wait`, `notepad`…); empty uses whatever Windows opens `.txt` files with. | (default .txt editor) |
 
 #### Sessions
@@ -168,7 +168,7 @@ The loaded skills, one row each with its scope (`profile`, `global` or `external
 | Use external skills (.agents\skills) | Also reads `%USERPROFILE%\.agents\skills`, read-only. | off |
 | Skill compact mode | `protected` keeps a loaded skill's instructions through a prune; `unprotected` prunes them like any tool result. | `protected` |
 | #-mention enabled | `#` and part of a name on the input line lists the loaded skills; a pick writes `#name` as text. | on |
-| Allow skill delete | The scope page offers `delete` (after a confirmation) as well as the move. | off |
+| Allow skill delete | The scope page offers `delete` (after a confirmation) as well as the move. | on |
 
 #### Reflection
 
@@ -191,7 +191,7 @@ One row, **Project file**: whether `NEON.md` (or `AGENTS.md`) in the working dir
 
 #### Offered
 
-Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Web, Memory, Skills, Sessions, Questions) with the description the model reads. Enter or Space flips a single tool on or off; a group whose switch is off is shown dim. `delete`, `git_discard` and `git_delete` — the tools that lose work — and `zip` / `unzip` — the bulk pack and extract — start off (a profile saved earlier keeps its own list).
+Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Web, Memory, Skills, Sessions, Questions) with the description the model reads. Enter or Space flips a single tool on or off; a group whose switch is off is shown dim. `git_discard` and `git_delete` — the git tools that lose work — and `zip` / `unzip` — the bulk pack and extract — start off (a profile saved earlier keeps its own list).
 
 #### Options
 
@@ -227,8 +227,8 @@ Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Web, Memory, 
 
 | Setting | What it does | Default |
 |---|---|---|
-| Shell command policy | What stands between `run_command` and the shell: `off` (no shell tool is offered — the group's switch), `ask` (a command whose prefixes are not all allowed is put to you on the pane first: Deny, Allow once, Allow the prefixes for this session, or Allow them always; with no pane to ask on it is refused), `yolo` (everything runs, nothing is asked). `NEONCOMPANION_COMMAND_POLICY` outranks it, so a scripted `--headless` run can say `yolo`. | `ask` |
-| Shell allowed commands | The prefixes allowed for good — `git status`, `dotnet build`, `python` (the program, plus its subcommand for git, dotnet, npm, pip, gh, docker, cargo, go, winget and the like). Enter on one removes it; the pane's *Allow … always* adds one; `/cmdcopy` copies the list into another profile. | none |
+| Shell command policy | What stands between `run_command` and the shell: `off` (no shell tool is offered — the group's switch), `ask` (a command whose prefixes are not all allowed is put to you on the pane first: Deny, Allow once, Allow the prefixes for this session, or Allow them always; with no pane to ask on it is refused), `yolo` (everything runs, nothing is asked). The toolbar shows it as a lock — 🔒 under `ask`, 🔓 under `yolo`, none under `off` — whose double-click is `/cmdlist`. `NEONCOMPANION_COMMAND_POLICY` outranks it, so a scripted `--headless` run can say `yolo`. | `ask` |
+| Shell allowed commands | The prefixes allowed for good — `git status`, `dotnet build`, `python` (the program, plus its subcommand for git, dotnet, npm, pip, gh, docker, cargo, go, winget and the like). Enter on one removes it; the pane's *Allow … always* adds one; `/cmdlist` (or the toolbar's lock) opens the list straight; `/cmdcopy` copies it into another profile. | none |
 | Shell default | The shell a `run_command` without `shell` runs in: `powershell` (pwsh when installed, else Windows PowerShell 5.1), `cmd`, or `bash` (Git Bash, when found). | `powershell` |
 | Shell timeout (s) | How long a foreground command without `timeout` may run before it is killed (1–3600). | 180 |
 | Shell foreground cap (s) | The most a foreground command may wait, whatever its `timeout` says (10–3600). | 600 |
@@ -295,6 +295,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/about` | Show the app's version, runtime, folders, components and licence. |
 | `/clear` | Start a new conversation and clear the screen. |
 | `/cmdcopy <profile> [overwrite]` | Copy this profile's allowed shell commands (the *Shell allowed commands* prefixes) into another: added to its list, or in place of it. |
+| `/cmdlist` | The *Shell allowed commands* list on a pane, straight (the toolbar's lock opens it too): Enter removes a prefix, ESC closes. |
 | `/compact [focus]` | Shrink the current context; a focus steers the summary. |
 | `/copy [n \| all]` | Copy the last reply to the clipboard as Markdown, or reply *n*, or the whole transcript. |
 | `/cwd [path \| ~ \| browse]` | Show or change the working directory; `browse` opens a folder picker on the pane: the profile's own `files\` folder as `⌂ profile` above the drives, opened on the directory in force (Enter chooses — the profile row saves the default, like `~` — Space/→/← open and close, `-` collapses all; a click on a folder's glyph or a double-click on its name opens or closes it; only Enter chooses). |
@@ -362,7 +363,7 @@ What the model can call, in the groups `/tools` and `/sys` show. A group's switc
 
 ### Files
 
-All paths are relative to the working directory; nothing outside it is reachable. `restore` is offered only while *File safe edits* is on; `delete`, `zip` and `unzip` are disabled by default.
+All paths are relative to the working directory; nothing outside it is reachable. `restore` is offered only while *File safe edits* is on; `zip` and `unzip` are disabled by default.
 
 | Tool | Arguments | What it does |
 |---|---|---|
@@ -455,11 +456,8 @@ Every connected MCP server is a group of its own, its tools offered as `<server>
 ### Markdown rendering
 ![markdon](./assets/screenshots/screenshot_markdown.png)
 
-### Vision support (files in working directory)
-![vision](./assets/screenshots/screenshot_vision1.png)
-
-### Vision support (drag or copy/paste to terminal)
-![vision](./assets/screenshots/screenshot_vision2.png)
+### Vision support
+![vision](./assets/screenshots/screenshot_vision.png)
 
 ### Automatic reflection/introspection
 ![reflection](./assets/screenshots/screenshot_reflection.png)

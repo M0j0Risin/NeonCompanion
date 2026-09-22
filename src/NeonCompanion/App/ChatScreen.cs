@@ -736,8 +736,10 @@ internal sealed partial class ChatScreen
             Usage = () => UsageText.HintPart(_session.Usage, _session.ContextLength) ?? "",
             // The toolbar under the hint row (2026-09-21): the pane glyphs, the working directory in
             // force (the resolved path, what /cwd prints and the banner shows) and the folder; read
-            // per draw and on the tick, so a /cwd change or a flipped Show toolbar shows at once.
-            Toolbar = () => _effective() is { ShowToolbar: true } shown ? new ScreenPane.ToolbarParts(ToolbarStrip, WorkingDirectory.Resolve(shown.WorkingDirectory, _settings.ProfileDirectory)) : null,
+            // per draw and on the tick, so a /cwd change or a flipped Show toolbar shows at once —
+            // and the lock (later still that day) follows Shell command policy the same way; TryParse,
+            // not Resolve: the draw must not warn on a hand-edited word, the turn does.
+            Toolbar = () => _effective() is { ShowToolbar: true } shown ? new ScreenPane.ToolbarParts(ToolbarStripFor(ToolbarPolicy(shown)), WorkingDirectory.Resolve(shown.WorkingDirectory, _settings.ProfileDirectory)) : null,
             Placeholder = InputPlaceholder,
         };
         _keys.Mirror = _pane;
@@ -851,6 +853,11 @@ internal sealed partial class ChatScreen
     /// system prompt later on 2026-09-21), which <see cref="UI.TextCells"/>
     /// counts as the terminal draws it and the pane's strip walk keeps with its glyph.
     /// <c>Show toolbar</c> in the settings hides the row. Pinned.
+    /// After the six a seventh comes and goes with <c>Shell command policy</c> (later still on
+    /// 2026-09-21, the user's ask): the closed lock under <c>ask</c>, the open one under <c>yolo</c>,
+    /// nothing under <c>off</c> — the row reads the policy at each draw (<see cref="ToolbarStripFor"/>),
+    /// so a change on the Tools pane swaps the lock as the pane closes. Either lock's double-click is
+    /// <c>/cmdlist</c>: the <c>Shell allowed commands</c> list opened straight, the typed word too.
     /// </summary>
     public const string SettingsToolGlyph = "⚙️";
     public const string ToolsToolGlyph = "🛠️";
@@ -858,7 +865,24 @@ internal sealed partial class ChatScreen
     public const string SkillsToolGlyph = "🎓";
     public const string SysToolGlyph = "🎭";
     public const string SessionsToolGlyph = "💬";
+    public const string CmdAskToolGlyph = "🔒";
+    public const string CmdYoloToolGlyph = "🔓";
     public static readonly string ToolbarStrip = string.Join(GlyphSeparator, SettingsToolGlyph, ToolsToolGlyph, McpToolGlyph, SkillsToolGlyph, SysToolGlyph, SessionsToolGlyph);
+
+    /// <summary>The strip drawn under <paramref name="policy"/>: <see cref="ToolbarStrip"/> alone under <c>off</c>, the closed lock after it under <c>ask</c>, the open one under <c>yolo</c>. Pinned.</summary>
+    public static string ToolbarStripFor(Shell.CommandPolicyMode policy) => policy switch
+    {
+        Shell.CommandPolicyMode.Ask => ToolbarStrip + GlyphSeparator + CmdAskToolGlyph,
+        Shell.CommandPolicyMode.Yolo => ToolbarStrip + GlyphSeparator + CmdYoloToolGlyph,
+        _ => ToolbarStrip,
+    };
+
+    /// <summary>The policy the toolbar's lock shows for <paramref name="shown"/>: the saved word parsed, a hand-edited one read as <c>ask</c> without a warning (<see cref="Shell.CommandPolicy.Resolve"/> warns once, at the turn).</summary>
+    private static Shell.CommandPolicyMode ToolbarPolicy(AppSettingsData shown)
+    {
+        Shell.CommandPolicy.TryParse(shown.ShellCommandPolicy, out var policy);
+        return policy;
+    }
 
     /// <summary>The line the path's double-click runs: <c>/cwd browse</c>, the picker on the pane. Pinned.</summary>
     public const string CwdBrowseLine = "/cwd " + CwdBrowseWord;
@@ -899,6 +923,7 @@ internal sealed partial class ChatScreen
         McpToolGlyph => SlashCommands.McpWord,
         SysToolGlyph => SlashCommands.SysWord,
         SessionsToolGlyph => SlashCommands.SessionsWord,
+        CmdAskToolGlyph or CmdYoloToolGlyph => SlashCommands.CmdListWord,
         _ => null,
     };
 
@@ -2826,7 +2851,7 @@ internal sealed partial class ChatScreen
         webTools = webTools is null ? null : WebToolsFor(webTools, files);
         bool web = webEnabled && webTools is { Count: > 0 };
         bool download = web && webTools!.Any(t => t is DownloadFileTool);
-        // The delete/restore clause of the file rule rides only while delete is offered (2026-09-20: off in a fresh profile).
+        // The delete/restore clause of the file rule rides only while delete is offered (2026-09-20; off in a fresh profile until later on 2026-09-21).
         bool delete = files && fileTools!.Any(t => t is DeleteTool);
         // … and says what delete does: into .trash, or gone for good while File safe edits is off (2026-09-20, safeEdits).
         // The rule quotes the caps the offered tool itself reads, so the two never disagree.
@@ -6207,6 +6232,11 @@ internal sealed partial class ChatScreen
             case SlashCommand.Tools:
                 // The Tools pane (2026-09-19): every tool on or off by name, the Ask / Files / Web rows after it; the four tabs as lines without the pane.
                 await _toolsMenu.ShowAsync(cancellationToken).ConfigureAwait(false);
+                return false;
+
+            case SlashCommand.CmdList:
+                // The Shell allowed commands list straight (2026-09-21): the Tools pane's row without the pane around it, the toolbar lock's word.
+                await _toolsMenu.ShowAllowedCommandsAsync(cancellationToken).ConfigureAwait(false);
                 return false;
 
             case SlashCommand.Mcp:

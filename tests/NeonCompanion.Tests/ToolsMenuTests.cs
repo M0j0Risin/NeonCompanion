@@ -572,4 +572,50 @@ public class ToolsMenuTests : IDisposable
         Assert.False(pane.OverlayOpen);
         pane.Dispose();
     }
+
+    /// <summary>
+    /// The allowed-commands list straight (later still on 2026-09-21, /cmdlist and the toolbar's lock):
+    /// the same list under the same crumb as the Shell tab's row, Enter removing, ESC closing the
+    /// pane with the crumb's root put back — the Tools tabs never drawn.
+    /// </summary>
+    [Fact]
+    public async Task ShowAllowedCommands_OpensTheListUnderTheToolsCrumb_EnterRemoves_EscClosesThePane()
+    {
+        _settings.Update(d => d.ShellCommandAllowed = ["git push", "dotnet build"]);
+        var (menu, pane, settings) = PaneMenu();
+        Push(Keys.Enter, Keys.Escape);   // dotnet build removed, then the pane closed
+
+        await menu.ShowAllowedCommandsAsync(CancellationToken.None);
+
+        Assert.Equal(["git push"], _settings.Current.ShellCommandAllowed);
+        Assert.Contains("\n" + Titled(ToolsText.Label + " › Shell allowed commands") + "\n \n▸ dotnet build\n  git push\n", _console.Output);
+        Assert.Contains("  · Shell allowed commands: dotnet build removed\n▸ git push\n", _console.Output);
+        Assert.DoesNotContain(Strip, _console.Output);
+        Assert.Equal(SettingsMenu.Title, settings.Root);
+        Assert.False(pane.OverlayOpen);
+        pane.Dispose();
+    }
+
+    [Fact]
+    public async Task ShowAllowedCommands_WithoutThePane_PrintsTheListAsLines()
+    {
+        _settings.Update(d => d.ShellCommandAllowed = ["git push", "dotnet build"]);
+        _paneOn = false;
+        var pane = new ScreenPane(_console, geometry: null, _time);
+        var keys = new KeySource(_console.Input, TimeSpan.FromMilliseconds(1));
+        var menuPane = new MenuPane(pane, keys);
+        var settings = new SettingsMenu(_console, _settings, _ => null, new InputLine(_console, keys), new TranscriptRenderer(_console), _speech, menuPane, _ => FakeBrowserPath);
+        var menu = new ToolsMenu(Facts, _settings, settings, new TranscriptRenderer(_console), menuPane);
+
+        await menu.ShowAllowedCommandsAsync(CancellationToken.None);
+        _settings.Update(d => d.ShellCommandAllowed = []);
+        await menu.ShowAllowedCommandsAsync(CancellationToken.None);
+
+        Assert.Contains("  · Shell allowed commands\n  ·   dotnet build\n  ·   git push\n", _console.Output);
+        Assert.Contains("  · Shell allowed commands\n  ·   " + SettingsMenu.NoAllowedCommandsRow + "\n", _console.Output);
+        Assert.Equal(["Shell allowed commands", "  dotnet build", "  git push"], ToolsMenu.AllowedCommandLines(new AppSettingsData { ShellCommandAllowed = ["git push", "dotnet build"] }));
+        Assert.Equal(["Shell allowed commands", "  " + SettingsMenu.NoAllowedCommandsRow], ToolsMenu.AllowedCommandLines(new AppSettingsData()));
+        Assert.False(pane.OverlayOpen);
+        pane.Dispose();
+    }
 }

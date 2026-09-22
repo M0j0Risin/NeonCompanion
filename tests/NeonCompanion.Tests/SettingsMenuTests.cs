@@ -877,11 +877,11 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("xhigh   [#9A8BB8]maximum thinking, slowest[/]", SettingsMenu.ReflectionReasoningLabel("xhigh"));
         Assert.Equal("enough tool calls, or an error it recovered from, teaches a skill", SettingsMenu.ToggleDescribe(SettingsField.ReflectionAutoLearn, true));
         Assert.Equal("nothing is learned unasked; /learn and skill_editor still work", SettingsMenu.ToggleDescribe(SettingsField.ReflectionAutoLearn, false));
-        // Allow skill delete (2026-09-18): the /skill scope picker's delete row, the Skills tab's sixth row, the enum's last member, off by default, no reconnect.
+        // Allow skill delete (2026-09-18): the /skill scope picker's delete row, the Skills tab's sixth row, the enum's last member, on by default (since later on 2026-09-21; off until then), no reconnect.
         Assert.True(SettingsMenu.IsToggle(SettingsField.AllowSkillDelete));
         Assert.Equal("Allow skill delete", SettingsMenu.FieldName(SettingsField.AllowSkillDelete));
-        Assert.Equal("off", SettingsMenu.FieldValue(SettingsField.AllowSkillDelete, data, _settings.ProfileDirectory));
-        Assert.Equal("on", SettingsMenu.FieldValue(SettingsField.AllowSkillDelete, new AppSettingsData { AllowSkillDelete = true }, _settings.ProfileDirectory));
+        Assert.Equal("on", SettingsMenu.FieldValue(SettingsField.AllowSkillDelete, data, _settings.ProfileDirectory));
+        Assert.Equal("off", SettingsMenu.FieldValue(SettingsField.AllowSkillDelete, new AppSettingsData { AllowSkillDelete = false }, _settings.ProfileDirectory));
         Assert.Equal("the scope picker in /skills offers delete, after a confirmation", SettingsMenu.ToggleDescribe(SettingsField.AllowSkillDelete, true));
         Assert.Equal("a skill is moved between the profile and global roots only", SettingsMenu.ToggleDescribe(SettingsField.AllowSkillDelete, false));
         Assert.False(SettingsMenu.RefusedMidTurn(SettingsField.AllowSkillDelete) || SettingsMenu.IsLlmField(SettingsField.AllowSkillDelete) || SettingsMenu.IsTtsField(SettingsField.AllowSkillDelete) || SettingsMenu.IsVoiceField(SettingsField.AllowSkillDelete));
@@ -1270,11 +1270,11 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("xhigh   [#9A8BB8]maximum thinking, slowest[/]", SettingsMenu.ReflectionReasoningLabel("xhigh"));
         Assert.Equal("enough tool calls, or an error it recovered from, teaches a skill", SettingsMenu.ToggleDescribe(SettingsField.ReflectionAutoLearn, true));
         Assert.Equal("nothing is learned unasked; /learn and skill_editor still work", SettingsMenu.ToggleDescribe(SettingsField.ReflectionAutoLearn, false));
-        // Allow skill delete (2026-09-18): the /skill scope picker's delete row, the Skills tab's sixth row, the enum's last member, off by default, no reconnect.
+        // Allow skill delete (2026-09-18): the /skill scope picker's delete row, the Skills tab's sixth row, the enum's last member, on by default (since later on 2026-09-21; off until then), no reconnect.
         Assert.True(SettingsMenu.IsToggle(SettingsField.AllowSkillDelete));
         Assert.Equal("Allow skill delete", SettingsMenu.FieldName(SettingsField.AllowSkillDelete));
-        Assert.Equal("off", SettingsMenu.FieldValue(SettingsField.AllowSkillDelete, data, _settings.ProfileDirectory));
-        Assert.Equal("on", SettingsMenu.FieldValue(SettingsField.AllowSkillDelete, new AppSettingsData { AllowSkillDelete = true }, _settings.ProfileDirectory));
+        Assert.Equal("on", SettingsMenu.FieldValue(SettingsField.AllowSkillDelete, data, _settings.ProfileDirectory));
+        Assert.Equal("off", SettingsMenu.FieldValue(SettingsField.AllowSkillDelete, new AppSettingsData { AllowSkillDelete = false }, _settings.ProfileDirectory));
         Assert.Equal("the scope picker in /skills offers delete, after a confirmation", SettingsMenu.ToggleDescribe(SettingsField.AllowSkillDelete, true));
         Assert.Equal("a skill is moved between the profile and global roots only", SettingsMenu.ToggleDescribe(SettingsField.AllowSkillDelete, false));
         Assert.False(SettingsMenu.RefusedMidTurn(SettingsField.AllowSkillDelete) || SettingsMenu.IsLlmField(SettingsField.AllowSkillDelete) || SettingsMenu.IsTtsField(SettingsField.AllowSkillDelete) || SettingsMenu.IsVoiceField(SettingsField.AllowSkillDelete));
@@ -3853,18 +3853,18 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task Toggle_AllowSkillDelete_IsRow72_OffByDefault_NoReconnect()
+    public async Task Toggle_AllowSkillDelete_IsRow72_OnByDefault_NoReconnect()
     {
-        // Flat row 72 since Mouse in menus went on 2026-09-21 (73 before; 74 from Reflection verbose going later still on 2026-09-19 until the stale line number guard went with edit_lines; 75 on 2026-09-18, 77 until Always return line numbers went that morning), the enum's last member; the Skills tab's sixth row; off out of the box, the cursor on the off row.
-        Assert.False(_settings.Current.AllowSkillDelete);
+        // Flat row 72 since Mouse in menus went on 2026-09-21 (73 before; 74 from Reflection verbose going later still on 2026-09-19 until the stale line number guard went with edit_lines; 75 on 2026-09-18, 77 until Always return line numbers went that morning), the enum's last member; the Skills tab's sixth row; on out of the box since later on 2026-09-21 (the user's call; off until then), the cursor on the on row, so Down picks off.
+        Assert.True(_settings.Current.AllowSkillDelete);
         Down(71);
-        Push(Keys.Enter, Keys.Up, Keys.Enter, Keys.Escape);
+        Push(Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape);
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
 
-        Assert.True(_settings.Current.AllowSkillDelete);
-        Assert.Contains("  · Allow skill delete: on", _console.Output);
-        Assert.Contains("the scope picker in /skills offers delete, after a confirmation", _console.Output);
+        Assert.False(_settings.Current.AllowSkillDelete);
+        Assert.Contains("  · Allow skill delete: off", _console.Output);
+        Assert.Contains("a skill is moved between the profile and global roots only", _console.Output);
         Assert.Equal(0, _synth.ListCalls);
         Assert.False(SettingsMenu.RefusedMidTurn(SettingsField.AllowSkillDelete));
     }

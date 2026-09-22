@@ -20,6 +20,8 @@ namespace NeonCompanion.App;
 /// flip is read at the next turn (<see cref="ChatScreen.PrepareTurn"/>), so the pane opens mid-turn
 /// too and edits as <c>/settings</c> does there (none of its rows is <see cref="SettingsMenu.RefusedMidTurn"/>).
 /// Without the pane the tabs print as plain lines. Bare only: <c>/tools x</c> is the no-argument error.
+/// The Shell tab's allowed-commands row has a door of its own since later on 2026-09-21:
+/// <see cref="ShowAllowedCommandsAsync"/> (<c>/cmdlist</c>, the toolbar's lock glyph).
 /// </summary>
 internal sealed class ToolsMenu
 {
@@ -160,6 +162,61 @@ internal sealed class ToolsMenu
                 var shown = pick.Tab == page.Tab ? page : MenuPage.Tabbed(ToolsText.Label, page.Tabs!, pick.Tab, SettingsMenu.TabKeys);
                 await _menu.EditAsync(field, saved, shown, cursor, cancellationToken).ConfigureAwait(false);
             }
+        }
+        finally
+        {
+            _menu.Root = SettingsMenu.Title;
+            _pane.Close();
+        }
+    }
+
+    /// <summary>
+    /// The <c>Shell allowed commands</c> row alone, as plain lines for a console without the pane
+    /// (later on 2026-09-21, <c>/cmdlist</c>): the row's name as a heading, each prefix indented under it,
+    /// <see cref="SettingsMenu.NoAllowedCommandsRow"/> while there is none. Pinned.
+    /// </summary>
+    public static IEnumerable<string> AllowedCommandLines(AppSettingsData saved)
+    {
+        ArgumentNullException.ThrowIfNull(saved);
+        yield return SettingsMenu.FieldName(SettingsField.ShellCommandAllowed);
+        var allowed = Shell.CommandAllowList.Merge(saved.ShellCommandAllowed, []);
+        if (allowed.Count == 0)
+        {
+            yield return "  " + SettingsMenu.NoAllowedCommandsRow;
+            yield break;
+        }
+
+        foreach (var prefix in allowed)
+        {
+            yield return "  " + prefix;
+        }
+    }
+
+    /// <summary>
+    /// <c>/cmdlist</c> and the toolbar's lock (later on 2026-09-21, the user's ask): the Shell tab's
+    /// <c>Shell allowed commands</c> row opened straight — the same list under the same crumb,
+    /// <c>Tools › Shell allowed commands</c>, Enter removing a prefix — with nothing of the Tools pane
+    /// around it, so ESC closes the pane rather than landing on the tab (the user's call: a shortcut,
+    /// not a path). Without the pane the list prints (<see cref="AllowedCommandLines"/>). Mid-turn
+    /// as at idle: the row is never refused under a reply (<see cref="ShowAsync"/> edits it there too),
+    /// so there is no flag to carry.
+    /// </summary>
+    public async Task ShowAllowedCommandsAsync(CancellationToken cancellationToken)
+    {
+        if (!_pane.Enabled)
+        {
+            foreach (var line in AllowedCommandLines(_settings.Current))
+            {
+                _transcript.Notice(line);
+            }
+
+            return;
+        }
+
+        _menu.Root = ToolsText.Label;
+        try
+        {
+            await _menu.EditAllowedCommandsAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
         {

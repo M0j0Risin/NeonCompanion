@@ -14,6 +14,7 @@ using NeonCompanion.Mcp;
 using NeonCompanion.Memory;
 using NeonCompanion.Sessions;
 using NeonCompanion.Settings;
+using NeonCompanion.Shell;
 using NeonCompanion.Skills;
 using NeonCompanion.Speech;
 using NeonCompanion.Tests.Fakes;
@@ -2508,6 +2509,9 @@ public partial class ChatScreenTests : IDisposable
     /// <summary>A pane's title or strip row as it prints since 2026-09-18: the text, then the × close glyph in column width − 2 (the console's width as the test set it).</summary>
     private string Titled(string row) => row + new string(' ', _console.Profile.Width - 2 - TextCells.Width(row)) + ScreenPane.CloseGlyph;
 
+    /// <summary>The allowed-commands list's title (later still on 2026-09-21): the Tools crumb over the row's name, straight from /cmdlist or the toolbar's lock as from the Shell tab.</summary>
+    private static readonly string AllowedCommandsTitle = ToolsText.Label + " › " + SettingsMenu.FieldName(SettingsField.ShellCommandAllowed);
+
     /// <summary>
     /// The rows of the pane drawn last (its title row, ending with the × glyph, to the rule under
     /// it), so a script can find the hint row and the toolbar under an open pane: with the
@@ -3666,12 +3670,46 @@ public partial class ChatScreenTests : IDisposable
     }
 
     [Fact]
-    public async Task Turn_FreshProfile_DeleteIsOff_TheRuleLosesItsClause_AndSysPromptCountsTwelve()
+    public async Task Turn_FreshProfile_DeleteIsOn_ZipAndTheTwoGitToolsOff_AndSysPromptCountsThirteen()
     {
-        // 2026-09-20, the user's call: the trash tool is opt-in — a fresh profile's ToolsDisabled holds delete, the file rule drops its
-        // delete / restore clause (the DownloadRule shape), the group and every other file tool stand; the fixture had opted every tool on.
+        // A fresh profile's ToolsDisabled: git_discard and git_delete (2026-09-20), zip and unzip (2026-09-21) — and delete no longer
+        // (later on 2026-09-21, the user's call: on out of the box, so the file rule keeps its delete / restore clause); the fixture had opted every tool on.
         _settings.Update(d => { d.TtsOutput = false; d.ToolsDisabled = [.. new AppSettingsData().ToolsDisabled]; });
-        Assert.Equal([DeleteTool.ToolName, GitDeleteTool.ToolName, GitDiscardTool.ToolName, UnzipTool.ToolName, ZipTool.ToolName], _settings.Current.ToolsDisabled);   // the two git tools with it, later on 2026-09-20; zip and unzip on 2026-09-21
+        Assert.Equal([GitDeleteTool.ToolName, GitDiscardTool.ToolName, UnzipTool.ToolName, ZipTool.ToolName], _settings.Current.ToolsDisabled);
+        _chat.EnqueueText("Hello.");
+        _console.Profile.Height = 90;
+        _geometry = new ScreenGeometry(() => null);
+        StepsWhenIdle(
+            Line("hi"),
+            Line("/sys"),
+            input => input.Push(Keys.Right, Keys.Escape),
+            Line("/exit"));
+
+        string output = await RunAsync();
+
+        var offered = _chat.Options[0]!.Tools!.Cast<AIFunction>().Select(t => t.Name).ToArray();
+        Assert.Contains(DeleteTool.ToolName, offered);
+        Assert.Contains(RestoreTool.ToolName, offered);
+        Assert.Equal(StandingAndFileTools.Length + 3 - 4, offered.Length);   // skill_editor, session_manager and (the pane on) ask_user ride; zip, unzip, git_discard and git_delete gone
+        Assert.DoesNotContain(ZipTool.ToolName, offered);
+        Assert.DoesNotContain(UnzipTool.ToolName, offered);
+        Assert.DoesNotContain(GitDiscardTool.ToolName, offered);
+        Assert.DoesNotContain(GitDeleteTool.ToolName, offered);
+        Assert.Contains(GitCommitTool.ToolName, offered);
+        string prompt = _chat.Requests[0][0].Text!;
+        Assert.Contains(Assistant.FileRule, prompt, StringComparison.Ordinal);   // the pane on: the Markdown rule and the ask rule ride too, so the rule alone is pinned here
+        Assert.DoesNotContain(Assistant.FileRuleWithoutDelete, prompt, StringComparison.Ordinal);
+        Assert.Contains(_chat.Requests[0], m => m.Contents.OfType<FunctionCallContent>().Any(c => c.CallId == Assistant.OpeningCwdCallId));   // the group stands: the cwd call rides
+        Assert.Matches(ToolsHeading("Files (13 of 15)", null, "get_working_directory"), output);
+        Assert.Contains("Operating rules — default\n", output);
+    }
+
+    [Fact]
+    public async Task Turn_DeleteSwitchedOff_TheRuleLosesItsClause_AndSysPromptCountsTwelve()
+    {
+        // delete off by name on /tools (opt-out since later on 2026-09-21; the fresh-profile default from 2026-09-20 until then): the file rule
+        // drops its delete / restore clause (the DownloadRule shape), the group and every other file tool stand.
+        _settings.Update(d => { d.TtsOutput = false; d.ToolsDisabled = [.. new AppSettingsData().ToolsDisabled, DeleteTool.ToolName]; });
         _chat.EnqueueText("Hello.");
         _console.Profile.Height = 90;
         _geometry = new ScreenGeometry(() => null);
@@ -3686,19 +3724,13 @@ public partial class ChatScreenTests : IDisposable
         var offered = _chat.Options[0]!.Tools!.Cast<AIFunction>().Select(t => t.Name).ToArray();
         Assert.DoesNotContain(DeleteTool.ToolName, offered);
         Assert.Contains(RestoreTool.ToolName, offered);
-        Assert.Equal(StandingAndFileTools.Length + 3 - 5, offered.Length);   // skill_editor, session_manager and (the pane on) ask_user ride; delete, zip, unzip, git_discard and git_delete gone
-        Assert.DoesNotContain(ZipTool.ToolName, offered);
-        Assert.DoesNotContain(UnzipTool.ToolName, offered);
-        Assert.DoesNotContain(GitDiscardTool.ToolName, offered);
-        Assert.DoesNotContain(GitDeleteTool.ToolName, offered);
-        Assert.Contains(GitCommitTool.ToolName, offered);
+        Assert.Equal(StandingAndFileTools.Length + 3 - 5, offered.Length);   // delete gone with the four
         string prompt = _chat.Requests[0][0].Text!;
-        Assert.Contains(Assistant.FileRuleWithoutDelete, prompt, StringComparison.Ordinal);   // the pane on: the Markdown rule and the ask rule ride too, so the rule alone is pinned here
+        Assert.Contains(Assistant.FileRuleWithoutDelete, prompt, StringComparison.Ordinal);
         Assert.DoesNotContain(Assistant.FileRule, prompt, StringComparison.Ordinal);
         Assert.DoesNotContain("delete only moves", prompt);
         Assert.Contains(_chat.Requests[0], m => m.Contents.OfType<FunctionCallContent>().Any(c => c.CallId == Assistant.OpeningCwdCallId));   // the group stands: the cwd call rides
         Assert.Matches(ToolsHeading("Files (12 of 15)", null, "get_working_directory"), output);
-        Assert.Contains("Operating rules — default\n", output);
         Assert.DoesNotContain("delete only moves", output);
         // The pane wraps the rules, so the Prompt tab's text is pinned in SystemPromptSummaryTests.DeleteOff_TheRulesLoseTheDeleteClause_ThePromptAgrees.
     }
@@ -6678,6 +6710,95 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal("Could not write the profile's settings: x", ChatScreen.CmdCopyFailedError("x"));
     }
 
+    // ── /cmdlist (later on 2026-09-21): the allowed-commands list straight, the toolbar lock's word ──
+
+    /// <summary>The list under the Tools crumb, as the Shell tab's row opens it: Enter removes the prefix under the cursor and re-shows the list, ESC closes the pane — never the Tools tabs.</summary>
+    [Fact]
+    public async Task CmdList_OpensTheAllowedCommandsList_EnterRemoves_EscCloses()
+    {
+        _settings.Update(d => { d.TtsOutput = false; d.ShellCommandAllowed = ["git push", "dotnet build"]; });
+        _console.Profile.Height = 40;
+        _console.Profile.Width = 100;
+        _geometry = new ScreenGeometry(() => null, () => 100);
+        StepsWhenIdle(
+            Line("/cmdlist"),
+            Key(Keys.Enter),                                       // dotnet build removed
+            Key(Keys.Escape),                                      // the pane closed
+            Line("/cmdlist"),
+            Key(Keys.Escape),
+            Line("/exit"));
+
+        string output = await RunAsync();
+
+        Assert.Contains("\n" + Titled(AllowedCommandsTitle) + "\n \n▸ dotnet build\n  git push\n", output);
+        Assert.Contains("\n" + Titled(AllowedCommandsTitle) + "\n \n▸ git push\n", output);
+        Assert.Contains("  · " + SettingsMenu.PrefixRemovedNotice("dotnet build") + "\n", output);
+        Assert.Equal(["git push"], _settings.Current.ShellCommandAllowed);
+        Assert.DoesNotContain(ToolsText.Label + "   Offered", output);      // the crumb, never the tabs: ESC closes
+        Assert.Empty(_chat.Requests);
+    }
+
+    [Fact]
+    public async Task CmdList_WithAnArgument_IsTheNoArgumentError()
+    {
+        _settings.Update(d => d.TtsOutput = false);
+        PushLine("/cmdlist all");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains("  ✗ " + ChatScreen.NoArgumentError("/cmdlist"), output);
+        Assert.Empty(_chat.Requests);
+    }
+
+    /// <summary>Without the pane the list prints: the row's name, then each prefix — or the none row.</summary>
+    [Fact]
+    public async Task CmdList_WithoutThePane_PrintsTheList()
+    {
+        _settings.Update(d => { d.TtsOutput = false; d.ShellCommandAllowed = ["git push", "dotnet build"]; });
+        PushLine("/cmdlist");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains("  · Shell allowed commands\n  ·   dotnet build\n  ·   git push\n", output);   // the none row: ToolsMenuTests
+        Assert.Empty(_chat.Requests);
+    }
+
+    /// <summary>
+    /// The toolbar's lock follows Shell command policy at each draw (later still on 2026-09-21):
+    /// none under off — the six glyphs alone, a pair at its column the blanks' /settings — the
+    /// open lock under yolo, whose pair is the list as the closed lock's; the change on the Tools
+    /// pane shows once that pane closes.
+    /// </summary>
+    [Fact]
+    public async Task TheToolbarLock_FollowsTheShellCommandPolicy_NoneUnderOff_OpenUnderYolo()
+    {
+        _settings.Update(d => { d.TtsOutput = false; d.ShowToolbar = true; d.ShellCommandPolicy = "off"; });
+        _console.Profile.Height = 40;
+        _console.Profile.Width = 240;
+        _geometry = new ScreenGeometry(() => null, () => 100);
+        StepsWhenIdle(
+            input => { input.PushClick(18, 103); input.PushClick(18, 103); },    // under off: the blanks, so /settings
+            Key(Keys.Escape),
+            Line("/tools"),
+            input => input.Push(Keys.Right, Keys.Right, Keys.Right, Keys.Right, Keys.Enter, Keys.Down, Keys.Down, Keys.Enter, Keys.Escape),   // the Shell tab, the policy picker on off, yolo picked, the pane closed: the row redrawn with the open lock
+            input => { input.PushClick(18, 103); input.PushClick(18, 103); },    // 🔓: the list
+            Key(Keys.Escape),
+            Line("/exit"));
+
+        string output = await RunAsync();
+
+        string cwd = WorkingDirectory.Resolve("", _settings.ProfileDirectory);
+        Assert.Contains("\n" + ScreenPane.ToolbarRow(ChatScreen.ToolbarStrip, cwd, 239), output);
+        Assert.Contains("\n" + ScreenPane.ToolbarRow(ChatScreen.ToolbarStripFor(CommandPolicyMode.Yolo), cwd, 239), output);
+        Assert.DoesNotContain(ChatScreen.CmdAskToolGlyph, output);
+        int settings = output.IndexOf("\n" + Titled(SettingsMenu.Title + "   General    Sessions    LLM    TTS    STT ") + "\n", StringComparison.Ordinal);
+        int allowed = output.IndexOf("\n" + Titled(AllowedCommandsTitle) + "\n", StringComparison.Ordinal);
+        Assert.True(settings > 0 && allowed > settings, output);
+        Assert.Empty(_chat.Requests);
+    }
+
     [Fact]
     public async Task Profile_Reset_AnythingElse_Keeps()
     {
@@ -7659,6 +7780,8 @@ public partial class ChatScreenTests : IDisposable
             Key(Keys.Escape),
             input => { input.PushClick(15, 103); input.PushClick(15, 103); },    // 💬 (later on 2026-09-21)
             Key(Keys.Escape),
+            input => { input.PushClick(18, 103); input.PushClick(18, 103); },    // 🔒 (later still on 2026-09-21: the policy is ask by default)
+            Key(Keys.Escape),
             input => { input.PushClick(120, 103); input.PushClick(120, 103); },  // the blanks: /settings (later on 2026-09-21; nothing before)
             Key(Keys.Escape),
             input =>
@@ -7673,18 +7796,20 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         string cwd = WorkingDirectory.Resolve("", _settings.ProfileDirectory);
-        Assert.Contains("\n" + ScreenPane.ToolbarRow(ChatScreen.ToolbarStrip, cwd, 239), output);
+        Assert.Contains("\n" + ScreenPane.ToolbarRow(ChatScreen.ToolbarStripFor(CommandPolicyMode.Ask), cwd, 239), output);
+        Assert.DoesNotContain("\n" + ScreenPane.ToolbarRow(ChatScreen.ToolbarStrip, cwd, 239), output);   // never the six alone: the policy is ask
         int settings = output.IndexOf("\n" + Titled(SettingsMenu.Title + "   General    Sessions    LLM    TTS    STT ") + "\n", StringComparison.Ordinal);
         int tools = output.IndexOf(ToolsText.Label + "   Offered    Options    Web    Files    Shell    Ask    Git (native) ", StringComparison.Ordinal);
         int mcp = output.IndexOf(McpText.Label + "   Servers    Tools    Options ", StringComparison.Ordinal);
         int skills = output.IndexOf(SkillsText.Label + "   Offered    Options    Reflection    Project ", StringComparison.Ordinal);
         int sys = output.IndexOf("\n" + Titled(SystemPromptSummary.Label + "   Prompt    Tools ") + "\n", StringComparison.Ordinal);
         int sessions = output.IndexOf("\n" + Titled(SessionsMenu.Title) + "\n", StringComparison.Ordinal);
+        int allowed = output.IndexOf("\n" + Titled(AllowedCommandsTitle) + "\n", StringComparison.Ordinal);
         int blanks = output.LastIndexOf("\n" + Titled(SettingsMenu.Title + "   General    Sessions    LLM    TTS    STT ") + "\n", StringComparison.Ordinal);
         int folder = output.IndexOf("\n" + Titled(FolderText.Title + "   " + FolderText.CollapseAllButton + " ") + "\n" + cwd + "\n", StringComparison.Ordinal);
-        Assert.True(settings > 0 && tools > settings && mcp > tools && skills > mcp && sys > skills && sessions > sys && blanks > sessions && folder > blanks, output);
+        Assert.True(settings > 0 && tools > settings && mcp > tools && skills > mcp && sys > skills && sessions > sys && allowed > sessions && blanks > allowed && folder > blanks, output);
         Assert.Contains("  · " + FolderText.KeptNotice + "\n", output);
-        Assert.All(new[] { "/settings", "/skills", "/tools", "/mcp", "/sys", "/sessions", "/cwd" }, word => Assert.DoesNotContain("› " + word, output));
+        Assert.All(new[] { "/settings", "/skills", "/tools", "/mcp", "/sys", "/sessions", "/cmdlist", "/cwd" }, word => Assert.DoesNotContain("› " + word, output));
         Assert.Contains("› hi!", output);
         Assert.Equal("hi!", Assert.Single(_chat.Requests).Last(m => m.Role == ChatRole.User).Text);
     }
@@ -7697,6 +7822,8 @@ public partial class ChatScreenTests : IDisposable
         static ScreenPane.OffPaneHit Hint(ScreenPane.HintZone zone, string glyph, int column) => new(new ScreenPane.HintHit(zone, glyph, column), null);
         Assert.Equal("/settings", ChatScreen.OffPaneLine(Tool(ScreenPane.ToolbarZone.Glyph, ChatScreen.SettingsToolGlyph, 0)));
         Assert.Equal("/sys", ChatScreen.OffPaneLine(Tool(ScreenPane.ToolbarZone.Glyph, ChatScreen.SysToolGlyph, 12)));
+        Assert.Equal("/cmdlist", ChatScreen.OffPaneLine(Tool(ScreenPane.ToolbarZone.Glyph, ChatScreen.CmdAskToolGlyph, 18)));   // the lock, later still on 2026-09-21
+        Assert.Equal("/cmdlist", ChatScreen.OffPaneLine(Tool(ScreenPane.ToolbarZone.Glyph, ChatScreen.CmdYoloToolGlyph, 18)));
         Assert.Null(ChatScreen.OffPaneLine(Tool(ScreenPane.ToolbarZone.Glyph, "🧰", 0)));
         Assert.Equal("/cwd browse", ChatScreen.OffPaneLine(Tool(ScreenPane.ToolbarZone.Path, "", 200)));
         Assert.Equal("/settings", ChatScreen.OffPaneLine(Tool(ScreenPane.ToolbarZone.Row, "", -1)));
@@ -7738,6 +7865,10 @@ public partial class ChatScreenTests : IDisposable
             input => { int y = ToolbarUnderPane(); input.PushClick(9, y); input.PushClick(9, y); },       // 🎓 under it: Sessions closed, Skills opened
             input => { int y = ToolbarUnderPane(); input.PushClick(15, y); input.PushClick(15, y); },     // 💬 under the Skills: closed, Sessions opened
             input => { int y = ToolbarUnderPane(); input.PushClick(15, y); input.PushClick(15, y); },     // 💬 again: closed
+            input => { input.PushClick(18, 103); input.PushClick(18, 103); },                             // 🔒 at the idle line: the allowed-commands list (later still on 2026-09-21)
+            input => { int y = ToolbarUnderPane(); input.PushClick(3, y); input.PushClick(3, y); },       // 🛠️ under it: the list closed, Tools opened (another command, though the list is its row)
+            input => { int y = ToolbarUnderPane(); input.PushClick(18, y); input.PushClick(18, y); },     // 🔒 under Tools: closed, the list opened
+            input => { int y = ToolbarUnderPane(); input.PushClick(18, y); input.PushClick(18, y); },     // 🔒 again: closed
             input => input.Push(Keys.Char('h'), Keys.Char('i'), Keys.Enter),      // the idle line again: a message
             Line("/exit"));
 
@@ -7749,18 +7880,24 @@ public partial class ChatScreenTests : IDisposable
         string sys = "\n" + Titled(SystemPromptSummary.Label + "   Prompt    Tools ") + "\n";
         string sessions = "\n" + Titled(SessionsMenu.Title) + "\n";
         string skills = "\n" + Titled(SkillsText.Label + "   Offered    Options    Reflection    Project ") + "\n";
+        string allowed = "\n" + Titled(AllowedCommandsTitle) + "\n";
         int[] at = [output.IndexOf(tools, StringComparison.Ordinal), output.IndexOf(settings, StringComparison.Ordinal)];
         Assert.True(at[0] > 0 && at[1] > at[0], output);
-        Assert.Equal(3, output.Split(tools).Length - 1);       // typed, the 🛠️ pair, under the system prompt
+        Assert.Equal(4, output.Split(tools).Length - 1);       // typed, the 🛠️ pair, under the system prompt, under the allowed-commands list (later still on 2026-09-21)
+        Assert.Equal(2, output.Split(allowed).Length - 1);     // the 🔒 pair at idle, then from under Tools; never from its own glyph
+        int toolsUnderSys = output.IndexOf(tools, output.IndexOf(sys, StringComparison.Ordinal), StringComparison.Ordinal);
+        Assert.True(output.LastIndexOf(sessions, StringComparison.Ordinal) < output.IndexOf(allowed, StringComparison.Ordinal), output);
+        Assert.True(output.IndexOf(allowed, StringComparison.Ordinal) < output.LastIndexOf(tools, StringComparison.Ordinal), output);
+        Assert.True(output.LastIndexOf(tools, StringComparison.Ordinal) < output.LastIndexOf(allowed, StringComparison.Ordinal), output);
         Assert.Equal(2, output.Split(settings).Length - 1);    // from under Tools twice; never from its own glyph or blanks
         Assert.True(output.IndexOf(help, StringComparison.Ordinal) < output.IndexOf(sys, StringComparison.Ordinal), output);
-        Assert.True(output.IndexOf(sys, StringComparison.Ordinal) < output.LastIndexOf(tools, StringComparison.Ordinal), output);
+        Assert.True(output.IndexOf(sys, StringComparison.Ordinal) < toolsUnderSys, output);
         Assert.Equal(2, output.Split(sessions).Length - 1);    // the 💬 pair at idle, then from under Skills; never from its own glyph
         Assert.Equal(1, output.Split(skills).Length - 1);      // from under Sessions
-        Assert.True(output.LastIndexOf(tools, StringComparison.Ordinal) < output.IndexOf(sessions, StringComparison.Ordinal), output);
+        Assert.True(toolsUnderSys < output.IndexOf(sessions, StringComparison.Ordinal), output);
         Assert.True(output.IndexOf(sessions, StringComparison.Ordinal) < output.IndexOf(skills, StringComparison.Ordinal), output);
         Assert.True(output.IndexOf(skills, StringComparison.Ordinal) < output.LastIndexOf(sessions, StringComparison.Ordinal), output);
-        Assert.All(new[] { "/settings", "/sys", "/sessions", "/skills", "/cwd" }, word => Assert.DoesNotContain("› " + word, output));
+        Assert.All(new[] { "/settings", "/sys", "/sessions", "/skills", "/cmdlist", "/cwd" }, word => Assert.DoesNotContain("› " + word, output));
         Assert.Contains("› hi", output);
         Assert.Equal("hi", Assert.Single(_chat.Requests).Last(m => m.Role == ChatRole.User).Text);
     }
@@ -7839,11 +7976,18 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal("hi", Assert.Single(_chat.Requests).Last(m => m.Role == ChatRole.User).Text);
     }
 
-    /// <summary>The toolbar's glyphs, in the user's order, name their commands (2026-09-21): the six pane words (the sessions' later that day), nothing for anything else (the path's line is /cwd browse); every glyph two cells, whole under the pane's walk at either cell.</summary>
+    /// <summary>The toolbar's glyphs, in the user's order, name their commands (2026-09-21): the six pane words (the sessions' later that day), then the lock Shell command policy turns — closed under ask, open under yolo, none under off (later still that day), either /cmdlist — nothing for anything else (the path's line is /cwd browse); every glyph two cells, whole under the pane's walk at either cell.</summary>
     [Fact]
     public void ToolbarWord_IsPinned()
     {
         Assert.Equal("⚙️ 🛠️ 🔌 🎓 🎭 💬", ChatScreen.ToolbarStrip);   // the masks since later on 2026-09-21 (the detective before); the sessions' balloon later still that day
+        Assert.Equal("⚙️ 🛠️ 🔌 🎓 🎭 💬", ChatScreen.ToolbarStripFor(CommandPolicyMode.Off));
+        Assert.Equal("⚙️ 🛠️ 🔌 🎓 🎭 💬 🔒", ChatScreen.ToolbarStripFor(CommandPolicyMode.Ask));
+        Assert.Equal("⚙️ 🛠️ 🔌 🎓 🎭 💬 🔓", ChatScreen.ToolbarStripFor(CommandPolicyMode.Yolo));
+        Assert.Equal("🔒", ChatScreen.CmdAskToolGlyph);
+        Assert.Equal("🔓", ChatScreen.CmdYoloToolGlyph);
+        Assert.Equal("/cmdlist", ChatScreen.ToolbarWord(ChatScreen.CmdAskToolGlyph));
+        Assert.Equal("/cmdlist", ChatScreen.ToolbarWord(ChatScreen.CmdYoloToolGlyph));
         Assert.Equal(McpText.Glyph, ChatScreen.McpToolGlyph);
         Assert.Equal("/cwd browse", ChatScreen.CwdBrowseLine);
         Assert.Equal("/settings", ChatScreen.ToolbarWord(ChatScreen.SettingsToolGlyph));
@@ -7866,6 +8010,15 @@ public partial class ChatScreenTests : IDisposable
 
         Assert.Equal(ScreenPane.ToolbarZone.Row, ScreenPane.ToolbarHitAt(ChatScreen.ToolbarStrip, -1, 0, 14).Zone);   // the separator ahead of the sixth
         Assert.Equal(ScreenPane.ToolbarZone.Row, ScreenPane.ToolbarHitAt(ChatScreen.ToolbarStrip, -1, 0, 17).Zone);   // past it
+        foreach (var (policy, padlock) in new[] { (CommandPolicyMode.Ask, ChatScreen.CmdAskToolGlyph), (CommandPolicyMode.Yolo, ChatScreen.CmdYoloToolGlyph) })
+        {
+            string strip = ChatScreen.ToolbarStripFor(policy);
+            Assert.Equal(2, TextCells.Width(padlock));
+            Assert.Equal(ScreenPane.ToolbarZone.Row, ScreenPane.ToolbarHitAt(strip, -1, 0, 17).Zone);   // the separator ahead of the lock
+            Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, padlock, 18), ScreenPane.ToolbarHitAt(strip, -1, 0, 18));
+            Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, padlock, 18), ScreenPane.ToolbarHitAt(strip, -1, 0, 19));
+            Assert.Equal(ScreenPane.ToolbarZone.Row, ScreenPane.ToolbarHitAt(strip, -1, 0, 20).Zone);   // past it
+        }
     }
 
     /// <summary>A double-click on the scroll's hint at the idle line (later on 2026-09-18) is Ctrl+End — the bottom again, the draft kept, no settings pane.</summary>
@@ -8054,7 +8207,7 @@ public partial class ChatScreenTests : IDisposable
         }
 
         Assert.Equal(lines.Length, line);
-        Assert.Equal(53, lines.Length);   // 45 commands + 8 blank rows: /cmdcopy under /memcopy 2026-09-21; /loop under /draft 2026-09-21; /git under /emptytrash 2026-09-21; /mcp under /tools 2026-09-20; /splash under /new later still on 2026-09-19; /draft under /copy since 2026-09-19; nine groups since later on 2026-09-19 (/skills + /learn under /sessions, /window under /view, /timer under /help); 39 + 10 with /tools under /settings that morning (38 + 10 since the three tool switches went, 2026-09-18)
+        Assert.Equal(54, lines.Length);   // 46 commands + 8 blank rows: /cmdlist under /cmdcopy later on 2026-09-21; /cmdcopy under /memcopy 2026-09-21; /loop under /draft 2026-09-21; /git under /emptytrash 2026-09-21; /mcp under /tools 2026-09-20; /splash under /new later still on 2026-09-19; /draft under /copy since 2026-09-19; nine groups since later on 2026-09-19 (/skills + /learn under /sessions, /window under /view, /timer under /help); 39 + 10 with /tools under /settings that morning (38 + 10 since the three tool switches went, 2026-09-18)
         Assert.StartsWith(HelpRow("/settings, //", "edit and save settings"), lines[0]);
         Assert.StartsWith(HelpRow("/tools", "switch the model's tools on or off and edit the Options, Ask, Files and Web settings on a pane"), lines[1]);   // 2026-09-19; the alias /// came and went on 2026-09-21
         Assert.StartsWith(HelpRow("/mcp", "connect external MCP servers and switch their tools on or off on a pane"), lines[2]);   // 2026-09-20
@@ -8081,21 +8234,22 @@ public partial class ChatScreenTests : IDisposable
         Assert.StartsWith(HelpRow("/forget", "forget all memory"), lines[30]);
         Assert.StartsWith(HelpRow("/memcopy", "copy this profile's memory into another: /memcopy <profile> [overwrite]"), lines[31]);   // 2026-09-17
         Assert.StartsWith(HelpRow("/cmdcopy", "copy this profile's allowed shell commands into another: /cmdcopy <profile> [overwrite]"), lines[32]);   // 2026-09-21
-        Assert.StartsWith(HelpRow("/tree", "print a tree of the working directory's folders and files, or /tree <path>"), lines[35]);
-        Assert.StartsWith(HelpRow("/emptytrash", "empty the working directory's .trash for good (asks first)"), lines[37]);
-        Assert.StartsWith(HelpRow("/git", "write the Git native email and Git native name settings into the working directory's repository: /git user [force]"), lines[38]);   // 2026-09-21
-        Assert.True(string.IsNullOrWhiteSpace(lines[39]));
+        Assert.StartsWith(HelpRow("/cmdlist", "list this profile's allowed shell commands on a pane, Enter removes one"), lines[33]);   // later on 2026-09-21
+        Assert.StartsWith(HelpRow("/tree", "print a tree of the working directory's folders and files, or /tree <path>"), lines[36]);
+        Assert.StartsWith(HelpRow("/emptytrash", "empty the working directory's .trash for good (asks first)"), lines[38]);
+        Assert.StartsWith(HelpRow("/git", "write the Git native email and Git native name settings into the working directory's repository: /git user [force]"), lines[39]);   // 2026-09-21
+        Assert.True(string.IsNullOrWhiteSpace(lines[40]));
         // /speak and /view: a group of their own (the user's call, 2026-09-17); /window (/windowsize until then) under /view since later on 2026-09-19.
-        Assert.StartsWith(HelpRow("/speak", "read a text file from the working directory aloud, as a reply: /speak <file> [n], or /speak to resume, or /speak <n> from sentence n"), lines[40]);
-        Assert.StartsWith(HelpRow("/echo", "print a line as a reply and read it aloud when speech is on: /echo <text>"), lines[41]);
-        Assert.StartsWith(HelpRow("/view", "show an image from the working directory in the transcript, as large as the window allows: /view <image>"), lines[42]);
-        Assert.StartsWith(HelpRow("/window", "show the terminal window's width and height"), lines[43]);
-        Assert.True(string.IsNullOrWhiteSpace(lines[44]));
-        Assert.StartsWith(HelpRow("/persona", "export and manage persona.md (the personality) in your editor, or /persona reset to go back to the default, or /persona copy <profile> [force] to copy it into another profile"), lines[45]);   // copy 2026-09-21
-        Assert.True(string.IsNullOrWhiteSpace(lines[48]));
-        Assert.StartsWith(HelpRow("/timer", "list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all"), lines[49]);   // the bottom group's first row since later still on 2026-09-19 (under /help from earlier that day)
-        Assert.StartsWith(HelpRow("/help", "show help"), lines[50]);   // the bottom group since 2026-09-16, above /about; under /timer since later still on 2026-09-19
-        Assert.StartsWith(HelpRow("/about", "show general information about the app and profile"), lines[51]);
+        Assert.StartsWith(HelpRow("/speak", "read a text file from the working directory aloud, as a reply: /speak <file> [n], or /speak to resume, or /speak <n> from sentence n"), lines[41]);
+        Assert.StartsWith(HelpRow("/echo", "print a line as a reply and read it aloud when speech is on: /echo <text>"), lines[42]);
+        Assert.StartsWith(HelpRow("/view", "show an image from the working directory in the transcript, as large as the window allows: /view <image>"), lines[43]);
+        Assert.StartsWith(HelpRow("/window", "show the terminal window's width and height"), lines[44]);
+        Assert.True(string.IsNullOrWhiteSpace(lines[45]));
+        Assert.StartsWith(HelpRow("/persona", "export and manage persona.md (the personality) in your editor, or /persona reset to go back to the default, or /persona copy <profile> [force] to copy it into another profile"), lines[46]);   // copy 2026-09-21
+        Assert.True(string.IsNullOrWhiteSpace(lines[49]));
+        Assert.StartsWith(HelpRow("/timer", "list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all"), lines[50]);   // the bottom group's first row since later still on 2026-09-19 (under /help from earlier that day)
+        Assert.StartsWith(HelpRow("/help", "show help"), lines[51]);   // the bottom group since 2026-09-16, above /about; under /timer since later still on 2026-09-19
+        Assert.StartsWith(HelpRow("/about", "show general information about the app and profile"), lines[52]);
         Assert.StartsWith(HelpRow("/exit", "exit/quit the application"), lines[^1]);   // the very last row since 2026-09-16
         Assert.DoesNotContain("/windowsize", _console.Output);
         Assert.DoesNotContain("(also", _console.Output);
@@ -9175,6 +9329,7 @@ public partial class ChatScreenTests : IDisposable
     [InlineData(SlashCommand.Settings, false, MidTurnClass.Pane)]
     [InlineData(SlashCommand.Tools, false, MidTurnClass.Pane)]
     [InlineData(SlashCommand.Mcp, false, MidTurnClass.Pane)]
+    [InlineData(SlashCommand.CmdList, false, MidTurnClass.Pane)]   // later on 2026-09-21: the allowed-commands row, which /tools edits under a reply too
     [InlineData(SlashCommand.Sys, false, MidTurnClass.Pane)]
     [InlineData(SlashCommand.Memory, false, MidTurnClass.Pane)]
     [InlineData(SlashCommand.Usage, false, MidTurnClass.Pane)]
@@ -9349,22 +9504,27 @@ public partial class ChatScreenTests : IDisposable
                     Scripted().PushClick(12, ToolbarUnderPane());
                     break;
                 case 2:
+                    Scripted().PushClick(18, ToolbarUnderPane());    // 🔒 under it (later still on 2026-09-21): closed, the allowed-commands list opened
+                    Scripted().PushClick(18, ToolbarUnderPane());
+                    break;
+                case 3:
+                    SpinWait.SpinUntil(() => _console.Output.Contains(AllowedCommandsTitle, StringComparison.Ordinal), 2000);   // the list drawn: its toolbar row sits higher than the system prompt's
                     Scripted().PushClick(15, ToolbarUnderPane());    // 💬 under it (later on 2026-09-21): closed, the Sessions opened
                     Scripted().PushClick(15, ToolbarUnderPane());
                     break;
-                case 3:
+                case 4:
                     Scripted().PushClick(238, ToolbarUnderPane());   // the path under it: closed, nothing opened
                     Scripted().PushClick(238, ToolbarUnderPane());
                     break;
-                case 4:
+                case 5:
                     Scripted().PushClick(120, 103);                  // the blanks at the busy row: the settings
                     Scripted().PushClick(120, 103);
                     break;
-                case 5:
+                case 6:
                     Scripted().Push(Keys.Escape);
                     break;
             }
-        }, "One ", "two ", "three ", "four ", "five ", "six ", "seven.");
+        }, "One ", "two ", "three ", "four ", "five ", "six ", "seven ", "eight.");
         _settings.Update(d => d.ShowToolbar = true);
         _console.Profile.Width = 240;
         _geometry = new ScreenGeometry(() => null, () => 100);
@@ -9377,15 +9537,17 @@ public partial class ChatScreenTests : IDisposable
         string sys = "\n" + Titled(SystemPromptSummary.Label + "   Prompt    Tools ") + "\n";
         string sessions = "\n" + Titled(SessionsMenu.Title) + "\n";
         string settings = "\n" + Titled(SettingsMenu.Title + "   General    Sessions    LLM    TTS    STT ") + "\n";
+        string allowed = "\n" + Titled(AllowedCommandsTitle) + "\n";
         int at = output.IndexOf(tools, StringComparison.Ordinal);
         Assert.True(at > 0, output);
         Assert.True(output.IndexOf(sys, StringComparison.Ordinal) > at, output);
-        Assert.True(output.IndexOf(sessions, StringComparison.Ordinal) > output.IndexOf(sys, StringComparison.Ordinal), output);
+        Assert.True(output.IndexOf(allowed, StringComparison.Ordinal) > output.IndexOf(sys, StringComparison.Ordinal), output);
+        Assert.True(output.IndexOf(sessions, StringComparison.Ordinal) > output.IndexOf(allowed, StringComparison.Ordinal), output);
         Assert.True(output.IndexOf(settings, StringComparison.Ordinal) > output.IndexOf(sessions, StringComparison.Ordinal), output);
         Assert.DoesNotContain(FolderText.Title + "   ", output);
         Assert.DoesNotContain(ChatScreen.MidTurnRefusedNotice("/cwd"), output);
-        Assert.Contains("seven.", output);
-        Assert.All(new[] { "/tools", "/sys", "/settings", "/cwd" }, word => Assert.DoesNotContain("› " + word, output));
+        Assert.Contains("eight.", output);
+        Assert.All(new[] { "/tools", "/sys", "/sessions", "/cmdlist", "/settings", "/cwd" }, word => Assert.DoesNotContain("› " + word, output));
         Assert.Single(_chat.Requests);
     }
 

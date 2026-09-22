@@ -975,7 +975,9 @@ public class InputLineTests : IDisposable
         Assert.Equal(-8, InputLine.ToolbarPairKey(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "🛠️", 3)));
         Assert.Equal(-17, InputLine.ToolbarPairKey(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "🎭", 12)));
         Assert.Equal(-20, InputLine.ToolbarPairKey(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "💬", 15)));   // the sixth glyph, later on 2026-09-21
-        var keys = new[] { -3, -4, -5, -8, -11, -14, -17, -20 };
+        Assert.Equal(-23, InputLine.ToolbarPairKey(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "🔒", 18)));   // the seventh, the lock, later still that day — the same key open
+        Assert.Equal(-23, InputLine.ToolbarPairKey(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "🔓", 18)));
+        var keys = new[] { -3, -4, -5, -8, -11, -14, -17, -20, -23 };
         Assert.DoesNotContain(-1, keys);
         Assert.DoesNotContain(InputLine.OutsidePairKey, keys);
         Assert.All(keys, key => Assert.True(key < InputLine.HintPairKey(new ScreenPane.HintHit(ScreenPane.HintZone.Row, "", -1))));

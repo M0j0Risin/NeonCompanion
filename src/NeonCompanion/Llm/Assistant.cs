@@ -132,8 +132,8 @@ public sealed class Assistant
 
     /// <summary>
     /// <see cref="FileRule"/> without its <c>delete</c> / <c>restore</c> clause: the default rules while
-    /// <c>delete</c> is switched off on <c>/tools</c> (2026-09-20 — off in a fresh profile, the user's call:
-    /// the trash tool is opt-in), the <see cref="DownloadRule"/> shape; <see cref="OperatingRules"/> stays
+    /// <c>delete</c> is switched off on <c>/tools</c> (2026-09-20 — off in a fresh profile until later on
+    /// 2026-09-21, when the user asked for it on out of the box), the <see cref="DownloadRule"/> shape; <see cref="OperatingRules"/> stays
     /// byte-identical. Pinned.
     /// </summary>
     public const string FileRuleWithoutDelete =
