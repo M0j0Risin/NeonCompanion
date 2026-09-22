@@ -167,7 +167,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal(SettingsChanges.Llm, await _menu.ShowAsync(CancellationToken.None));
 
         Assert.Equal("qwen3", _settings.Current.LlmModel);
-        Assert.Contains("  · LLM model: qwen3", _console.Output);
+        Assert.Contains("  · 🖥️ LLM model: qwen3", _console.Output);
     }
 
     [Fact]
@@ -278,7 +278,7 @@ public class SettingsMenuTests : IDisposable
 
         Assert.Equal(SettingsChanges.Llm, await _menu.ShowAsync(CancellationToken.None));
         Assert.Equal(32_768, _settings.Current.LlmContextLength);
-        Assert.Contains("  · LLM context length: 32,768 tokens", _console.Output);
+        Assert.Contains("  · 🖥️ LLM context length: 32,768 tokens", _console.Output);
     }
 
     [Theory]
@@ -320,7 +320,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal(20, _settings.Current.LlmMaxToolIterations);
         Assert.Contains(SettingsMenu.MaxToolIterationsRangeError, _console.Output);
         Assert.Contains("keeping 10000", _console.Output);
-        Assert.Contains("  · LLM max tool iterations: 20 round trips", _console.Output);
+        Assert.Contains("  · 🖥️ LLM max tool iterations: 20 round trips", _console.Output);
     }
 
     [Fact]
@@ -1558,7 +1558,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
 
         Assert.True(_settings.Current.LlmUseFunVerbs);
-        Assert.Contains("  · LLM use fun verbs: on", _console.Output);
+        Assert.Contains("  · 🖥️ LLM use fun verbs: on", _console.Output);
     }
 
     // ── LLM offer tools ───────────────────────────────────────────────────────────
@@ -1573,7 +1573,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal(SettingsChanges.Conversation, await _menu.ShowAsync(CancellationToken.None));
 
         Assert.False(_settings.Current.LlmOfferTools);
-        Assert.Contains("  · LLM offer tools: off", _console.Output);
+        Assert.Contains("  · 🖥️ LLM offer tools: off", _console.Output);
     }
 
     [Fact]
@@ -1586,7 +1586,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal(SettingsChanges.Conversation, await _menu.ShowAsync(CancellationToken.None));
 
         Assert.True(_settings.Current.LlmOfferTools);
-        Assert.Contains("  · LLM offer tools: on", _console.Output);
+        Assert.Contains("  · 🖥️ LLM offer tools: on", _console.Output);
     }
 
     // ── New profile mode ────────────────────────────────────────────────────
@@ -1646,7 +1646,7 @@ public class SettingsMenuTests : IDisposable
 
         Assert.Equal("remote", _settings.Current.LlmScanMode);
         Assert.Contains(SettingsMenu.Breadcrumb("LLM scan mode"), _console.Output);
-        Assert.Contains("  · LLM scan mode: remote", _console.Output);
+        Assert.Contains("  · 🖥️ LLM scan mode: remote", _console.Output);
         Assert.Contains("the usual ports on every other machine on the local network", _console.Output);
         Assert.Equal(0, _synth.ListCalls);          // no server is consulted
     }
@@ -1803,7 +1803,7 @@ public class SettingsMenuTests : IDisposable
 
         Assert.Equal("stop", _settings.Current.LlmToolCompactType);
         Assert.Contains(SettingsMenu.Breadcrumb("LLM tool compact type"), _console.Output);
-        Assert.Contains("  · LLM tool compact type: stop", _console.Output);
+        Assert.Contains("  · 🖥️ LLM tool compact type: stop", _console.Output);
         Assert.Contains("end the turn with a notice; /compact or /clear first", _console.Output);
         Assert.Contains("no check; the server's own limit answers", _console.Output);
     }
@@ -1997,7 +1997,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal(SettingsChanges.None, await menu.ShowAsync(CancellationToken.None));
 
         Assert.Equal("remote", _settings.Current.LlmScanMode);
-        Assert.Contains("\n" + Titled(Strip) + "\n  · LLM scan mode: remote\n▸ LLM scan mode             remote\n  LLM URL                   (scan the local network)\n", _console.Output);
+        Assert.Contains("\n" + Titled(Strip) + "\n  · 🖥️ LLM scan mode: remote\n▸ LLM scan mode             remote\n  LLM URL                   (scan the local network)\n", _console.Output);
         Assert.Equal(0, pane.FlowRow);
         pane.Dispose();
     }
@@ -2017,7 +2017,7 @@ public class SettingsMenuTests : IDisposable
 
         Assert.Equal("high", _settings.Current.LlmReasoning);
         Assert.Contains(SettingsMenu.Breadcrumb("LLM reasoning"), _console.Output);
-        Assert.Contains("  · LLM reasoning: high", _console.Output);
+        Assert.Contains("  · 🖥️ LLM reasoning: high", _console.Output);
         Assert.Contains("  ! " + SettingsMenu.OverrideNotice(EnvironmentOverrides.LlmReasoningVariable), _console.Output);
         Assert.Equal(0, _synth.ListCalls);          // no server is consulted
     }
@@ -2206,7 +2206,7 @@ public class SettingsMenuTests : IDisposable
         Assert.True(await _menu.PickModelAsync(session, "", CancellationToken.None));
 
         Assert.Equal("second", _settings.Current.LlmModel);
-        Assert.Contains("  · LLM model: second", _console.Output);
+        Assert.Contains("  · 🖥️ LLM model: second", _console.Output);
         Assert.Contains(SettingsMenu.ModelTitle, _console.Output);
     }
 
@@ -2277,7 +2277,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("high", _settings.Current.LlmReasoning);
         Assert.Contains(SettingsMenu.ReasoningTitle, _console.Output);
         Assert.DoesNotContain(SettingsMenu.Breadcrumb("LLM reasoning"), _console.Output);
-        Assert.Contains("  · LLM reasoning: high", _console.Output);
+        Assert.Contains("  · 🖥️ LLM reasoning: high", _console.Output);
         Assert.Contains("maximum thinking, slowest", _console.Output);   // every level's hint is on its row
     }
 
@@ -2304,7 +2304,7 @@ public class SettingsMenuTests : IDisposable
         Assert.True(await _menu.PickReasoningAsync(argument, "medium", CancellationToken.None));
 
         Assert.Equal(expected, _settings.Current.LlmReasoning);
-        Assert.Contains("  · LLM reasoning: " + expected, _console.Output);
+        Assert.Contains("  · 🖥️ LLM reasoning: " + expected, _console.Output);
         Assert.DoesNotContain(SettingsMenu.KeepKeys, _console.Output);   // no list was shown (the title is the notice's own words)
     }
 
@@ -2331,7 +2331,7 @@ public class SettingsMenuTests : IDisposable
         Assert.True(await _menu.PickReasoningAsync("high", "none", CancellationToken.None));
 
         Assert.Equal("high", _settings.Current.LlmReasoning);
-        Assert.Contains("  · LLM reasoning: high", _console.Output);
+        Assert.Contains("  · 🖥️ LLM reasoning: high", _console.Output);
         Assert.Contains("  ! " + SettingsMenu.OverrideNotice(EnvironmentOverrides.LlmReasoningVariable), _console.Output);
     }
 
@@ -2412,7 +2412,7 @@ public class SettingsMenuTests : IDisposable
         Assert.True(_menu.SaveServer(new Uri("http://127.0.0.1:8000/v1")));
         Assert.Equal("http://127.0.0.1:8000/v1", _settings.Current.LlmUrl);
         Assert.Equal("", _settings.Current.LlmModel);
-        Assert.Contains("  · LLM URL: http://127.0.0.1:8000/v1", _console.Output);
+        Assert.Contains("  · 🖥️ LLM URL: http://127.0.0.1:8000/v1", _console.Output);
 
         _settings.Update(d => d.LlmModel = "new-model");
         Assert.False(_menu.SaveServer(new Uri("http://127.0.0.1:8000/v1")));
@@ -2965,7 +2965,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Contains("\n› \n" + Rule(100) + "\n" + SettingsMenu.EditKeys, _console.Output);
         Assert.Contains("qwen3-typo", _console.Output);
         // The results on the status line, never as a › line or a notice in the flow.
-        Assert.Contains("\n" + Titled(Strip) + "\n  · LLM model: qwen3\n", _console.Output);
+        Assert.Contains("\n" + Titled(Strip) + "\n  · 🖥️ LLM model: qwen3\n", _console.Output);
         Assert.Contains("\n" + Titled(Strip) + "\n  · " + SettingsMenu.UnchangedNotice + "\n", _console.Output);
         Assert.DoesNotContain("› qwen3", _console.Output);
         Assert.Equal(0, pane.FlowRow);
@@ -3096,7 +3096,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("b", _settings.Current.LlmModel);
         Assert.Contains(Rule(100) + "\n" + Titled(SettingsMenu.ModelTitle) + "\n \n▸ a\n  b\n" + Rule(100) + "\n" + SettingsMenu.KeepKeys + "\n", _console.Output);
         Assert.False(pane.OverlayOpen);
-        Assert.Contains("  · LLM model: b\n", _console.Output);
+        Assert.Contains("  · 🖥️ LLM model: b\n", _console.Output);
         Assert.Equal(1, pane.FlowRow);   // the notice is a transcript line, under no pane
         pane.Dispose();
     }

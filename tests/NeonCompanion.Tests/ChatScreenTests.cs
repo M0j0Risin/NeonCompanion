@@ -1349,7 +1349,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains(SettingsMenu.StartupServerTitle, output);
         Assert.Contains("LM Studio  http://127.0.0.1:1234/v1  1 chat model", output);
         Assert.Contains("Ollama     http://127.0.0.1:11434/v1  1 chat model", output);
-        Assert.Contains("  · LLM URL: http://127.0.0.1:11434/v1", output);
+        Assert.Contains("  · 🖥️ LLM URL: http://127.0.0.1:11434/v1", output);
         Assert.Contains("LLM: http://127.0.0.1:11434/v1 model=phi (first listed)", output);
         Assert.Equal("http://127.0.0.1:11434/v1", _settings.Current.LlmUrl);
         Assert.Equal("", _settings.Current.LlmModel);
@@ -1467,9 +1467,9 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains(SettingsMenu.ServerTitle, output);
         Assert.Contains(SettingsMenu.ModelTitle, output);
         Assert.Contains(SettingsMenu.ReasoningTitle, output);
-        Assert.Contains("  · LLM URL: http://127.0.0.1:11434/v1", output);
-        Assert.Contains("  · LLM model: gemma", output);
-        Assert.Contains("  · LLM reasoning: low", output);
+        Assert.Contains("  · 🖥️ LLM URL: http://127.0.0.1:11434/v1", output);
+        Assert.Contains("  · 🖥️ LLM model: gemma", output);
+        Assert.Contains("  · 🖥️ LLM reasoning: low", output);
         Assert.Equal("http://127.0.0.1:11434/v1", _settings.Current.LlmUrl);
         Assert.Equal("gemma", _settings.Current.LlmModel);
         Assert.Equal("low", _settings.Current.LlmReasoning);
@@ -1535,8 +1535,8 @@ public partial class ChatScreenTests : IDisposable
 
         Assert.DoesNotContain(SettingsMenu.PromptTitle(SettingsMenu.ServerTitle, SettingsMenu.KeepKeys), output);
         Assert.Contains(SettingsMenu.ReasoningTitle, output);
-        Assert.Contains("  · LLM URL: http://127.0.0.1:5000/v1", output);
-        Assert.Contains("  · LLM model: odd-b", output);
+        Assert.Contains("  · 🖥️ LLM URL: http://127.0.0.1:5000/v1", output);
+        Assert.Contains("  · 🖥️ LLM model: odd-b", output);
         Assert.Contains("LLM: http://127.0.0.1:5000/v1 model=odd-b (configured)", output);
         Assert.Equal(LlmEndpointProbe.CandidatePorts.Length + 2, ModelProbes);            // startup, the one probe, the reconnect
     }
@@ -1552,7 +1552,7 @@ public partial class ChatScreenTests : IDisposable
 
         Assert.Contains("  ! http://127.0.0.1:9/v1 did not answer /v1/models (", output);
         Assert.Contains("); using it anyway because you asked.", output);
-        Assert.Contains("  · LLM URL: http://127.0.0.1:9/v1", output);
+        Assert.Contains("  · 🖥️ LLM URL: http://127.0.0.1:9/v1", output);
         Assert.DoesNotContain(SettingsMenu.ModelTitle, output);                             // nothing listed and no current id: the error line instead
         Assert.Contains("The server did not answer (", output);
         Assert.Contains(SettingsMenu.ReasoningTitle, output);                               // the effort is not the server's to know
@@ -1645,7 +1645,7 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         Assert.Contains("✗ " + LlmSession.NoServerLine(ScanScope.Disabled), output);          // the launch
-        Assert.Contains("  · LLM URL: http://127.0.0.1:1234/v1", output);
+        Assert.Contains("  · 🖥️ LLM URL: http://127.0.0.1:1234/v1", output);
         Assert.Contains("LLM: http://127.0.0.1:1234/v1 model=llama (configured)", output);
         Assert.Equal(2, ModelProbes);                                                          // the one probe, the reconnect — no startup scan
         Assert.NotNull(_session.Endpoint);
@@ -1671,7 +1671,7 @@ public partial class ChatScreenTests : IDisposable
 
         Assert.Equal(1, ModelProbes);                                                          // the configured connect at launch only
         Assert.Null(_session.Endpoint);
-        Assert.Contains("  · LLM URL: (not set; scan disabled)", output);
+        Assert.Contains("  · 🖥️ LLM URL: (not set; scan disabled)", output);
         Assert.Contains("✗ " + LlmSession.NoServerLine(ScanScope.Disabled), output);
         Assert.Contains("  · " + ChatScreen.ScanDisabledHint, output);
     }
@@ -1689,7 +1689,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("  · LLM URL: http://127.0.0.1:11434/v1", output);
+        Assert.Contains("  · 🖥️ LLM URL: http://127.0.0.1:11434/v1", output);
         Assert.Contains("  ! " + SettingsMenu.OverrideNotice(EnvironmentOverrides.LlmUrlVariable), output);
         Assert.DoesNotContain(SettingsMenu.ModelTitle, output);
         Assert.DoesNotContain(SettingsMenu.ReasoningTitle, output);
@@ -5438,7 +5438,7 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         const string strip = SettingsMenu.Title + "   General    Sessions    LLM    TTS    STT ";   // five tabs since 2026-09-19 (Ask, Files and Web are /tools', Skills is /skills' Options tab)
-        Assert.Contains("\n" + Titled(strip) + "\n  · LLM offer tools: off\n", output);
+        Assert.Contains("\n" + Titled(strip) + "\n  · 🖥️ LLM offer tools: off\n", output);
         Assert.Contains("  · " + ChatScreen.ToolsChangedNotice(false) + "\n", output);
         Assert.Equal("(LLM offer tools off; conversation cleared)", ChatScreen.ToolsChangedNotice(false));
         Assert.Equal("(LLM offer tools on; conversation cleared)", ChatScreen.ToolsChangedNotice(true));
@@ -7721,11 +7721,11 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains(rule + "\n" + Titled(strip) + "\n \n▸ Profile", output);
         Assert.Contains(rule + "\n" + Row(SettingsMenu.TabKeys) + "\n", output);
         Assert.Contains("\n" + Titled(strip) + "\n  · Memory: off\n", output);
-        Assert.Contains("\n" + Titled(strip) + "\n  · LLM model: qwen3\n", output);
+        Assert.Contains("\n" + Titled(strip) + "\n  · 🖥️ LLM model: qwen3\n", output);
         // The typed edit ran in the pane: the edit keys in the hint row, no › line in the transcript.
         Assert.Contains(rule + "\n" + Row(SettingsMenu.EditKeys), output);
         Assert.DoesNotContain("› qwen3", output);
-        Assert.DoesNotContain("  · LLM model: qwen3", output.Replace("\n" + Titled(strip) + "\n  · LLM model: qwen3", ""));
+        Assert.DoesNotContain("  · 🖥️ LLM model: qwen3", output.Replace("\n" + Titled(strip) + "\n  · 🖥️ LLM model: qwen3", ""));
         Assert.DoesNotContain(SettingsMenu.PromptTitle(SettingsMenu.Title, SettingsMenu.TitleKeys), output);
         Assert.Equal("qwen3", _settings.Current.LlmModel);
         Assert.False(_settings.Current.Memory);

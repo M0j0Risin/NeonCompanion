@@ -1457,8 +1457,8 @@ public class CompanionAppTests : IDisposable
         Assert.Equal(3, clients.Count);   // the pick and the direct form each reconnected; the bad word did not
         Assert.True(clients[0].Disposed);
         Assert.Contains(SettingsMenu.ReasoningTitle, output);
-        Assert.Contains("· LLM reasoning: low", output);
-        Assert.Contains("· LLM reasoning: xhigh", output);
+        Assert.Contains("· 🖥️ LLM reasoning: low", output);
+        Assert.Contains("· 🖥️ LLM reasoning: xhigh", output);
         Assert.Contains("✗ " + SettingsMenu.ReasoningLevelError, output);
         Assert.DoesNotContain("LLM: ", output);   // the reconnects are quiet and the panel names the endpoint: the notice is the feedback
 

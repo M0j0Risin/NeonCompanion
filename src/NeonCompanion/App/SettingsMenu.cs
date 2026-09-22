@@ -1341,8 +1341,17 @@ internal sealed class SettingsMenu
 
     public static string OverrideNotice(string overriddenBy) => $"{overriddenBy} still overrides this launch.";
 
-    public static string SavedNotice(SettingsField field, AppSettingsData data, string profileDirectory, string? locatedBrowser = null) =>
-        $"{FieldName(field)}: {FieldValue(field, data, profileDirectory, locatedBrowser)}";
+    /// <summary>
+    /// The status line after a row is saved: <c>LLM URL: http://…</c>. A row named <c>LLM …</c> wears
+    /// the LLM's glyph ahead of it (2026-09-22, the user's ask: <c>/server</c>'s URL, model and
+    /// reasoning lines beside the <c>🖥️ LLM:</c> connected line); every other row goes bare. Pinned.
+    /// </summary>
+    public static string SavedNotice(SettingsField field, AppSettingsData data, string profileDirectory, string? locatedBrowser = null)
+    {
+        string name = FieldName(field);
+        string glyph = name.StartsWith("LLM ", StringComparison.Ordinal) ? NoticeGlyphs.Llm : "";
+        return $"{glyph}{name}: {FieldValue(field, data, profileDirectory, locatedBrowser)}";
+    }
 
     // ── Screens ─────────────────────────────────────────────────────────────
 
