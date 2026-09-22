@@ -749,6 +749,7 @@ public class SettingsMenuTests : IDisposable
                 SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars,
                 SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellCodeMaxToolCalls,
                 SettingsField.LlmCompactShowSummary, SettingsField.GitNativeEmail, SettingsField.GitNativeName, SettingsField.ShellToolBridge, SettingsField.FileBrowserMode, SettingsField.ShowToolbar, SettingsField.ShellPoliceOutsidePaths,
+                SettingsField.ToolCollapseCount, SettingsField.CodeCollapseCount,
             },
             Enum.GetValues<SettingsField>());
         // The compact rows: on the LLM tab after the context length but no reconnect; the type a picker, the two others typed.
@@ -1303,7 +1304,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("unprotected", SettingsMenu.FieldValue(SettingsField.SkillCompactMode, new AppSettingsData { SkillCompactMode = "unprotected" }, _settings.ProfileDirectory));
         Assert.Equal("protected   [#9A8BB8]loaded skills survive a prune and the mid-turn guard[/]", SettingsMenu.SkillCompactModeLabel("protected"));
         Assert.Equal("unprotected [#9A8BB8]loaded skills prune like any tool result[/]", SettingsMenu.SkillCompactModeLabel("unprotected"));
-        Assert.Equal([SettingsField.ToolsDollarMention], SettingsMenu.ToolsTabFields[0]);   // the Options tab, later on 2026-09-19
+        Assert.Equal([SettingsField.ToolsDollarMention, SettingsField.ToolCollapseCount, SettingsField.CodeCollapseCount], SettingsMenu.ToolsTabFields[0]);   // the Options tab, later on 2026-09-19; the fold's count under the switch 2026-09-22, the code fold's under it later that day
         Assert.Equal([SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices], SettingsMenu.ToolsTabFields[4]);   // the Ask tab: second after Options until later on 2026-09-21, between Shell and Git (native) since
         Assert.True(SettingsMenu.IsToggle(SettingsField.AskUser));
         Assert.False(SettingsMenu.IsToggle(SettingsField.AskMaxQuestions) || SettingsMenu.IsToggle(SettingsField.AskMaxChoices));
@@ -1327,7 +1328,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal(26, SettingsMenu.TabLabelWidth(SettingsTab.Llm));       // "LLM compact show summary" (2026-09-21; "LLM request timeout (s)", 23, before)
         Assert.Equal(19, SettingsMenu.TabLabelWidth(SettingsTab.Tts));       // "TTS voice preview"
         Assert.Equal(26, SettingsMenu.TabLabelWidth(SettingsTab.Stt));       // "STT interrupt echo guard"
-        Assert.Equal(19, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[0]));   // "$-mention enabled" (the Options tab, later on 2026-09-19)
+        Assert.Equal(21, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[0]));   // "Tool collapse count" (2026-09-22; "$-mention enabled", 19, the Options tab's one row from later on 2026-09-19)
         Assert.Equal(26, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[1]));   // "Web browser network mode" (the Web-prefixed labels, later still on 2026-09-19; "Web search max results", 24, before)
         Assert.Equal(32, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[2]));   // "File view image max (per call)" (the File-prefixed labels, later still on 2026-09-19; "Stale line number guard", 25, that morning; "Always return line numbers", 28, from 2026-09-17 until it went; "Tree max length", 17, before)
         Assert.Equal(29, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[3]));   // "Shell tool bridge max calls" (the Shell tab, 2026-09-21; the row was "Shell code max tool calls", 27, until later that day)

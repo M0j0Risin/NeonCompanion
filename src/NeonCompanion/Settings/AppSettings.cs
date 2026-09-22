@@ -639,6 +639,8 @@ public sealed class AppSettings : IDisposable
         SkillHashMention = source.SkillHashMention,
         ToolsDisabled = [.. source.ToolsDisabled],
         ToolsDollarMention = source.ToolsDollarMention,
+        ToolCollapseCount = source.ToolCollapseCount,
+        CodeCollapseCount = source.CodeCollapseCount,
         AskMaxChoices = source.AskMaxChoices,
         AskMaxQuestions = source.AskMaxQuestions,
         AskUser = source.AskUser,

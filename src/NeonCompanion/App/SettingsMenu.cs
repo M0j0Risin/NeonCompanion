@@ -304,6 +304,12 @@ public enum SettingsField
 
     /// <summary>A toggle: whether a command line, a script or text to a background process may name a path outside the working directory (<see cref="Settings.AppSettingsData.ShellPoliceOutsidePaths"/>). The Shell tab's third row (2026-09-22), under the list it guards beside; no reconnect (read at each call and each turn). Last in the enum, as every newcomer: the flat no-pane list's row numbers are pinned.</summary>
     ShellPoliceOutsidePaths,
+
+    /// <summary>Typed: how many lines of a tool run stay while it runs before it folds under its summary, 0 (off) to 100 (<see cref="Settings.AppSettingsData.ToolCollapseCount"/>). The Options tab of <c>/tools</c>, under <see cref="ToolsDollarMention"/> (2026-09-22, the user's place); no reconnect (read when a run opens). Last in the enum, as every newcomer.</summary>
+    ToolCollapseCount,
+
+    /// <summary>Typed: how many lines a top-level code block of a styled reply may have before it folds to its label line, 0 (off) to 100 (<see cref="Settings.AppSettingsData.CodeCollapseCount"/>). The Options tab of <c>/tools</c>, under <see cref="ToolCollapseCount"/> (2026-09-22, the user's place); no reconnect (read when a reply opens). Last in the enum, as every newcomer.</summary>
+    CodeCollapseCount,
 }
 
 /// <summary>The tabs of <c>/settings</c> on the pane, in strip order (Sessions right after General — the user's order, 2026-09-18; STT last since 2026-09-19, when the Ask, Files and Web tabs moved to <c>/tools</c> — <see cref="SettingsMenu.ToolsTabFields"/> — and, later that day, the Skills tab to <c>/skills</c> as its Options tab — <see cref="SettingsMenu.SkillsTabFields"/>); the value is the index into <see cref="SettingsMenu.TabTitles"/> and <see cref="SettingsMenu.TabFields"/>.</summary>
@@ -451,6 +457,14 @@ internal sealed class SettingsMenu
     public static readonly string PastePreviewLinesRangeError =
         "must be 0 to " + PasteBlocks.MaxPreviewLines.ToString(CultureInfo.InvariantCulture) + " lines";
 
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.ToolCollapseCount"/>. Pinned.</summary>
+    public static readonly string ToolCollapseCountRangeError =
+        "must be " + AppSettingsData.MinToolCollapseCount.ToString(CultureInfo.InvariantCulture) + " to " + AppSettingsData.MaxToolCollapseCount.ToString(CultureInfo.InvariantCulture) + " lines (0 = off)";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.CodeCollapseCount"/>. Pinned.</summary>
+    public static readonly string CodeCollapseCountRangeError =
+        "must be " + AppSettingsData.MinCodeCollapseCount.ToString(CultureInfo.InvariantCulture) + " to " + AppSettingsData.MaxCodeCollapseCount.ToString(CultureInfo.InvariantCulture) + " lines (0 = off)";
+
     /// <summary>How the menu shows <see cref="AppSettingsData.LlmAutoCompactPercent"/> at 0.</summary>
     public const string CompactAtOffLabel = "off";
     public const string WorkingDirectoryError = "must be a full path, or empty for the profile's files folder";
@@ -533,7 +547,7 @@ internal sealed class SettingsMenu
 
     /// <summary>
     /// The rows of <c>/tools</c>' four settings tabs (2026-09-19, the Ask, Files and Web rows moved off <c>/settings</c> the user's call), indexed by
-    /// <see cref="ToolsText.TabTitles"/> one down (Options, Web, Files, Shell, Ask, Git (native) — the user's order since 2026-09-21; alphabetical before): Options (later on 2026-09-19) is the <c>$</c>-mention switch alone;
+    /// <see cref="ToolsText.TabTitles"/> one down (Options, Web, Files, Shell, Ask, Git (native) — the user's order since 2026-09-21; alphabetical before): Options (later on 2026-09-19) is the <c>$</c>-mention switch, and under it the tool-run fold (<c>Tool collapse count</c>, 2026-09-22, the user's place);
     /// Ask (2026-09-15) is the question tool's switch and its two caps;
     /// Files (2026-09-15) is the file-tools switch, the Safe edits switch (2026-09-17; Stale line number guard beside it until 2026-09-19, Always return
     /// line numbers between them until 2026-09-19), the two <c>/tree</c> rows (once General's last two), the @-mention folder mode
@@ -548,7 +562,7 @@ internal sealed class SettingsMenu
     /// </summary>
     public static readonly IReadOnlyList<IReadOnlyList<SettingsField>> ToolsTabFields =
     [
-        [SettingsField.ToolsDollarMention],
+        [SettingsField.ToolsDollarMention, SettingsField.ToolCollapseCount, SettingsField.CodeCollapseCount],
         [SettingsField.WebTools, SettingsField.WebBrowserMode, SettingsField.WebBrowserPath, SettingsField.WebBrowserNetworkMode, SettingsField.WebSearchMethod, SettingsField.WebSearxngUrl, SettingsField.WebSearchMaxResults],
         [SettingsField.FileTools, SettingsField.FileSafeEdits, SettingsField.FileTreeMaxLength, SettingsField.FileTreeShowSizes, SettingsField.FileMentionFolderMode, SettingsField.FileBrowserMode, SettingsField.FileViewImageMaxPerCall],
         [SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellPoliceOutsidePaths, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellToolBridge, SettingsField.ShellCodeMaxToolCalls],
@@ -875,6 +889,8 @@ internal sealed class SettingsMenu
         SettingsField.FileSafeEdits => "File safe edits",
         SettingsField.SkillHashMention => "#-mention enabled",
         SettingsField.ToolsDollarMention => "$-mention enabled",
+        SettingsField.ToolCollapseCount => "Tool collapse count",
+        SettingsField.CodeCollapseCount => "Code collapse count",
         SettingsField.ReflectionAutoLearn => "Reflection (auto-learn)",
         SettingsField.ReflectionReasoning => "Reflection reasoning",
         SettingsField.ReflectionWindow => "Reflection window",
@@ -1007,6 +1023,8 @@ internal sealed class SettingsMenu
             SettingsField.FileSafeEdits => OnOff(data.FileSafeEdits),
             SettingsField.SkillHashMention => OnOff(data.SkillHashMention),
             SettingsField.ToolsDollarMention => OnOff(data.ToolsDollarMention),
+            SettingsField.ToolCollapseCount => Lines(data.ToolCollapseCount),
+            SettingsField.CodeCollapseCount => Lines(data.CodeCollapseCount),
             SettingsField.ReflectionAutoLearn => OnOff(data.ReflectionAutoLearn),
             SettingsField.ReflectionReasoning => data.ReflectionReasoning,
             SettingsField.ReflectionWindow => Turns(data.ReflectionWindow),
@@ -1288,6 +1306,8 @@ internal sealed class SettingsMenu
         SettingsField.FileViewImageMaxPerCall => data.FileViewImageMaxPerCall.ToString(CultureInfo.InvariantCulture),
         SettingsField.McpConnectTimeoutSeconds => data.McpConnectTimeoutSeconds.ToString(CultureInfo.InvariantCulture),
         SettingsField.WebSearchMaxResults => data.WebSearchMaxResults.ToString(CultureInfo.InvariantCulture),
+        SettingsField.ToolCollapseCount => data.ToolCollapseCount.ToString(CultureInfo.InvariantCulture),
+        SettingsField.CodeCollapseCount => data.CodeCollapseCount.ToString(CultureInfo.InvariantCulture),
         SettingsField.GitNativeDiffMaxLines => data.GitNativeDiffMaxLines.ToString(CultureInfo.InvariantCulture),
         SettingsField.ShellTimeoutSeconds => data.ShellTimeoutSeconds.ToString(CultureInfo.InvariantCulture),
         SettingsField.ShellForegroundCapSeconds => data.ShellForegroundCapSeconds.ToString(CultureInfo.InvariantCulture),
@@ -2017,6 +2037,26 @@ internal sealed class SettingsMenu
                 }
 
                 Apply(field, d => d.PastePreviewLines = previewLines);
+                return true;
+
+            case SettingsField.ToolCollapseCount:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int collapse) || collapse < AppSettingsData.MinToolCollapseCount || collapse > AppSettingsData.MaxToolCollapseCount)
+                {
+                    Sink.Error($"{FieldName(field)} {ToolCollapseCountRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.ToolCollapseCount = collapse);
+                return true;
+
+            case SettingsField.CodeCollapseCount:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int codeCollapse) || codeCollapse < AppSettingsData.MinCodeCollapseCount || codeCollapse > AppSettingsData.MaxCodeCollapseCount)
+                {
+                    Sink.Error($"{FieldName(field)} {CodeCollapseCountRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.CodeCollapseCount = codeCollapse);
                 return true;
 
             case SettingsField.WebSearchMaxResults:

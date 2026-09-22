@@ -509,6 +509,9 @@ public sealed class InputLine
                         }
                         else
                         {
+                            // A tool run's summary in the transcript (2026-09-22): one click unfolds
+                            // or folds it; the draft is untouched. Any other row ends a pair.
+                            _pane.TryToggleToolGroupAt(click.X, click.Y);
                             _hintClicks.Reset();
                             anchor = -1;
                         }
@@ -810,6 +813,12 @@ public sealed class InputLine
                         anchor = shift ? Anchor() : -1;
                         cursor = 0;
                         Redraw();
+                        break;
+
+                    case ConsoleKey.O when Keys.IsToolToggle(k):
+                        // Ctrl+O (2026-09-22): every tool run in the transcript unfolded or folded;
+                        // the draft, cursor and selection untouched.
+                        _pane.ToggleToolGroups();
                         break;
 
                     case ConsoleKey.End when control:

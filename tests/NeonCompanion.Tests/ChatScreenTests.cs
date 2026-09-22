@@ -100,6 +100,11 @@ public partial class ChatScreenTests : IDisposable
         // Reflection (auto-learn) is on by default (2026-09-17); a script of five tool calls would then dequeue a reflection it never
         // enqueued, so the fixture opts out and the learning tests opt in.
         _settings.Update(d => d.ReflectionAutoLearn = false);
+        // Tool collapse count is 2 by default (2026-09-22): with a geometry the opening calls alone fold, and a fold rewrites the
+        // flow from the store — every refresh-counting script would count it. The fixture opts out; the fold's own tests opt in.
+        _settings.Update(d => d.ToolCollapseCount = 0);
+        // Code collapse count is 20 by default (later on 2026-09-22): the same opt-out for a reply's long code block.
+        _settings.Update(d => d.CodeCollapseCount = 0);
         // The reflection cooldown is 30 minutes by default (2026-09-19) and the clock here never moves, so a second automatic
         // reflection after a learned one would be skipped for good; the fixture opts out and the cooldown tests opt in. The same
         // day a reflection opens with the earlier sessions found for the turn and gets session_manager (Reflection includes
@@ -4086,7 +4091,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains("\n  · get_current_time: off\n  Clock (2 of 3)\n▸ get_current_time      off  ", output);
         Assert.Equal(["get_current_time"], _settings.Current.ToolsDisabled);
         Assert.Contains("\n" + ToolsText.OfferedKeys, output);
-        Assert.Contains("\n▸ $-mention enabled  on\n", output);
+        Assert.Contains("\n▸ $-mention enabled    on\n  Tool collapse count  off\n  Code collapse count  off\n", output);   // the fixture's 0s (2026-09-22)
         Assert.Contains("\n▸ Ask user                      on\n", output);
         Assert.Contains("\n▸ File tools                      on\n", output);
         Assert.Contains("\n▸ Git native tools            on\n  Git native diff max lines   500 lines\n  Git native log max commits  20 commits\n  Git native email            (not set)\n  Git native name             (not set)\n", output);
@@ -4096,17 +4101,193 @@ public partial class ChatScreenTests : IDisposable
         Assert.Empty(_chat.Requests);
     }
 
-    [Fact]
-    public async Task Tools_WithAnArgument_IsTheNoArgumentError()
+    /// <summary>A geometry pane with Tool collapse count 2 and a turn of four clock calls before its reply (2026-09-22).</summary>
+    private void FoldingTurn()
     {
-        _settings.Update(d => d.TtsOutput = false);
-        PushLine("/tools read_file off");
+        _settings.Update(d => { d.TtsOutput = false; d.ToolCollapseCount = 2; });
+        _console.Profile.Height = 40;
+        _geometry = new ScreenGeometry(() => null);
+        for (int i = 1; i <= 4; i++)
+        {
+            _chat.Enqueue(FakeChatClient.Call("c" + i.ToString(CultureInfo.InvariantCulture), GetCurrentTimeTool.ToolName));
+        }
+
+        _chat.EnqueueText("It is noon.");
+    }
+
+    [Fact]
+    public async Task ToolRun_PastTheCollapseCount_FoldsUnderItsSummary_OnceTheReplySpeaks()
+    {
+        FoldingTurn();
+        PushLine("what time is it?");
         PushLine("/exit");
 
         string output = await RunAsync();
 
-        Assert.Contains("  ✗ " + ChatScreen.NoArgumentError("/tools"), output);
-        Assert.Empty(_settings.Current.ToolsDisabled);
+        string folded = ToolGroupText.CollapsedGlyph + " 🛠️ ";
+        int summary = output.LastIndexOf(folded, StringComparison.Ordinal);
+        Assert.True(summary >= 0, output);
+        // The reply's own run, under its glyph (the opening calls before the glyph are a run of their own, within the count).
+        Assert.Contains(TranscriptRenderer.AssistantGlyph + folded + "4 tool calls — " + GetCurrentTimeTool.ToolName + " ×4\n", output[(summary - TranscriptRenderer.AssistantGlyph.Length)..]);
+        // The last rebuild: the summary alone above the reply, no tool line between them.
+        int reply = output.IndexOf("It is noon.", summary, StringComparison.Ordinal);
+        Assert.True(reply > summary, output);
+        Assert.DoesNotContain("🛠️", output[(summary + folded.Length)..reply]);
+        Assert.DoesNotContain(ToolGroupText.ExpandedGlyph + " 🛠️ ", output);
+    }
+
+    /// <summary>A geometry pane, markdown on, Code collapse count 3, and a reply with a five-line C# block between two paragraphs (later on 2026-09-22).</summary>
+    private void CodeFoldingTurn(int keep = 3)
+    {
+        _settings.Update(d => { d.TtsOutput = false; d.TranscriptMarkdown = true; d.CodeCollapseCount = keep; });
+        _console.Profile.Height = 40;
+        _geometry = new ScreenGeometry(() => null);
+        _chat.EnqueueText("Here it is.\n\n```csharp\nint a1 = 1;\nint a2 = 2;\nint a3 = 3;\nint a4 = 4;\nint a5 = 5;\n```\n\nDone now.");
+    }
+
+    [Fact]
+    public async Task CodeBlock_PastTheCollapseCount_StreamsWhole_ThenFoldsToItsLabel()
+    {
+        CodeFoldingTurn();
+        PushLine("show me");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        string folded = CodeFoldText.Summary("csharp", 5, expanded: false);
+        int summary = output.LastIndexOf(folded, StringComparison.Ordinal);
+        Assert.True(summary >= 0, output);
+        int done = output.IndexOf("Done now.", summary, StringComparison.Ordinal);
+        Assert.True(done > summary, output);
+        Assert.DoesNotContain("int a", output[summary..done]);   // the last rebuild: the label alone above the paragraph after it
+        Assert.Contains("int a5 = 5;", output[..summary]);        // it streamed whole first
+    }
+
+    [Fact]
+    public async Task CodeBlock_TallerThanTheWindow_CommittedInParts_StillFoldsWhole()
+    {
+        // Forty lines on a 20-row window: the live slot commits the block's top rows while the reply
+        // streams (the excess commit), the rest at its end — one group all the same.
+        _settings.Update(d => { d.TtsOutput = false; d.TranscriptMarkdown = true; d.CodeCollapseCount = 3; });
+        _console.Profile.Height = 20;
+        _geometry = new ScreenGeometry(() => null);
+        string code = string.Join("\n", Enumerable.Range(1, 40).Select(i => "int b" + i.ToString(CultureInfo.InvariantCulture) + " = 0;"));
+        _chat.EnqueueText("Long one.\n\n```csharp\n" + code + "\n```\n\nAfter it.");
+        PushLine("show me");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        string folded = CodeFoldText.Summary("csharp", 40, expanded: false);
+        int summary = output.LastIndexOf(folded, StringComparison.Ordinal);
+        Assert.True(summary >= 0, output);
+        int after = output.IndexOf("After it.", summary, StringComparison.Ordinal);
+        Assert.True(after > summary, output);
+        Assert.DoesNotContain("int b", output[summary..after]);
+        Assert.Equal(1, Count(output[summary..], folded));
+    }
+
+    [Fact]
+    public async Task CodeBlock_WithinTheCount_OrCountZero_KeepsEveryLine_UnderItsLabel()
+    {
+        CodeFoldingTurn(keep: 5);
+        PushLine("show me");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.DoesNotContain(CodeFoldText.Summary("csharp", 5, expanded: false), output);
+        Assert.Contains("int a5 = 5;", output);
+    }
+
+    [Fact]
+    public async Task CtrlO_UnfoldsACodeBlock_WithTheToolRuns()
+    {
+        CodeFoldingTurn();
+        PushLine("show me");
+        _console.Input.PushKey(Keys.CtrlO);
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        int open = output.LastIndexOf(CodeFoldText.Summary("csharp", 5, expanded: true), StringComparison.Ordinal);
+        Assert.True(open >= 0, output);
+        Assert.Contains("int a1 = 1;", output[open..]);
+    }
+
+    [Fact]
+    public async Task ToolRun_CollapseCountZero_KeepsEveryLine_NoSummary()
+    {
+        FoldingTurn();
+        _settings.Update(d => d.ToolCollapseCount = 0);
+        PushLine("what time is it?");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.DoesNotContain(ToolGroupText.CollapsedGlyph + " 🛠️ ", output);
+        Assert.Contains("It is noon.", output);
+    }
+
+    [Fact]
+    public async Task Expand_UnfoldsTheRuns_ThenCollapse_FoldsThem_EachWithItsNotice()
+    {
+        // /tools expand and /tools collapse until later on 2026-09-22, the user's ask: root words now.
+        FoldingTurn();
+        PushLine("what time is it?");
+        PushLine("/expand");
+        PushLine("/COLLAPSE");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        int expanded = output.IndexOf(ToolGroupText.ExpandedNotice(true), StringComparison.Ordinal);
+        int collapsed = output.IndexOf(ToolGroupText.ExpandedNotice(false), StringComparison.Ordinal);
+        Assert.True(expanded > 0 && collapsed > expanded, output);
+        // Unfolded: the summary's triangle down, the clock lines under it again.
+        string unfolded = ToolGroupText.ExpandedGlyph + " 🛠️ ";
+        int at = output.IndexOf(unfolded, StringComparison.Ordinal);
+        Assert.True(at > 0 && at < expanded, output);
+        Assert.Contains("🛠️", output[(at + unfolded.Length)..expanded]);
+        Assert.Contains(ToolGroupText.CollapsedGlyph + " 🛠️ ", output[expanded..]);
+    }
+
+    [Fact]
+    public async Task CtrlO_FlipsTheRuns_OnTheIdleLine()
+    {
+        FoldingTurn();
+        PushLine("what time is it?");
+        _console.Input.PushKey(Keys.CtrlO);
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        int reply = output.IndexOf("It is noon.", StringComparison.Ordinal);
+        Assert.Contains(ToolGroupText.ExpandedGlyph + " 🛠️ ", output[reply..]);
+        Assert.DoesNotContain(ToolGroupText.ExpandedNotice(true), output);   // the key is silent; the command says so
+    }
+
+    [Fact]
+    public void ExpandAndCollapse_AreQuickUnderAReply_AndToolsTakesNoArgument()
+    {
+        Assert.Equal(MidTurnClass.Quick, ChatScreen.MidTurnPolicy(SlashCommand.Expand, hasArgs: false));
+        Assert.Equal(MidTurnClass.Quick, ChatScreen.MidTurnPolicy(SlashCommand.Collapse, hasArgs: false));
+        Assert.Equal(MidTurnClass.Pane, ChatScreen.MidTurnPolicy(SlashCommand.Tools, hasArgs: false));
+        Assert.Empty(ChatScreen.ArgumentItems("/tools", "", Sources()));
+    }
+
+    [Fact]
+    public async Task Tools_WithAnArgument_TakesNone()
+    {
+        // expand / collapse left /tools later on 2026-09-22 (the user's ask): an argument is the no-argument error again.
+        _settings.Update(d => d.TtsOutput = false);
+        PushLine("/tools expand");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.DoesNotContain(ToolGroupText.ExpandedNotice(true), output);
+        Assert.Contains("/tools", output[output.IndexOf("  ✗ ", StringComparison.Ordinal)..]);
         Assert.Empty(_chat.Requests);
     }
 
@@ -5565,7 +5746,7 @@ public partial class ChatScreenTests : IDisposable
     /// <summary>A second profile on disk with its own settings, one memory, a persona, operating rules and a voice directive, so a switch has something to show.</summary>
     private void WorkProfile()
     {
-        Profiles.Create(_dir, "work", new AppSettingsData { LlmModel = "work-model", TtsOutput = false, SessionNamingMode = "first-line" });   // the fixture's titling opt-out for this profile too (a reset of it brings the model-written default back)
+        Profiles.Create(_dir, "work", new AppSettingsData { LlmModel = "work-model", TtsOutput = false, SessionNamingMode = "first-line", ToolCollapseCount = 0, CodeCollapseCount = 0 });   // the fixture's titling and tool-fold opt-outs for this profile too (a reset of it brings the defaults back)
         new MemoryStore(ProfileDir("work")).Add("They like tea.");
         File.WriteAllText(Path.Combine(ProfileDir("work"), PersonaFile.FileName), "You are Rex.");
         File.WriteAllText(Path.Combine(ProfileDir("work"), OperataFile.FileName), "Answer in haiku.");
@@ -7966,7 +8147,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Null(ChatScreen.OffPaneLine(Tool(ScreenPane.ToolbarZone.Glyph, "🧰", 0)));
         Assert.Equal("/cwd browse", ChatScreen.OffPaneLine(Tool(ScreenPane.ToolbarZone.Path, "", 200)));
         Assert.Equal("/settings", ChatScreen.OffPaneLine(Tool(ScreenPane.ToolbarZone.Row, "", -1)));
-        Assert.Equal("/model", ChatScreen.OffPaneLine(Hint(ScreenPane.HintZone.Trailer, "", 232)));
+        Assert.Equal("/server", ChatScreen.OffPaneLine(Hint(ScreenPane.HintZone.Trailer, "", 232)));
         Assert.Equal("/reasoning", ChatScreen.OffPaneLine(Hint(ScreenPane.HintZone.Mark, "", 238)));
         Assert.Equal("/settings", ChatScreen.OffPaneLine(Hint(ScreenPane.HintZone.Row, "", -1)));
         Assert.Equal("/settings", ChatScreen.OffPaneLine(Hint(ScreenPane.HintZone.Scrolled, "", -1)));
@@ -8057,9 +8238,9 @@ public partial class ChatScreenTests : IDisposable
     }
 
     /// <summary>
-    /// The same on the hint row and the path (later on 2026-09-21): the model name under the model
-    /// picker closes it, under the settings it switches to the picker; the reasoning mark the same
-    /// for its picker; the path under the folder picker closes it (the directory kept); the hint
+    /// The same on the hint row and the path (later on 2026-09-21): the model name (<c>/server</c>
+    /// since 2026-09-22) under the server picker closes it, under the settings it switches to the
+    /// picker; the reasoning mark the same for its picker; the path under the folder picker closes it (the directory kept); the hint
     /// row's blanks under the settings close them.
     /// </summary>
     [Fact]
@@ -8070,10 +8251,10 @@ public partial class ChatScreenTests : IDisposable
         _console.Profile.Width = 240;
         _geometry = new ScreenGeometry(() => null, () => 100);   // the hint row 102 ("llama ○" ends at 238), the toolbar 103
         StepsWhenIdle(
-            input => { input.PushClick(236, 102); input.PushClick(236, 102); },                             // the name at the idle line: the model picker
+            input => { input.PushClick(236, 102); input.PushClick(236, 102); },                             // the name at the idle line: the server picker
             input => { int y = HintRowUnderPane(); input.PushClick(236, y); input.PushClick(236, y); },   // the name under it: closed
             Line("/settings"),
-            input => { int y = HintRowUnderPane(); input.PushClick(236, y); input.PushClick(236, y); },   // the name under the settings: the picker
+            input => { int y = HintRowUnderPane(); input.PushClick(236, y); input.PushClick(236, y); },   // the name under the settings: the server picker
             input => { int y = HintRowUnderPane(); input.PushClick(238, y); input.PushClick(238, y); },   // the mark under the picker: the reasoning picker
             input => { int y = HintRowUnderPane(); input.PushClick(238, y); input.PushClick(238, y); },   // the mark under it: closed
             input => { input.PushClick(238, 103); input.PushClick(237, 103); },                             // the path at the idle line: the folder picker
@@ -8085,7 +8266,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        string model = "\n" + Titled(SettingsMenu.ModelTitle) + "\n";
+        string model = "\n" + Titled(SettingsMenu.ServerTitle) + "\n";
         string reasoning = "\n" + Titled(SettingsMenu.ReasoningTitle) + "\n";
         string settings = "\n" + Titled(SettingsMenu.Title + "   General    Sessions    LLM    TTS    STT ") + "\n";
         string folder = "\n" + Titled(FolderText.Title + "   " + FolderText.CollapseAllButton + " ") + "\n";
@@ -8098,7 +8279,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.True(output.IndexOf(reasoning, StringComparison.Ordinal) < output.IndexOf(folder, StringComparison.Ordinal), output);
         Assert.Contains("  · " + FolderText.KeptNotice + "\n", output);
         Assert.Equal("none", _settings.Current.LlmReasoning);
-        Assert.All(new[] { "/model", "/reasoning", "/cwd" }, word => Assert.DoesNotContain("› " + word, output));
+        Assert.All(new[] { "/server", "/reasoning", "/cwd" }, word => Assert.DoesNotContain("› " + word, output));
         Assert.Contains("› hi", output);
         Assert.Equal("hi", Assert.Single(_chat.Requests).Last(m => m.Role == ChatRole.User).Text);
     }
@@ -8243,11 +8424,11 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal("!", _chat.Requests[1].Last(m => m.Role == ChatRole.User).Text);
     }
 
-    /// <summary>The model name at the row's right edge (2026-09-18): a double-click there is /model — the list over the fixture's server, ESC keeps the model — with no › row.</summary>
+    /// <summary>The model name at the row's right edge (2026-09-18): a double-click there is /server (2026-09-22; /model before) — the server list, then the model list, then the reasoning list, as the typed command; Enter keeps the server, ESC the model and the level — with no › row.</summary>
     [Fact]
-    public async Task ADoubleClickOnTheModelName_OpensTheModelPicker()
+    public async Task ADoubleClickOnTheModelName_RunsTheServerFlow()
     {
-        _settings.Update(d => d.TtsOutput = false);
+        _settings.Update(d => { d.TtsOutput = false; d.LlmUrl = "http://127.0.0.1:1234/v1"; d.LlmModel = "llama"; });
         _console.Profile.Height = 40;
         _console.Profile.Width = 240;
         _geometry = new ScreenGeometry(() => null, () => 100);
@@ -8257,18 +8438,21 @@ public partial class ChatScreenTests : IDisposable
             {
                 input.PushClick(236, 102);
                 input.PushClick(236, 102);
+                input.Push(Keys.Enter, Keys.Escape, Keys.Escape);   // the server in use, keep the model, keep the level
             },
-            Key(Keys.Escape),
             Line("/exit"));
 
         string output = await RunAsync();
 
+        Assert.Contains(Titled(SettingsMenu.ServerTitle), output);
         Assert.Contains("\n" + Titled(SettingsMenu.ModelTitle) + "\n \n▸ llama\n", output);
-        Assert.Contains("  · " + SettingsMenu.UnchangedNotice, output);
-        Assert.DoesNotContain("› /model", output);
+        Assert.Contains(Titled(SettingsMenu.ReasoningTitle), output);
+        Assert.Equal(2, output.Split("  · " + SettingsMenu.UnchangedNotice).Length - 1);   // one per menu kept
+        Assert.Equal("llama", _settings.Current.LlmModel);
+        Assert.DoesNotContain("› /server", output);
     }
 
-    /// <summary>The reasoning mark on the row's last cell (2026-09-21): a double-click there is /reasoning — the level list, ESC keeps the level — with no › row; the name beside it is still /model.</summary>
+    /// <summary>The reasoning mark on the row's last cell (2026-09-21): a double-click there is /reasoning — the level list, ESC keeps the level — with no › row; the name beside it is /server.</summary>
     [Fact]
     public async Task ADoubleClickOnTheReasoningMark_OpensTheReasoningPicker()
     {
@@ -8334,9 +8518,9 @@ public partial class ChatScreenTests : IDisposable
     }
 
     [Theory]
-    [InlineData(false, false, 12)]
-    [InlineData(true, false, 13)]
-    [InlineData(true, true, 14)]
+    [InlineData(false, false, 13)]
+    [InlineData(true, false, 14)]
+    [InlineData(true, true, 15)]
     public void KeyRows_ListWhatApplies(bool voiceOn, bool wakeReady, int count)
     {
         var rows = ChatScreen.KeyRows(voiceOn, ConsoleKey.F8, wakeReady, "hey neon");
@@ -8351,8 +8535,9 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(("Home / End", "hold Shift to select text to the beginning or end of the line starting from the cursor"), rows[5]);
         Assert.Equal(("PgUp / PgDn", "scroll the transcript a page at a time"), rows[6]);
         Assert.DoesNotContain(rows, r => r.Key is "Mouse" or "Drag" or "Drop" or "@" or "#" or "$");
-        Assert.Equal(("Ctrl+Home", "scroll to top of the chat pane"), rows[^5]);
-        Assert.Equal(("Ctrl+End", "scroll to bottom of the chat pane"), rows[^4]);
+        Assert.Equal(("Ctrl+Home", "scroll to top of the chat pane"), rows[^6]);
+        Assert.Equal(("Ctrl+End", "scroll to bottom of the chat pane"), rows[^5]);
+        Assert.Equal(("Ctrl+O", "expand or collapse the tool calls and code blocks (or click a summary line)"), rows[^4]);   // 2026-09-22
         Assert.Equal(("Alt+V", "paste content (text or images)"), rows[^3]);
         Assert.Equal(("Ctrl+A", "select all text on the line"), rows[^2]);
         Assert.Equal(("Ctrl+C", "copy the selected text · stop the speech · cancel the reply · twice to exit"), rows[^1]);
@@ -8396,7 +8581,7 @@ public partial class ChatScreenTests : IDisposable
         }
 
         Assert.Equal(lines.Length, line);
-        Assert.Equal(52, lines.Length);   // 44 commands + 8 blank rows: /forget went 2026-09-22, its wipe now /memory forget, and /memcopy later that day, its copy now /memory copy; /cmdlist under /cmdcopy later on 2026-09-21; /cmdcopy under /memcopy 2026-09-21; /loop under /draft 2026-09-21; /git under /emptytrash 2026-09-21; /mcp under /tools 2026-09-20; /splash under /new later still on 2026-09-19; /draft under /copy since 2026-09-19; nine groups since later on 2026-09-19 (/skills + /learn under /sessions, /window under /view, /timer under /help); 39 + 10 with /tools under /settings that morning (38 + 10 since the three tool switches went, 2026-09-18)
+        Assert.Equal(54, lines.Length);   // 46 commands + 8 blank rows: /expand and /collapse under /loop later on 2026-09-22; /forget went 2026-09-22, its wipe now /memory forget, and /memcopy later that day, its copy now /memory copy; /cmdlist under /cmdcopy later on 2026-09-21; /cmdcopy under /memcopy 2026-09-21; /loop under /draft 2026-09-21; /git under /emptytrash 2026-09-21; /mcp under /tools 2026-09-20; /splash under /new later still on 2026-09-19; /draft under /copy since 2026-09-19; nine groups since later on 2026-09-19 (/skills + /learn under /sessions, /window under /view, /timer under /help); 39 + 10 with /tools under /settings that morning (38 + 10 since the three tool switches went, 2026-09-18)
         Assert.StartsWith(HelpRow("/settings, //", "edit and save settings"), lines[0]);
         Assert.StartsWith(HelpRow("/profile", "switch profiles, or /profile <name> | add <name> | delete <name> | rename <name> <new-name> | reset [name] | edit | reload"), lines[1]);   // the user's order since 2026-09-22: the profile and its sessions ahead of the tool panes
         Assert.StartsWith(HelpRow("/sessions", "list, restore and purge sessions: /sessions [<id> | purge <id> | purge older <age> | purge all | title <text>]"), lines[2]);   // under /profile since later on 2026-09-18
@@ -8416,28 +8601,30 @@ public partial class ChatScreenTests : IDisposable
         Assert.StartsWith(HelpRow("/copy", "copy the last reply to the clipboard as markdown, or /copy <n> | all"), lines[19]);   // under /queue since later on 2026-09-18
         Assert.StartsWith(HelpRow("/draft", "write the next message in your editor: a temporary file, sent when it is saved and closed"), lines[20]);   // under /copy since 2026-09-19
         Assert.StartsWith(HelpRow("/loop", "repeat a message, each reply waited for: /loop <count> <message> | infinite <message> (ESC ends it)"), lines[21]);   // under /draft since 2026-09-21
-        Assert.True(string.IsNullOrWhiteSpace(lines[22]));
-        Assert.StartsWith(HelpRow("/interrupt", "toggle the speech input wake word interrupt, or /interrupt on|off"), lines[26]);
-        Assert.True(string.IsNullOrWhiteSpace(lines[27]));
-        Assert.StartsWith(HelpRow("/memory", "list and prune memory items, or /memory forget | copy <profile> [overwrite]"), lines[28]);   // the copy word folded in later on 2026-09-22 and /memcopy's row went, every row under it one up
-        Assert.StartsWith(HelpRow("/remember", "add a memory: /remember <text>"), lines[29]);
-        Assert.StartsWith(HelpRow("/cmdcopy", "copy this profile's allowed shell commands into another: /cmdcopy <profile> [overwrite]"), lines[30]);   // 2026-09-21
-        Assert.StartsWith(HelpRow("/cmdlist", "list this profile's allowed shell commands on a pane, Enter removes one"), lines[31]);   // later on 2026-09-21
-        Assert.StartsWith(HelpRow("/tree", "print a tree of the working directory's folders and files, or /tree <path>"), lines[34]);
-        Assert.StartsWith(HelpRow("/emptytrash", "empty the working directory's .trash for good (asks first)"), lines[36]);
-        Assert.StartsWith(HelpRow("/git", "write the Git native email and Git native name settings into the working directory's repository: /git user [force]"), lines[37]);   // 2026-09-21
-        Assert.True(string.IsNullOrWhiteSpace(lines[38]));
+        Assert.StartsWith(HelpRow("/expand", "show every line of the folded tool runs and code blocks in the transcript (Ctrl+O flips)"), lines[22]);   // under /loop since 2026-09-22 (/tools expand until then)
+        Assert.StartsWith(HelpRow("/collapse", "fold the tool runs and code blocks in the transcript again"), lines[23]);
+        Assert.True(string.IsNullOrWhiteSpace(lines[24]));
+        Assert.StartsWith(HelpRow("/interrupt", "toggle the speech input wake word interrupt, or /interrupt on|off"), lines[28]);
+        Assert.True(string.IsNullOrWhiteSpace(lines[29]));
+        Assert.StartsWith(HelpRow("/memory", "list and prune memory items, or /memory forget | copy <profile> [overwrite]"), lines[30]);   // the copy word folded in later on 2026-09-22 and /memcopy's row went, every row under it one up
+        Assert.StartsWith(HelpRow("/remember", "add a memory: /remember <text>"), lines[31]);
+        Assert.StartsWith(HelpRow("/cmdcopy", "copy this profile's allowed shell commands into another: /cmdcopy <profile> [overwrite]"), lines[32]);   // 2026-09-21
+        Assert.StartsWith(HelpRow("/cmdlist", "list this profile's allowed shell commands on a pane, Enter removes one"), lines[33]);   // later on 2026-09-21
+        Assert.StartsWith(HelpRow("/tree", "print a tree of the working directory's folders and files, or /tree <path>"), lines[36]);
+        Assert.StartsWith(HelpRow("/emptytrash", "empty the working directory's .trash for good (asks first)"), lines[38]);
+        Assert.StartsWith(HelpRow("/git", "write the Git native email and Git native name settings into the working directory's repository: /git user [force]"), lines[39]);   // 2026-09-21
+        Assert.True(string.IsNullOrWhiteSpace(lines[40]));
         // /speak and /view: a group of their own (the user's call, 2026-09-17); /window (/windowsize until then) under /view since later on 2026-09-19.
-        Assert.StartsWith(HelpRow("/speak", "read a text file from the working directory aloud, as a reply: /speak <file> [n], or /speak to resume, or /speak <n> from sentence n"), lines[39]);
-        Assert.StartsWith(HelpRow("/echo", "print a line as a reply and read it aloud when speech is on: /echo <text>"), lines[40]);
-        Assert.StartsWith(HelpRow("/view", "show an image from the working directory in the transcript, as large as the window allows: /view <image>"), lines[41]);
-        Assert.StartsWith(HelpRow("/window", "show the terminal window's width and height"), lines[42]);
-        Assert.True(string.IsNullOrWhiteSpace(lines[43]));
-        Assert.StartsWith(HelpRow("/persona", "export and manage persona.md (the personality) in your editor, or /persona reset to go back to the default, or /persona copy <profile> [force] to copy it into another profile"), lines[44]);   // copy 2026-09-21
-        Assert.True(string.IsNullOrWhiteSpace(lines[47]));
-        Assert.StartsWith(HelpRow("/timer", "list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all"), lines[48]);   // the bottom group's first row since later still on 2026-09-19 (under /help from earlier that day)
-        Assert.StartsWith(HelpRow("/help", "show help"), lines[49]);   // the bottom group since 2026-09-16, above /about; under /timer since later still on 2026-09-19
-        Assert.StartsWith(HelpRow("/about", "show general information about the app and profile"), lines[50]);
+        Assert.StartsWith(HelpRow("/speak", "read a text file from the working directory aloud, as a reply: /speak <file> [n], or /speak to resume, or /speak <n> from sentence n"), lines[41]);
+        Assert.StartsWith(HelpRow("/echo", "print a line as a reply and read it aloud when speech is on: /echo <text>"), lines[42]);
+        Assert.StartsWith(HelpRow("/view", "show an image from the working directory in the transcript, as large as the window allows: /view <image>"), lines[43]);
+        Assert.StartsWith(HelpRow("/window", "show the terminal window's width and height"), lines[44]);
+        Assert.True(string.IsNullOrWhiteSpace(lines[45]));
+        Assert.StartsWith(HelpRow("/persona", "export and manage persona.md (the personality) in your editor, or /persona reset to go back to the default, or /persona copy <profile> [force] to copy it into another profile"), lines[46]);   // copy 2026-09-21
+        Assert.True(string.IsNullOrWhiteSpace(lines[49]));
+        Assert.StartsWith(HelpRow("/timer", "list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all"), lines[50]);   // the bottom group's first row since later still on 2026-09-19 (under /help from earlier that day)
+        Assert.StartsWith(HelpRow("/help", "show help"), lines[51]);   // the bottom group since 2026-09-16, above /about; under /timer since later still on 2026-09-19
+        Assert.StartsWith(HelpRow("/about", "show general information about the app and profile"), lines[52]);
         Assert.StartsWith(HelpRow("/exit", "exit/quit the application"), lines[^1]);   // the very last row since 2026-09-16
         Assert.DoesNotContain("/windowsize", Output);
         Assert.DoesNotContain("(also", Output);
@@ -9558,6 +9745,8 @@ public partial class ChatScreenTests : IDisposable
     [InlineData(SlashCommand.Skills, true, MidTurnClass.Refused)]   // /skills edit <name>, 2026-09-21
     [InlineData(SlashCommand.Loop, false, MidTurnClass.Refused)]    // 2026-09-21
     [InlineData(SlashCommand.Loop, true, MidTurnClass.Refused)]
+    [InlineData(SlashCommand.Expand, false, MidTurnClass.Quick)]     // later on 2026-09-22
+    [InlineData(SlashCommand.Collapse, false, MidTurnClass.Quick)]
     public void MidTurnPolicy_IsPinned(SlashCommand command, bool hasArgs, MidTurnClass expected) =>
         Assert.Equal(expected, ChatScreen.MidTurnPolicy(command, hasArgs));
 
@@ -14078,7 +14267,7 @@ public partial class ChatScreenTests : IDisposable
         _geometry = new ScreenGeometry(() => null);
         StepsWhenIdle([.. Typed("/ex"), Key(Keys.Escape), Key(Keys.Escape), Line("/exit")]);
         string on = await RunAsync();
-        Assert.Contains(MenuPane.Pointer + "/explore", on);
+        Assert.Contains(MenuPane.Pointer + "/expand", on);   // /explore until /expand came, later on 2026-09-22
         Assert.DoesNotContain("/exit" + new string(' ', MentionCompleter.NoteGap), on);   // the row; the typed /exit line is another thing
 
         _settings.Update(d => d.HideExitAutocomplete = false);
@@ -14842,6 +15031,9 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(ChatScreen.ProfileVerbs[1], ChatScreen.ArgumentItems("/profile", "del", sources)[0]);
         Assert.Equal(["delete chef", "delete work"], Texts(ChatScreen.ArgumentItems("/profile", "delete ", sources)));   // default never (2026-09-22)
         Assert.Equal(["rename work"], Texts(ChatScreen.ArgumentItems("/profile", "rename w", sources)));
+        Assert.Equal(["rename chef", "rename work"], Texts(ChatScreen.ArgumentItems("/profile", "rename ", sources)));   // default never: it can't be renamed (2026-09-22)
+        Assert.Equal(["rename chef", "rename work"], Texts(ChatScreen.ArgumentItems("/profile", "rename ", Sources(loaded: "work"))));
+        Assert.Empty(ChatScreen.ArgumentItems("/profile", "rename d", sources));
         Assert.Equal(["reset chef"], Texts(ChatScreen.ArgumentItems("/profile", "reset c", sources)));
         Assert.Equal(["reset chef", "reset default", "reset work"], Texts(ChatScreen.ArgumentItems("/profile", "reset ", sources)));   // default loaded: it may reset itself
         Assert.Equal(["reset chef", "reset work"], Texts(ChatScreen.ArgumentItems("/profile", "reset ", Sources(loaded: "work"))));   // but not from another profile (2026-09-22)

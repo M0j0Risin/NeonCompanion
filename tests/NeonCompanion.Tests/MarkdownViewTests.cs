@@ -119,7 +119,46 @@ public class MarkdownViewTests : IDisposable
 
         Assert.Equal(new[] { "csharp", "  var x = 1;", "   ", "      y();" }, lines.Select(Text));
         Assert.Equal(Theme.MarkdownCodeLabel, lines[0][0].Style);
-        Assert.All(lines[1].Skip(1).Where(s => s.Text.Length > 0), s => Assert.Equal(Theme.MarkdownCodeBlock, s.Style));
+        Assert.All(lines.Skip(1).SelectMany(l => l).Where(s => s.Text.Length > 0), s => Assert.Equal(Theme.PanelBg, s.Style.Background));
+    }
+
+    [Fact]
+    public void Fence_WithAKnownLanguage_IsHighlighted()
+    {
+        var line = Render(MarkdownView.Of("```csharp\nvar x = 1;\n```"))[1];
+
+        Assert.Equal(Theme.CodeKeyword, line.Single(s => s.Text == "var").Style);
+        Assert.Equal(Theme.CodeNumber, line.Single(s => s.Text == "1").Style);
+        Assert.Equal(Theme.MarkdownCodeBlock, line.Single(s => s.Text == "x").Style);
+    }
+
+    [Fact]
+    public void Fence_WithAnUnknownLanguage_StaysPlain()
+    {
+        var lines = Render(MarkdownView.Of("```text\nvar x = 1;\n```"));
+
+        Assert.Equal("text", Text(lines[0]));
+        Assert.All(lines[1].Where(s => s.Text.Length > 0), s => Assert.Equal(Theme.MarkdownCodeBlock, s.Style));
+    }
+
+    [Fact]
+    public void Fence_BlockCommentSpanningLines_ColoursEveryLine()
+    {
+        var lines = Render(MarkdownView.Of("```c\n/* one\ntwo */ x\n```"));
+
+        Assert.Equal(new[] { "c", "  /* one", "  two */ x" }, lines.Select(Text));
+        Assert.Equal(Theme.CodeComment, lines[1].Single(s => s.Text.Contains("one", StringComparison.Ordinal)).Style);
+        Assert.Equal(Theme.CodeComment, lines[2].Single(s => s.Text.Contains("two", StringComparison.Ordinal)).Style);
+    }
+
+    [Fact]
+    public void Fence_HighlightedLongLine_WrapsInsideTheIndent()
+    {
+        var lines = Render(MarkdownView.Of("```js\nconst alpha = beta + gamma + delta;\n```"), width: 20).Select(Text).ToArray();
+
+        Assert.True(lines.Length > 2);
+        Assert.All(lines.Skip(1), l => Assert.StartsWith(MarkdownView.CodeIndent, l, StringComparison.Ordinal));
+        Assert.Equal("const alpha = beta + gamma + delta;", string.Join(" ", lines.Skip(1).Select(l => l.Trim())));
     }
 
     [Fact]
@@ -248,5 +287,43 @@ public class MarkdownViewTests : IDisposable
         Assert.Equal("  ", MarkdownView.CodeIndent);
         Assert.Equal("code", MarkdownView.CodeLabel);
         Assert.Equal("  ", ReplyBlock.ContinuationIndent);
+    }
+
+    // ── Code spans (2026-09-22, the code fold) ──────────────────────────────
+
+    private const string TwoBlocks = "Intro text here.\n\n```csharp\nint a = 1;\nint b = 2;\n```\n\nBetween.\n\n```\nplain one\nplain two that is long enough to wrap at twenty\nplain three\n```\n\n- item\n\n  ```js\n  let x;\n  ```\n\nEnd.";
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CodeSpans_LineUp_WithTheRenderedRows_TopLevelBlocksOnly(bool glyph)
+    {
+        const int width = 30;
+        var block = new ReplyBlock(TwoBlocks, glyph, codeKeep: 1);
+        var rows = Render(block, width).Select(Text).ToArray();
+        var spans = block.CodeSpans(RenderOptions.Create(_console, _console.Profile.Capabilities), width);
+
+        Assert.Equal(2, spans.Count);   // the block in the list item is not one
+        var cs = spans[0];
+        Assert.Equal(("csharp", 1, 2, 2), (cs.Label, cs.LabelRows, cs.BodyRows, cs.SourceLines));
+        Assert.EndsWith("csharp", rows[cs.LabelRow]);
+        Assert.Contains("int a = 1;", rows[cs.LabelRow + 1]);
+        Assert.Contains("int b = 2;", rows[cs.End - 1]);
+        Assert.Equal("", rows[cs.End].Trim());   // the spacer
+
+        var plain = spans[1];
+        Assert.Equal((MarkdownView.CodeLabel, 3), (plain.Label, plain.SourceLines));
+        Assert.True(plain.BodyRows > 3);          // the long line wrapped
+        Assert.EndsWith(MarkdownView.CodeLabel, rows[plain.LabelRow]);
+        Assert.Contains("plain one", rows[plain.LabelRow + 1]);
+        Assert.Contains("plain three", rows[plain.End - 1]);
+        Assert.Equal(1, block.CodeKeep);
+    }
+
+    [Fact]
+    public void CodeFoldText_Summary_ReadsAsTheLabel_ItsLinesAndTheTriangle()
+    {
+        Assert.Equal("▸ csharp · 57 lines", CodeFoldText.Summary("csharp", 57, expanded: false));
+        Assert.Equal("▾ code · 1 line", CodeFoldText.Summary("code", 1, expanded: true));
     }
 }

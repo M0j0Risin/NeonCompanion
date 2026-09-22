@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using NeonCompanion.UI.Markdown;
 using Spectre.Console;
 
 namespace NeonCompanion.UI;
@@ -126,6 +127,56 @@ public static class Theme
     public static readonly Style MarkdownLinkUrl = DimText;
     /// <summary>A thematic break (<c>---</c>) in a reply.</summary>
     public static readonly Style MarkdownRule = PaneRule;
+
+    // ── Code highlighting (UI/Markdown/CodeLexer, fenced blocks with a known language) ──
+    // Every style keeps the block's lifted panel fill, so a highlighted block reads as one slab
+    // like a plain one; the neon accents carry the classes (2026-09-22): magenta keywords, cyan
+    // types and keys, amber strings, orange numbers, violet calls, dim italic comments.
+    /// <summary>A keyword (<c>if</c>, <c>class</c>, <c>SELECT</c>) or a directive (<c>#include</c>).</summary>
+    public static readonly Style CodeKeyword = new(foreground: Magenta, background: PanelBg);
+    /// <summary>A type or builtin name, a Rust lifetime, a shell builtin.</summary>
+    public static readonly Style CodeType = new(foreground: Cyan, background: PanelBg);
+    /// <summary>A string literal.</summary>
+    public static readonly Style CodeString = new(foreground: Amber, background: PanelBg);
+    /// <summary>A numeric literal, a CSS colour.</summary>
+    public static readonly Style CodeNumber = new(foreground: Orange, background: PanelBg);
+    /// <summary>A comment: dim and italic, so it recedes behind the code.</summary>
+    public static readonly Style CodeComment = new(foreground: Dim, background: PanelBg, decoration: Decoration.Italic);
+    /// <summary>Operators and brackets: dim, so the words carry the line.</summary>
+    public static readonly Style CodePunctuation = new(foreground: Dim, background: PanelBg);
+    /// <summary>A call (<c>name(</c>), a macro, a PowerShell cmdlet.</summary>
+    public static readonly Style CodeFunction = new(foreground: Purple, background: PanelBg);
+    /// <summary>A <c>$variable</c>.</summary>
+    public static readonly Style CodeVariable = new(foreground: SunsetRed, background: PanelBg);
+    /// <summary>A key, an attribute, a decorator, a command-line flag.</summary>
+    public static readonly Style CodeAttribute = new(foreground: Cyan, background: PanelBg);
+    /// <summary>A markup element name, a CSS selector.</summary>
+    public static readonly Style CodeTag = new(foreground: Magenta, background: PanelBg);
+    /// <summary>An INI/TOML section, a diff's file header or hunk.</summary>
+    public static readonly Style CodeHeading = new(foreground: Purple, background: PanelBg, decoration: Decoration.Bold);
+    /// <summary>A diff's added line.</summary>
+    public static readonly Style CodeInserted = new(foreground: Good, background: PanelBg);
+    /// <summary>A diff's removed line.</summary>
+    public static readonly Style CodeDeleted = new(foreground: Bad, background: PanelBg);
+
+    /// <summary>The style of a <see cref="CodeTokenKind"/>; plain text is <see cref="MarkdownCodeBlock"/>.</summary>
+    public static Style CodeStyle(CodeTokenKind kind) => kind switch
+    {
+        CodeTokenKind.Keyword => CodeKeyword,
+        CodeTokenKind.Type => CodeType,
+        CodeTokenKind.String => CodeString,
+        CodeTokenKind.Number => CodeNumber,
+        CodeTokenKind.Comment => CodeComment,
+        CodeTokenKind.Punctuation => CodePunctuation,
+        CodeTokenKind.Function => CodeFunction,
+        CodeTokenKind.Variable => CodeVariable,
+        CodeTokenKind.Attribute => CodeAttribute,
+        CodeTokenKind.Tag => CodeTag,
+        CodeTokenKind.Heading => CodeHeading,
+        CodeTokenKind.Inserted => CodeInserted,
+        CodeTokenKind.Deleted => CodeDeleted,
+        _ => MarkdownCodeBlock,
+    };
 
     /// <summary>A table in a reply: the pane's rule colour, fitted to its content — never expanded to the window.</summary>
     public static Table MarkdownTable()

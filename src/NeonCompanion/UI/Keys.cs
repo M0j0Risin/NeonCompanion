@@ -35,6 +35,21 @@ public static class Keys
     public static bool IsLineBreak(ConsoleKeyInfo key) =>
         key.Key == ConsoleKey.Enter && (key.Modifiers & ConsoleModifiers.Control) != 0;
 
+    /// <summary>
+    /// Ctrl+O: every tool run in the transcript unfolded, or folded again (2026-09-22, the user's
+    /// ask) — on the idle line and under a reply. <see cref="IsInterrupt"/>'s shape: Control held,
+    /// Alt not, and no character but the console's own SI (<c>'\x0f'</c>; a test <see cref="Ctrl"/>
+    /// builds <c>'\0'</c>), so a typed "O" stays an "O".
+    /// </summary>
+    public static bool IsToolToggle(ConsoleKeyInfo key) =>
+        key.Key == ConsoleKey.O
+        && key.KeyChar is '\0' or '\x0f'
+        && (key.Modifiers & ConsoleModifiers.Control) != 0
+        && (key.Modifiers & ConsoleModifiers.Alt) == 0;
+
+    /// <summary>Ctrl+O as the console delivers it: the SI character with the key and Control.</summary>
+    public static ConsoleKeyInfo CtrlO => new('\x0f', ConsoleKey.O, false, false, true);
+
     /// <summary>A plain Enter (or Shift+Enter, Alt+Enter): the key that sends a line and ends a type-ahead line; Ctrl+Enter is <see cref="IsLineBreak"/>.</summary>
     public static bool IsSend(ConsoleKeyInfo key) => key.Key == ConsoleKey.Enter && !IsLineBreak(key);
 

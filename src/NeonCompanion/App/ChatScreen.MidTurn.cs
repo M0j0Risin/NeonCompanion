@@ -97,7 +97,7 @@ internal sealed partial class ChatScreen
     /// profile's file, nothing the turn holds —, so the word never changes the class; the standalone
     /// <c>/forget</c> was a pane too, and <c>/memcopy</c> was refused until the word folded in),
     /// <c>/emptytrash</c>'s confirmation and the <c>/reasoning</c>
-    /// picker and <c>/queue</c> (2026-09-18) are <see cref="MidTurnClass.Pane"/>, as is <c>/cmdlist</c> (2026-09-21: the <c>Shell allowed commands</c> row, which <c>/tools</c> edits under a reply too); the four speech switches, <c>/reasoning</c>
+    /// picker and <c>/queue</c> (2026-09-18) are <see cref="MidTurnClass.Pane"/> (<c>/expand</c> and <c>/collapse</c>, 2026-09-22 — <c>/tools expand|collapse</c> until later that day — quick like <c>/queue clear</c>), as is <c>/cmdlist</c> (2026-09-21: the <c>Shell allowed commands</c> row, which <c>/tools</c> edits under a reply too); the four speech switches, <c>/reasoning</c>
     /// with a level, <c>/queue</c> with a word (<c>clear</c>, 2026-09-21: the drop on the turn task, or the usage error), <c>/copy</c>, <c>/remember</c>, <c>/explore</c>, <c>/timer</c> and an unknown
     /// command are <see cref="MidTurnClass.Quick"/>; <c>/clear</c>, <c>/new</c>, <c>/splash</c> (2026-09-19) and <c>/exit</c> cancel; the rest
     /// (<c>/profile</c>, <c>/server</c>, <c>/model</c>, <c>/compact</c>, <c>/cwd</c>, <c>/tree</c>,
@@ -107,12 +107,12 @@ internal sealed partial class ChatScreen
     {
         SlashCommand.None => MidTurnClass.Message,
         SlashCommand.Help or SlashCommand.Settings or SlashCommand.Sys or SlashCommand.Memory
-            or SlashCommand.Usage or SlashCommand.About or SlashCommand.EmptyTrash or SlashCommand.Tools or SlashCommand.Mcp or SlashCommand.CmdList => MidTurnClass.Pane,
+            or SlashCommand.Usage or SlashCommand.About or SlashCommand.EmptyTrash or SlashCommand.Mcp or SlashCommand.CmdList or SlashCommand.Tools => MidTurnClass.Pane,
         SlashCommand.Reasoning or SlashCommand.Queue => hasArgs ? MidTurnClass.Quick : MidTurnClass.Pane,
         SlashCommand.Skills => hasArgs ? MidTurnClass.Refused : MidTurnClass.Pane,
         SlashCommand.Session => hasArgs ? MidTurnClass.Refused : MidTurnClass.Pane,
         SlashCommand.Tts or SlashCommand.Voice or SlashCommand.Wake or SlashCommand.Interrupt or SlashCommand.Copy
-            or SlashCommand.Remember or SlashCommand.Explore or SlashCommand.Timer or SlashCommand.Unknown or SlashCommand.Overloaded => MidTurnClass.Quick,
+            or SlashCommand.Remember or SlashCommand.Explore or SlashCommand.Timer or SlashCommand.Expand or SlashCommand.Collapse or SlashCommand.Unknown or SlashCommand.Overloaded => MidTurnClass.Quick,
         SlashCommand.Clear or SlashCommand.New or SlashCommand.Splash or SlashCommand.Exit => MidTurnClass.Cancel,
         _ => MidTurnClass.Refused,
     };
@@ -296,6 +296,10 @@ internal sealed partial class ChatScreen
                 break;
             case SlashCommand.Queue:
                 HandleQueueArgs(args);
+                break;
+            case SlashCommand.Expand or SlashCommand.Collapse:
+                // The tool runs and code blocks above the reply fold or unfold as it streams (2026-09-22).
+                SetFolds(command == SlashCommand.Expand);
                 break;
             case SlashCommand.Copy:
                 HandleCopy(args);

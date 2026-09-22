@@ -30,6 +30,33 @@ public class KeysTests
     }
 
     [Fact]
+    public void IsToolToggle_IsCtrlO_WithoutAlt_AndATypedOStaysAnO()
+    {
+        // 2026-09-22: the console's SI and the test factory's '\0' count; Alt, a typed "O" (upper case marked with Control by Spectre's test input) and "o" do not.
+        Assert.True(Keys.IsToolToggle(Keys.CtrlO));
+        Assert.True(Keys.IsToolToggle(Keys.Ctrl(ConsoleKey.O)));
+        Assert.Equal('\x0f', Keys.CtrlO.KeyChar);
+        Assert.False(Keys.IsToolToggle(new ConsoleKeyInfo('\0', ConsoleKey.O, shift: false, alt: true, control: true)));
+        Assert.False(Keys.IsToolToggle(new ConsoleKeyInfo('O', ConsoleKey.O, shift: false, alt: false, control: true)));
+        Assert.False(Keys.IsToolToggle(Keys.Char('o')));
+        Assert.False(Keys.IsToolToggle(Keys.CtrlC));
+    }
+
+    [Fact]
+    public void ToolGroupText_IsPinned()
+    {
+        Assert.Equal(1, TextCells.Width(ToolGroupText.CollapsedGlyph));
+        Assert.Equal(1, TextCells.Width(ToolGroupText.ExpandedGlyph));
+        Assert.Equal("  ▸ 🛠️ 6 tool calls — read_file ×3, grep ×2, run_command", ToolGroupText.Summary([("grep", 2), ("read_file", 3), ("run_command", 1)], expanded: false));
+        Assert.Equal("  ▾ 🛠️ 1 tool call — grep", ToolGroupText.Summary([("grep", 1)], expanded: true));
+        Assert.Equal("  ▸ 🛠️ tool calls", ToolGroupText.Summary([], expanded: false));
+        Assert.Equal("  ▸ 🛠️ 4 tool calls — b ×2, a, c", ToolGroupText.Summary([("a", 1), ("b", 2), ("c", 1)], expanded: false));   // a tie keeps the order first called
+        Assert.True(ToolGroupText.Summary(Enumerable.Range(0, 50).Select(i => ("tool_number_" + i, 1)).ToList(), false).Length <= TranscriptRenderer.ToolTextLimit);
+        Assert.Equal("(tool calls and code blocks expanded; Ctrl+O or /collapse folds them)", ToolGroupText.ExpandedNotice(true));
+        Assert.Equal("(tool calls and code blocks collapsed; Ctrl+O, /expand or a click on a summary unfolds them)", ToolGroupText.ExpandedNotice(false));
+    }
+
+    [Fact]
     public void CtrlC_IsTheConsolesShape()
     {
         Assert.Equal('\x03', Keys.CtrlC.KeyChar);

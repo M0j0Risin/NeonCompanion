@@ -135,14 +135,14 @@ public class ToolsMenuTests : IDisposable
         Assert.Equal(5, SettingsMenu.TabFields.Count);
         Assert.Equal(6, SettingsMenu.ToolsTabFields.Count);   // Git since 2026-09-20, Shell since 2026-09-21; the user's order (Web, Files, Shell, Ask, Git (native)) since later on 2026-09-21, alphabetical before
         Assert.Equal(["Offered", "Options", "Web", "Files", "Shell", "Ask", "Git (native)"], ToolsText.TabTitles);
-        Assert.Equal([SettingsField.ToolsDollarMention], SettingsMenu.ToolsTabFields[0]);
+        Assert.Equal([SettingsField.ToolsDollarMention, SettingsField.ToolCollapseCount, SettingsField.CodeCollapseCount], SettingsMenu.ToolsTabFields[0]);   // the fold's count under the switch (2026-09-22, the user's place), the code fold's under it
         Assert.Equal([SettingsField.WebTools, SettingsField.WebBrowserMode, SettingsField.WebBrowserPath, SettingsField.WebBrowserNetworkMode, SettingsField.WebSearchMethod, SettingsField.WebSearxngUrl, SettingsField.WebSearchMaxResults], SettingsMenu.ToolsTabFields[1]);
         Assert.Equal([SettingsField.FileTools, SettingsField.FileSafeEdits, SettingsField.FileTreeMaxLength, SettingsField.FileTreeShowSizes, SettingsField.FileMentionFolderMode, SettingsField.FileBrowserMode, SettingsField.FileViewImageMaxPerCall], SettingsMenu.ToolsTabFields[2]);   // the view_image cap last, 2026-09-19; the browser mode under the folder mode, 2026-09-21
         Assert.Equal([SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellPoliceOutsidePaths, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellToolBridge, SettingsField.ShellCodeMaxToolCalls], SettingsMenu.ToolsTabFields[3]);   // the policy (the switch) first, then the list, the shell, the caps, then execute_code's four (2026-09-21; the bridge switch later that day; the police toggle third, 2026-09-22)
         Assert.Equal([SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices], SettingsMenu.ToolsTabFields[4]);
         Assert.Equal([SettingsField.GitNativeTools, SettingsField.GitNativeDiffMaxLines, SettingsField.GitNativeLogMaxCommits, SettingsField.GitNativeEmail, SettingsField.GitNativeName], SettingsMenu.ToolsTabFields[5]);   // the switch first, then the limits, then the identity pair (2026-09-21); the Git native labels later that day
         Assert.Equal(Enum.GetValues<SettingsField>().Order(), SettingsMenu.TabFields.Concat(SettingsMenu.SkillsTabFields).Concat(SettingsMenu.ToolsTabFields).Concat(SettingsMenu.McpTabFields).SelectMany(t => t).Order());
-        Assert.Equal(19, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[0]));   // "$-mention enabled"
+        Assert.Equal(21, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[0]));   // "Tool collapse count" (2026-09-22; "$-mention enabled", 19, before)
         Assert.Equal(26, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[1]));   // "Web browser network mode" (the Web-prefixed labels, later still on 2026-09-19; "Web search max results", 24, before)
         Assert.Equal(32, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[2]));   // "File view image max (per call)" (later still on 2026-09-19; "Stale line number guard", 25, that morning; "Always return line numbers", 28, before)
         Assert.Equal(29, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[3]));   // "Shell tool bridge max calls" (the Shell tab, 2026-09-21; the row was "Shell code max tool calls", 27, until later that day)
@@ -255,10 +255,10 @@ public class ToolsMenuTests : IDisposable
         await menu.ShowAsync(CancellationToken.None);
 
         Assert.False(_settings.Current.ToolsDollarMention);
-        Assert.Contains("\n" + Titled(Strip) + "\n \n▸ $-mention enabled  on\n" + Rule(100), _console.Output);
+        Assert.Contains("\n" + Titled(Strip) + "\n \n▸ $-mention enabled    on\n  Tool collapse count  2 lines\n  Code collapse count  20 lines\n" + Rule(100), _console.Output);
         Assert.Contains(ToolsText.Label + " › $-mention enabled", _console.Output);
         Assert.Contains("$ is ordinary text", _console.Output);
-        Assert.Contains("\n" + Titled(Strip) + "\n  · $-mention enabled: off\n▸ $-mention enabled  off\n", _console.Output);
+        Assert.Contains("\n" + Titled(Strip) + "\n  · $-mention enabled: off\n▸ $-mention enabled    off\n", _console.Output);
         pane.Dispose();
     }
 
@@ -492,6 +492,58 @@ public class ToolsMenuTests : IDisposable
     }
 
     [Fact]
+    public async Task OnThePane_ToolCollapseCount_IsTheOptionsTabsSecondRow_Typed_ZeroIsOff_OutOfRangeRefused()
+    {
+        // 2026-09-22, the user's place: under $-mention enabled; 0 to 100, 2 by default, 0 = off.
+        var (menu, pane, _) = PaneMenu();
+        Push(Keys.Right);                                         // Options
+        Push(Keys.Down, Keys.Enter);                              // Tool collapse count: the typed slot with "2"
+        Push(Keys.Backspace, Keys.Char('1'), Keys.Char('0'), Keys.Char('1'), Keys.Enter);   // refused: 101
+        Push(Keys.Enter, Keys.Backspace, Keys.Char('0'), Keys.Enter);                        // 0: off
+        Push(Keys.Enter, Keys.Backspace, Keys.Char('5'), Keys.Enter);                        // 5
+        Push(Keys.Escape);
+
+        await menu.ShowAsync(CancellationToken.None);
+
+        Assert.Equal(5, _settings.Current.ToolCollapseCount);
+        Assert.Contains("Tool collapse count " + SettingsMenu.ToolCollapseCountRangeError + "; keeping 2.", _console.Output);
+        Assert.Contains("  · Tool collapse count: off\n", _console.Output);
+        Assert.Contains("  · Tool collapse count: 5 lines\n", _console.Output);
+        Assert.Equal("must be 0 to 100 lines (0 = off)", SettingsMenu.ToolCollapseCountRangeError);
+        Assert.Equal("Tool collapse count", SettingsMenu.FieldName(SettingsField.ToolCollapseCount));
+        Assert.False(SettingsMenu.IsToggle(SettingsField.ToolCollapseCount));
+        Assert.False(SettingsMenu.RefusedMidTurn(SettingsField.ToolCollapseCount));
+        Assert.Equal(2, new AppSettingsData().ToolCollapseCount);
+        pane.Dispose();
+    }
+
+    [Fact]
+    public async Task OnThePane_CodeCollapseCount_IsTheOptionsTabsThirdRow_Typed_ZeroIsOff_OutOfRangeRefused()
+    {
+        // Later on 2026-09-22, the user's place: under Tool collapse count; 0 to 100, 20 by default, 0 = off.
+        var (menu, pane, _) = PaneMenu();
+        Push(Keys.Right);                                         // Options
+        Push(Keys.Down, Keys.Down, Keys.Enter);                   // Code collapse count: the typed slot with "20"
+        Push(Keys.Backspace, Keys.Backspace, Keys.Char('1'), Keys.Char('0'), Keys.Char('1'), Keys.Enter);   // refused: 101
+        Push(Keys.Enter, Keys.Backspace, Keys.Backspace, Keys.Char('0'), Keys.Enter);                      // 0: off
+        Push(Keys.Enter, Keys.Backspace, Keys.Char('3'), Keys.Char('0'), Keys.Enter);                      // 30
+        Push(Keys.Escape);
+
+        await menu.ShowAsync(CancellationToken.None);
+
+        Assert.Equal(30, _settings.Current.CodeCollapseCount);
+        Assert.Contains("Code collapse count " + SettingsMenu.CodeCollapseCountRangeError + "; keeping 20.", _console.Output);
+        Assert.Contains("  · Code collapse count: off\n", _console.Output);
+        Assert.Contains("  · Code collapse count: 30 lines\n", _console.Output);
+        Assert.Equal("must be 0 to 100 lines (0 = off)", SettingsMenu.CodeCollapseCountRangeError);
+        Assert.Equal("Code collapse count", SettingsMenu.FieldName(SettingsField.CodeCollapseCount));
+        Assert.False(SettingsMenu.IsToggle(SettingsField.CodeCollapseCount));
+        Assert.False(SettingsMenu.RefusedMidTurn(SettingsField.CodeCollapseCount));
+        Assert.Equal(20, new AppSettingsData().CodeCollapseCount);
+        pane.Dispose();
+    }
+
+    [Fact]
     public async Task OnThePane_ViewImageMaxPerCall_IsTheFilesTabsLastRow_Typed_OutOfRangeRefused()
     {
         // 2026-09-19, the user's ask: 1 to 100, 10 by default; the value the tool reads at its next call.
@@ -584,7 +636,7 @@ public class ToolsMenuTests : IDisposable
         Assert.Contains("switched off in /tools", _console.Output);
         Assert.Contains("  ·   Questions (1) (off: no pane)\n", _console.Output);
         // The tabs in strip order: Web right after Options, then Files, Shell, Ask, Git (native) last (the user's order, later on 2026-09-21).
-        Assert.Contains("  · Options\n  ·   $-mention enabled: on\n  · Web\n  ·   Web tools: on\n  ·   Web browser mode: default\n  ·   Web browser path: (auto: msedge.exe)\n", _console.Output);
+        Assert.Contains("  · Options\n  ·   $-mention enabled: on\n  ·   Tool collapse count: 2 lines\n  ·   Code collapse count: 20 lines\n  · Web\n  ·   Web tools: on\n  ·   Web browser mode: default\n  ·   Web browser path: (auto: msedge.exe)\n", _console.Output);
         Assert.Contains("  ·   Web search max results: 20 results\n  · Files\n  ·   File tools: on\n  ·   File safe edits: off\n", _console.Output);
         Assert.Contains("  · Shell\n  ·   Shell command policy: ask\n", _console.Output);
         Assert.Contains("  · Ask\n  ·   Ask user: on\n  ·   Ask max questions: 10 questions\n  ·   Ask max choices per question: 10 choices\n  · Git (native)\n  ·   Git native tools: on\n  ·   Git native diff max lines: 500 lines\n  ·   Git native log max commits: 20 commits\n  ·   Git native email: (not set)\n  ·   Git native name: (not set)\n", _console.Output);

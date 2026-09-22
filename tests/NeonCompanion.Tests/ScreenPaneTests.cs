@@ -1,5 +1,7 @@
 using NeonCompanion.Tests.Fakes;
+using System.Globalization;
 using NeonCompanion.UI;
+using NeonCompanion.UI.Markdown;
 using Spectre.Console;
 using Spectre.Console.Testing;
 
@@ -837,6 +839,61 @@ public class ScreenPaneTests : IDisposable
         Assert.Equal("thinking 00:12 · 📨 2 queued", ScreenPane.BusyRow("thinking", TimeSpan.FromSeconds(12), "", "📨 2 queued"));
         Assert.Equal("thinking 00:12 · 📨 2 queued · ESC closes", ScreenPane.BusyRow("thinking", TimeSpan.FromSeconds(12), "ESC closes", "📨 2 queued"));
         Assert.Equal(ScreenPane.BusyRow("thinking", TimeSpan.FromSeconds(12), "ESC closes"), ScreenPane.BusyRow("thinking", TimeSpan.FromSeconds(12), "ESC closes", ""));
+    }
+
+    /// <summary>
+    /// A tool run (2026-09-22): its lines past the keep fold under the summary on the screen (the flow
+    /// rebuilt from the store), a click on the summary's row unfolds it and another folds it again;
+    /// a click on any other row does nothing.
+    /// </summary>
+    [Fact]
+    public void ToolRun_FoldsOnTheScreen_AndAClickOnItsSummaryToggles()
+    {
+        _cursorTop = 100;   // rule 99 over the input row: the region's six rows are 93–98
+        using var pane = Pane();
+        pane.Show();
+        pane.Write(new Markup("a\n"));
+        pane.BeginToolGroup(1);
+        pane.SetToolGroupSummary(new Markup("S"), new Markup("E"));
+        pane.WriteToolLine(new Markup("m1\n"));
+        pane.WriteToolLine(new Markup("m2\n"));
+        Assert.Equal(3, pane.StoredRows);   // live: a, the summary, the last line
+        int mark = Output.Length;
+        pane.WriteToolLine(new Markup("m3\n"));
+        Assert.Contains("a\nS\nm3\n", Output[mark..]);   // the flow written again from the store
+        pane.EndToolGroup();
+        Assert.Equal(2, pane.StoredRows);
+        Assert.False(pane.ToolGroupOpen);
+
+        Assert.False(pane.TryToggleToolGroupAt(0, 93));   // "a"
+        Assert.False(pane.TryToggleToolGroupAt(0, 95));   // under the flow
+        mark = Output.Length;
+        Assert.True(pane.TryToggleToolGroupAt(3, 94));    // the summary
+        Assert.Equal(5, pane.StoredRows);
+        Assert.Contains("a\nE\nm1\nm2\nm3\n", Output[mark..]);
+        Assert.True(pane.TryToggleToolGroupAt(0, 94));
+        Assert.Equal(2, pane.StoredRows);
+
+        // The pane-wide state: every run, and the ones to come.
+        pane.SetToolGroupsExpanded(true);
+        Assert.True(pane.ToolGroupsExpanded);
+        Assert.Equal(5, pane.StoredRows);
+        pane.ToggleToolGroups();
+        Assert.False(pane.ToolGroupsExpanded);
+        Assert.Equal(2, pane.StoredRows);
+    }
+
+    [Fact]
+    public void ToolRun_WithoutThePane_IsThePlainWrite()
+    {
+        using var pane = Pane(geometry: false);
+        pane.BeginToolGroup(1);
+        pane.WriteToolLine(new Markup("m1\n"));
+        pane.WriteToolLine(new Markup("m2\n"));
+        pane.EndToolGroup();
+
+        Assert.Contains("m1\nm2\n", Output);
+        Assert.False(pane.TryToggleToolGroupAt(0, 0));
     }
 
     /// <summary>The queued part (2026-09-18): after the strip on the standing row and after the spinner's label on the busy row, its place recorded for TryHitQueued in both; hidden with its zone under an overlay's hint and the scroll's; gone when nothing is queued.</summary>
@@ -3263,6 +3320,43 @@ public class ScreenPaneTests : IDisposable
         Assert.Equal(0, pane.Padding);
         Assert.Equal(1, Count(Output[mark..], "l4\nl5\nl6\nl7\nl8\nl9\n"));
         Assert.DoesNotContain("l3", Output[mark..]);
+    }
+
+    [Fact]
+    public void ACodeBlockCommittedInParts_FoldsWhole_WhenTheSlotEmpties()
+    {
+        // Later on 2026-09-22 (the code fold): twelve lines on a 10-row window — the label and the top
+        // rows go into the flow while the block streams (its group open, every row shown), the rest at
+        // the commit, and the block, past its keep of 3, folds to its label once the slot empties.
+        using var pane = Pane();
+        pane.Show();
+        string body = string.Join("\n", Enumerable.Range(1, 12).Select(i => "c" + i.ToString(CultureInfo.InvariantCulture)));
+        pane.SetLive(new ReplyBlock("```text\n" + body, glyph: false, codeKeep: 3));
+        _time.Advance(ScreenPane.Tick);
+        Assert.Equal(7, pane.LiveCommitted);
+        Assert.DoesNotContain(CodeFoldText.Summary("text", 12, expanded: false), Output);
+
+        int mark = Output.Length;
+        pane.SetLive(new ReplyBlock("```text\n" + body + "\n```\n\nafter", glyph: false, codeKeep: 3));
+        pane.CommitLive();
+
+        string tail = Output[mark..];
+        int summary = tail.LastIndexOf(CodeFoldText.Summary("text", 12, expanded: false), StringComparison.Ordinal);
+        Assert.True(summary >= 0, tail);
+        Assert.Contains("after", tail[summary..]);
+        Assert.DoesNotContain("  c", tail[summary..]);
+    }
+
+    [Fact]
+    public void ACodeBlock_WithoutACodeKeep_IsPlainRows()
+    {
+        using var pane = Pane();
+        pane.Show();
+        pane.SetLive(new ReplyBlock("```text\na\nb\nc\nd\n```\n\nafter", glyph: false));
+        pane.CommitLive();
+
+        Assert.Contains("text\n  a\n  b\n  c\n  d\n", Output);
+        Assert.DoesNotContain(ToolGroupText.CollapsedGlyph, Output);
     }
 
     [Fact]

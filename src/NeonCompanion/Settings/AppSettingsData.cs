@@ -665,6 +665,39 @@ public sealed class AppSettingsData
     /// </summary>
     public bool ToolsDollarMention { get; set; } = true;
 
+    /// <summary>
+    /// How many lines of a run of tool calls the transcript keeps while the run goes on (2026-09-22,
+    /// the user's ask): past it the run folds under one summary line (<c>▸ 🛠️ 7 tool calls — …</c>)
+    /// with only its last lines under it, and once the reply moves on the summary alone — a click on
+    /// it, Ctrl+O or <c>/expand</c> shows every line. <see cref="MinToolCollapseCount"/> to
+    /// <see cref="MaxToolCollapseCount"/>; 0 = never fold (every line, as before). Read when a run
+    /// opens, no reconnect; the Options tab of <c>/tools</c>, under <see cref="ToolsDollarMention"/>.
+    /// Only on the screen's pane (headless keeps every line). No variable.
+    /// </summary>
+    public int ToolCollapseCount { get; set; } = DefaultToolCollapseCount;
+
+    /// <summary>The default, the least and the most <see cref="ToolCollapseCount"/> may be (0 = off).</summary>
+    public const int DefaultToolCollapseCount = 2;
+    public const int MinToolCollapseCount = 0;
+    public const int MaxToolCollapseCount = 100;
+
+    /// <summary>
+    /// How many lines a code block in a styled reply may have before it folds (2026-09-22, the
+    /// user's ask, the tool runs' fold for code): the block streams at full height, and once the
+    /// reply moves on one with more source lines than this shrinks to its label line
+    /// (<c>▸ csharp · 57 lines</c>) — a click on it, Ctrl+O or <c>/expand</c> shows it again.
+    /// Top-level blocks only (not one inside a list item or a quote). <see cref="MinCodeCollapseCount"/>
+    /// to <see cref="MaxCodeCollapseCount"/>; 0 = never fold. Read when a reply opens, no reconnect;
+    /// the Options tab of <c>/tools</c>, under <see cref="ToolCollapseCount"/>. Only on the screen's
+    /// pane with <c>Transcript markdown</c> on. No variable.
+    /// </summary>
+    public int CodeCollapseCount { get; set; } = DefaultCodeCollapseCount;
+
+    /// <summary>The default, the least and the most <see cref="CodeCollapseCount"/> may be (0 = off).</summary>
+    public const int DefaultCodeCollapseCount = 20;
+    public const int MinCodeCollapseCount = 0;
+    public const int MaxCodeCollapseCount = 100;
+
     // ─── Ask ────────────────────────────────────────────────────────────────────
 
     /// <summary>

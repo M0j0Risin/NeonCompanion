@@ -30,6 +30,13 @@ namespace NeonCompanion.UI;
 /// tool call it generates, and seventeen quiet <c>move</c> calls after a sentence were seventeen
 /// blank rows before the first <c>🛠️</c> line (2026-09-14). A paragraph break inside a reply is
 /// untouched: its newlines are written before the word that follows them.</para>
+///
+/// <para>Tool runs (2026-09-22, the user's ask): with the pane on the screen, consecutive tool lines
+/// (<see cref="Tool"/>, <see cref="ToolResult"/> and the notes) are one run in the pane's store,
+/// which folds it under a summary line past <see cref="ToolCollapseCount"/> — the last lines kept
+/// while it runs, the summary alone once anything else is said (<see cref="ScreenPane.WriteToolLine"/>).
+/// Every other write ends the run: a notice, the user's line, pictures, the reply speaking again,
+/// the reply's end.</para>
 /// </summary>
 public sealed class TranscriptRenderer : INoticeSink
 {
@@ -164,6 +171,7 @@ public sealed class TranscriptRenderer : INoticeSink
     /// <summary>What the user said, in the same shape the input line leaves behind. Voice input uses this.</summary>
     public void User(string text)
     {
+        EndRun();
         BreakIfMidText();
         _console.MarkupLine(UserMarkup(text));
         _state = LineState.AtLineStart;
@@ -178,6 +186,7 @@ public sealed class TranscriptRenderer : INoticeSink
             return;
         }
 
+        EndRun();
         BreakIfMidText();
         _console.Write(new ImageStrip(thumbnails));
         _state = LineState.AtLineStart;
@@ -192,6 +201,7 @@ public sealed class TranscriptRenderer : INoticeSink
     public void Picture(ImageThumbnail thumbnail)
     {
         ArgumentNullException.ThrowIfNull(thumbnail);
+        EndRun();
         BreakIfMidText();
         _console.Write(Align.Center(thumbnail.ToCanvas()));
         _state = LineState.AtLineStart;
@@ -206,6 +216,7 @@ public sealed class TranscriptRenderer : INoticeSink
     /// </summary>
     public void Rule()
     {
+        EndRun();
         BreakIfMidText();
         _console.MarkupLine(Theme.Rule(RuleWidth(_console.Profile.Width)));
         _state = LineState.AtLineStart;
@@ -219,17 +230,57 @@ public sealed class TranscriptRenderer : INoticeSink
 
     public void ProcessAlert(string text) => Line(ProcessAlertMarkup(text), Theme.ColorMarkup(Theme.Warn, text));
 
-    public void Tool(string name, string argumentsJson) => Line(ToolMarkup(name, argumentsJson), ToolMarkup(name, argumentsJson).TrimStart());
+    public void Tool(string name, string argumentsJson) => ToolLine(ToolMarkup(name, argumentsJson), ToolMarkup(name, argumentsJson).TrimStart());
 
-    public void ToolResult(string name, string text) => Line(ToolResultMarkup(name, text), ToolResultMarkup(name, text).TrimStart());
+    public void ToolResult(string name, string text) => ToolLine(ToolResultMarkup(name, text), ToolResultMarkup(name, text).TrimStart());
 
-    public void ToolNote(string text) => Line(ToolNoteMarkup(text), Theme.ColorMarkup(Theme.Dim, ToolGlyph.TrimStart() + Truncate(text, ToolTextLimit)));
+    public void ToolNote(string text) => ToolLine(ToolNoteMarkup(text), Theme.ColorMarkup(Theme.Dim, ToolGlyph.TrimStart() + Truncate(text, ToolTextLimit)));
 
     /// <summary><see cref="ToolNote"/> for a skill tool's result: the same dim line behind <see cref="SkillGlyph"/>.</summary>
-    public void SkillNote(string text) => Line(SkillNoteMarkup(text), Theme.ColorMarkup(Theme.Dim, SkillGlyph.TrimStart() + Truncate(text, ToolTextLimit)));
+    public void SkillNote(string text) => ToolLine(SkillNoteMarkup(text), Theme.ColorMarkup(Theme.Dim, SkillGlyph.TrimStart() + Truncate(text, ToolTextLimit)));
 
     /// <summary><see cref="ToolNote"/> for a result the police refused: the same dim line behind <see cref="PoliceGlyph"/>.</summary>
-    public void PoliceNote(string text) => Line(PoliceNoteMarkup(text), Theme.ColorMarkup(Theme.Dim, PoliceGlyph.TrimStart() + Truncate(text, ToolTextLimit)));
+    public void PoliceNote(string text) => ToolLine(PoliceNoteMarkup(text), Theme.ColorMarkup(Theme.Dim, PoliceGlyph.TrimStart() + Truncate(text, ToolTextLimit)));
+
+    /// <summary>
+    /// How many lines of a tool run stay while it runs (<c>Tool collapse count</c>, 2026-09-22): read
+    /// when a run opens; 0 (the default here, and every console without the pane) folds nothing.
+    /// </summary>
+    public Func<int> ToolCollapseCount { get; set; } = static () => 0;
+
+    /// <summary>
+    /// How many lines a top-level code block of a styled reply may have before the transcript folds
+    /// it to its label line (<c>Code collapse count</c>, 2026-09-22): read when a reply opens and
+    /// carried by its <see cref="ReplyBlock"/>; 0 (the default here) folds nothing.
+    /// </summary>
+    public Func<int> CodeCollapseCount { get; set; } = static () => 0;
+
+    // The Code collapse count the open styled reply was begun with.
+    private int _codeKeep;
+
+    /// <summary>
+    /// A tool call the turn made (<c>ChatScreen.Render</c>, every call, the quiet ones too): counted
+    /// by name for the run's summary line (<see cref="ToolGroupText.Summary"/>). The count is the
+    /// run's — the calls since anything else was said — whether or not its line is written yet.
+    /// </summary>
+    public void CountToolCall(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        int at = _tally.FindIndex(t => string.Equals(t.Name, name, StringComparison.Ordinal));
+        if (at < 0)
+        {
+            _tally.Add((name, 1));
+        }
+        else
+        {
+            _tally[at] = (name, _tally[at].Count + 1);
+        }
+
+        if (_run)
+        {
+            PushSummary();
+        }
+    }
 
     /// <summary>A quiet tool's result as one <see cref="ToolNote"/> per line of <paramref name="text"/> (the question tool's answers), blank lines skipped; nothing for a blank text.</summary>
     public void ToolNotes(string text)
@@ -260,13 +311,16 @@ public sealed class TranscriptRenderer : INoticeSink
             return;
         }
 
+        // The opening calls' lines come before the glyph: a run of their own, the reply's calls another.
+        EndRun();
         BreakIfMidText();
         _slot = markdown && _pane is { Enabled: true };
         if (_slot)
         {
             _reply.Clear();
             _glyph = true;
-            _pane!.SetLive(new ReplyBlock("", glyph: true));
+            _codeKeep = CodeCollapseCount();
+            _pane!.SetLive(new ReplyBlock("", glyph: true, codeKeep: _codeKeep));
         }
         else
         {
@@ -300,6 +354,12 @@ public sealed class TranscriptRenderer : INoticeSink
             _skipLeadingWhitespace = false;
         }
 
+        if (_run && !string.IsNullOrWhiteSpace(text))
+        {
+            // The reply speaks again: the tool run above it is over.
+            EndRun();
+        }
+
         if (_slot)
         {
             // The whole reply again; the pane lays it out on its tick. A slot that was committed
@@ -311,7 +371,7 @@ public sealed class TranscriptRenderer : INoticeSink
             }
 
             _reply.Append(text);
-            _pane!.SetLive(new ReplyBlock(_reply.ToString(), _glyph));
+            _pane!.SetLive(new ReplyBlock(_reply.ToString(), _glyph, codeKeep: _codeKeep));
             _state = LineState.MidText;
             return;
         }
@@ -340,6 +400,7 @@ public sealed class TranscriptRenderer : INoticeSink
     /// </summary>
     public void EndAssistant()
     {
+        EndRun();
         if (!_assistantOpen)
         {
             return;
@@ -461,8 +522,89 @@ public sealed class TranscriptRenderer : INoticeSink
 
     // ── Internals ───────────────────────────────────────────────────────────
 
-    /// <summary>A line-shaped write: its own line, except right after a bare glyph where it continues that line.</summary>
+    /// <summary>
+    /// A tool run's line (2026-09-22): with the pane on the screen and a <see cref="ToolCollapseCount"/>
+    /// above 0 it joins the open run — one is opened first, the reply's bare glyph becoming its lead
+    /// (dropped from the slot, or taken back out of the flow on the plain path) — and past the count
+    /// the pane folds the run under its summary. Otherwise the plain line it always was.
+    /// </summary>
+    private void ToolLine(string fullMarkup, string inlineMarkup)
+    {
+        bool open = _run && _pane!.ToolGroupOpen;
+        int keep = open ? 0 : ToolCollapseCount();
+        if (!open && (_pane is not { Enabled: true } || keep <= 0))
+        {
+            _run = false;
+            WriteLine(fullMarkup, inlineMarkup);
+            return;
+        }
+
+        _heldWhitespace.Clear();
+        using (_pane!.Batch())
+        {
+            if (!open)
+            {
+                if (_state == LineState.GlyphOnly)
+                {
+                    bool plain = !_slot;
+                    if (_slot)
+                    {
+                        DropSlot();
+                    }
+
+                    _pane.BeginToolGroup(keep, new RawText(AssistantGlyph, Theme.Accent), absorbOpenLine: plain);
+                }
+                else
+                {
+                    BreakIfMidText();
+                    _pane.BeginToolGroup(keep);
+                }
+
+                _run = true;
+                PushSummary();
+            }
+            else
+            {
+                BreakIfMidText();
+            }
+
+            _pane.WriteToolLine(new Markup(fullMarkup + "\n"));
+        }
+
+        _state = LineState.AtLineStart;
+    }
+
+    /// <summary>The open run's summary from the tally, folded and unfolded, into the pane.</summary>
+    private void PushSummary() =>
+        _pane!.SetToolGroupSummary(new Markup(ToolGroupText.SummaryMarkup(_tally, expanded: false)), new Markup(ToolGroupText.SummaryMarkup(_tally, expanded: true)));
+
+    /// <summary>
+    /// Something other than a tool line is said: the open run is over (the pane shrinks a folded
+    /// one to its summary) and the tally starts again.
+    /// </summary>
+    private void EndRun()
+    {
+        _tally.Clear();
+        if (_run)
+        {
+            _run = false;
+            _pane?.EndToolGroup();
+        }
+    }
+
+    // The open tool run (the pane holds it) and the calls counted for its summary.
+    private bool _run;
+    private readonly List<(string Name, int Count)> _tally = new();
+
+    /// <summary>A line-shaped write that is not a tool's: it ends the tool run, then <see cref="WriteLine"/>.</summary>
     private void Line(string fullMarkup, string inlineMarkup)
+    {
+        EndRun();
+        WriteLine(fullMarkup, inlineMarkup);
+    }
+
+    /// <summary>A line-shaped write: its own line, except right after a bare glyph where it continues that line.</summary>
+    private void WriteLine(string fullMarkup, string inlineMarkup)
     {
         _heldWhitespace.Clear();
         if (_state == LineState.GlyphOnly)

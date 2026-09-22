@@ -17,6 +17,23 @@ namespace NeonCompanion.UI;
 /// extended on every append (the open line wrapped again with what joins it), rebuilt on a width
 /// change; past <see cref="MaxRows"/> the oldest lines go. No lock of its own: the pane calls it
 /// under its own.
+///
+/// <para>Tool runs (2026-09-22, the user's ask): a run of consecutive 🛠️ lines is a <em>group</em> —
+/// a summary line the store keeps ahead of its members (<see cref="BeginGroup"/>, the members through
+/// <see cref="Append(IReadOnlyList{Segment}, int, bool)"/> with <c>member</c>). Once a group holds more
+/// members than its <c>keep</c> (the <c>Tool collapse count</c> it opened with; 0 never collapses) the
+/// summary shows and the members fold: while the run is live only its last <c>keep</c> stay, after
+/// <see cref="EndGroup"/> none — unless the group is expanded (<see cref="Toggle"/>, or the pane-wide
+/// <see cref="ExpandAll"/> it follows until toggled on its own). A hidden line takes no rows, so the
+/// rows, the scroll and the pane's hit-tests all read the folded shape. Any change to rows other than
+/// an append at the end sets <see cref="TakeReshaped"/>: the pane then rebuilds the screen from here.</para>
+///
+/// <para>Code blocks (later on 2026-09-22, the user's ask): a top-level code block of a styled reply
+/// is a group too (<see cref="BeginCodeGroup"/>), its label line the summary and its rows the
+/// members. It differs from a tool run in three ways: the summary always shows (the plain label
+/// until the block folds), it is measured by its source lines rather than its rows (a wrapped line
+/// counts once), and while it is live every member shows — the block streamed at full height and
+/// folds only once it is over. <see cref="ExpandAll"/> and <see cref="Toggle"/> are the runs'.</para>
 /// </summary>
 public sealed class Scrollback
 {
@@ -25,7 +42,11 @@ public sealed class Scrollback
 
     private readonly List<Line> _lines = new();
     private readonly List<SegmentLine> _rows = new();
+    private readonly Dictionary<int, Group> _groups = new();
     private int _width = -1;
+    private Group? _open;
+    private int _nextGroup = 1;
+    private bool _reshaped;
 
     /// <summary>One logical line: its segments (no line break, no control code, no <c>\r</c>) and the rows it took at the cached width.</summary>
     private sealed class Line
@@ -33,7 +54,57 @@ public sealed class Scrollback
         public readonly List<Segment> Segments = new();
         public bool Closed;
         public int Rows;
+
+        /// <summary>The tool run this line is the summary or a member of; null for any other line.</summary>
+        public Group? Group;
+
+        /// <summary>The member's place in its group; −1 for the summary.</summary>
+        public int Member = -1;
     }
+
+    /// <summary>A tool run or a code block: its summary line, its members in order, how many stay while it runs, and its own expanded state (null = the store's <see cref="ExpandAll"/>).</summary>
+    private sealed class Group(int id, int keep, Line summary, IReadOnlyList<Segment> lead)
+    {
+        public readonly int Id = id;
+        public readonly int Keep = keep;
+        public readonly Line Summary = summary;
+        public readonly List<Line> Members = new();
+        public readonly IReadOnlyList<Segment> Lead = lead;
+        public bool Live = true;
+        public bool? Expanded;
+        public IReadOnlyList<Segment> Collapsed = Array.Empty<Segment>();
+        public IReadOnlyList<Segment> Open = Array.Empty<Segment>();
+
+        /// <summary>A code block's group (<see cref="BeginCodeGroup"/>): the summary is its label, shown <see cref="Plain"/> until the block folds, and every member shows while it is live.</summary>
+        public bool Code;
+
+        /// <summary>The code block's label line as the reply drew it; null for a tool run (its summary hides until the run folds).</summary>
+        public IReadOnlyList<Segment>? Plain;
+
+        /// <summary>The code block's source lines, measured against <see cref="Keep"/> in place of the member rows; null for a tool run.</summary>
+        public int? Size;
+
+        /// <summary>More members (or source lines) than it keeps: the summary shows and the members fold.</summary>
+        public bool Over => Keep > 0 && (Size ?? Members.Count) > Keep;
+
+        /// <summary>Folded or unfolded as the summary reads it: over, and — a code block — no longer live.</summary>
+        public bool Folds => Over && !(Code && Live);
+    }
+
+    /// <summary>
+    /// Whether a group without its own state shows every member (Ctrl+O, <c>/expand</c>):
+    /// <see cref="SetAllExpanded"/> sets it and forgets every group's own state.
+    /// </summary>
+    public bool ExpandAll { get; private set; }
+
+    /// <summary>A tool run is open: the next member joins it. An open code block is not one (<see cref="BeginCodeGroup"/>).</summary>
+    public bool GroupOpen => _open is { Code: false };
+
+    /// <summary>A code block's group is open (<see cref="BeginCodeGroup"/>): its next rows join it.</summary>
+    public bool CodeGroupOpen => _open is { Code: true };
+
+    /// <summary>The open code block's label line as drawn; empty without one.</summary>
+    public IReadOnlyList<Segment> CodeGroupLabel => _open is { Code: true, Plain: { } plain } ? plain : Array.Empty<Segment>();
 
     /// <summary>The rows at the cached width (0 before the first <see cref="Rows"/> or <see cref="Append"/>).</summary>
     public int Count => _rows.Count;
@@ -58,10 +129,26 @@ public sealed class Scrollback
     /// Returns the rows dropped from the front to stay under <see cref="MaxRows"/>, so a caller
     /// anchored on a row can move with it.
     /// </summary>
-    public int Append(IReadOnlyList<Segment> segments, int width)
+    public int Append(IReadOnlyList<Segment> segments, int width) => Append(segments, width, member: false);
+
+    /// <summary>
+    /// <see cref="Append(IReadOnlyList{Segment}, int)"/>, the lines it opens members of the open tool
+    /// run when <paramref name="member"/> (a run is opened first when none is: <see cref="BeginGroup"/>
+    /// with nothing kept). Any other append ends the open run first — text, a notice, the reply's
+    /// block: the run is over the moment something else is said.
+    /// </summary>
+    public int Append(IReadOnlyList<Segment> segments, int width, bool member)
     {
         ArgumentNullException.ThrowIfNull(segments);
         Layout(width);
+        if (member)
+        {
+            _open ??= NewGroup(0, Array.Empty<Segment>());
+        }
+        else if (segments.Any(s => !s.IsControlCode))
+        {
+            EndGroup();
+        }
 
         // The open line is wrapped again with what joins it: its rows leave the cache first.
         var touched = new List<Line>();
@@ -72,6 +159,8 @@ public sealed class Scrollback
             _rows.RemoveRange(_rows.Count - current.Rows, current.Rows);
             touched.Add(current);
         }
+
+        _tagging = member ? _open : null;
 
         foreach (var segment in segments)
         {
@@ -117,6 +206,20 @@ public sealed class Scrollback
             }
         }
 
+        _tagging = null;
+        if (member && _open!.Folds)
+        {
+            // The fold moved (a member hid, the summary showed or grew): the run laid out again —
+            // the touched lines' rows are out of the cache already.
+            foreach (var line in touched)
+            {
+                line.Rows = 0;
+            }
+
+            Relayout(_open.Summary);
+            return Trim();
+        }
+
         foreach (var line in touched)
         {
             line.Rows = Wrap(line, width, _rows);
@@ -125,19 +228,330 @@ public sealed class Scrollback
         return Trim();
     }
 
-    /// <summary>Everything forgotten (the screen was cleared).</summary>
+    /// <summary>Everything forgotten (the screen was cleared); the pane-wide <see cref="ExpandAll"/> stays.</summary>
     public void Clear()
     {
         _lines.Clear();
         _rows.Clear();
+        _groups.Clear();
+        _open = null;
+        _reshaped = false;
     }
+
+    /// <summary>
+    /// Opens a tool run (the open one ended first) that keeps its last <paramref name="keep"/>
+    /// members while it runs (0 = never folds). <paramref name="lead"/> is the reply's glyph when
+    /// the run starts right after it: drawn over the first visible row's indent, so a fold never
+    /// hides it. <paramref name="absorbOpenLine"/> takes an open last line (that glyph, written
+    /// bare into the flow) out of the store — the run's lead carries it now.
+    /// </summary>
+    public void BeginGroup(int keep, IReadOnlyList<Segment>? lead = null, bool absorbOpenLine = false)
+    {
+        EndGroup();
+        if (LastLineOpen)
+        {
+            if (absorbOpenLine)
+            {
+                var open = _lines[^1];
+                if (_width > 0)
+                {
+                    _rows.RemoveRange(_rows.Count - open.Rows, open.Rows);
+                }
+
+                _lines.RemoveAt(_lines.Count - 1);
+                _reshaped = true;
+            }
+            else
+            {
+                _lines[^1].Closed = true;
+            }
+        }
+
+        _open = NewGroup(Math.Max(0, keep), lead?.Where(s => !s.IsControlCode && !s.IsLineBreak).ToList() ?? (IReadOnlyList<Segment>)Array.Empty<Segment>());
+    }
+
+    /// <summary>
+    /// The open run's summary as it reads folded (<paramref name="collapsed"/>) and unfolded
+    /// (<paramref name="expanded"/>); shown only while the run holds more than it keeps. Nothing
+    /// without an open run.
+    /// </summary>
+    public void SetGroupSummary(IReadOnlyList<Segment> collapsed, IReadOnlyList<Segment> expanded)
+    {
+        ArgumentNullException.ThrowIfNull(collapsed);
+        ArgumentNullException.ThrowIfNull(expanded);
+        if (_open is not { } group)
+        {
+            return;
+        }
+
+        group.Collapsed = collapsed.Where(s => !s.IsControlCode && !s.IsLineBreak).ToList();
+        group.Open = expanded.Where(s => !s.IsControlCode && !s.IsLineBreak).ToList();
+        if (group.Folds)
+        {
+            Relayout(group.Summary);
+        }
+    }
+
+    /// <summary>
+    /// Opens a code block's group (the open group ended first; an open last line closed) whose
+    /// summary is <paramref name="label"/> — the block's label line as drawn, laid out at once, so it
+    /// takes its row now as any line would — folding past <paramref name="keep"/> source lines once
+    /// it is over (0 = never). <see cref="SetCodeGroupSummary"/> gives the folded look and the size.
+    /// </summary>
+    public void BeginCodeGroup(int keep, IReadOnlyList<Segment> label)
+    {
+        ArgumentNullException.ThrowIfNull(label);
+        EndGroup();
+        if (LastLineOpen)
+        {
+            _lines[^1].Closed = true;
+        }
+
+        var summary = new Line { Closed = true, Member = -1 };
+        var group = new Group(_nextGroup++, Math.Max(0, keep), summary, Array.Empty<Segment>())
+        {
+            Code = true,
+            Plain = label.Where(s => !s.IsControlCode && !s.IsLineBreak).ToList(),
+        };
+        summary.Group = group;
+        _lines.Add(summary);
+        _groups[group.Id] = group;
+        _open = group;
+        if (_width > 0)
+        {
+            summary.Rows = Wrap(summary, _width, _rows);
+        }
+    }
+
+    /// <summary>
+    /// The open code block's summary folded (<paramref name="collapsed"/>) and unfolded
+    /// (<paramref name="expanded"/>), and its <paramref name="size"/> in source lines so far.
+    /// Nothing without an open code block.
+    /// </summary>
+    public void SetCodeGroupSummary(IReadOnlyList<Segment> collapsed, IReadOnlyList<Segment> expanded, int size)
+    {
+        ArgumentNullException.ThrowIfNull(collapsed);
+        ArgumentNullException.ThrowIfNull(expanded);
+        if (_open is not { Code: true } group)
+        {
+            return;
+        }
+
+        group.Size = size;
+        SetGroupSummary(collapsed, expanded);
+    }
+
+    /// <summary>The open run is over: a folded one shrinks to its summary. Nothing without one.</summary>
+    public void EndGroup()
+    {
+        if (_open is not { } group)
+        {
+            return;
+        }
+
+        _open = null;
+        group.Live = false;
+        if (group.Over && (!Expanded(group) || group.Code))
+        {
+            // A code block's summary changes look even unfolded: the label becomes ▾ … · n lines.
+            Relayout(group.Summary);
+        }
+    }
+
+    /// <summary>The run whose summary is on store row <paramref name="row"/> at the cached width, if any (a click there toggles it).</summary>
+    public int? GroupAtRow(int row)
+    {
+        int at = 0;
+        foreach (var line in _lines)
+        {
+            if (row < at + line.Rows)
+            {
+                return line.Group is { } group && line.Member < 0 ? group.Id : null;
+            }
+
+            at += line.Rows;
+        }
+
+        return null;
+    }
+
+    /// <summary>Unfolds a folded run, folds an unfolded one (its own state from now on); false for no such run, or a code block that does not fold (its label is only a label).</summary>
+    public bool Toggle(int id)
+    {
+        if (!_groups.TryGetValue(id, out var group) || (group.Code && !group.Folds))
+        {
+            return false;
+        }
+
+        group.Expanded = !Expanded(group);
+        Relayout(group.Summary);
+        return true;
+    }
+
+    /// <summary>Every run unfolded or folded (Ctrl+O, <c>/expand</c>, <c>/collapse</c>): <see cref="ExpandAll"/> set, each run's own state forgotten.</summary>
+    public void SetAllExpanded(bool expanded)
+    {
+        ExpandAll = expanded;
+        foreach (var group in _groups.Values)
+        {
+            group.Expanded = null;
+        }
+
+        if (_groups.Count > 0 && _width > 0)
+        {
+            int width = _width;
+            _width = -1;
+            Layout(width);
+            _reshaped = true;
+        }
+    }
+
+    /// <summary>Rows other than the end changed and <see cref="TakeReshaped"/> has not been asked yet.</summary>
+    public bool Reshaped => _reshaped;
+
+    /// <summary>Whether rows other than the end changed since the last call (a fold moved, a run shrank or toggled): the pane then rebuilds what it shows from the store. Clears the flag.</summary>
+    public bool TakeReshaped()
+    {
+        bool reshaped = _reshaped;
+        _reshaped = false;
+        return reshaped;
+    }
+
+    private bool Expanded(Group group) => group.Expanded ?? ExpandAll;
+
+    private Group NewGroup(int keep, IReadOnlyList<Segment> lead)
+    {
+        var summary = new Line { Closed = true, Member = -1 };
+        var group = new Group(_nextGroup++, keep, summary, lead);
+        summary.Group = group;
+        _lines.Add(summary);
+        _groups[group.Id] = group;
+        if (_width > 0)
+        {
+            summary.Rows = Wrap(summary, _width, _rows);
+        }
+
+        return group;
+    }
+
+    // The run the lines an append opens belong to (members), null for a plain append.
+    private Group? _tagging;
 
     private Line Open(List<Line> touched)
     {
         var line = new Line();
+        if (_tagging is { } group)
+        {
+            line.Group = group;
+            line.Member = group.Members.Count;
+            group.Members.Add(line);
+        }
+
         _lines.Add(line);
         touched.Add(line);
         return line;
+    }
+
+    /// <summary>
+    /// The rows from <paramref name="from"/> to the end laid out again (a run near the tail: cheap),
+    /// and the change flagged for the pane. Nothing before the first layout.
+    /// </summary>
+    private void Relayout(Line from)
+    {
+        _reshaped = true;
+        if (_width <= 0)
+        {
+            return;
+        }
+
+        int index = _lines.LastIndexOf(from);
+        if (index < 0)
+        {
+            return;
+        }
+
+        int rows = 0;
+        for (int i = index; i < _lines.Count; i++)
+        {
+            rows += _lines[i].Rows;
+        }
+
+        _rows.RemoveRange(_rows.Count - rows, rows);
+        for (int i = index; i < _lines.Count; i++)
+        {
+            _lines[i].Rows = Wrap(_lines[i], _width, _rows);
+        }
+    }
+
+    /// <summary>
+    /// What <paramref name="line"/> shows: its segments, a run's summary in the state it is in, the
+    /// run's lead over the first visible row's indent — or null when a fold hides it.
+    /// </summary>
+    private IReadOnlyList<Segment>? Shown(Line line)
+    {
+        if (line.Group is not { } group)
+        {
+            return line.Segments;
+        }
+
+        bool over = group.Over;
+        bool expanded = Expanded(group);
+        IReadOnlyList<Segment> segments;
+        if (line.Member < 0)
+        {
+            if (!group.Folds)
+            {
+                // A tool run's summary hides until it folds; a code block's is its plain label.
+                if (group.Plain is null)
+                {
+                    return null;
+                }
+
+                segments = group.Plain;
+            }
+            else
+            {
+                segments = expanded ? group.Open : group.Collapsed;
+            }
+        }
+        else
+        {
+            if (over && !expanded && !(group.Live && (group.Code || line.Member >= group.Members.Count - group.Keep)))
+            {
+                return null;
+            }
+
+            segments = line.Segments;
+        }
+
+        // The summary is the first visible row whenever it shows; else every member does, the first leading.
+        bool first = line.Member < 0 || (!over && line.Member == 0);
+        return first && group.Lead.Count > 0 ? WithLead(group.Lead, segments) : segments;
+    }
+
+    /// <summary><paramref name="segments"/> with <paramref name="lead"/> over its leading spaces (as many as the lead's cells), or ahead of it without them.</summary>
+    private static List<Segment> WithLead(IReadOnlyList<Segment> lead, IReadOnlyList<Segment> segments)
+    {
+        var result = new List<Segment>(lead);
+        int skip = lead.Sum(s => TextCells.Width(s.Text));
+        foreach (var segment in segments)
+        {
+            string text = segment.Text;
+            int spaces = 0;
+            while (skip > 0 && spaces < text.Length && text[spaces] == ' ')
+            {
+                spaces++;
+                skip--;
+            }
+
+            if (spaces < text.Length)
+            {
+                skip = 0;
+                result.Add(spaces == 0 ? segment : new Segment(text[spaces..], segment.Style));
+            }
+        }
+
+        return result;
     }
 
     /// <summary>A line break: the current line closed (an empty one opened and closed when none was open — a blank row).</summary>
@@ -166,16 +580,41 @@ public sealed class Scrollback
         Trim();
     }
 
-    /// <summary>Whole lines off the front while the rows exceed <see cref="MaxRows"/> (the last line always stays); the rows dropped.</summary>
+    /// <summary>
+    /// Whole lines off the front while the rows — or the lines, a folded run's hidden members taking
+    /// none — exceed <see cref="MaxRows"/> (the last line always stays; a tool run goes whole, its
+    /// summary with its members); the rows dropped.
+    /// </summary>
     private int Trim()
     {
         int dropped = 0;
-        while (_rows.Count > MaxRows && _lines.Count > 1)
+        while ((_rows.Count > MaxRows || _lines.Count > MaxRows) && _lines.Count > 1)
         {
-            var first = _lines[0];
-            _rows.RemoveRange(0, first.Rows);
-            _lines.RemoveAt(0);
-            dropped += first.Rows;
+            int count = 1;
+            if (_lines[0].Group is { } group)
+            {
+                while (count < _lines.Count && _lines[count].Group == group)
+                {
+                    count++;
+                }
+
+                if (count >= _lines.Count)
+                {
+                    break;
+                }
+
+                _groups.Remove(group.Id);
+            }
+
+            int rows = 0;
+            for (int i = 0; i < count; i++)
+            {
+                rows += _lines[i].Rows;
+            }
+
+            _rows.RemoveRange(0, rows);
+            _lines.RemoveRange(0, count);
+            dropped += rows;
         }
 
         return dropped;
@@ -185,16 +624,21 @@ public sealed class Scrollback
     /// <paramref name="line"/> wrapped at <paramref name="width"/> onto <paramref name="rows"/> with the
     /// terminal's rule: cells accumulate on a row, a row is left when the next character does not
     /// fit (or the row is full and another comes), each row's runs keep their styles; an empty
-    /// line is one empty row. Returns the rows added.
+    /// line is one empty row, a line a fold hides none. Returns the rows added.
     /// </summary>
-    private static int Wrap(Line line, int width, List<SegmentLine> rows)
+    private int Wrap(Line line, int width, List<SegmentLine> rows)
     {
+        if (Shown(line) is not { } shown)
+        {
+            return 0;
+        }
+
         int added = 1;
         var row = new SegmentLine();
         int col = 0;
         bool full = false;
         var run = new StringBuilder();
-        foreach (var segment in line.Segments)
+        foreach (var segment in shown)
         {
             string text = segment.Text;
             int i = 0;

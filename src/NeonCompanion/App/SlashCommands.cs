@@ -88,6 +88,12 @@ public enum SlashCommand
     /// <summary><c>/loop &lt;count&gt; &lt;message&gt;</c> | <c>/loop infinite &lt;message&gt;</c>: the message sent that many times, or until ESC or Ctrl+C, each reply waited for as if typed again (2026-09-21, the user's ask). Refused mid-turn like <see cref="Draft"/>: it sends what the running turn cannot take.</summary>
     Loop,
 
+    /// <summary><c>/expand</c>: every folded tool run and code block in the transcript unfolded, and the ones to come (2026-09-22, the user's ask: what <c>/tools expand</c> did that morning, as a root word). No argument; Ctrl+O flips the same state.</summary>
+    Expand,
+
+    /// <summary><c>/collapse</c>: every tool run and code block past its collapse count folded again (2026-09-22, the user's ask: what <c>/tools collapse</c> did, as a root word). No argument.</summary>
+    Collapse,
+
     /// <summary><c>/emptytrash</c>: delete everything in the working directory's <c>.trash</c> for good, after a confirmation.</summary>
     EmptyTrash,
 
@@ -155,7 +161,7 @@ public static class SlashCommands
     /// from 2026-09-15 — gone later on 2026-09-18, the same day <c>/sessions</c> moved under <c>/profile</c> and <c>/copy</c>
     /// under <c>/queue</c>, leaving <c>/skills</c> + <c>/learn</c> and <c>/timer</c> + <c>/windowsize</c> as groups, the user's call;
     /// later still on 2026-09-19 (the user's call again) <c>/skills</c> + <c>/learn</c> went under <c>/sessions</c>, <c>/windowsize</c>
-    /// became <c>/window</c> under <c>/view</c> and <c>/timer</c> went under <c>/help</c> — nine groups; <c>/draft</c> under <c>/copy</c>, 2026-09-19; later still that day <c>/splash</c> under <c>/new</c> and <c>/help</c> under <c>/timer</c>, the user's ask; <c>/forget</c> left the memory group on 2026-09-22, its wipe now <c>/memory forget</c>, and <c>/memcopy</c> left it later that day, its copy now <c>/memory copy</c>; and later still that day the first group became <c>/settings</c>, <c>/profile</c>, <c>/sessions</c>, <c>/tools</c>, <c>/mcp</c>, <c>/skills</c>, <c>/learn</c> — the user's order, the profile and its sessions ahead of the tool panes). Pinned by tests.
+    /// became <c>/window</c> under <c>/view</c> and <c>/timer</c> went under <c>/help</c> — nine groups; <c>/draft</c> under <c>/copy</c>, 2026-09-19; later still that day <c>/splash</c> under <c>/new</c> and <c>/help</c> under <c>/timer</c>, the user's ask; <c>/forget</c> left the memory group on 2026-09-22, its wipe now <c>/memory forget</c>, and <c>/memcopy</c> left it later that day, its copy now <c>/memory copy</c>; and later still that day the first group became <c>/settings</c>, <c>/profile</c>, <c>/sessions</c>, <c>/tools</c>, <c>/mcp</c>, <c>/skills</c>, <c>/learn</c> — the user's order, the profile and its sessions ahead of the tool panes; <c>/expand</c> and <c>/collapse</c> directly under <c>/loop</c> the same day, the user's place, when they left <c>/tools</c> as its arguments). Pinned by tests.
     /// </summary>
     public static readonly IReadOnlyList<IReadOnlyList<HelpEntry>> HelpGroups =
     [
@@ -184,6 +190,8 @@ public static class SlashCommands
             new("/copy", "copy the last reply to the clipboard as markdown, or /copy <n> | all"),
             new("/draft", "write the next message in your editor: a temporary file, sent when it is saved and closed"),
             new("/loop", "repeat a message, each reply waited for: /loop <count> <message> | infinite <message> (ESC ends it)"),
+            new("/expand", "show every line of the folded tool runs and code blocks in the transcript (Ctrl+O flips)"),
+            new("/collapse", "fold the tool runs and code blocks in the transcript again"),
         ],
         [
             new("/tts", "toggle speech output, or /tts on|off"),
@@ -278,7 +286,7 @@ public static class SlashCommands
     }
 
     /// <summary>Every command word, for help and completion.</summary>
-    public static readonly string[] Words = { "/help", "/clear", "/new", "/splash", "/queue", "/sessions", "/compact", "/server", "/model", "/reasoning", "/settings", "//", "/tools", "/mcp", "/tts", "/stt", "/wake", "/interrupt", "/speak", "/remember", "/memory", "/cmdcopy", "/cmdlist", "/persona", "/operata", "/vocalia", "/sys", "/usage", "/profile", "/timer", "/cwd", "/tree", "/explore", "/view", "/echo", "/emptytrash", "/git", "/copy", "/draft", "/loop", "/window", "/skills", "/learn", "/about", "/exit" };
+    public static readonly string[] Words = { "/help", "/clear", "/new", "/splash", "/queue", "/sessions", "/compact", "/server", "/model", "/reasoning", "/settings", "//", "/tools", "/mcp", "/tts", "/stt", "/wake", "/interrupt", "/speak", "/remember", "/memory", "/cmdcopy", "/cmdlist", "/persona", "/operata", "/vocalia", "/sys", "/usage", "/profile", "/timer", "/cwd", "/tree", "/explore", "/view", "/echo", "/emptytrash", "/git", "/copy", "/draft", "/loop", "/expand", "/collapse", "/window", "/skills", "/learn", "/about", "/exit" };
 
     /// <summary>The <c>/queue</c> word: what a double-click on the hint row's queued part sends through the mid-turn line hook, so the pane opens exactly as the typed command's does (2026-09-18). Pinned.</summary>
     public const string QueueWord = "/queue";
@@ -296,8 +304,8 @@ public static class SlashCommands
     public const string CmdListWord = "/cmdlist";     // later still on 2026-09-21, the seventh: the lock, whichever way the policy turns it
     public const string MemoryWord = "/memory";       // 2026-09-22, the disk between the balloon and the lock, while Memory is on
 
-    /// <summary>The words the hint row's model name and reasoning mark send through the screen's dispatch at idle (later on 2026-09-21, so a double-click off the pane they open can switch panes). Pinned.</summary>
-    public const string ModelWord = "/model";
+    /// <summary>The words the hint row's model name and reasoning mark send through the screen's dispatch at idle (later on 2026-09-21, so a double-click off the pane they open can switch panes); the name is <c>/server</c> since 2026-09-22 (the user's call: the click walks server, model, then reasoning, as the typed command does). Pinned.</summary>
+    public const string ServerWord = "/server";
     public const string ReasoningWord = "/reasoning";
 
     /// <summary>Classifies <paramref name="line"/>; <c>Args</c> is the trimmed remainder — meaningful for the commands <see cref="TakesArgument"/> names, and carried by <see cref="SlashCommand.Overloaded"/> for the error line.</summary>
@@ -353,6 +361,8 @@ public static class SlashCommands
             "/copy" => SlashCommand.Copy,
             "/draft" => SlashCommand.Draft,
             "/loop" => SlashCommand.Loop,
+            "/expand" => SlashCommand.Expand,
+            "/collapse" => SlashCommand.Collapse,
             "/emptytrash" => SlashCommand.EmptyTrash,
             "/git" => SlashCommand.Git,
             "/window" => SlashCommand.Window,

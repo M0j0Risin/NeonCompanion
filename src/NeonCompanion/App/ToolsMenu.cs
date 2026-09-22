@@ -10,7 +10,8 @@ namespace NeonCompanion.App;
 /// Space on a tool row flips it in place: the name goes into or out of <c>ToolsDisabled</c>
 /// (<see cref="ToolsText.Flip"/>), the save shows on the status line (<see cref="ToolsText.FlippedNotice"/>),
 /// the list is re-read and the cursor stays. The tabs after it — Options (the pane's own
-/// <c>$-mention enabled</c> switch, later on 2026-09-19, the <c>/skills</c> Options tab's shape), then Ask, Files, Git (2026-09-20),
+/// <c>$-mention enabled</c> switch, later on 2026-09-19, the <c>/skills</c> Options tab's shape; <c>Tool collapse count</c> under it
+/// since 2026-09-22, <c>Code collapse count</c> under that later the same day), then Ask, Files, Git (2026-09-20),
 /// Shell (2026-09-21), Web — are settings rows, three of them on <c>/settings</c> until that day (<see cref="SettingsMenu.ToolsTabFields"/>),
 /// edited through <see cref="SettingsMenu"/>'s own seams (<see cref="SettingsMenu.FieldsTab"/>,
 /// <see cref="SettingsMenu.EditAsync"/>) under this pane's strip, its pickers titled <c>Tools › …</c>
@@ -19,7 +20,8 @@ namespace NeonCompanion.App;
 /// per-tool values still flip and save. Nothing here reconnects or clears the conversation: every
 /// flip is read at the next turn (<see cref="ChatScreen.PrepareTurn"/>), so the pane opens mid-turn
 /// too and edits as <c>/settings</c> does there (none of its rows is <see cref="SettingsMenu.RefusedMidTurn"/>).
-/// Without the pane the tabs print as plain lines. Bare only: <c>/tools x</c> is the no-argument error.
+/// Without the pane the tabs print as plain lines. <c>/tools</c> takes no argument: <c>/tools expand</c> and
+/// <c>/tools collapse</c> (2026-09-22) became the root <c>/expand</c> and <c>/collapse</c> later that day, the user's ask.
 /// The Shell tab's allowed-commands row has a door of its own since later on 2026-09-21:
 /// <see cref="ShowAllowedCommandsAsync"/> (<c>/cmdlist</c>, the toolbar's lock glyph).
 /// </summary>

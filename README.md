@@ -69,9 +69,24 @@ Neon Companion is released under the GPLv3 license.
 ## Settings & menus
 [↑ Back to top](#neon-companion)
 
-Every setting lives in a profile and is edited from a pane inside the app — `←`/`→` switch tabs, `↑`/`↓` move, Enter edits or flips a row, ESC backs out. The app keeps the mouse under every pane: a click moves the cursor, a double-click picks a row or a tab, and the `×` at the top-right corner is ESC. Every pane's title leads with its glyph. On the hint row a double-click on the model name opens `/model`, on the reasoning glyph after it `/reasoning`, on the token tally (or on the reply's spinner mid-turn) `/usage`, on the queued count `/queue`, and anywhere else `/settings`; on the toolbar a double-click on a glyph opens its pane, on the working directory `/cwd browse`, and on the blanks `/settings`. While a pane is open, a double-click on the glyph or text that belongs to it closes it, one that belongs to another pane closes it and opens that one, and two clicks anywhere else off the pane close it. Five panes carry them: `/settings` for the app, the sessions, the LLM and the voice stack; `/skills` for the agent skills and the self-reflection; `/tools` for what the model may call; `/mcp` for external MCP servers; and `/sys`, a read-only view of what the model is about to be sent.
+**Navigation**
+* **Keyboard:** ←/→ (switch tabs), ↑/↓ (move), Enter (edit/toggle), ESC (close).
+* **Mouse:** Single-click moves the cursor; double-click selects rows/tabs. The top-right × acts as ESC. Double-clicking anywhere outside an open pane closes it.
 
-### Settings (`/settings`)
+**Double-Click Shortcuts**
+* **Toolbar:** Glyph toggles its pane (or switches to another) | Working directory opens `/cwd browse` | Blank space opens `/settings`.
+* **Hint Row:** Model name → `/server` (server, then model, then reasoning) | Reasoning glyph → `/reasoning` | Tokens/spinner → `/usage` | Queued count → `/queue` | Blank space → `/settings`.
+
+**Available Panes**
+* `/settings`: App, sessions, LLM, and voice stack
+* `/skills`: Agent skills and self-reflection
+* `/tools`: Callable model tools
+* `/mcp`: External MCP servers
+* `/sys`: Read-only view of the outgoing model payload
+* `/usage`: Show LLM usage statistics (tok/s, ttft, etc.)
+
+<details>
+<summary><b>⚙️ App Settings (`/settings`)</b></summary>
 
 #### General
 
@@ -86,7 +101,7 @@ Every setting lives in a profile and is edited from a pane inside the app — `�
 | Copy user prompt | `/copy` includes your prompt above the reply; off copies the reply alone. | on |
 | Show image thumbnails | Draws a small colour block of each picture you send under your line. | on |
 | Image thumbnail size | The block's size: `small` (48×12), `medium` (64×16), `large` (80×20) or `xlarge` (96×24) columns × rows. | `small` |
-| Transcript markdown | Renders replies as styled Markdown (bold, lists, code fences, tables) instead of plain streamed text. | on |
+| Transcript markdown | Renders replies as styled Markdown (bold, lists, code fences, tables) instead of plain streamed text. A fence named for C#, JavaScript/TypeScript, Python, Bash, PowerShell, JSON, YAML, TOML/INI, SQL, C/C++, Java, Kotlin, Go, Rust, CSS, XML/HTML or diff is syntax-highlighted; any other fence stays plain. | on |
 | Paste preview lines | How many lines of a long paste the transcript shows in dim under its `[Pasted text #n]` placeholder (0–200; 0 = the placeholder alone). | 25 |
 | Hide /exit autocomplete | Leaves `/exit` out of the `/` completion list so a pick never closes the app by mistake; typed in full it still exits. | on |
 | Command typo intercept | A line that is exactly a command's name without its slash (`clear`) asks *Did you mean /clear?* before sending it as text. | on |
@@ -154,7 +169,10 @@ Every setting lives in a profile and is edited from a pane inside the app — `�
 | STT whisper model | The Whisper model that transcribes: `ggml-tiny.en.bin`, `ggml-base.en.bin` or `ggml-small.en.bin` (downloaded on first use). | `ggml-base.en.bin` |
 | STT vosk model | The Vosk model the wake word and interrupt listen with: `vosk-model-small-en-us-0.15`, `vosk-model-en-us-0.22-lgraph` or `vosk-model-small-en-in-0.4`. | `vosk-model-small-en-us-0.15` |
 
-### Skills (`/skills`)
+</details>
+
+<details>
+<summary><b>🎓 Skills Settings (`/skills`)</b></summary>
 
 #### Offered
 
@@ -187,7 +205,10 @@ The loaded skills, one row each with its scope (`profile`, `global` or `external
 
 One row, **Project file**: whether `NEON.md` (or `AGENTS.md`) in the working directory is read into the prompt as project notes. The row shows which file is found and its size. Default on.
 
-### Tools (`/tools`)
+</details>
+
+<details>
+<summary><b>🛠️ Tools Settings (`/tools`)</b></summary>
 
 #### Offered
 
@@ -198,6 +219,8 @@ Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Web, Memory, 
 | Setting | What it does | Default |
 |---|---|---|
 | $-mention enabled | `$` and part of a name on the input line lists the tools the next turn offers; a pick writes `$name` as text. | on |
+| Tool collapse count | A run of tool calls longer than this folds under one summary line (`▸ 🛠️ 7 tool calls — read_file ×3, …`), showing only its last lines while it runs and the summary alone once the reply moves on. Click the summary, press Ctrl+O or use `/expand` to see every line (0–100; 0 = never fold). | 2 |
+| Code collapse count | A code block in a reply longer than this folds to its label line (`▸ csharp · 57 lines`) once the reply moves on; it streams at full height first. Top-level blocks only, and only with Transcript markdown on. Click the label, press Ctrl+O or use `/expand` to see it again (0–100; 0 = never fold). | 20 |
 
 #### Web
 
@@ -257,6 +280,11 @@ Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Web, Memory, 
 | Git native email | The `user.email` that `/git user` writes into the working directory's repository config while *Git native tools* is on. Never read by the git tools. | (not set) |
 | Git native name | The `user.name` that `/git user` writes beside it. | (not set) |
 
+</details>
+
+<details>
+<summary><b>🔌 MCP Servers & System (`/mcp` & `/sys`)</b></summary>
+
 ### MCP servers (`/mcp`)
 
 #### Servers
@@ -286,10 +314,15 @@ The system prompt section by section, each with its status — **Persona** (defa
 
 Every tool the reply may call, grouped — Clock, Timers, Files, Git, Web, Memory, Skills, Sessions, one group per connected MCP server, Questions — each with the description the model reads, and a note on any that is switched off and why.
 
+</details>
+
 ## Slash commands
 [↑ Back to top](#neon-companion)
 
 Type `/` and the list opens with every command and its summary; after the command and a space, the argument list follows for any argument that can be listed. `//` is the one alias (for `/settings`); it is never listed.
+
+<details>
+<summary><b>Click to expand all Slash Commands</b></summary>
 
 | Command | What it does |
 |---|---|
@@ -310,6 +343,8 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/interrupt [on\|off]` | Toggle the wake-word interrupt during a spoken reply. |
 | `/learn [note \| sessions [N \| text]]` | Write or improve a skill in the background from the last turn, or from the stored sessions. |
 | `/loop <count> <message>`, `/loop infinite <message>` | Send the message that many times, or until ESC or Ctrl+C stops it, each reply waited for; a cancelled, withdrawn or failed turn ends the loop. |
+| `/expand` | Show every line of the folded tool runs and code blocks in the transcript, and of the ones to come (Ctrl+O flips between this and `/collapse`). |
+| `/collapse` | Fold the tool runs and code blocks in the transcript again. |
 | `/mcp` | Connect external MCP servers and switch their tools on or off. |
 | `/memory [forget \| copy <profile> [overwrite]]` | List and prune the memory items on a pane (the toolbar's 💾 opens it too): Enter removes one, ESC closes. `/memory forget` forgets every one (asks first). `/memory copy <profile>` copies them into another profile, appended after what it already holds and skipping the duplicates; `overwrite` replaces its memory instead. Either copy asks first. |
 | `/model [id]` | Pick a model from the server's list, or set one. |
@@ -339,10 +374,15 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/wake [on\|off]` | Toggle the speech-input wake word. |
 | `/window` | Show the terminal window's width and height. |
 
+</details>
+
 ## Tools
 [↑ Back to top](#neon-companion)
 
 What the model can call, in the groups `/tools` and `/sys` show. A group's switch (`File tools`, `Git native tools`, `Shell command policy`, `Web tools`, `Memory`, `Agent skills`, `Session tool`, `Ask user`, `MCP servers`) offers or withholds the whole group; a single tool goes on or off on `/tools`' Offered tab. Required arguments come first; `?` marks an optional one.
+
+<details>
+<summary><b>🕒 Clock & Timers</b></summary>
 
 ### Clock
 
@@ -359,6 +399,11 @@ What the model can call, in the groups `/tools` and `/sys` show. A group's switc
 | `start_timer` | `name?, hours?, minutes?, seconds?` | Starts a named countdown; the user is alerted when it ends. Several can run at once. |
 | `stop_timer` | `name` | Stops a running timer by name, or silences one that has gone off. |
 | `list_timers` | — | Every running timer and how long each has left. |
+
+</details>
+
+<details>
+<summary><b>📁 Files & Git (native)</b></summary>
 
 ### Files
 
@@ -400,6 +445,11 @@ A built-in Git for the sandbox, for when the shell tools are off or you would ra
 | `git_discard` | `paths?, ref?, path?` | Throws uncommitted changes away: the paths named back to `ref`, or with none a hard reset of the whole tree (untracked files left alone). |
 | `git_delete` | `kind, name?, index?, path?` | Removes a local `branch` (never the one checked out), a `tag`, or a `stash` by index. |
 
+</details>
+
+<details>
+<summary><b>💻 Shell & Web</b></summary>
+
 ### Shell
 
 A command line on your machine. It **starts** in the working directory (`workdir` names a folder under it); whether it may name a path outside it is `Shell police outside paths` (on by default: the text of a command, a script or a line typed to a background process is read before anything runs, and a path outside the working directory is refused with a 👮 line — a lexical guard, not a jail, since a script that computes a path is not seen). The other guard is the `Shell command policy` — under `ask` (the default) the command is shown on the pane with its shell and you choose Deny, Allow once, Allow its prefixes for this session, or Allow them always (saved to the profile); a denial is returned to the model as an error it is told not to work around. Every child runs with no window, its output read as UTF-8, colour and pagers off, stdin closed (a background one keeps it for `write`); on a timeout the command and everything it started are killed. Background processes die with the app. Under `--headless` nothing can ask, so `ask` runs only what the allow list covers — set `NEONCOMPANION_COMMAND_POLICY=yolo` for a scripted run. A crash of the app leaves a running command to Windows.
@@ -418,6 +468,11 @@ A command line on your machine. It **starts** in the working directory (`workdir
 | `web_fetch` | `url, offset?` | Fetches a page and returns its readable content as Markdown, 32,000 characters at a time; also reads plain text, JSON, XML and CSV. |
 | `open_url` | `url?, urls?` | Opens a link — or up to five — in the user's own browser. |
 | `download_file` | `url, path?, overwrite?` | Downloads a file (a picture, a PDF, an archive…) into the working directory, up to 50 MB; needs *File tools* on too. |
+
+</details>
+
+<details>
+<summary><b>🧠 Memory, Skills & Sessions</b></summary>
 
 ### Memory
 
@@ -445,120 +500,129 @@ A command line on your machine. It **starts** in the working directory (`workdir
 |---|---|---|
 | `ask_user` | `questions` | Puts up to *Ask max questions* multiple-choice questions on the pane (each with 2 to *Ask max choices per question* options, `single` or `multi`, plus an *Other…* row) and waits for the answers; ESC declines them all. |
 
+</details>
+
+<details>
+<summary><b>🔌 MCP servers</b></summary>
+
 ### MCP servers
 
 Every connected MCP server is a group of its own, its tools offered as `<server>__<tool>` with the descriptions the server publishes — a gateway's `get_current_time` never collides with the app's. They come and go with the server: switch one off on `/mcp`' Servers tab and its group is gone; switch a single tool off on the Tools tab and the rest stay. No approval step stands before a call — enabling the server is the consent.
 
+</details>
+
 ## Screenshots
 [↑ Back to top](#neon-companion)
 
-### Markdown rendering
-![markdon](./assets/screenshots/screenshot_markdown.png)
+Explore the UI and features of Neon Companion by expanding the categories below.
 
-### Vision support
-![vision](./assets/screenshots/screenshot_vision.png)
+<details>
+<summary><b>✨ Core Interface & Usage</b></summary><br>
+<table>
+  <tr>
+    <td><img src="./assets/screenshots/screenshot_markdown.png" alt="Markdown rendering"><br><center><b>Markdown rendering</b></center></td>
+    <td><img src="./assets/screenshots/screenshot_vision.png" alt="Vision support"><br><center><b>Vision support</b></center></td>
+  </tr>
+  <tr>
+    <td><img src="./assets/screenshots/screenshot_dynamic_autocomplete.png" alt="Dynamic auto-complete"><br><center><b>Dynamic auto-complete</b></center></td>
+    <td><img src="./assets/screenshots/screenshot_at_mention.png" alt="@-mention for files/folders"><br><center><b>@-mention for files/folders</b></center></td>
+  </tr>
+  <tr>
+    <td><img src="./assets/screenshots/screenshot_queue.png" alt="Message queue"><br><center><b>Message queue</b></center></td>
+    <td><img src="./assets/screenshots/screenshot_ask.png" alt="Answer picker"><br><center><b>Answer picker</b></center></td>
+  </tr>
+  <tr>
+    <td><img src="./assets/screenshots/screenshot_folder_browser.png" alt="Folder browser"><br><center><b>Folder browser</b></center></td>
+    <td><img src="./assets/screenshots/screenshot_splash.png" alt="Welcome splash screen"><br><center><b>Welcome splash screen</b></center></td>
+  </tr>
+</table>
+</details>
 
-### Automatic reflection/introspection
-![reflection](./assets/screenshots/screenshot_reflection.png)
+<details>
+<summary><b>🎛️ Session & Model Pickers</b></summary><br>
+<table>
+  <tr>
+    <td><img src="./assets/screenshots/screenshot_profile_picker.png" alt="Profile picker"><br><center><b>Profile picker</b></center></td>
+    <td><img src="./assets/screenshots/screenshot_server_picker.png" alt="Server picker"><br><center><b>Server picker</b></center></td>
+  </tr>
+  <tr>
+    <td><img src="./assets/screenshots/screenshot_model_picker.png" alt="Model picker"><br><center><b>Model picker</b></center></td>
+    <td><img src="./assets/screenshots/screenshot_reasoning_picker.png" alt="Reasoning picker"><br><center><b>Reasoning picker</b></center></td>
+  </tr>
+</table>
+</details>
 
-### System prompt audit
-![sysprompt](./assets/screenshots/screenshot_system_prompt.png)
+<details>
+<summary><b>🧠 Agent Context & System</b></summary><br>
+<table>
+  <tr>
+    <td><img src="./assets/screenshots/screenshot_reflection.png" alt="Automatic reflection"><br><center><b>Automatic reflection</b></center></td>
+    <td><img src="./assets/screenshots/screenshot_memory.png" alt="Memory management"><br><center><b>Memory management</b></center></td>
+  </tr>
+  <tr>
+    <td><img src="./assets/screenshots/screenshot_system_prompt.png" alt="System prompt audit"><br><center><b>System prompt audit</b></center></td>
+    <td><img src="./assets/screenshots/screenshot_system_prompt_tools.png" alt="System prompt tool audit"><br><center><b>System prompt tool audit</b></center></td>
+  </tr>
+  <tr>
+    <td><img src="./assets/screenshots/screenshot_session_recall.png" alt="Session recall"><br><center><b>Session recall</b></center></td>
+    <td><img src="./assets/screenshots/screenshot_custom_profile_persona.png" alt="Custom persona"><br><center><b>Custom persona</b></center></td>
+  </tr>
+  <tr>
+    <td><img src="./assets/screenshots/screenshot_voice.png" alt="Voice/Speech features"><br><center><b>Voice/Speech features</b></center></td>
+    <td><img src="./assets/screenshots/screenshot_help.png" alt="Help system"><br><center><b>Help system</b></center></td>
+  </tr>
+</table>
+</details>
 
-### System prompt tool audit
-![sysprompt](./assets/screenshots/screenshot_system_prompt_tools.png)
+<details>
+<summary><b>🎓 Skills Management</b></summary><br>
+<table>
+  <tr>
+    <td><img src="./assets/screenshots/screenshot_skills.png" alt="Skill management"><br><center><b>Skill management</b></center></td>
+    <td><img src="./assets/screenshots/screenshot_skill_options.png" alt="Skill options"><br><center><b>Skill options</b></center></td>
+  </tr>
+  <tr>
+    <td><img src="./assets/screenshots/screenshot_reflection_settings.png" alt="Reflection management"><br><center><b>Reflection management</b></center></td>
+    <td><img src="./assets/screenshots/screenshot_skills_project.png" alt="Project files"><br><center><b>Project files</b></center></td>
+  </tr>
+</table>
+</details>
 
-### Server picker
-![server](./assets/screenshots/screenshot_server_picker.png)
+<details>
+<summary><b>⚙️ Settings Panes</b></summary><br>
+<table>
+  <tr>
+    <td><img src="./assets/screenshots/screenshot_general_settings.png" alt="General settings"><br><center><b>General settings</b></center></td>
+    <td><img src="./assets/screenshots/screenshot_session_settings.png" alt="Session settings"><br><center><b>Session settings</b></center></td>
+  </tr>
+  <tr>
+    <td><img src="./assets/screenshots/screenshot_llm_settings.png" alt="LLM settings"><br><center><b>LLM settings</b></center></td>
+    <td><img src="./assets/screenshots/screenshot_mcp.png" alt="MCP settings"><br><center><b>MCP settings</b></center></td>
+  </tr>
+  <tr>
+    <td><img src="./assets/screenshots/screenshot_tts.png" alt="TTS settings"><br><center><b>TTS settings</b></center></td>
+    <td><img src="./assets/screenshots/screenshot_stt.png" alt="STT settings"><br><center><b>STT settings</b></center></td>
+  </tr>
+</table>
+</details>
 
-### Model picker
-![model](./assets/screenshots/screenshot_model_picker.png)
-
-### Reasoning picker
-![reasoning](./assets/screenshots/screenshot_reasoning_picker.png)
-
-### Profile picker
-![profile](./assets/screenshots/screenshot_profile_picker.png)
-
-### Answer picker
-![ask](./assets/screenshots/screenshot_ask.png)
-
-### Voice/Speech features
-![voice](./assets/screenshots/screenshot_voice.png)
-
-### Message queue
-![queue](./assets/screenshots/screenshot_queue.png)
-
-### @-mention for files/folders
-![at_mention](./assets/screenshots/screenshot_at_mention.png)
-
-### Dynamic auto-complete
-![autocomplete](./assets/screenshots/screenshot_dynamic_autocomplete.png)
-
-### General settings
-![settings](./assets/screenshots/screenshot_general_settings.png)
-
-### Session settings
-![settings](./assets/screenshots/screenshot_session_settings.png)
-
-### LLM settings
-![settings](./assets/screenshots/screenshot_llm_settings.png)
-
-### TTS settings
-![settings](./assets/screenshots/screenshot_tts.png)
-
-### STT settings
-![settings](./assets/screenshots/screenshot_stt.png)
-
-### Memory management
-![memory](./assets/screenshots/screenshot_memory.png)
-
-### Help system
-![help](./assets/screenshots/screenshot_help.png)
-
-### Skill management
-![skills](./assets/screenshots/screenshot_skills.png)
-
-### Skill options
-![skills](./assets/screenshots/screenshot_skill_options.png)
-
-### Reflection management
-![skills](./assets/screenshots/screenshot_reflection_settings.png)
-
-### Project files
-![skills](./assets/screenshots/screenshot_skills_project.png)
-
-### Tools offered
-![tools](./assets/screenshots/screenshot_tools.png)
-
-### Browser settings
-![tools](./assets/screenshots/screenshot_browser_settings.png)
-
-### File settings
-![tools](./assets/screenshots/screenshot_file_settings.png)
-
-### Shell settings
-![tools](./assets/screenshots/screenshot_shell_settings.png)
-
-### Ask (questions) settings
-![tools](./assets/screenshots/screenshot_ask_settings.png)
-
-### Git (native) settings
-![tools](./assets/screenshots/screenshot_git_settings.png)
-
-### MCP settings
-![mcp](./assets/screenshots/screenshot_mcp.png)
-
-### Session recall
-![mcp](./assets/screenshots/screenshot_session_recall.png)
-
-### Folder browser
-![folders](./assets/screenshots/screenshot_folder_browser.png)
-
-### Custom persona
-![persona](./assets/screenshots/screenshot_custom_profile_persona.png)
-
-### Welcome splash screen
-![splash](./assets/screenshots/screenshot_splash.png)
+<details>
+<summary><b>🛠️ Tools Configuration</b></summary><br>
+<table>
+  <tr>
+    <td><img src="./assets/screenshots/screenshot_tools.png" alt="Tools offered"><br><center><b>Tools offered</b></center></td>
+    <td><img src="./assets/screenshots/screenshot_shell_settings.png" alt="Shell settings"><br><center><b>Shell settings</b></center></td>
+  </tr>
+  <tr>
+    <td><img src="./assets/screenshots/screenshot_file_settings.png" alt="File settings"><br><center><b>File settings</b></center></td>
+    <td><img src="./assets/screenshots/screenshot_browser_settings.png" alt="Browser settings"><br><center><b>Browser settings</b></center></td>
+  </tr>
+  <tr>
+    <td><img src="./assets/screenshots/screenshot_git_settings.png" alt="Git (native) settings"><br><center><b>Git (native) settings</b></center></td>
+    <td><img src="./assets/screenshots/screenshot_ask_settings.png" alt="Ask (questions) settings"><br><center><b>Ask (questions) settings</b></center></td>
+  </tr>
+</table>
+</details>
 
 ## Why "Neon"
 [↑ Back to top](#neon-companion)

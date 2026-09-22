@@ -1,4 +1,5 @@
 using NeonCompanion.Diagnostics;
+using NeonCompanion.UI.Markdown;
 using Spectre.Console;
 using Spectre.Console.Rendering;
 
@@ -1050,9 +1051,17 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
 
             if (_top >= 0)
             {
-                // Scrolled: into the store, the count below changed.
+                // Scrolled: into the store, the count below changed (a tool run it ended may have folded above it).
                 FlushLive();
-                RedrawHint();
+                if (_store.Reshaped)
+                {
+                    Redraw();
+                }
+                else
+                {
+                    RedrawHint();
+                }
+
                 return;
             }
 
@@ -1173,7 +1182,184 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
     public RenderPipeline Pipeline => _inner.Pipeline;
 
     /// <summary>A flow write: lift the pane, write, count the rows, draw the pane again.</summary>
-    public void Write(IRenderable renderable)
+    public void Write(IRenderable renderable) => WriteFlow(renderable, member: false);
+
+    /// <summary>
+    /// A flow write that is a line of the open tool run (<see cref="BeginToolGroup"/>; one is opened,
+    /// keeping nothing, when none is): stored as the run's member, so a fold past the run's keep
+    /// hides the earlier ones and the pane rebuilds the flow from the store (2026-09-22). Disabled,
+    /// the plain write.
+    /// </summary>
+    public void WriteToolLine(IRenderable renderable) => WriteFlow(renderable, member: true);
+
+    /// <summary>
+    /// Opens a tool run that keeps its last <paramref name="keep"/> lines while it runs
+    /// (<see cref="Scrollback.BeginGroup"/>; 0 never folds). <paramref name="lead"/> is the reply's
+    /// glyph when the run follows it bare; <paramref name="absorbOpenLine"/> when that glyph is
+    /// already in the flow as an open line (the plain reply path), which the run's lead then
+    /// replaces. Nothing is drawn until the run's first line. Disabled: nothing.
+    /// </summary>
+    public void BeginToolGroup(int keep, IRenderable? lead = null, bool absorbOpenLine = false)
+    {
+        if (!Enabled)
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            var segments = lead?.GetSegments(_inner).ToList();
+            _store.BeginGroup(keep, segments, absorbOpenLine);
+        }
+    }
+
+    /// <summary>
+    /// The open run's summary, folded and unfolded (<see cref="Scrollback.SetGroupSummary"/>); drawn
+    /// with the run's next line or its end, never on its own. Disabled: nothing.
+    /// </summary>
+    public void SetToolGroupSummary(IRenderable collapsed, IRenderable expanded)
+    {
+        ArgumentNullException.ThrowIfNull(collapsed);
+        ArgumentNullException.ThrowIfNull(expanded);
+        if (!Enabled)
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            _store.SetGroupSummary(collapsed.GetSegments(_inner).ToList(), expanded.GetSegments(_inner).ToList());
+        }
+    }
+
+    /// <summary>The open tool run is over: a folded one shrinks to its summary on the screen. Disabled, or none open: nothing.</summary>
+    public void EndToolGroup()
+    {
+        if (!Enabled)
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            _store.EndGroup();
+            RedrawIfReshaped();
+        }
+    }
+
+    /// <summary>A tool run is open in the store (tests; the renderer's run ends it on its own boundaries).</summary>
+    public bool ToolGroupOpen
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _store.GroupOpen;
+            }
+        }
+    }
+
+    /// <summary>Whether a tool run without its own state shows every line: Ctrl+O, <c>/expand</c> and <c>/collapse</c> set it for the session.</summary>
+    public bool ToolGroupsExpanded
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _store.ExpandAll;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Every tool run unfolded (<paramref name="expanded"/>) or folded — <c>/expand</c>,
+    /// <c>/collapse</c>, Ctrl+O's flip (<see cref="Scrollback.SetAllExpanded"/>): the runs
+    /// on the screen change at once, the ones to come follow. Disabled: nothing.
+    /// </summary>
+    public void SetToolGroupsExpanded(bool expanded)
+    {
+        if (!Enabled)
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            _store.SetAllExpanded(expanded);
+            RedrawIfReshaped();
+        }
+    }
+
+    /// <summary>Ctrl+O (2026-09-22): <see cref="SetToolGroupsExpanded"/> the other way from what it is.</summary>
+    public void ToggleToolGroups() => SetToolGroupsExpanded(!ToolGroupsExpanded);
+
+    /// <summary>
+    /// A left click at buffer cell (<paramref name="x"/>, <paramref name="y"/>) on a tool run's
+    /// summary row (2026-09-22) unfolds that run, or folds it again: true, and the screen shows it.
+    /// False off a summary — any other transcript row, the pane, the live reply, the padding —
+    /// when the pane is lifted, or when the console cannot say where its cursor is. The row is
+    /// measured up from the upper rule (<see cref="CursorDepth"/> + 1 rows over the cursor): the
+    /// region's rows are the store's from <c>_top</c> while scrolled, else the flow's tail ending on
+    /// the flow cursor's row.
+    /// </summary>
+    public bool TryToggleToolGroupAt(int x, int y)
+    {
+        if (!Enabled)
+        {
+            return false;
+        }
+
+        lock (_gate)
+        {
+            if (!_drawn || _batch > 0 || _modal > 0 || _geometry?.CursorTop() is not int top)
+            {
+                return false;
+            }
+
+            int region = RegionRows(_paneRows);
+            int r = y - (top - CursorDepth - 1 - region);
+            if (r < 0 || r >= region)
+            {
+                return false;
+            }
+
+            int count = _store.Rows(Width).Count;
+            int row;
+            if (_drawnScrolled)
+            {
+                row = _top + r;
+            }
+            else
+            {
+                int last = _col > 0 ? _row : _row - 1;
+                if (_blank || r > last)
+                {
+                    return false;
+                }
+
+                row = count - 1 - (last - r);
+            }
+
+            if (row < 0 || row >= count || _store.GroupAtRow(row) is not int id || !_store.Toggle(id))
+            {
+                return false;
+            }
+
+            RedrawIfReshaped();
+            return true;
+        }
+    }
+
+    /// <summary>After a store change above the flow's end: the screen drawn again from the store (the draw rebuilds the flow), unless a batch or a modal will.</summary>
+    private void RedrawIfReshaped()
+    {
+        if (_store.Reshaped && _drawn)
+        {
+            Redraw();
+        }
+    }
+
+    private void WriteFlow(IRenderable renderable, bool member)
     {
         ArgumentNullException.ThrowIfNull(renderable);
         if (!Enabled)
@@ -1194,10 +1380,19 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
             var segments = renderable.GetSegments(_inner).ToList();
             if (_top >= 0)
             {
-                // Scrolled: the store takes it, the screen shows the window; the count below changed.
+                // Scrolled: the store takes it, the screen shows the window; the count below changed
+                // (and a run that folded above it redraws the window).
                 FlushLive();
-                Emit(segments);
-                RedrawHint();
+                EmitAs(segments, member);
+                if (_store.Reshaped)
+                {
+                    Redraw();
+                }
+                else
+                {
+                    RedrawHint();
+                }
+
                 return;
             }
 
@@ -1210,7 +1405,7 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
             Lift();
             RestoreFlow();
             FlushLive();
-            Emit(segments);
+            EmitAs(segments, member);
             if (_batch == 0)
             {
                 Draw();
@@ -1239,10 +1434,27 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
         Track(segments);
     }
 
+    /// <summary><see cref="Emit"/> with the store told whether the segments are a tool run's line.</summary>
+    private void EmitAs(List<Segment> segments, bool member)
+    {
+        _member = member;
+        try
+        {
+            Emit(segments);
+        }
+        finally
+        {
+            _member = false;
+        }
+    }
+
+    // Set around EmitAs: the segments being stored are the open tool run's line.
+    private bool _member;
+
     /// <summary>The segments into the store; a scrolled anchor follows the rows the cap dropped.</summary>
     private void Store(List<Segment> segments)
     {
-        int dropped = _store.Append(segments, Width);
+        int dropped = _store.Append(segments, Width, _member);
         if (_top >= 0 && dropped > 0)
         {
             _top = Math.Max(0, _top - dropped);
@@ -2719,6 +2931,10 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
 
         _inner.Cursor.Show(false);
 
+        // A tool run folded or unfolded above the flow's end (2026-09-22): scrolled, the window is
+        // painted from the store anyway; at the bottom the flow on the screen is stale and is
+        // written again from the store, as a resize does.
+        bool reshaped = _store.TakeReshaped();
         int liveRows = 0;
         if (window is not null)
         {
@@ -2744,6 +2960,14 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
         }
         else
         {
+            if (reshaped && !_blank)
+            {
+                _inner.Cursor.Move(CursorDirection.Up, _row);
+                ColumnZero();
+                _inner.Write(EraseDown);
+                _blank = true;
+            }
+
             RestoreFlow();
             if (_geometry?.CursorRow() is int actual && actual >= 0 && actual < h && actual != _row)
             {
@@ -2763,13 +2987,19 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
                 if (excess > 0)
                 {
                     EndFlowRow();
-                    for (int i = 0; i < excess; i++)
-                    {
-                        WriteFlowLine(lines[skip + i]);
-                    }
-
+                    CommitLiveRows(lines, skip, skip + excess, w, final: false);
                     _liveCommitted += excess;
                     skip += excess;
+                    if (_store.TakeReshaped())
+                    {
+                        // A code block the commit ended folded above the flow's end (2026-09-22):
+                        // the flow is written again from the store, as a fold above does.
+                        _inner.Cursor.Move(CursorDirection.Up, _row);
+                        ColumnZero();
+                        _inner.Write(EraseDown);
+                        _blank = true;
+                        RestoreFlow();
+                    }
                 }
 
                 live = lines.GetRange(skip, lines.Count - skip);
@@ -2965,10 +3195,11 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
         if (lines.Count > _liveCommitted)
         {
             EndFlowRow();
-            for (int i = _liveCommitted; i < lines.Count; i++)
-            {
-                WriteFlowLine(lines[i]);
-            }
+            CommitLiveRows(lines, _liveCommitted, lines.Count, Width, final: true);
+        }
+        else if (_liveCodeSpan >= 0)
+        {
+            _store.EndGroup();
         }
 
         ForgetLive();
@@ -2980,6 +3211,93 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
         _liveCommitted = 0;
         _liveDirty = false;
         _liveCount = 0;
+        _liveCodeSpan = -1;
+    }
+
+    // The live block's code block whose group is open in the store (its label row), −1 for none: a
+    // block the excess commit cut in two carries on in its group at the next commit.
+    private int _liveCodeSpan = -1;
+
+    /// <summary>
+    /// Rows <paramref name="from"/> to <paramref name="to"/> of the live block laid out at
+    /// <paramref name="width"/> (<paramref name="lines"/>) into the flow. A reply with a
+    /// <c>Code collapse count</c> (<see cref="ReplyBlock.CodeKeep"/>, 2026-09-22) stores each top-level
+    /// code block as a group (<see cref="Scrollback.BeginCodeGroup"/>): the label row its summary, the
+    /// body rows its members, so the block folds past the count once something else follows it —
+    /// or here, when <paramref name="final"/> (the slot is emptied) ends it. A label row that does
+    /// not read as the span's label (a reply the parse laid out differently) is a plain row.
+    /// </summary>
+    private void CommitLiveRows(List<SegmentLine> lines, int from, int to, int width, bool final)
+    {
+        IReadOnlyList<CodeSpan>? spans = null;
+        int keep = 0;
+        if (_live is ReplyBlock { CodeKeep: > 0 } reply)
+        {
+            keep = reply.CodeKeep;
+            spans = reply.CodeSpans(RenderOptions.Create(_inner, _inner.Profile.Capabilities), width);
+        }
+
+        for (int i = from; i < to; i++)
+        {
+            var span = spans?.FirstOrDefault(c => i >= c.LabelRow && i < c.End);
+            if (span is not null && i == span.LabelRow && ReadsAs(lines[i], span.Label))
+            {
+                EmitCodeLabel(lines[i], keep, span);
+                _liveCodeSpan = span.LabelRow;
+            }
+            else if (span is not null && _liveCodeSpan == span.LabelRow && _store.CodeGroupOpen)
+            {
+                if (i == from)
+                {
+                    _store.SetCodeGroupSummary(CodeSummary(_store.CodeGroupLabel, span, expanded: false), CodeSummary(_store.CodeGroupLabel, span, expanded: true), span.SourceLines);
+                }
+
+                var segments = new List<Segment>(lines[i].Count + 1);
+                segments.AddRange(lines[i]);
+                segments.Add(Segment.LineBreak);
+                EmitAs(segments, member: true);
+            }
+            else
+            {
+                WriteFlowLine(lines[i]);
+                _liveCodeSpan = -1;
+            }
+        }
+
+        if (final && _liveCodeSpan >= 0)
+        {
+            _store.EndGroup();
+            _liveCodeSpan = -1;
+        }
+    }
+
+    /// <summary>The label row of a code block into the flow as its group's summary: stored by <see cref="Scrollback.BeginCodeGroup"/>, written and counted at the bottom.</summary>
+    private void EmitCodeLabel(SegmentLine row, int keep, CodeSpan span)
+    {
+        var segments = new List<Segment>(row);
+        _store.BeginCodeGroup(keep, segments);
+        _store.SetCodeGroupSummary(CodeSummary(segments, span, expanded: false), CodeSummary(segments, span, expanded: true), span.SourceLines);
+        if (_top < 0)
+        {
+            segments.Add(Segment.LineBreak);
+            _inner.Write(new SegmentList(segments));
+            Count(segments);
+        }
+    }
+
+    /// <summary>The label row with its label's text replaced by <see cref="CodeFoldText.Summary"/>: the indent or the reply's glyph ahead of it kept.</summary>
+    private static List<Segment> CodeSummary(IReadOnlyList<Segment> label, CodeSpan span, bool expanded)
+    {
+        var result = label.TakeWhile(s => !s.Style.Equals(Theme.MarkdownCodeLabel)).ToList();
+        result.Add(new Segment(CodeFoldText.Summary(span.Label, span.SourceLines, expanded), Theme.MarkdownCodeLabel));
+        return result;
+    }
+
+    /// <summary>Whether <paramref name="row"/> is a code label reading <paramref name="label"/>: its label-coloured text starts it.</summary>
+    private static bool ReadsAs(SegmentLine row, string label)
+    {
+        string text = string.Concat(row.Where(s => s.Style.Equals(Theme.MarkdownCodeLabel)).Select(s => s.Text));
+        return text.Length > 0 && label.StartsWith(text.TrimEnd(), StringComparison.Ordinal);
     }
 
     /// <summary>A partial flow row is ended (the block starts at column 0), the flow cursor with it — the store's open line too.</summary>

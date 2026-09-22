@@ -44,6 +44,48 @@ public sealed class MarkdownView : IRenderable
 
     private IRenderable Content => _content ??= Compose(_document.Blocks, quote: null, tight: false);
 
+    private IReadOnlyList<CodeSpan>? _spans;
+    private int _spansWidth = -1;
+
+    /// <summary>
+    /// The top-level code blocks' rows in this view rendered at <paramref name="maxWidth"/> (2026-09-22,
+    /// the code fold): each block laid out alone, a spacer row between two, as <see cref="Compose"/>
+    /// stacks them — <see cref="Rows"/> gives every child the same width. A block inside a list item
+    /// or a quote is not one. Cached for the last width.
+    /// </summary>
+    public IReadOnlyList<CodeSpan> CodeSpans(RenderOptions options, int maxWidth)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        if (_spans is { } cached && _spansWidth == maxWidth)
+        {
+            return cached;
+        }
+
+        var spans = new List<CodeSpan>();
+        int row = 0;
+        for (int i = 0; i < _document.Blocks.Count; i++)
+        {
+            var block = _document.Blocks[i];
+            if (i > 0)
+            {
+                row++;   // the spacer
+            }
+
+            int rows = Segment.SplitLines(Block(block, quote: null).Render(options, maxWidth)).Count;
+            if (block is CodeBlock code)
+            {
+                string label = code.Language ?? CodeLabel;
+                int labelRows = Segment.SplitLines(((IRenderable)new Text(label, Theme.MarkdownCodeLabel)).Render(options, maxWidth)).Count;
+                spans.Add(new CodeSpan(row, labelRows, rows - labelRows, label, code.Lines.Count));
+            }
+
+            row += rows;
+        }
+
+        _spansWidth = maxWidth;
+        return _spans = spans;
+    }
+
     /// <summary>The blocks stacked, a blank row between them unless <paramref name="tight"/> (a list item's).</summary>
     private static IRenderable Compose(IReadOnlyList<MarkdownBlock> blocks, Style? quote, bool tight)
     {
@@ -90,16 +132,65 @@ public sealed class MarkdownView : IRenderable
 
     private static IRenderable Code(CodeBlock code)
     {
-        var lines = new List<IRenderable>(code.Lines.Count);
-        foreach (string line in code.Lines)
-        {
-            // A blank line must keep its row (Rows skips a child that renders nothing); a tab is four cells.
-            string shown = line.Length == 0 ? " " : line.Replace("\t", "    ", StringComparison.Ordinal);
-            lines.Add(new Text(shown, Theme.MarkdownCodeBlock));
-        }
-
+        var language = CodeLanguages.Find(code.Language);
+        var lines = language is null || code.Lines.Count == 0 ? PlainCode(code.Lines) : HighlightedCode(code.Lines, language);
         var block = new HangingIndent(CodeIndent, CodeIndent, Theme.MarkdownCodeBlock, new Rows(lines));
         return new Rows(new Text(code.Language ?? CodeLabel, Theme.MarkdownCodeLabel), block);
+    }
+
+    /// <summary>A tab is four cells.</summary>
+    private static string Untab(string line) => line.Replace("\t", "    ", StringComparison.Ordinal);
+
+    private static List<IRenderable> PlainCode(IReadOnlyList<string> source)
+    {
+        var lines = new List<IRenderable>(source.Count);
+        foreach (string line in source)
+        {
+            // A blank line must keep its row (Rows skips a child that renders nothing).
+            lines.Add(new Text(line.Length == 0 ? " " : Untab(line), Theme.MarkdownCodeBlock));
+        }
+
+        return lines;
+    }
+
+    /// <summary>
+    /// The block lexed as one text (a block comment colours every line it spans) and cut back into
+    /// one <see cref="Paragraph"/> per line, a token crossing a line break split at it.
+    /// </summary>
+    private static List<IRenderable> HighlightedCode(IReadOnlyList<string> source, CodeLanguage language)
+    {
+        string text = string.Join('\n', source.Select(Untab));
+        var lines = new List<IRenderable>(source.Count);
+        var line = new Paragraph();
+        bool blank = true;
+        foreach (var token in CodeLexer.Lex(text, language))
+        {
+            var style = Theme.CodeStyle(token.Kind);
+            int start = token.Start;
+            while (start < token.End)
+            {
+                int newline = text.IndexOf('\n', start, token.End - start);
+                int stop = newline < 0 ? token.End : newline;
+                if (stop > start)
+                {
+                    line.Append(text[start..stop], style);
+                    blank = false;
+                }
+
+                if (newline < 0)
+                {
+                    break;
+                }
+
+                lines.Add(blank ? line.Append(" ", Theme.MarkdownCodeBlock) : line);
+                line = new Paragraph();
+                blank = true;
+                start = newline + 1;
+            }
+        }
+
+        lines.Add(blank ? line.Append(" ", Theme.MarkdownCodeBlock) : line);
+        return lines;
     }
 
     private static IRenderable Table(TableBlock table, Style? quote)

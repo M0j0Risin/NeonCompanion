@@ -126,4 +126,257 @@ public class ScrollbackTests
         Assert.False(store.LastLineOpen);
         Assert.Equal(0, store.LineCount);
     }
+
+    // ── Tool runs (2026-09-22) ──────────────────────────────────────────────
+
+    /// <summary>A run keeping <paramref name="keep"/>, its summary "S" folded and "E" unfolded, and <paramref name="members"/> member lines m1…mN.</summary>
+    private static Scrollback Run(int keep, int members, int width = 40, bool end = false)
+    {
+        var store = new Scrollback();
+        store.Append(Segments("before\n"), width);
+        store.BeginGroup(keep);
+        store.SetGroupSummary(Segments("  S"), Segments("  E"));
+        for (int i = 1; i <= members; i++)
+        {
+            store.Append(Segments($"  m{i}\n"), width, member: true);
+        }
+
+        if (end)
+        {
+            store.EndGroup();
+        }
+
+        return store;
+    }
+
+    [Fact]
+    public void ToolRun_WithinItsKeep_ShowsEveryLine_NoSummary_NothingReshaped()
+    {
+        var store = Run(keep: 2, members: 2);
+
+        Assert.Equal(new[] { "before", "  m1", "  m2" }, Texts(store.Rows(40)));
+        Assert.False(store.TakeReshaped());   // appends at the end: the pane just writes them
+        store.EndGroup();
+        Assert.Equal(new[] { "before", "  m1", "  m2" }, Texts(store.Rows(40)));
+        Assert.False(store.TakeReshaped());
+    }
+
+    [Fact]
+    public void ToolRun_PastItsKeep_WhileLive_IsTheSummaryAndTheLastLines_ThenTheSummaryAloneOnceItEnds()
+    {
+        var store = Run(keep: 2, members: 3);
+
+        Assert.Equal(new[] { "before", "  S", "  m2", "  m3" }, Texts(store.Rows(40)));
+        Assert.True(store.TakeReshaped());   // m1 hid and the summary showed above the end: the pane rebuilds
+
+        store.Append(Segments("  m4\n"), 40, member: true);
+        Assert.Equal(new[] { "before", "  S", "  m3", "  m4" }, Texts(store.Rows(40)));
+
+        store.EndGroup();
+        Assert.Equal(new[] { "before", "  S" }, Texts(store.Rows(40)));
+        Assert.True(store.TakeReshaped());
+        Assert.False(store.GroupOpen);
+    }
+
+    [Fact]
+    public void ToolRun_AnyOtherAppend_EndsIt()
+    {
+        var store = Run(keep: 1, members: 3);
+        store.Append(Segments("reply\n"), 40);
+
+        Assert.Equal(new[] { "before", "  S", "reply" }, Texts(store.Rows(40)));
+        Assert.False(store.GroupOpen);
+    }
+
+    [Fact]
+    public void ToolRun_KeepZero_NeverFolds()
+    {
+        var store = Run(keep: 0, members: 5, end: true);
+
+        Assert.Equal(new[] { "before", "  m1", "  m2", "  m3", "  m4", "  m5" }, Texts(store.Rows(40)));
+    }
+
+    [Fact]
+    public void ToolRun_Toggle_UnfoldsThatRun_AndAgainFoldsIt()
+    {
+        var store = Run(keep: 2, members: 3, end: true);
+        store.TakeReshaped();
+
+        // The summary's row answers GroupAtRow; a member's or another line's does not.
+        Assert.Null(store.GroupAtRow(0));
+        int id = Assert.NotNull(store.GroupAtRow(1));
+        Assert.Null(store.GroupAtRow(2));
+
+        Assert.True(store.Toggle(id));
+        Assert.Equal(new[] { "before", "  E", "  m1", "  m2", "  m3" }, Texts(store.Rows(40)));
+        Assert.True(store.TakeReshaped());
+        Assert.Null(store.GroupAtRow(2));   // a member's row
+
+        Assert.True(store.Toggle(id));
+        Assert.Equal(new[] { "before", "  S" }, Texts(store.Rows(40)));
+        Assert.False(store.Toggle(id + 1));
+    }
+
+    [Fact]
+    public void ToolRun_SetAllExpanded_UnfoldsEveryRun_AndTheRunsToCome_ForgettingEachOwnState()
+    {
+        var store = Run(keep: 1, members: 2, end: true);
+        int first = store.GroupAtRow(1)!.Value;
+        store.Toggle(first);   // its own state: unfolded
+        store.SetAllExpanded(false);
+        Assert.Equal(new[] { "before", "  S" }, Texts(store.Rows(40)));   // the pane-wide state wins, the run's own forgotten
+
+        store.SetAllExpanded(true);
+        Assert.True(store.ExpandAll);
+        Assert.Equal(new[] { "before", "  E", "  m1", "  m2" }, Texts(store.Rows(40)));
+
+        // A new run follows it: every line, under its unfolded summary.
+        store.BeginGroup(1);
+        store.SetGroupSummary(Segments("  S2"), Segments("  E2"));
+        store.Append(Segments("  n1\n", "  n2\n"), 40, member: true);
+        store.EndGroup();
+        Assert.Equal(new[] { "before", "  E", "  m1", "  m2", "  E2", "  n1", "  n2" }, Texts(store.Rows(40)));
+    }
+
+    [Fact]
+    public void ToolRun_TheLead_StandsOverTheFirstVisibleRowsIndent()
+    {
+        var store = new Scrollback();
+        store.Append(Segments("● "), 40);   // the plain path's bare glyph, an open line
+        store.BeginGroup(1, Segments("● "), absorbOpenLine: true);
+        Assert.True(store.TakeReshaped());   // the glyph's row went
+        store.SetGroupSummary(Segments("  S"), Segments("  E"));
+        store.Append(Segments("  m1\n"), 40, member: true);
+        Assert.Equal(new[] { "● m1" }, Texts(store.Rows(40)));   // not folded: the first member leads
+
+        store.Append(Segments("  m2\n"), 40, member: true);
+        store.EndGroup();
+        Assert.Equal(new[] { "● S" }, Texts(store.Rows(40)));    // folded: the summary leads
+
+        store.SetAllExpanded(true);
+        Assert.Equal(new[] { "● E", "  m1", "  m2" }, Texts(store.Rows(40)));
+    }
+
+    [Fact]
+    public void ToolRun_Rewraps_AtANewWidth_InItsFoldedShape()
+    {
+        var store = Run(keep: 1, members: 3, end: true);
+        store.SetAllExpanded(true);
+
+        Assert.Equal(new[] { "befo", "re", "  E", "  m1", "  m2", "  m3" }, Texts(store.Rows(4)));
+        store.SetAllExpanded(false);
+        Assert.Equal(new[] { "befo", "re", "  S" }, Texts(store.Rows(4)));
+    }
+
+    [Fact]
+    public void ToolRun_Trim_DropsARunWhole_AndHiddenLinesCountTowardTheCap()
+    {
+        var store = new Scrollback();
+        store.BeginGroup(1);
+        for (int i = 0; i < Scrollback.MaxRows; i++)
+        {
+            store.Append(Segments("m\n"), 40, member: true);
+        }
+
+        store.EndGroup();
+        Assert.Equal(1, store.Count);   // the summary alone shows
+        store.Append(Segments("after\n"), 40);
+
+        // The run's lines passed the cap: it went whole, summary and members, the line after it stays.
+        Assert.Equal(new[] { "after" }, Texts(store.Rows(40)));
+        Assert.Null(store.GroupAtRow(0));
+    }
+
+    [Fact]
+    public void ToolRun_Clear_ForgetsTheRuns_ButNotExpandAll()
+    {
+        var store = Run(keep: 1, members: 3);
+        store.SetAllExpanded(true);
+        store.Clear();
+
+        Assert.False(store.GroupOpen);
+        Assert.True(store.ExpandAll);
+        Assert.False(store.TakeReshaped());
+    }
+
+    // ── Code blocks (later on 2026-09-22) ───────────────────────────────────
+
+    /// <summary>A code block keeping <paramref name="keep"/> of <paramref name="size"/> source lines: its label "  cs", folded "  ▸ S", unfolded "  ▾ E", and <paramref name="rows"/> body rows c1…cN.</summary>
+    private static Scrollback Code(int keep, int size, int rows, bool end = false)
+    {
+        var store = new Scrollback();
+        store.Append(Segments("before\n"), 40);
+        store.BeginCodeGroup(keep, Segments("  cs"));
+        store.SetCodeGroupSummary(Segments("  ▸ S"), Segments("  ▾ E"), size);
+        for (int i = 1; i <= rows; i++)
+        {
+            store.Append(Segments($"    c{i}\n"), 40, member: true);
+        }
+
+        if (end)
+        {
+            store.EndGroup();
+        }
+
+        return store;
+    }
+
+    [Fact]
+    public void CodeBlock_WhileLive_ShowsItsLabelAndEveryRow_NothingReshaped_AndIsNoToolRun()
+    {
+        var store = Code(keep: 2, size: 3, rows: 3);
+
+        Assert.Equal(new[] { "before", "  cs", "    c1", "    c2", "    c3" }, Texts(store.Rows(40)));
+        Assert.False(store.TakeReshaped());   // the label took its row at once; the rows are appends at the end
+        Assert.True(store.CodeGroupOpen);
+        Assert.False(store.GroupOpen);        // a tool line never joins it
+        Assert.Equal("  cs", string.Concat(store.CodeGroupLabel.Select(s => s.Text)));
+        Assert.False(store.Toggle(Assert.NotNull(store.GroupAtRow(1))));   // nothing to toggle while it streams
+    }
+
+    [Fact]
+    public void CodeBlock_PastItsKeep_FoldsToItsSummary_OnceItEnds_AndTogglesOpen()
+    {
+        var store = Code(keep: 2, size: 3, rows: 3, end: true);
+
+        Assert.Equal(new[] { "before", "  ▸ S" }, Texts(store.Rows(40)));
+        Assert.True(store.TakeReshaped());
+        Assert.False(store.CodeGroupOpen);
+
+        int id = Assert.NotNull(store.GroupAtRow(1));
+        Assert.True(store.Toggle(id));
+        Assert.Equal(new[] { "before", "  ▾ E", "    c1", "    c2", "    c3" }, Texts(store.Rows(40)));
+    }
+
+    [Fact]
+    public void CodeBlock_WithinItsKeep_StaysWhole_UnderItsPlainLabel_AndItsLabelToggles_Nothing()
+    {
+        var store = Code(keep: 3, size: 3, rows: 3, end: true);
+        store.Append(Segments("after\n"), 40);
+
+        Assert.Equal(new[] { "before", "  cs", "    c1", "    c2", "    c3", "after" }, Texts(store.Rows(40)));
+        Assert.False(store.Toggle(Assert.NotNull(store.GroupAtRow(1))));
+        store.SetAllExpanded(true);
+        Assert.Equal(new[] { "before", "  cs", "    c1", "    c2", "    c3", "after" }, Texts(store.Rows(40)));
+    }
+
+    [Fact]
+    public void CodeBlock_IsMeasuredByItsSourceLines_NotItsRows()
+    {
+        // Two source lines, one wrapped into three rows: within a keep of 2.
+        var store = Code(keep: 2, size: 2, rows: 3, end: true);
+
+        Assert.Equal(new[] { "before", "  cs", "    c1", "    c2", "    c3" }, Texts(store.Rows(40)));
+    }
+
+    [Fact]
+    public void CodeBlock_AnotherAppend_EndsIt_AndCtrlO_UnfoldsIt_WithTheToolRuns()
+    {
+        var store = Code(keep: 1, size: 2, rows: 2);
+        store.Append(Segments(" \n"), 40);   // the spacer after the block
+
+        Assert.Equal(new[] { "before", "  ▸ S", " " }, Texts(store.Rows(40)));
+        store.SetAllExpanded(true);
+        Assert.Equal(new[] { "before", "  ▾ E", "    c1", "    c2", " " }, Texts(store.Rows(40)));
+    }
 }

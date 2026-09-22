@@ -372,6 +372,7 @@ internal sealed partial class ChatScreen
     public const string QueueClearNote = "drop every queued message";
     public const string QueueUsageError = "/queue lists the queued messages; /queue clear drops them all.";
 
+
     // The /memory grammar's words, their notes on the argument list and the usage error (2026-09-22,
     // the user's ask: the wipe was the standalone /forget, and the copy the standalone /memcopy, until
     // that day). The /queue trio's shape; the copy's words are CopyWord and OverwriteWord, shared with
@@ -610,6 +611,10 @@ internal sealed partial class ChatScreen
             case InputEvent.Wheel wheel:
                 _pane.ScrollWheel(wheel.Notches);
                 return true;
+            case InputEvent.Key { Info: var toggle } when Keys.IsToolToggle(toggle):
+                // Ctrl+O (2026-09-22): every tool run unfolded or folded, the reply's own included.
+                _pane.ToggleToolGroups();
+                return true;
             default:
                 return false;
         }
@@ -776,7 +781,13 @@ internal sealed partial class ChatScreen
             Placeholder = InputPlaceholder,
         };
         _keys.Mirror = _pane;
-        _transcript = new TranscriptRenderer(_pane);
+        _transcript = new TranscriptRenderer(_pane)
+        {
+            // Tool collapse count (2026-09-22): read when a tool run opens, clamped as the menu saves it.
+            ToolCollapseCount = () => Math.Clamp(_effective().ToolCollapseCount, AppSettingsData.MinToolCollapseCount, AppSettingsData.MaxToolCollapseCount),
+            // Code collapse count (later on 2026-09-22): read when a reply opens, clamped the same way.
+            CodeCollapseCount = () => Math.Clamp(_effective().CodeCollapseCount, AppSettingsData.MinCodeCollapseCount, AppSettingsData.MaxCodeCollapseCount),
+        };
         // The @-mention list asks the sandbox as it stands at the keystroke (the root is a live read too);
         // the command and #-mention lists the catalog and the two Skills-tab switches (2026-09-17);
         // Ctrl+C over a selection writes the clipboard with /copy's writer.
@@ -957,7 +968,7 @@ internal sealed partial class ChatScreen
     /// <summary>
     /// The command a double-click off an open pane names (later on 2026-09-21, the user's ask): a
     /// toolbar glyph's word, the path's <see cref="CwdBrowseLine"/>, the toolbar's blanks
-    /// <c>/settings</c>; on the hint row the model name <c>/model</c>, its reasoning mark
+    /// <c>/settings</c>; on the hint row the model name <c>/server</c> (2026-09-22), its reasoning mark
     /// <c>/reasoning</c>, the blanks <c>/settings</c> (scrolled or not). A strip glyph names
     /// nothing (the switches are the idle line's), nor do the queued count and the tally (never
     /// drawn under a pane). The screen closes the pane the word owns, or switches to the one it
@@ -973,7 +984,7 @@ internal sealed partial class ChatScreen
         },
         { Hint: { } row } => row.Zone switch
         {
-            ScreenPane.HintZone.Trailer => SlashCommands.ModelWord,
+            ScreenPane.HintZone.Trailer => SlashCommands.ServerWord,
             ScreenPane.HintZone.Mark => SlashCommands.ReasoningWord,
             ScreenPane.HintZone.Row or ScreenPane.HintZone.Scrolled => SlashCommands.SettingsWord,
             _ => null,
@@ -1130,6 +1141,7 @@ internal sealed partial class ChatScreen
     /// The Mouse, Drag, Drop, <c>@</c>, <c>#</c> and <c>$</c> rows went and the Ctrl+Home / Ctrl+End rows came
     /// later on 2026-09-20, the user's list; six rows reworded shorter the same day, the user's words.
     /// Ctrl+Enter after Enter (2026-09-22): a line break in the draft (<see cref="Keys.IsLineBreak"/>).
+    /// Ctrl+O after Ctrl+End (later that day): the tool runs unfolded or folded (<see cref="Keys.IsToolToggle"/>).
     /// </summary>
     public static (string Key, string Meaning)[] KeyRows(bool voiceOn, ConsoleKey pushToTalk, bool wakeReady, string wakePhrase)
     {
@@ -1155,6 +1167,7 @@ internal sealed partial class ChatScreen
 
         rows.Add(("Ctrl+Home", "scroll to top of the chat pane"));
         rows.Add(("Ctrl+End", "scroll to bottom of the chat pane"));
+        rows.Add(("Ctrl+O", "expand or collapse the tool calls and code blocks (or click a summary line)"));
         rows.Add(("Alt+V", "paste content (text or images)"));
         rows.Add(("Ctrl+A", "select all text on the line"));
         rows.Add(("Ctrl+C", "copy the selected text · stop the speech · cancel the reply · twice to exit"));
@@ -1339,6 +1352,13 @@ internal sealed partial class ChatScreen
     {
         if (click.Button == MouseButton.Left)
         {
+            if (_pane.TryToggleToolGroupAt(click.X, click.Y))
+            {
+                // A tool run's summary (2026-09-22): one click unfolds or folds it, nothing answered.
+                _queuedClicks.Reset();
+                return null;
+            }
+
             if (_pane.TryHitQueued(click.X, click.Y))
             {
                 return _queuedClicks.Second(0) ? SlashCommands.QueueWord : null;
@@ -1427,6 +1447,18 @@ internal sealed partial class ChatScreen
         return text.Length == 0 ? QueueAction.List
             : text.Equals(QueueClearWord, StringComparison.OrdinalIgnoreCase) ? QueueAction.Clear
             : QueueAction.Invalid;
+    }
+
+    /// <summary>
+    /// <c>/expand</c> or <c>/collapse</c> (2026-09-22, the user's ask: <c>/tools expand|collapse</c>
+    /// until later that day), idle or as a quick act under a reply: every tool run and code block in
+    /// the transcript unfolded or folded at once, the ones to come following (Ctrl+O flips the same
+    /// state), and a notice saying so.
+    /// </summary>
+    private void SetFolds(bool expanded)
+    {
+        _pane.SetToolGroupsExpanded(expanded);
+        _transcript.Notice(ToolGroupText.ExpandedNotice(expanded));
     }
 
     /// <summary>
@@ -2333,11 +2365,12 @@ internal sealed partial class ChatScreen
                     {
                         // The second level: the verb with each name; rename's new name is free text.
                         // reset leaves default out unless it is the loaded one (2026-09-22, Profiles.ResetRefusal);
-                        // delete leaves it out always (later that day, the user's call: it can never be deleted).
+                        // delete leaves it out always (later that day, the user's call: it can never be deleted),
+                        // and so does rename (later still, the user's call: Profiles.RenameRefusal refuses it from any profile).
                         var names = sources.Profiles().Where(name => verb.Text switch
                         {
                             ResetWord => Profiles.ResetRefusal(name, sources.LoadedProfile) is null,
-                            "delete" => !Profiles.IsDefault(name),
+                            "delete" or "rename" => !Profiles.IsDefault(name),
                             _ => true,
                         });
                         return MentionCompleter.Matches(names.Select(name => new CompletionItem(verb.Text + " " + name, ProfileNote(name, sources.LoadedProfile))).ToList(), argText);
@@ -5035,7 +5068,8 @@ internal sealed partial class ChatScreen
                         // A double-click on the hint row (2026-09-18), as if the
                         // command were sent — the tail silenced, the timers acknowledged — without
                         // the transcript row or the history; the draft comes back after: the model
-                        // name is /model, the reasoning mark after it /reasoning (2026-09-21), the
+                        // name is /server (2026-09-22, the user's call: server, model, then reasoning,
+                        // as the typed command; /model before), the reasoning mark after it /reasoning (2026-09-21), the
                         // brain the reflection's cancel, a speech glyph its switch off, the token
                         // tally /usage (2026-09-21), anywhere else /settings.
                         // The pane zones go through HandleAsync as the typed word would (later on
@@ -5060,7 +5094,7 @@ internal sealed partial class ChatScreen
                         {
                             string hintLine = hint.Hit.Zone switch
                             {
-                                ScreenPane.HintZone.Trailer => SlashCommands.ModelWord,
+                                ScreenPane.HintZone.Trailer => SlashCommands.ServerWord,
                                 ScreenPane.HintZone.Mark => SlashCommands.ReasoningWord,
                                 ScreenPane.HintZone.Queued => SlashCommands.QueueWord,   // the held count (2026-09-18): /queue, as the typed command
                                 ScreenPane.HintZone.Usage => SlashCommands.UsageWord,
@@ -6066,7 +6100,7 @@ internal sealed partial class ChatScreen
     public static string ImagesIgnoredNotice(int count) =>
         count == 1 ? "(the image was ignored: a /command takes none)" : $"({count.ToString(CultureInfo.InvariantCulture)} images were ignored: a /command takes none)";
 
-    /// <summary>The model picker (<c>/model [id]</c>, or a double-click on the model name in the hint row, 2026-09-18) and the reconnect a pick asks for.</summary>
+    /// <summary>The model picker (<c>/model [id]</c>; the hint row's model name was its double-click from 2026-09-18 until it became <c>/server</c>'s, 2026-09-22) and the reconnect a pick asks for.</summary>
     private async Task PickModelAsync(string args, CancellationToken cancellationToken)
     {
         if (await _menu.PickModelAsync(_session, args, cancellationToken).ConfigureAwait(false))
@@ -6367,6 +6401,11 @@ internal sealed partial class ChatScreen
 
             case SlashCommand.Usage:
                 await ShowUsageAsync(cancellationToken).ConfigureAwait(false);
+                return false;
+
+            case SlashCommand.Expand or SlashCommand.Collapse:
+                // The transcript's tool runs and code blocks (2026-09-22; /tools expand|collapse until later that day), no pane.
+                SetFolds(command == SlashCommand.Expand);
                 return false;
 
             case SlashCommand.Tools:
@@ -7842,6 +7881,12 @@ internal sealed partial class ChatScreen
     /// <param name="thumbnails">The thumbnail box, read once at the turn's start (null with <c>Show image thumbnails</c> off): the pictures a tool fetched are drawn under its 🛠️ line the way sent ones are drawn under the user's.</param>
     private void Render(TurnEvent evt, SpeechOutput? speaker, StringBuilder reply, ThumbnailBox? thumbnails)
     {
+        if (evt is TurnEvent.ToolCall counted)
+        {
+            // Every call, the quiet ones too: the tool run's summary counts calls, not lines (2026-09-22).
+            _transcript.CountToolCall(counted.Name);
+        }
+
         switch (evt)
         {
             case TurnEvent.TextDelta delta:
