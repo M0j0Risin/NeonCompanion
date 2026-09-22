@@ -597,6 +597,39 @@ public class KeySourceTests
         Assert.Equal("a", KeySource.LineText([new InputEvent.Key(Keys.Char('a')), new InputEvent.Key(Keys.Char('\ud83d')), new InputEvent.Key(Keys.Char('\ude00')), new InputEvent.Key(Keys.Backspace)]));
     }
 
+    /// <summary>Ctrl+Enter (2026-09-22) is a line break inside a typed-ahead line, never its end: the line reads as two rows, labels as one, and is no command.</summary>
+    [Fact]
+    public void ATypedLineBreak_IsPartOfTheLine()
+    {
+        InputEvent[] line = [new InputEvent.Key(Keys.Char('a')), new InputEvent.Key(Keys.CtrlEnter), new InputEvent.Key(Keys.Char('b')), new InputEvent.Key(Keys.Enter)];
+        Assert.Equal("a\nb", KeySource.PreviewText(line.Take(3), out _));
+        Assert.Equal("a", KeySource.PreviewText(line.Take(2).Append(new InputEvent.Key(Keys.Backspace)), out _));   // Backspace takes the break back
+        Assert.Equal("a b", KeySource.LineLabel(line));
+        Assert.Null(KeySource.LineText(line));
+    }
+
+    [Fact]
+    public async Task Watch_ACtrlEnter_DoesNotEndTheLine()
+    {
+        var input = new TestConsoleInput();
+        var keys = new KeySource(input, FastPoll);
+        var offered = new List<IReadOnlyList<InputEvent>>();
+        input.PushText("a");
+        input.PushKey(Keys.CtrlEnter);
+        PushLine(input, "b");
+        using var turn = new CancellationTokenSource();
+        using var stop = new CancellationTokenSource();
+        var watch = keys.WatchAsync(turn, stop.Token, null, null, l => { offered.Add(l.Events); return Task.FromResult(false); });
+        await WaitUntilAsync(() => offered.Count == 1);
+        stop.Cancel();
+        await watch;
+
+        var only = Assert.Single(offered);
+        Assert.Equal(4, only.Count);
+        Assert.Equal("a b", KeySource.LineLabel(only));
+        Assert.Equal(4, keys.Buffered);
+    }
+
     private static void PushLine(TestConsoleInput input, string text)
     {
         input.PushText(text);

@@ -92,14 +92,16 @@ internal sealed partial class ChatScreen
 
     /// <summary>
     /// What a line does while a reply runs, by command (the user's lists, 2026-09-15): the info
-    /// panes, <c>/settings</c>, <c>/memory</c> either way (2026-09-22: <c>forget</c>'s confirmation
-    /// is a pane as the list is, so the word never changes the class — the standalone <c>/forget</c>
-    /// was a pane too), <c>/emptytrash</c>'s confirmation and the <c>/reasoning</c>
+    /// panes, <c>/settings</c>, <c>/memory</c> every way (2026-09-22: <c>forget</c>'s confirmation
+    /// is a pane as the list is, and so is <c>copy &lt;profile&gt;</c>'s — it writes another
+    /// profile's file, nothing the turn holds —, so the word never changes the class; the standalone
+    /// <c>/forget</c> was a pane too, and <c>/memcopy</c> was refused until the word folded in),
+    /// <c>/emptytrash</c>'s confirmation and the <c>/reasoning</c>
     /// picker and <c>/queue</c> (2026-09-18) are <see cref="MidTurnClass.Pane"/>, as is <c>/cmdlist</c> (2026-09-21: the <c>Shell allowed commands</c> row, which <c>/tools</c> edits under a reply too); the four speech switches, <c>/reasoning</c>
     /// with a level, <c>/queue</c> with a word (<c>clear</c>, 2026-09-21: the drop on the turn task, or the usage error), <c>/copy</c>, <c>/remember</c>, <c>/explore</c>, <c>/timer</c> and an unknown
     /// command are <see cref="MidTurnClass.Quick"/>; <c>/clear</c>, <c>/new</c>, <c>/splash</c> (2026-09-19) and <c>/exit</c> cancel; the rest
     /// (<c>/profile</c>, <c>/server</c>, <c>/model</c>, <c>/compact</c>, <c>/cwd</c>, <c>/tree</c>,
-    /// <c>/learn</c>, <c>/window</c>, <c>/memcopy</c>, <c>/cmdcopy</c> (2026-09-21), <c>/git</c> (2026-09-21), <c>/speak</c> — the turn owns the transcript and the speaker —, <c>/draft</c> (2026-09-19: it would send a message the turn cannot take), <c>/loop</c> (2026-09-21, the same reason), the three prompt files) are refused; <c>/skills</c> is a pane (2026-09-16 as <c>/skills</c>, <c>/skill list</c> then the bare <c>/skill</c> on 2026-09-18, the plural again since 2026-09-19; <c>/skill</c> with a name was refused until later on 2026-09-18, when the name form went — an argument was <see cref="SlashCommand.Overloaded"/>, quick like an unknown command, until <c>/skills edit &lt;name&gt;</c> came on 2026-09-21: an editor launch, refused like <c>/profile edit</c>). Pure.
+    /// <c>/learn</c>, <c>/window</c>, <c>/cmdcopy</c> (2026-09-21), <c>/git</c> (2026-09-21), <c>/speak</c> — the turn owns the transcript and the speaker —, <c>/draft</c> (2026-09-19: it would send a message the turn cannot take), <c>/loop</c> (2026-09-21, the same reason), the three prompt files) are refused; <c>/skills</c> is a pane (2026-09-16 as <c>/skills</c>, <c>/skill list</c> then the bare <c>/skill</c> on 2026-09-18, the plural again since 2026-09-19; <c>/skill</c> with a name was refused until later on 2026-09-18, when the name form went — an argument was <see cref="SlashCommand.Overloaded"/>, quick like an unknown command, until <c>/skills edit &lt;name&gt;</c> came on 2026-09-21: an editor launch, refused like <c>/profile edit</c>). Pure.
     /// </summary>
     public static MidTurnClass MidTurnPolicy(SlashCommand command, bool hasArgs) => command switch
     {
@@ -253,8 +255,8 @@ internal sealed partial class ChatScreen
                 await _menu.ShowAsync(cancellationToken, midTurn: true).ConfigureAwait(false);
                 break;
             case SlashCommand.Memory:
-                // /memory (2026-09-22): the list pane, or forget's confirmation — the pane /forget
-                // opened until the word folded in, so both forms stay panes under a reply.
+                // /memory (2026-09-22): the list pane, or forget's or copy's confirmation — the panes
+                // /forget opened and /memcopy was refused for, so all three forms are panes under a reply.
                 await HandleMemoryAsync(args, cancellationToken).ConfigureAwait(false);
                 break;
             case SlashCommand.Queue:

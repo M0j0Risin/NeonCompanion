@@ -5468,20 +5468,30 @@ public partial class ChatScreenTests : IDisposable
         Assert.DoesNotContain(SettingsMenu.PromptTitle(MemoryMenu.Title, MemoryMenu.Keys), output);
     }
 
-    /// <summary>The /memory grammar (2026-09-22) and its completion: nothing, forget (any case), anything else invalid.</summary>
+    /// <summary>The /memory grammar (2026-09-22) and its completion: nothing, forget (any case), copy &lt;profile&gt; [overwrite] (the fold of /memcopy later that day), anything else invalid.</summary>
     [Fact]
-    public void ParseMemoryArgs_IsPinned_AndTheForgetWordCompletes()
+    public void ParseMemoryArgs_IsPinned_AndTheWordsComplete()
     {
-        Assert.Equal(MemoryAction.List, ChatScreen.ParseMemoryArgs(""));
-        Assert.Equal(MemoryAction.List, ChatScreen.ParseMemoryArgs("  "));
-        Assert.Equal(MemoryAction.Forget, ChatScreen.ParseMemoryArgs("forget"));
-        Assert.Equal(MemoryAction.Forget, ChatScreen.ParseMemoryArgs(" Forget "));
-        Assert.Equal(MemoryAction.Invalid, ChatScreen.ParseMemoryArgs("list"));
-        Assert.Equal(MemoryAction.Invalid, ChatScreen.ParseMemoryArgs("forget all"));
+        Assert.Equal(new MemoryAction(MemoryActionKind.List), ChatScreen.ParseMemoryArgs(""));
+        Assert.Equal(new MemoryAction(MemoryActionKind.List), ChatScreen.ParseMemoryArgs("  "));
+        Assert.Equal(new MemoryAction(MemoryActionKind.Forget), ChatScreen.ParseMemoryArgs("forget"));
+        Assert.Equal(new MemoryAction(MemoryActionKind.Forget), ChatScreen.ParseMemoryArgs(" Forget "));
+        Assert.Equal(new MemoryAction(MemoryActionKind.Copy, "work"), ChatScreen.ParseMemoryArgs("copy work"));
+        Assert.Equal(new MemoryAction(MemoryActionKind.Copy, "WORK"), ChatScreen.ParseMemoryArgs(" Copy  WORK "));   // the name goes on as typed; Profiles.Resolve folds the case
+        Assert.Equal(new MemoryAction(MemoryActionKind.Copy, "work", Overwrite: true), ChatScreen.ParseMemoryArgs("copy work overwrite"));
+        Assert.Equal(new MemoryAction(MemoryActionKind.Copy, "work", Overwrite: true), ChatScreen.ParseMemoryArgs("COPY work Overwrite"));
+        Assert.Equal(new MemoryAction(MemoryActionKind.Invalid), ChatScreen.ParseMemoryArgs("list"));
+        Assert.Equal(new MemoryAction(MemoryActionKind.Invalid), ChatScreen.ParseMemoryArgs("forget all"));
+        Assert.Equal(new MemoryAction(MemoryActionKind.Invalid), ChatScreen.ParseMemoryArgs("copy"));
+        Assert.Equal(new MemoryAction(MemoryActionKind.Invalid), ChatScreen.ParseMemoryArgs("copy work now"));
+        Assert.Equal(new MemoryAction(MemoryActionKind.Invalid), ChatScreen.ParseMemoryArgs("copy work overwrite please"));
         Assert.Equal("forget", ChatScreen.MemoryForgetWord);
-        Assert.Equal("/memory lists the memories; /memory forget forgets them all.", ChatScreen.MemoryUsageError);
-        Assert.Equal([new CompletionItem("forget", ChatScreen.MemoryForgetNote)], ChatScreen.ArgumentItems("/memory", "", Sources()));
+        Assert.Equal("copy", ChatScreen.CopyWord);
+        Assert.Equal("overwrite", ChatScreen.OverwriteWord);
+        Assert.Equal("/memory lists the memories, /memory forget forgets them all, and /memory copy <profile> [overwrite] copies them into another profile.", ChatScreen.MemoryUsageError);
+        Assert.Equal([new CompletionItem("forget", ChatScreen.MemoryForgetNote), new CompletionItem("copy", ChatScreen.MemoryCopyNote)], ChatScreen.ArgumentItems("/memory", "", Sources()));
         Assert.Equal([new CompletionItem("forget", ChatScreen.MemoryForgetNote)], ChatScreen.ArgumentItems("/memory", "fo", Sources()));
+        Assert.Equal([new CompletionItem("copy", ChatScreen.MemoryCopyNote)], ChatScreen.ArgumentItems("/memory", "co", Sources()));
         Assert.Empty(ChatScreen.ArgumentItems("/memory", "x", Sources()));
     }
 
@@ -6492,36 +6502,51 @@ public partial class ChatScreenTests : IDisposable
     }
 
     [Fact]
-    public async Task Profile_Reset_TheDefault_IsAllowed()
+    public async Task Profile_Reset_TheDefault_FromAnotherProfile_IsRefused()
     {
-        FurnishedDefaultProfile();
+        _settings.Update(d => d.LlmModel = "default-model");
+        await _settings.FlushAsync();
         WorkProfile();
         PushLine("/profile work");
+        PushLine("/profile reset default");   // refused before any prompt (2026-09-22)
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains(Profiles.DefaultUnresettable, output);
+        Assert.DoesNotContain(ChatScreen.ResetProfilePrompt(Profiles.DefaultName), output);
+        Assert.DoesNotContain(ChatScreen.ProfileResetNotice(Profiles.DefaultName, loaded: false), output);
+        Assert.Equal("work", _settings.ProfileName);
+        Assert.Contains("default-model", File.ReadAllText(Profiles.ProfileFile(_dir, Profiles.DefaultName)));   // the default's settings untouched
+        Assert.Empty(_chat.Requests);
+    }
+
+    [Fact]
+    public async Task Profile_Reset_TheDefault_ByName_WhileLoaded_IsAllowed()
+    {
+        _settings.Update(d => d.LlmModel = "default-model");
         PushLine("/profile reset default");
         PickYes();
         PushLine("/exit");
 
         string output = await RunAsync();
 
-        Assert.DoesNotContain(Profiles.DefaultUndeletable, output);
+        Assert.DoesNotContain(Profiles.DefaultUnresettable, output);
         Assert.Contains(SettingsMenu.PromptTitle(ChatScreen.ResetProfilePrompt(Profiles.DefaultName), SettingsMenu.ConfirmKeys), output);
-        Assert.Contains("  · " + ChatScreen.ProfileResetNotice(Profiles.DefaultName, loaded: false), output);
-        Assert.Equal("work", _settings.ProfileName);
-        Assert.Equal(Profiles.CompanionFiles.Append(Profiles.FileName).Order(StringComparer.Ordinal), Directory.GetFiles(ProfileDir(Profiles.DefaultName)).Select(Path.GetFileName).Order(StringComparer.Ordinal));   // every companion file stays (2026-09-20)
-        Assert.Equal(new[] { "They like tea." }, new MemoryStore(ProfileDir(Profiles.DefaultName)).Snapshot());
-        Assert.Equal("You are Rex.", File.ReadAllText(Path.Combine(ProfileDir("work"), PersonaFile.FileName)));   // the loaded one untouched
-        Assert.Empty(_chat.Requests);
+        Assert.Contains("  · " + ChatScreen.ProfileResetNotice(Profiles.DefaultName, loaded: true), output);
+        Assert.Equal(Profiles.DefaultName, _settings.ProfileName);
+        Assert.Equal("", _settings.Current.LlmModel);
     }
 
-    // ── /memcopy (2026-09-17) ───────────────────────────────────────────────
+    // ── /memory copy (2026-09-17 as /memcopy, the word folded in 2026-09-22) ─
 
     [Fact]
-    public async Task MemCopy_Yes_AppendsIntoTheOtherProfile_SkippingWhatItHolds()
+    public async Task MemoryCopy_Yes_AppendsIntoTheOtherProfile_SkippingWhatItHolds()
     {
         WorkProfile();   // work holds "They like tea."
         _memory.Add("Their name is Chris.");
         _memory.Add("they LIKE tea.");
-        PushLine("/memcopy work");
+        PushLine("/memory copy work");
         PickYes();
         PushLine("/exit");
 
@@ -6536,11 +6561,11 @@ public partial class ChatScreenTests : IDisposable
     }
 
     [Fact]
-    public async Task MemCopy_Overwrite_Yes_ReplacesTheOtherProfilesMemory()
+    public async Task MemoryCopy_Overwrite_Yes_ReplacesTheOtherProfilesMemory()
     {
         WorkProfile();
         _memory.Add("Their name is Chris.");
-        PushLine("/memcopy WORK Overwrite");
+        PushLine("/memory copy WORK Overwrite");
         PickYes();
         PushLine("/exit");
 
@@ -6552,12 +6577,12 @@ public partial class ChatScreenTests : IDisposable
     }
 
     [Fact]
-    public async Task MemCopy_IntoTheDefault_FromAnotherProfile()
+    public async Task MemoryCopy_IntoTheDefault_FromAnotherProfile()
     {
         WorkProfile();
         _memory.Add("Their name is Chris.");
         PushLine("/profile work");
-        PushLine("/memcopy default");
+        PushLine("/memory copy default");
         PickYes();
         PushLine("/exit");
 
@@ -6568,13 +6593,13 @@ public partial class ChatScreenTests : IDisposable
     }
 
     [Fact]
-    public async Task MemCopy_No_Keeps()
+    public async Task MemoryCopy_No_Keeps()
     {
         WorkProfile();
         _memory.Add("Their name is Chris.");
-        PushLine("/memcopy work");
+        PushLine("/memory copy work");
         _console.Input.PushKey(Keys.Enter);   // No is on the cursor
-        PushLine("/memcopy work overwrite");
+        PushLine("/memory copy work overwrite");
         _console.Input.PushKey(Keys.Escape);
         PushLine("/exit");
 
@@ -6585,39 +6610,38 @@ public partial class ChatScreenTests : IDisposable
     }
 
     [Fact]
-    public async Task MemCopy_Refusals_AreOneLineEach_AndAskNothing()
+    public async Task MemoryCopy_Refusals_AreOneLineEach_AndAskNothing()
     {
         WorkProfile();
-        PushLine("/memcopy");
-        PushLine("/memcopy work now");
-        PushLine("/memcopy work overwrite please");
-        PushLine("/memcopy ghost");
-        PushLine("/memcopy default");
-        PushLine("/memcopy work");   // nothing stored here yet
+        PushLine("/memory copy");
+        PushLine("/memory copy work now");
+        PushLine("/memory copy work overwrite please");
+        PushLine("/memory copy ghost");
+        PushLine("/memory copy default");
+        PushLine("/memory copy work");   // nothing stored here yet
         PushLine("/exit");
 
         string output = await RunAsync();
 
-        Assert.Equal(3, output.Split("  ✗ " + ChatScreen.MemCopyUsageError).Length - 1);
+        Assert.Equal(3, output.Split("  ✗ " + ChatScreen.MemoryUsageError).Length - 1);   // the three malformed lines are the /memory usage line since the fold
         Assert.Contains("  ✗ " + ChatScreen.ProfileMissingError("ghost"), output);
-        Assert.Contains("  ✗ " + ChatScreen.MemCopySelfError, output);
-        Assert.Contains("  · " + ChatScreen.MemCopyNothingNotice, output);
+        Assert.Contains("  ✗ " + ChatScreen.MemoryCopySelfError, output);
+        Assert.Contains("  · " + ChatScreen.MemoryCopyNothingNotice, output);
         Assert.DoesNotContain("Copy ", output);
         Assert.Equal(new[] { "They like tea." }, new MemoryStore(ProfileDir("work")).Snapshot());
     }
 
     [Fact]
-    public void MemCopyText_IsPinned()
+    public void MemoryCopyText_IsPinned()
     {
-        Assert.Equal("/memcopy takes a profile name, and overwrite to replace its memory: /memcopy <profile> [overwrite]", ChatScreen.MemCopyUsageError);
-        Assert.Equal("/memcopy copies into another profile; that one is loaded.", ChatScreen.MemCopySelfError);
-        Assert.Equal("(nothing to copy: this profile has no memory)", ChatScreen.MemCopyNothingNotice);
-        Assert.Equal("Copy 12 memories into \"work\"?", ChatScreen.MemCopyPrompt(12, "work", overwrite: false));
-        Assert.Equal("Replace \"work\"'s memory with these 12 memories?", ChatScreen.MemCopyPrompt(12, "work", overwrite: true));
-        Assert.Equal("(12 memories copied into \"work\")", ChatScreen.MemCopiedNotice(new MemoryImportResult(12, 0, 0), "work", overwrite: false));
-        Assert.Equal("(9 memories copied into \"work\", 3 already there, 2 dropped: its memory is full)", ChatScreen.MemCopiedNotice(new MemoryImportResult(9, 3, 2), "work", overwrite: false));
-        Assert.Equal("(replaced \"work\"'s memory with 12 memories)", ChatScreen.MemCopiedNotice(new MemoryImportResult(12, 0, 0), "work", overwrite: true));
-        Assert.Equal("Could not write the profile's memory: x", ChatScreen.MemCopyFailedError("x"));
+        Assert.Equal("/memory copy copies into another profile; that one is loaded.", ChatScreen.MemoryCopySelfError);
+        Assert.Equal("(nothing to copy: this profile has no memory)", ChatScreen.MemoryCopyNothingNotice);
+        Assert.Equal("Copy 12 memories into \"work\"?", ChatScreen.MemoryCopyPrompt(12, "work", overwrite: false));
+        Assert.Equal("Replace \"work\"'s memory with these 12 memories?", ChatScreen.MemoryCopyPrompt(12, "work", overwrite: true));
+        Assert.Equal("(12 memories copied into \"work\")", ChatScreen.MemoryCopiedNotice(new MemoryImportResult(12, 0, 0), "work", overwrite: false));
+        Assert.Equal("(9 memories copied into \"work\", 3 already there, 2 dropped: its memory is full)", ChatScreen.MemoryCopiedNotice(new MemoryImportResult(9, 3, 2), "work", overwrite: false));
+        Assert.Equal("(replaced \"work\"'s memory with 12 memories)", ChatScreen.MemoryCopiedNotice(new MemoryImportResult(12, 0, 0), "work", overwrite: true));
+        Assert.Equal("Could not write the profile's memory: x", ChatScreen.MemoryCopyFailedError("x"));
         Assert.Equal("overwrite", ChatScreen.OverwriteWord);
     }
 
@@ -8310,9 +8334,9 @@ public partial class ChatScreenTests : IDisposable
     }
 
     [Theory]
-    [InlineData(false, false, 11)]
-    [InlineData(true, false, 12)]
-    [InlineData(true, true, 13)]
+    [InlineData(false, false, 12)]
+    [InlineData(true, false, 13)]
+    [InlineData(true, true, 14)]
     public void KeyRows_ListWhatApplies(bool voiceOn, bool wakeReady, int count)
     {
         var rows = ChatScreen.KeyRows(voiceOn, ConsoleKey.F8, wakeReady, "hey neon");
@@ -8320,11 +8344,12 @@ public partial class ChatScreenTests : IDisposable
         // The user's rows (2026-09-16), the PgUp/PgDn row after Home/End (the transcript scroll, 2026-09-17); the Mouse, Drag, Drop, @, # and $ rows went and Ctrl+Home / Ctrl+End came above Alt+V later on 2026-09-20 (the user's list); the push-to-talk key and the wake phrase between PgUp/PgDn and Ctrl+Home while they apply.
         Assert.Equal(count, rows.Length);
         Assert.Equal(("Enter", "send the line · change/update a setting"), rows[0]);
-        Assert.Equal(("ESC", "stop the speech · clear the line · cancel the reply · back out of a menu"), rows[1]);
-        Assert.Equal(("Up / Down", "earlier lines · the draft's rows when it wraps · scroll in menus"), rows[2]);   // the row moves 2026-09-21
-        Assert.Equal(("Left / Right", "change tabs in menus · hold Shift to select text"), rows[3]);
-        Assert.Equal(("Home / End", "hold Shift to select text to the beginning or end of the line starting from the cursor"), rows[4]);
-        Assert.Equal(("PgUp / PgDn", "scroll the transcript a page at a time"), rows[5]);
+        Assert.Equal(("Ctrl+Enter", "new line in the message"), rows[1]);   // 2026-09-22
+        Assert.Equal(("ESC", "stop the speech · clear the line · cancel the reply · back out of a menu"), rows[2]);
+        Assert.Equal(("Up / Down", "earlier lines · the draft's rows when it wraps · scroll in menus"), rows[3]);   // the row moves 2026-09-21
+        Assert.Equal(("Left / Right", "change tabs in menus · hold Shift to select text"), rows[4]);
+        Assert.Equal(("Home / End", "hold Shift to select text to the beginning or end of the line starting from the cursor"), rows[5]);
+        Assert.Equal(("PgUp / PgDn", "scroll the transcript a page at a time"), rows[6]);
         Assert.DoesNotContain(rows, r => r.Key is "Mouse" or "Drag" or "Drop" or "@" or "#" or "$");
         Assert.Equal(("Ctrl+Home", "scroll to top of the chat pane"), rows[^5]);
         Assert.Equal(("Ctrl+End", "scroll to bottom of the chat pane"), rows[^4]);
@@ -8334,13 +8359,13 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(voiceOn, rows.Any(r => r.Key == "F8"));
         if (voiceOn)
         {
-            Assert.Equal(("F8", "talk (push-to-talk key)"), rows[6]);
+            Assert.Equal(("F8", "talk (push-to-talk key)"), rows[7]);
         }
 
         Assert.Equal(wakeReady, rows.Any(r => r.Key == "say \"hey neon\""));
         if (wakeReady)
         {
-            Assert.Equal(("say \"hey neon\"", "talk without a key; during a spoken reply, cut it short (/interrupt)"), rows[7]);
+            Assert.Equal(("say \"hey neon\"", "talk without a key; during a spoken reply, cut it short (/interrupt)"), rows[8]);
         }
         Assert.DoesNotContain(rows, r => r.Key.Contains("Ctrl+Q") || r.Meaning.Contains("Ctrl+Q"));
     }
@@ -8371,7 +8396,7 @@ public partial class ChatScreenTests : IDisposable
         }
 
         Assert.Equal(lines.Length, line);
-        Assert.Equal(53, lines.Length);   // 45 commands + 8 blank rows: /forget went 2026-09-22, its wipe now /memory forget; /cmdlist under /cmdcopy later on 2026-09-21; /cmdcopy under /memcopy 2026-09-21; /loop under /draft 2026-09-21; /git under /emptytrash 2026-09-21; /mcp under /tools 2026-09-20; /splash under /new later still on 2026-09-19; /draft under /copy since 2026-09-19; nine groups since later on 2026-09-19 (/skills + /learn under /sessions, /window under /view, /timer under /help); 39 + 10 with /tools under /settings that morning (38 + 10 since the three tool switches went, 2026-09-18)
+        Assert.Equal(52, lines.Length);   // 44 commands + 8 blank rows: /forget went 2026-09-22, its wipe now /memory forget, and /memcopy later that day, its copy now /memory copy; /cmdlist under /cmdcopy later on 2026-09-21; /cmdcopy under /memcopy 2026-09-21; /loop under /draft 2026-09-21; /git under /emptytrash 2026-09-21; /mcp under /tools 2026-09-20; /splash under /new later still on 2026-09-19; /draft under /copy since 2026-09-19; nine groups since later on 2026-09-19 (/skills + /learn under /sessions, /window under /view, /timer under /help); 39 + 10 with /tools under /settings that morning (38 + 10 since the three tool switches went, 2026-09-18)
         Assert.StartsWith(HelpRow("/settings, //", "edit and save settings"), lines[0]);
         Assert.StartsWith(HelpRow("/profile", "switch profiles, or /profile <name> | add <name> | delete <name> | rename <name> <new-name> | reset [name] | edit | reload"), lines[1]);   // the user's order since 2026-09-22: the profile and its sessions ahead of the tool panes
         Assert.StartsWith(HelpRow("/sessions", "list, restore and purge sessions: /sessions [<id> | purge <id> | purge older <age> | purge all | title <text>]"), lines[2]);   // under /profile since later on 2026-09-18
@@ -8394,26 +8419,25 @@ public partial class ChatScreenTests : IDisposable
         Assert.True(string.IsNullOrWhiteSpace(lines[22]));
         Assert.StartsWith(HelpRow("/interrupt", "toggle the speech input wake word interrupt, or /interrupt on|off"), lines[26]);
         Assert.True(string.IsNullOrWhiteSpace(lines[27]));
-        Assert.StartsWith(HelpRow("/memory", "list and prune memory items, or /memory forget to forget them all"), lines[28]);
+        Assert.StartsWith(HelpRow("/memory", "list and prune memory items, or /memory forget | copy <profile> [overwrite]"), lines[28]);   // the copy word folded in later on 2026-09-22 and /memcopy's row went, every row under it one up
         Assert.StartsWith(HelpRow("/remember", "add a memory: /remember <text>"), lines[29]);
-        Assert.StartsWith(HelpRow("/memcopy", "copy this profile's memory into another: /memcopy <profile> [overwrite]"), lines[30]);   // 2026-09-17
-        Assert.StartsWith(HelpRow("/cmdcopy", "copy this profile's allowed shell commands into another: /cmdcopy <profile> [overwrite]"), lines[31]);   // 2026-09-21
-        Assert.StartsWith(HelpRow("/cmdlist", "list this profile's allowed shell commands on a pane, Enter removes one"), lines[32]);   // later on 2026-09-21
-        Assert.StartsWith(HelpRow("/tree", "print a tree of the working directory's folders and files, or /tree <path>"), lines[35]);
-        Assert.StartsWith(HelpRow("/emptytrash", "empty the working directory's .trash for good (asks first)"), lines[37]);
-        Assert.StartsWith(HelpRow("/git", "write the Git native email and Git native name settings into the working directory's repository: /git user [force]"), lines[38]);   // 2026-09-21
-        Assert.True(string.IsNullOrWhiteSpace(lines[39]));
+        Assert.StartsWith(HelpRow("/cmdcopy", "copy this profile's allowed shell commands into another: /cmdcopy <profile> [overwrite]"), lines[30]);   // 2026-09-21
+        Assert.StartsWith(HelpRow("/cmdlist", "list this profile's allowed shell commands on a pane, Enter removes one"), lines[31]);   // later on 2026-09-21
+        Assert.StartsWith(HelpRow("/tree", "print a tree of the working directory's folders and files, or /tree <path>"), lines[34]);
+        Assert.StartsWith(HelpRow("/emptytrash", "empty the working directory's .trash for good (asks first)"), lines[36]);
+        Assert.StartsWith(HelpRow("/git", "write the Git native email and Git native name settings into the working directory's repository: /git user [force]"), lines[37]);   // 2026-09-21
+        Assert.True(string.IsNullOrWhiteSpace(lines[38]));
         // /speak and /view: a group of their own (the user's call, 2026-09-17); /window (/windowsize until then) under /view since later on 2026-09-19.
-        Assert.StartsWith(HelpRow("/speak", "read a text file from the working directory aloud, as a reply: /speak <file> [n], or /speak to resume, or /speak <n> from sentence n"), lines[40]);
-        Assert.StartsWith(HelpRow("/echo", "print a line as a reply and read it aloud when speech is on: /echo <text>"), lines[41]);
-        Assert.StartsWith(HelpRow("/view", "show an image from the working directory in the transcript, as large as the window allows: /view <image>"), lines[42]);
-        Assert.StartsWith(HelpRow("/window", "show the terminal window's width and height"), lines[43]);
-        Assert.True(string.IsNullOrWhiteSpace(lines[44]));
-        Assert.StartsWith(HelpRow("/persona", "export and manage persona.md (the personality) in your editor, or /persona reset to go back to the default, or /persona copy <profile> [force] to copy it into another profile"), lines[45]);   // copy 2026-09-21
-        Assert.True(string.IsNullOrWhiteSpace(lines[48]));
-        Assert.StartsWith(HelpRow("/timer", "list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all"), lines[49]);   // the bottom group's first row since later still on 2026-09-19 (under /help from earlier that day)
-        Assert.StartsWith(HelpRow("/help", "show help"), lines[50]);   // the bottom group since 2026-09-16, above /about; under /timer since later still on 2026-09-19
-        Assert.StartsWith(HelpRow("/about", "show general information about the app and profile"), lines[51]);
+        Assert.StartsWith(HelpRow("/speak", "read a text file from the working directory aloud, as a reply: /speak <file> [n], or /speak to resume, or /speak <n> from sentence n"), lines[39]);
+        Assert.StartsWith(HelpRow("/echo", "print a line as a reply and read it aloud when speech is on: /echo <text>"), lines[40]);
+        Assert.StartsWith(HelpRow("/view", "show an image from the working directory in the transcript, as large as the window allows: /view <image>"), lines[41]);
+        Assert.StartsWith(HelpRow("/window", "show the terminal window's width and height"), lines[42]);
+        Assert.True(string.IsNullOrWhiteSpace(lines[43]));
+        Assert.StartsWith(HelpRow("/persona", "export and manage persona.md (the personality) in your editor, or /persona reset to go back to the default, or /persona copy <profile> [force] to copy it into another profile"), lines[44]);   // copy 2026-09-21
+        Assert.True(string.IsNullOrWhiteSpace(lines[47]));
+        Assert.StartsWith(HelpRow("/timer", "list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all"), lines[48]);   // the bottom group's first row since later still on 2026-09-19 (under /help from earlier that day)
+        Assert.StartsWith(HelpRow("/help", "show help"), lines[49]);   // the bottom group since 2026-09-16, above /about; under /timer since later still on 2026-09-19
+        Assert.StartsWith(HelpRow("/about", "show general information about the app and profile"), lines[50]);
         Assert.StartsWith(HelpRow("/exit", "exit/quit the application"), lines[^1]);   // the very last row since 2026-09-16
         Assert.DoesNotContain("/windowsize", Output);
         Assert.DoesNotContain("(also", Output);
@@ -9520,7 +9544,6 @@ public partial class ChatScreenTests : IDisposable
     [InlineData(SlashCommand.Splash, false, MidTurnClass.Cancel)]   // 2026-09-19
     [InlineData(SlashCommand.Exit, false, MidTurnClass.Cancel)]
     [InlineData(SlashCommand.Profile, true, MidTurnClass.Refused)]
-    [InlineData(SlashCommand.MemCopy, true, MidTurnClass.Refused)]
     [InlineData(SlashCommand.CmdCopy, true, MidTurnClass.Refused)]   // 2026-09-21
     [InlineData(SlashCommand.Server, false, MidTurnClass.Refused)]
     [InlineData(SlashCommand.Model, false, MidTurnClass.Refused)]
@@ -10459,6 +10482,37 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains("\n" + Titled("Forget 2 memories?") + "\n \n▸ No\n  Yes\n", output);
         Assert.Contains("  · " + ChatScreen.ForgotNotice(2), output);
         Assert.Equal(0, _memory.Count);
+        Assert.DoesNotContain(ChatScreen.CancelledNotice, output);
+        Assert.Single(_chat.Requests);
+    }
+
+    /// <summary>
+    /// /memory copy under a reply (2026-09-22, the fold's call): a pane like /memory forget's, where
+    /// the standalone /memcopy was refused — the copy writes another profile's file, nothing the turn holds.
+    /// </summary>
+    [Fact]
+    public async Task MidTurn_MemoryCopy_AsksOnThePane_YesCopiesAfterTheAnswer()
+    {
+        WorkProfile();   // work holds "They like tea."
+        _memory.Add("Their name is Chris.");
+        MidTurnFixture(i =>
+        {
+            if (i == 1)
+            {
+                PushLine("/memory copy work");
+            }
+            else if (i == 2)
+            {
+                Scripted().Push(Keys.Down, Keys.Enter);
+            }
+        });
+
+        string output = await RunAsync();
+
+        Assert.Contains("\n" + Titled("Copy 1 memory into \"work\"?") + "\n \n▸ No\n  Yes\n", output);
+        Assert.Contains("  · " + ChatScreen.MemoryCopiedNotice(new MemoryImportResult(1, 0, 0), "work", overwrite: false), output);
+        Assert.Equal(new[] { "They like tea.", "Their name is Chris." }, new MemoryStore(ProfileDir("work")).Snapshot());
+        Assert.DoesNotContain(ChatScreen.MidTurnRefusedNotice("/memory"), output);
         Assert.DoesNotContain(ChatScreen.CancelledNotice, output);
         Assert.Single(_chat.Requests);
     }
@@ -14786,24 +14840,27 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(ChatScreen.LoadedProfileNote, ChatScreen.ArgumentItems("/profile", "", sources)[1].Note);
         Assert.Equal(ChatScreen.SwitchToProfileNote, ChatScreen.ArgumentItems("/profile", "", sources)[2].Note);
         Assert.Equal(ChatScreen.ProfileVerbs[1], ChatScreen.ArgumentItems("/profile", "del", sources)[0]);
-        Assert.Equal(["delete chef", "delete default", "delete work"], Texts(ChatScreen.ArgumentItems("/profile", "delete ", sources)));
+        Assert.Equal(["delete chef", "delete work"], Texts(ChatScreen.ArgumentItems("/profile", "delete ", sources)));   // default never (2026-09-22)
         Assert.Equal(["rename work"], Texts(ChatScreen.ArgumentItems("/profile", "rename w", sources)));
         Assert.Equal(["reset chef"], Texts(ChatScreen.ArgumentItems("/profile", "reset c", sources)));
+        Assert.Equal(["reset chef", "reset default", "reset work"], Texts(ChatScreen.ArgumentItems("/profile", "reset ", sources)));   // default loaded: it may reset itself
+        Assert.Equal(["reset chef", "reset work"], Texts(ChatScreen.ArgumentItems("/profile", "reset ", Sources(loaded: "work"))));   // but not from another profile (2026-09-22)
+        Assert.Equal(["delete chef", "delete work"], Texts(ChatScreen.ArgumentItems("/profile", "delete ", Sources(loaded: "work"))));   // delete never lists it (2026-09-22)
         Assert.Empty(ChatScreen.ArgumentItems("/profile", "add ", sources));          // a new name is free text
         Assert.Empty(ChatScreen.ArgumentItems("/profile", "edit ", sources));         // edit and reload take nothing
         Assert.Empty(ChatScreen.ArgumentItems("/profile", "reload ", sources));
         Assert.Empty(ChatScreen.ArgumentItems("/profile", "rename work ", sources));  // so is the new name
         Assert.Empty(ChatScreen.ArgumentItems("/profile", "work", sources));
 
-        // /memcopy: every profile but the loaded one (the source), then <name> overwrite (2026-09-17).
-        Assert.Equal([new CompletionItem("chef", ChatScreen.MemCopyTargetNote), new CompletionItem("work", ChatScreen.MemCopyTargetNote)], ChatScreen.ArgumentItems("/memcopy", "", sources));
-        Assert.Equal(["work"], Texts(ChatScreen.ArgumentItems("/memcopy", "w", sources)));
-        Assert.Empty(ChatScreen.ArgumentItems("/memcopy", "work", sources));   // typed in full: Enter sends
-        Assert.Equal([new CompletionItem("work overwrite", ChatScreen.MemCopyOverwriteNote)], ChatScreen.ArgumentItems("/memcopy", "work ", sources));
-        Assert.Equal(["work overwrite"], Texts(ChatScreen.ArgumentItems("/memcopy", "WORK ov", sources)));
-        Assert.Empty(ChatScreen.ArgumentItems("/memcopy", "work overwrite", sources));
-        Assert.Empty(ChatScreen.ArgumentItems("/memcopy", "default ", sources));   // not a target: the source
-        Assert.Equal(["chef", "default", "work"], Texts(ChatScreen.ArgumentItems("/memcopy", "", Sources(loaded: "other"))));
+        // /memory copy: every profile but the loaded one (the source), then copy <name> overwrite (2026-09-17 as /memcopy, the word folded in 2026-09-22).
+        Assert.Equal([new CompletionItem("copy chef", ChatScreen.MemoryCopyTargetNote), new CompletionItem("copy work", ChatScreen.MemoryCopyTargetNote)], ChatScreen.ArgumentItems("/memory", "copy ", sources));
+        Assert.Equal(["copy work"], Texts(ChatScreen.ArgumentItems("/memory", "copy w", sources)));
+        Assert.Empty(ChatScreen.ArgumentItems("/memory", "copy work", sources));   // typed in full: Enter sends
+        Assert.Equal([new CompletionItem("copy work overwrite", ChatScreen.MemoryCopyOverwriteNote)], ChatScreen.ArgumentItems("/memory", "copy work ", sources));
+        Assert.Equal(["copy work overwrite"], Texts(ChatScreen.ArgumentItems("/memory", "COPY WORK ov", sources)));
+        Assert.Empty(ChatScreen.ArgumentItems("/memory", "copy work overwrite", sources));
+        Assert.Empty(ChatScreen.ArgumentItems("/memory", "copy default ", sources));   // not a target: the source
+        Assert.Equal(["copy chef", "copy default", "copy work"], Texts(ChatScreen.ArgumentItems("/memory", "copy ", Sources(loaded: "other"))));
 
         // /cmdcopy: the same shape, its own notes (2026-09-21).
         Assert.Equal([new CompletionItem("chef", ChatScreen.CmdCopyTargetNote), new CompletionItem("work", ChatScreen.CmdCopyTargetNote)], ChatScreen.ArgumentItems("/cmdcopy", "", sources));
@@ -14883,8 +14940,9 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal("every reply", ChatScreen.CopyAllNote);
         Assert.Equal("switch to it", ChatScreen.SwitchToProfileNote);
         Assert.Equal("the loaded profile", ChatScreen.LoadedProfileNote);
-        Assert.Equal("copy this profile's memory into it", ChatScreen.MemCopyTargetNote);
-        Assert.Equal("replace its memory instead of adding to it", ChatScreen.MemCopyOverwriteNote);
+        Assert.Equal("copy every memory into another profile", ChatScreen.MemoryCopyNote);   // 2026-09-22
+        Assert.Equal("copy this profile's memory into it", ChatScreen.MemoryCopyTargetNote);
+        Assert.Equal("replace its memory instead of adding to it", ChatScreen.MemoryCopyOverwriteNote);
         Assert.Equal("copy this profile's allowed commands into it", ChatScreen.CmdCopyTargetNote);   // 2026-09-21
         Assert.Equal("replace its allowed commands instead of adding to it", ChatScreen.CmdCopyOverwriteNote);
         Assert.Equal("remove persona.md and go back to the default", ChatScreen.PromptFileResetNote("persona.md"));

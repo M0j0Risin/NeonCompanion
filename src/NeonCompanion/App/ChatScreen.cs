@@ -172,10 +172,12 @@ public enum QueueAction
 }
 
 /// <summary>
-/// What a <c>/memory</c> line asks for (2026-09-22, the user's ask: <c>/forget</c> folded into
-/// <c>/memory</c> as a word, and the standalone command went). The <see cref="QueueAction"/> shape.
+/// What a <c>/memory</c> line asks for (2026-09-22, the user's ask, twice: <c>/forget</c> folded
+/// into <c>/memory</c> as a word that morning, <c>/memcopy</c> as <c>copy &lt;profile&gt;
+/// [overwrite]</c> later that day, and both standalone commands went). The <see cref="QueueAction"/>
+/// shape until the copy brought a target with it; <see cref="ProfileActionKind"/>'s since.
 /// </summary>
-public enum MemoryAction
+public enum MemoryActionKind
 {
     /// <summary>Nothing: the pane, one row per memory.</summary>
     List,
@@ -183,9 +185,15 @@ public enum MemoryAction
     /// <summary><c>forget</c>: every memory erased, after the confirmation <c>/forget</c> asked.</summary>
     Forget,
 
+    /// <summary><c>copy &lt;profile&gt; [overwrite]</c>: every memory into another profile's, after the confirmation <c>/memcopy</c> asked.</summary>
+    Copy,
+
     /// <summary>Anything else; <see cref="ChatScreen.MemoryUsageError"/>.</summary>
     Invalid,
 }
+
+/// <summary>The parsed <c>/memory</c> argument; <paramref name="Profile"/> and <paramref name="Overwrite"/> are set by <see cref="MemoryActionKind.Copy"/> alone.</summary>
+public readonly record struct MemoryAction(MemoryActionKind Kind, string Profile = "", bool Overwrite = false);
 
 /// <summary>
 /// The interactive chat: connect, read a line, dispatch a command or run a turn, repeat. Owns the
@@ -364,11 +372,13 @@ internal sealed partial class ChatScreen
     public const string QueueClearNote = "drop every queued message";
     public const string QueueUsageError = "/queue lists the queued messages; /queue clear drops them all.";
 
-    // The /memory grammar's word, its note on the argument list and the usage error (2026-09-22,
-    // the user's ask: the wipe was the standalone /forget until then). The /queue trio's shape. Pinned.
+    // The /memory grammar's words, their notes on the argument list and the usage error (2026-09-22,
+    // the user's ask: the wipe was the standalone /forget, and the copy the standalone /memcopy, until
+    // that day). The /queue trio's shape; the copy's words are CopyWord and OverwriteWord, shared with
+    // the prompt files and /cmdcopy. Pinned.
     public const string MemoryForgetWord = "forget";
     public const string MemoryForgetNote = "forget every memory";
-    public const string MemoryUsageError = "/memory lists the memories; /memory forget forgets them all.";
+    public const string MemoryUsageError = "/memory lists the memories, /memory forget forgets them all, and /memory copy <profile> [overwrite] copies them into another profile.";
 
     /// <summary>The <c>/copy</c> word for every exchange.</summary>
     public const string CopyAllWord = "all";
@@ -1119,12 +1129,14 @@ internal sealed partial class ChatScreen
     /// key and the wake phrase appear only while they apply, after <c>PgUp / PgDn</c> and before <c>Ctrl+Home</c>.
     /// The Mouse, Drag, Drop, <c>@</c>, <c>#</c> and <c>$</c> rows went and the Ctrl+Home / Ctrl+End rows came
     /// later on 2026-09-20, the user's list; six rows reworded shorter the same day, the user's words.
+    /// Ctrl+Enter after Enter (2026-09-22): a line break in the draft (<see cref="Keys.IsLineBreak"/>).
     /// </summary>
     public static (string Key, string Meaning)[] KeyRows(bool voiceOn, ConsoleKey pushToTalk, bool wakeReady, string wakePhrase)
     {
         var rows = new List<(string, string)>
         {
             ("Enter", "send the line · change/update a setting"),
+            ("Ctrl+Enter", "new line in the message"),
             ("ESC", "stop the speech · clear the line · cancel the reply · back out of a menu"),
             ("Up / Down", "earlier lines · the draft's rows when it wraps · scroll in menus"),
             ("Left / Right", "change tabs in menus · hold Shift to select text"),
@@ -1417,13 +1429,36 @@ internal sealed partial class ChatScreen
             : QueueAction.Invalid;
     }
 
-    /// <summary>The <c>/memory</c> grammar, pure (2026-09-22): nothing ⇒ the pane; <c>forget</c> (ignoring case) ⇒ the wipe, after its confirmation; anything else ⇒ invalid.</summary>
+    /// <summary>
+    /// The <c>/memory</c> grammar, pure (2026-09-22): nothing ⇒ the pane; <c>forget</c> ⇒ the wipe,
+    /// after its confirmation; <c>copy &lt;profile&gt;</c>, and <c>overwrite</c> after it, ⇒ the copy
+    /// into that profile, after its own (later that day, the user's ask: what <c>/memcopy</c> did).
+    /// Every word folds case, and the profile is passed on as typed — <see cref="Profiles.Resolve"/>
+    /// is the one that judges a name. Anything else ⇒ invalid.
+    /// </summary>
     public static MemoryAction ParseMemoryArgs(string args)
     {
-        string text = (args ?? "").Trim();
-        return text.Length == 0 ? MemoryAction.List
-            : text.Equals(MemoryForgetWord, StringComparison.OrdinalIgnoreCase) ? MemoryAction.Forget
-            : MemoryAction.Invalid;
+        string[] words = (args ?? "").Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length == 0)
+        {
+            return new(MemoryActionKind.List);
+        }
+
+        if (words.Length == 1 && words[0].Equals(MemoryForgetWord, StringComparison.OrdinalIgnoreCase))
+        {
+            return new(MemoryActionKind.Forget);
+        }
+
+        if (words[0].Equals(CopyWord, StringComparison.OrdinalIgnoreCase) && words.Length is 2 or 3)
+        {
+            bool overwrite = words.Length == 3 && words[2].Equals(OverwriteWord, StringComparison.OrdinalIgnoreCase);
+            if (words.Length == 2 || overwrite)
+            {
+                return new(MemoryActionKind.Copy, words[1], overwrite);
+            }
+        }
+
+        return new(MemoryActionKind.Invalid);
     }
 
     /// <summary>
@@ -2225,11 +2260,12 @@ internal sealed partial class ChatScreen
         _sessions.List(0).Select(session => new CompletionItem(SessionText.Id(session.Id), SessionNote(session, _sessionId))).ToList();
     public const string LoadedProfileNote = "the loaded profile";
 
-    /// <summary>The <c>/memcopy</c> list's notes: a target profile, then <c>&lt;name&gt; overwrite</c>. Pinned.</summary>
-    public const string MemCopyTargetNote = "copy this profile's memory into it";
-    public const string MemCopyOverwriteNote = "replace its memory instead of adding to it";
+    /// <summary>The <c>/memory copy</c> list's notes: the word, then a target profile, then <c>copy &lt;name&gt; overwrite</c>. Pinned.</summary>
+    public const string MemoryCopyNote = "copy every memory into another profile";
+    public const string MemoryCopyTargetNote = "copy this profile's memory into it";
+    public const string MemoryCopyOverwriteNote = "replace its memory instead of adding to it";
 
-    /// <summary>The <c>/cmdcopy</c> notes (2026-09-21), the shape of the <c>/memcopy</c> pair.</summary>
+    /// <summary>The <c>/cmdcopy</c> notes (2026-09-21), the shape of the <c>/memory copy</c> pair.</summary>
     public const string CmdCopyTargetNote = "copy this profile's allowed commands into it";
     public const string CmdCopyOverwriteNote = "replace its allowed commands instead of adding to it";
 
@@ -2296,7 +2332,15 @@ internal sealed partial class ChatScreen
                     if (argText.StartsWith(verb.Text + " ", StringComparison.OrdinalIgnoreCase))
                     {
                         // The second level: the verb with each name; rename's new name is free text.
-                        return MentionCompleter.Matches(sources.Profiles().Select(name => new CompletionItem(verb.Text + " " + name, ProfileNote(name, sources.LoadedProfile))).ToList(), argText);
+                        // reset leaves default out unless it is the loaded one (2026-09-22, Profiles.ResetRefusal);
+                        // delete leaves it out always (later that day, the user's call: it can never be deleted).
+                        var names = sources.Profiles().Where(name => verb.Text switch
+                        {
+                            ResetWord => Profiles.ResetRefusal(name, sources.LoadedProfile) is null,
+                            "delete" => !Profiles.IsDefault(name),
+                            _ => true,
+                        });
+                        return MentionCompleter.Matches(names.Select(name => new CompletionItem(verb.Text + " " + name, ProfileNote(name, sources.LoadedProfile))).ToList(), argText);
                     }
                 }
 
@@ -2339,21 +2383,20 @@ internal sealed partial class ChatScreen
                 return MentionCompleter.Matches([new("stop", TimerStopNote)], argText);
             }
 
-            case SlashCommand.MemCopy or SlashCommand.CmdCopy:
+            case SlashCommand.CmdCopy:
             {
                 // Every profile but the loaded one (the source); after a name and a space, the one word that replaces.
-                // /cmdcopy (2026-09-21) shares the grammar, its own notes.
-                bool memory = kind == SlashCommand.MemCopy;
+                // /memcopy had the grammar from 2026-09-17 until it became /memory copy on 2026-09-22, and this branch was the pair's.
                 var targets = sources.Profiles().Where(name => !Profiles.NameEquals(name, sources.LoadedProfile)).ToList();
                 foreach (var name in targets)
                 {
                     if (argText.StartsWith(name + " ", StringComparison.OrdinalIgnoreCase))
                     {
-                        return MentionCompleter.Matches([new(name + " " + OverwriteWord, memory ? MemCopyOverwriteNote : CmdCopyOverwriteNote)], argText);
+                        return MentionCompleter.Matches([new(name + " " + OverwriteWord, CmdCopyOverwriteNote)], argText);
                     }
                 }
 
-                return MentionCompleter.Matches(targets.Select(name => new CompletionItem(name, memory ? MemCopyTargetNote : CmdCopyTargetNote)).ToList(), argText);
+                return MentionCompleter.Matches(targets.Select(name => new CompletionItem(name, CmdCopyTargetNote)).ToList(), argText);
             }
 
             case SlashCommand.Cwd:
@@ -2369,7 +2412,26 @@ internal sealed partial class ChatScreen
                 return MentionCompleter.Matches([new(QueueClearWord, QueueClearNote)], argText);
 
             case SlashCommand.Memory:
-                return MentionCompleter.Matches([new(MemoryForgetWord, MemoryForgetNote)], argText);
+            {
+                // forget or copy; after "copy " every profile but the loaded one; after "copy <name> " the
+                // overwrite word (2026-09-22, the prompt files' branch below, which /memcopy's fold follows).
+                if (argText.StartsWith(CopyWord + " ", StringComparison.OrdinalIgnoreCase))
+                {
+                    string rest = argText[(CopyWord.Length + 1)..].TrimStart();
+                    var targets = sources.Profiles().Where(name => !Profiles.NameEquals(name, sources.LoadedProfile)).ToList();
+                    foreach (var name in targets)
+                    {
+                        if (rest.StartsWith(name + " ", StringComparison.OrdinalIgnoreCase))
+                        {
+                            return MentionCompleter.Matches([new(CopyWord + " " + name + " " + OverwriteWord, MemoryCopyOverwriteNote)], argText);
+                        }
+                    }
+
+                    return MentionCompleter.Matches(targets.Select(name => new CompletionItem(CopyWord + " " + name, MemoryCopyTargetNote)).ToList(), argText);
+                }
+
+                return MentionCompleter.Matches([new(MemoryForgetWord, MemoryForgetNote), new(CopyWord, MemoryCopyNote)], argText);
+            }
 
             case SlashCommand.Persona or SlashCommand.Operata or SlashCommand.Vocalia:
             {
@@ -2977,7 +3039,7 @@ internal sealed partial class ChatScreen
         // The memories last (2026-09-17): the freshest context before the first reply, where a
         // first-turn question finds them — a list far back in the system prompt went unread. The
         // result is kept current the cwd way, so a save_memory, /remember, /memory, /memory forget or
-        // /memcopy since the first message is in the next request. Memory switched on
+        // /memory copy since the first message is in the next request. Memory switched on
         // mid-conversation seeds nothing (as File tools does); the model has the tool.
         var recall = memoryEnabled ? memoryTools.OfType<RecallMemoryTool>().FirstOrDefault() : null;
         if (recall is not null)
@@ -3182,7 +3244,7 @@ internal sealed partial class ChatScreen
     /// target is named as <c>/profile</c> resolves it and is never the loaded one; no file here is a notice
     /// (the default is in use, nothing to copy); a file already there is an error unless <c>force</c> (the
     /// user's rule: a hand-written text, no trash); either way the copy asks first (the user's call, like
-    /// <c>/memcopy</c>). <c>force</c> on a target without the file is a plain copy, and reads as one.
+    /// <c>/memory copy</c>). <c>force</c> on a target without the file is a plain copy, and reads as one.
     /// </summary>
     private async Task CopyPromptFileAsync(PromptFile file, string command, string typed, bool force, CancellationToken cancellationToken)
     {
@@ -3363,26 +3425,24 @@ internal sealed partial class ChatScreen
         _draftReplay = DraftFile.Events(normalized);
     }
 
-    // ── /memcopy (2026-09-17) ───────────────────────────────────────────────
+    // ── /memory copy (2026-09-17 as /memcopy, the word folded in 2026-09-22) ─
 
-    /// <summary>The second word of <c>/memcopy</c> that replaces the target's memory instead of adding to it.</summary>
+    /// <summary>The last word of <c>/memory copy</c> and <c>/cmdcopy</c> that replaces the target's list instead of adding to it.</summary>
     public const string OverwriteWord = "overwrite";
 
-    public const string MemCopyUsageError = "/memcopy takes a profile name, and overwrite to replace its memory: /memcopy <profile> [overwrite]";
+    public const string MemoryCopySelfError = "/memory copy copies into another profile; that one is loaded.";
 
-    public const string MemCopySelfError = "/memcopy copies into another profile; that one is loaded.";
-
-    public const string MemCopyNothingNotice = "(nothing to copy: this profile has no memory)";
+    public const string MemoryCopyNothingNotice = "(nothing to copy: this profile has no memory)";
 
     /// <summary>The question before a copy (the yes/no pane's title; <see cref="TypedConfirm"/> where menus cannot open). Pinned.</summary>
-    public static string MemCopyPrompt(int count, string profile, bool overwrite) =>
+    public static string MemoryCopyPrompt(int count, string profile, bool overwrite) =>
         overwrite ? $"Replace \"{profile}\"'s memory with these {Memories(count)}?" : $"Copy {Memories(count)} into \"{profile}\"?";
 
     /// <summary>
     /// <c>(12 memories copied into "work")</c>; <c>(9 memories copied into "work", 3 already there, 2 dropped: its memory is full)</c>;
     /// an overwrite reads <c>replaced "work"'s memory with 12 memories</c>. Pinned.
     /// </summary>
-    public static string MemCopiedNotice(MemoryImportResult result, string profile, bool overwrite)
+    public static string MemoryCopiedNotice(MemoryImportResult result, string profile, bool overwrite)
     {
         var sb = new StringBuilder("(");
         sb.Append(overwrite ? $"replaced \"{profile}\"'s memory with {Memories(result.Added)}" : $"{Memories(result.Added)} copied into \"{profile}\"");
@@ -3399,15 +3459,8 @@ internal sealed partial class ChatScreen
         return sb.Append(')').ToString();
     }
 
-    public static string MemCopyFailedError(string detail) => $"Could not write the profile's memory: {detail}";
+    public static string MemoryCopyFailedError(string detail) => $"Could not write the profile's memory: {detail}";
 
-    /// <summary>
-    /// <c>/memcopy &lt;profile&gt; [overwrite]</c>: this profile's memory into another's, after a
-    /// confirmation either way (the user's call). The target is named as <c>/profile</c> resolves
-    /// it; <c>default</c> is an ordinary target, so any profile can push into it and it into any.
-    /// Appending skips what the target already holds (<see cref="MemoryStore.Import"/>); the
-    /// <c>Memory</c> switch has no say (a file operation, like <c>/memory forget</c>).
-    /// </summary>
     // ── /sessions (2026-09-18) ──────────────────────────────────────────────
 
     public const string SessionUsageError = "/sessions lists the sessions, or /sessions <id> | purge <id> | purge older <age> | purge all | title <text>";
@@ -3704,55 +3757,61 @@ internal sealed partial class ChatScreen
         }
     }
 
-    private async Task HandleMemCopyAsync(string args, CancellationToken cancellationToken)
+    /// <summary>
+    /// <c>/memory copy &lt;profile&gt; [overwrite]</c> (<c>/memcopy</c>, its own command, from
+    /// 2026-09-17 until the word folded in on 2026-09-22): this profile's memory into another's,
+    /// after a confirmation either way (the user's call). The target is named as <c>/profile</c>
+    /// resolves it; <c>default</c> is an ordinary target, so any profile can push into it and it
+    /// into any. Appending skips what the target already holds (<see cref="MemoryStore.Import"/>);
+    /// the <c>Memory</c> switch has no say (a file operation, like <c>/memory forget</c>). Asked
+    /// under a reply the copy runs there (the fold's call: every <c>/memory</c> form is a pane
+    /// mid-turn, and this one only writes another profile's file), so the lines go through
+    /// <see cref="_flow"/> and the write lands on the turn task, as <see cref="ForgetAsync"/>'s does.
+    /// </summary>
+    private async Task CopyMemoryAsync(string typed, bool overwrite, CancellationToken cancellationToken)
     {
-        string[] words = args.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-        bool overwrite = words.Length == 2 && string.Equals(words[1], OverwriteWord, StringComparison.OrdinalIgnoreCase);
-        if (words.Length == 0 || words.Length > 2 || (words.Length == 2 && !overwrite))
-        {
-            _transcript.Error(MemCopyUsageError);
-            return;
-        }
-
         string home = _settings.StorageDirectory;
-        if (Profiles.Resolve(home, words[0]) is not { } target)
+        if (Profiles.Resolve(home, typed) is not { } target)
         {
-            _transcript.Error(ProfileMissingError(words[0]));
+            _flow.Error(ProfileMissingError(typed));
             return;
         }
 
         if (Profiles.NameEquals(target, _settings.ProfileName))
         {
-            _transcript.Error(MemCopySelfError);
+            _flow.Error(MemoryCopySelfError);
             return;
         }
 
         var entries = _memory.EntriesSnapshot();
         if (entries.Count == 0)
         {
-            _flow.Notice(MemCopyNothingNotice);
+            _flow.Notice(MemoryCopyNothingNotice);
             return;
         }
 
-        if (!await ConfirmAsync(MemCopyPrompt(entries.Count, target, overwrite), cancellationToken).ConfigureAwait(false))
+        if (!await ConfirmAsync(MemoryCopyPrompt(entries.Count, target, overwrite), cancellationToken).ConfigureAwait(false))
         {
             _flow.Notice(KeptNotice);
             return;
         }
 
-        try
+        RunOrPost(() =>
         {
-            var result = new MemoryStore(Profiles.Directory(home, target)).Import(entries, overwrite);
-            _transcript.Notice(MemCopiedNotice(result, target, overwrite));
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            _transcript.Error(MemCopyFailedError(ex.Message));
-        }
-        finally
-        {
-            DrainDiagnostics();
-        }
+            try
+            {
+                var result = new MemoryStore(Profiles.Directory(home, target)).Import(entries, overwrite);
+                _transcript.Notice(MemoryCopiedNotice(result, target, overwrite));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _transcript.Error(MemoryCopyFailedError(ex.Message));
+            }
+            finally
+            {
+                DrainDiagnostics();
+            }
+        });
     }
 
     private static string Memories(int count) => count == 1 ? "1 memory" : $"{count.ToString(System.Globalization.CultureInfo.InvariantCulture)} memories";
@@ -3791,7 +3850,7 @@ internal sealed partial class ChatScreen
     /// <summary>
     /// <c>/cmdcopy &lt;profile&gt; [overwrite]</c> (2026-09-21, the user's ask): this profile's
     /// <c>Shell allowed commands</c> — the prefixes allowed for good on the approval pane — into
-    /// another's, the grammar, the confirmation and the append-or-replace of <c>/memcopy</c>. The
+    /// another's, the grammar, the confirmation and the append-or-replace of <c>/memory copy</c>. The
     /// target's <c>profile.json</c> is read whole (<see cref="Profiles.ReadProfileFile"/>: a corrupt
     /// one is an error, never overwritten), the one field changed, the file written back
     /// (<see cref="Profiles.WriteProfileFile"/>); the loaded profile is never the target, so no
@@ -6254,9 +6313,6 @@ internal sealed partial class ChatScreen
                 await HandleProfileAsync(args, cancellationToken).ConfigureAwait(false);
                 return false;
 
-            case SlashCommand.MemCopy:
-                await HandleMemCopyAsync(args, cancellationToken).ConfigureAwait(false);
-                return false;
             case SlashCommand.CmdCopy:
                 await HandleCmdCopyAsync(args, cancellationToken).ConfigureAwait(false);
                 return false;
@@ -6726,8 +6782,8 @@ internal sealed partial class ChatScreen
 
     /// <summary>
     /// <c>/profile reset [name]</c>: the loaded profile when <paramref name="name"/> is empty, else the
-    /// named one (<c>default</c> allowed — the one profile that can never be deleted can still start
-    /// over). The prompt says the settings alone go back (the memories and the three prompt files stay, 2026-09-20); a typed <c>y</c> resets
+    /// named one — but <c>default</c> only while it is the loaded one (2026-09-22, the user's call:
+    /// <see cref="Profiles.ResetRefusal"/>; another profile cannot wipe it). The prompt says the settings alone go back (the memories and the three prompt files stay, 2026-09-20); a typed <c>y</c> resets
     /// through the store (<see cref="AppSettings.ResetProfileAsync"/>: the pending save flushed first
     /// when it is the loaded one, then the defaults reloaded). The loaded profile then takes the
     /// switch's tail — rebind, a cleared conversation, a fresh screen, the reconnects — under the
@@ -6748,6 +6804,12 @@ internal sealed partial class ChatScreen
         else
         {
             _transcript.Error(ProfileMissingError(name));
+            return;
+        }
+
+        if (Profiles.ResetRefusal(target, _settings.ProfileName) is { } refusal)
+        {
+            _transcript.Error(refusal);
             return;
         }
 
@@ -6865,23 +6927,28 @@ internal sealed partial class ChatScreen
     }
 
     /// <summary>
-    /// <c>/memory</c> (2026-09-22, the user's ask): bare, the list pane; <c>forget</c>, the wipe the
-    /// standalone <c>/forget</c> did, confirmation and all; anything else <see cref="MemoryUsageError"/>.
-    /// The one method both dispatches call — the idle line's and the mid-turn pane phase's — so the
-    /// word behaves the same under a reply; the error goes through <see cref="_flow"/> for that
-    /// reason, as <see cref="EmptyTrashAsync"/>'s does.
+    /// <c>/memory</c> (2026-09-22, the user's ask, twice): bare, the list pane; <c>forget</c>, the
+    /// wipe the standalone <c>/forget</c> did, confirmation and all; <c>copy &lt;profile&gt;
+    /// [overwrite]</c>, the copy the standalone <c>/memcopy</c> did, confirmation and all; anything
+    /// else <see cref="MemoryUsageError"/>. The one method both dispatches call — the idle line's
+    /// and the mid-turn pane phase's — so every word behaves the same under a reply; the error goes
+    /// through <see cref="_flow"/> for that reason, as <see cref="EmptyTrashAsync"/>'s does.
     /// </summary>
     private async Task HandleMemoryAsync(string args, CancellationToken cancellationToken)
     {
         switch (ParseMemoryArgs(args))
         {
-            case MemoryAction.List:
+            case { Kind: MemoryActionKind.List }:
                 await _memoryMenu.ShowAsync(cancellationToken).ConfigureAwait(false);
                 DrainDiagnostics();
                 break;
 
-            case MemoryAction.Forget:
+            case { Kind: MemoryActionKind.Forget }:
                 await ForgetAsync(cancellationToken).ConfigureAwait(false);
+                break;
+
+            case { Kind: MemoryActionKind.Copy } copy:
+                await CopyMemoryAsync(copy.Profile, copy.Overwrite, cancellationToken).ConfigureAwait(false);
                 break;
 
             default:

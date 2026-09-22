@@ -95,6 +95,41 @@ public class InputLineTests : IDisposable
         Assert.Equal("  a", await SubmitAsync());
     }
 
+    /// <summary>Ctrl+Enter on the chat line (2026-09-22) types a line break, never a send; the next Enter sends both lines.</summary>
+    [Fact]
+    public async Task CtrlEnter_OnTheChatLine_BreaksTheLine_AndEnterSendsIt()
+    {
+        Type("a");
+        Push(Keys.CtrlEnter);
+        Type("b");
+        Push(Keys.Enter);
+
+        var submitted = Assert.IsType<InputResult.Submitted>(await _line.ReadAsync(multiline: true));
+        Assert.Equal("a\nb", submitted.Text);
+        Assert.Equal(new[] { "a\nb" }, _line.History);
+    }
+
+    [Fact]
+    public async Task CtrlEnter_ReplacesTheSelection()
+    {
+        Type("ab");
+        Push(Keys.Shift(ConsoleKey.LeftArrow), Keys.CtrlEnter);
+        Type("c");
+        Push(Keys.Enter);
+
+        Assert.Equal("a\nc", Assert.IsType<InputResult.Submitted>(await _line.ReadAsync(multiline: true)).Text);
+    }
+
+    /// <summary>A field that is not multi-line (a settings slot) takes Ctrl+Enter as Enter.</summary>
+    [Fact]
+    public async Task CtrlEnter_OnAField_Submits()
+    {
+        Type("a");
+        Push(Keys.CtrlEnter);
+
+        Assert.Equal("a", await SubmitAsync());
+    }
+
     [Fact]
     public async Task Escape_WithText_ClearsAndKeepsReading()
     {

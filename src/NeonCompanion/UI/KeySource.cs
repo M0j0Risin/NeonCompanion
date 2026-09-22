@@ -80,7 +80,8 @@ public sealed class KeySource : IAnsiConsoleInput
     /// <summary>
     /// The text a run of typed-ahead events reads as, as one line: printable characters in order,
     /// Backspace taking the last one back; null when the run holds a paste (a pasted line is
-    /// never a mid-turn command — it is type-ahead for the input line, which lays a paste out).
+    /// never a mid-turn command — it is type-ahead for the input line, which lays a paste out) or a
+    /// typed line break (Ctrl+Enter, 2026-09-22: a message of several lines is no command either).
     /// The Enter that ends the run is not part of it. Pinned.
     /// </summary>
     public static string? LineText(IEnumerable<InputEvent> events)
@@ -89,7 +90,7 @@ public sealed class KeySource : IAnsiConsoleInput
         var text = new System.Text.StringBuilder();
         foreach (var e in events)
         {
-            if (e is InputEvent.Paste)
+            if (e is InputEvent.Paste || (e is InputEvent.Key { Info: var b } && Keys.IsLineBreak(b)))
             {
                 return null;
             }
@@ -122,7 +123,7 @@ public sealed class KeySource : IAnsiConsoleInput
     /// <summary>
     /// What a run of typed-ahead events reads as: printable characters in order, Backspace taking
     /// the last one back, and only the text after the last Enter (the lines before it are sent
-    /// first, one per read). A paste is its normalised text when the line will show it as text,
+    /// first, one per read); a Ctrl+Enter is a <c>'\n'</c> in the line, never its end (2026-09-22). A paste is its normalised text when the line will show it as text,
     /// else <see cref="PastePreview"/>-shaped (<c>[Pasted text +49 lines]</c>: the line numbers it
     /// when it lands), unbreakable as on the line (<paramref name="labels"/> says where those
     /// stand); Backspace takes a whole paste back. Pinned.
@@ -167,6 +168,11 @@ public sealed class KeySource : IAnsiConsoleInput
                 }
 
                 text.Append(k.KeyChar);
+            }
+            else if (Keys.IsLineBreak(k))
+            {
+                elements.Add((text.Length, 1, false));
+                text.Append('\n');
             }
             else if (k.Key == ConsoleKey.Enter)
             {
@@ -214,7 +220,7 @@ public sealed class KeySource : IAnsiConsoleInput
     public static string LineLabel(IReadOnlyList<InputEvent> line)
     {
         ArgumentNullException.ThrowIfNull(line);
-        int count = line.Count > 0 && line[^1] is InputEvent.Key { Info.Key: ConsoleKey.Enter } ? line.Count - 1 : line.Count;
+        int count = line.Count > 0 && line[^1] is InputEvent.Key { Info: var last } && Keys.IsSend(last) ? line.Count - 1 : line.Count;
         string text = PreviewText(line.Take(count), out _);
         return text.Replace("\r\n", " ", StringComparison.Ordinal).Replace('\n', ' ').Replace('\r', ' ').Replace(' ', ' ');
     }
@@ -496,7 +502,7 @@ public sealed class KeySource : IAnsiConsoleInput
 
                     _buffer.Enqueue(e);
                     Preview();
-                    if (onLine is not null && e is InputEvent.Key { Info.Key: ConsoleKey.Enter })
+                    if (onLine is not null && e is InputEvent.Key { Info: var sent } && Keys.IsSend(sent))
                     {
                         var line = TakeLastLine();
                         if (!await ServiceAsync(LinePhase(onLine, new WatchedLine(LineText(line), line), line), stop, null).ConfigureAwait(false))
@@ -694,7 +700,7 @@ public sealed class KeySource : IAnsiConsoleInput
     {
         var all = _buffer.ToArray();
         int start = all.Length - 1;
-        while (start > 0 && all[start - 1] is not InputEvent.Key { Info.Key: ConsoleKey.Enter })
+        while (start > 0 && !(all[start - 1] is InputEvent.Key { Info: var ended } && Keys.IsSend(ended)))
         {
             start--;
         }

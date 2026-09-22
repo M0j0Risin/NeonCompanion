@@ -241,7 +241,7 @@ public sealed class MemoryStore
     }
 
     /// <summary>
-    /// Another store's entries into this one (<c>/memcopy</c>, 2026-09-17): appended after what is
+    /// Another store's entries into this one (<c>/memory copy</c>, 2026-09-17 as <c>/memcopy</c>): appended after what is
     /// here, or — <paramref name="overwrite"/> — in place of it. Each text is normalised like an
     /// <see cref="Add"/>; one that is already in the list (this store's, or an earlier entry of the
     /// batch, ignoring case) is a duplicate and skipped; past <see cref="MaxEntries"/> the rest are

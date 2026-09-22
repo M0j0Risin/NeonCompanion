@@ -353,6 +353,16 @@ public class ProfilesTests : IDisposable
         Assert.Equal(Profiles.CurrentUnrenamable("Work"), Profiles.RenameRefusal("Work", "work"));
         Assert.Null(Profiles.RenameRefusal("other", "work"));
     }
+
+    [Fact]
+    public void ResetRefusal_GuardsTheDefaultFromAnotherProfile_Only()
+    {
+        Assert.Equal(Profiles.DefaultUnresettable, Profiles.ResetRefusal("Default", "work"));
+        Assert.Null(Profiles.ResetRefusal("DEFAULT", "default"));   // the default resets itself
+        Assert.Null(Profiles.ResetRefusal("Work", "work"));         // the loaded one may reset
+        Assert.Null(Profiles.ResetRefusal("work", "default"));      // and any other from anywhere
+        Assert.Equal("The default profile can only be reset while it is loaded.", Profiles.DefaultUnresettable);
+    }
     [Fact]
     public void CreateDeleteRename_EachLogOneLine()
     {

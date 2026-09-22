@@ -57,6 +57,9 @@ public static class Profiles
     /// <summary>Why <c>default</c> cannot be deleted. Pinned.</summary>
     public const string DefaultUndeletable = "The default profile cannot be deleted.";
 
+    /// <summary>Why <c>default</c> cannot be reset from another profile (2026-09-22). Pinned.</summary>
+    public const string DefaultUnresettable = "The default profile can only be reset while it is loaded.";
+
     /// <summary>Why the loaded profile cannot be deleted. Pinned.</summary>
     public static string CurrentUndeletable(string name) =>
         $"\"{name}\" is the current profile; switch to another (/profile <name>) before deleting it.";
@@ -349,6 +352,15 @@ public static class Profiles
 
         return null;
     }
+
+    /// <summary>
+    /// Why <paramref name="name"/> may not be reset while <paramref name="current"/> is loaded, or
+    /// null when it may: the default only from itself (2026-09-22, the user's call — another
+    /// profile cannot wipe the default's settings; <c>/profile reset</c> while it is loaded still
+    /// can). Every other profile resets from anywhere.
+    /// </summary>
+    public static string? ResetRefusal(string name, string current) =>
+        IsDefault(name) && !NameEquals(name, current) ? DefaultUnresettable : null;
 
     /// <summary>
     /// Moves the profile's directory — and everything in it: <c>profile.json</c>, the companion's

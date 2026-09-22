@@ -80,7 +80,9 @@ public abstract record InputResult
 /// more than one row and the caret is not on the first (Up) or last (Down) row, they move the caret
 /// a row instead (2026-09-21, the user's ask; <see cref="ScreenPane.TryStepInputRow"/>), keeping
 /// the column of the first press as a goal across the run, Shift extending the selection, and a line
-/// just recalled from the history walks on until it is edited; Enter submits; <b>ESC clears the line, and on an
+/// just recalled from the history walks on until it is edited; Enter submits, and on the chat line
+/// (<c>multiline</c>) Ctrl+Enter types a line break instead (2026-09-22, <see cref="Keys.IsLineBreak"/>;
+/// a field takes it as Enter); <b>ESC clears the line, and on an
 /// empty line reports <see cref="InputResult.Cancelled"/> — it never quits</b>; no single key does (the
 /// chat line's <c>softEscape</c> hook is asked first, so a spoken tail is stopped ahead of both).
 /// Ctrl+C (since 2026-09-17) copies the selection when there is one, else asks the chat line's
@@ -650,6 +652,11 @@ public sealed class InputLine
                 bool shift = (k.Modifiers & ConsoleModifiers.Shift) != 0;
                 switch (k.Key)
                 {
+                    case ConsoleKey.Enter when multiline && Keys.IsLineBreak(k):
+                        // Ctrl+Enter (2026-09-22): a line break in the draft, as a pasted one is.
+                        Insert("\n");
+                        break;
+
                     case ConsoleKey.Enter:
                     {
                         // The draft keeps its tokens (the history recalls them); what is sent has the

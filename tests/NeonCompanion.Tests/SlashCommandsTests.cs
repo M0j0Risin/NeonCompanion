@@ -29,8 +29,6 @@ public class SlashCommandsTests
     [InlineData("/remember", SlashCommand.Remember)]
     [InlineData("/memory", SlashCommand.Memory)]
     [InlineData("/MEMORY", SlashCommand.Memory)]
-    [InlineData("/memcopy", SlashCommand.MemCopy)]
-    [InlineData("/MemCopy", SlashCommand.MemCopy)]
     [InlineData("/cmdcopy", SlashCommand.CmdCopy)]
     [InlineData("/CmdCopy", SlashCommand.CmdCopy)]
     [InlineData("/persona", SlashCommand.Persona)]
@@ -120,17 +118,19 @@ public class SlashCommandsTests
     }
 
     [Fact]
-    public void Parse_MemCopyTakesTheRestOfTheLine()
+    public void Parse_MemoryTakesTheRestOfTheLine()
     {
-        Assert.Equal((SlashCommand.MemCopy, "work"), SlashCommands.Parse("/memcopy work"));
-        Assert.Equal((SlashCommand.MemCopy, "work overwrite"), SlashCommands.Parse("/memcopy  work overwrite "));
-        Assert.Equal((SlashCommand.MemCopy, ""), SlashCommands.Parse("/memcopy"));
+        // 2026-09-22: forget that morning, then copy <profile> [overwrite] — the grammar /memcopy had, folded in; the words are the handler's to judge.
+        Assert.Equal((SlashCommand.Memory, ""), SlashCommands.Parse("/memory"));
+        Assert.Equal((SlashCommand.Memory, "forget"), SlashCommands.Parse("/memory  forget "));
+        Assert.Equal((SlashCommand.Memory, "copy work"), SlashCommands.Parse("/memory copy work"));
+        Assert.Equal((SlashCommand.Memory, "copy work overwrite"), SlashCommands.Parse("/MEMORY  copy work overwrite "));
     }
 
     [Fact]
     public void Parse_CmdCopyTakesTheRestOfTheLine()
     {
-        // 2026-09-21: the /memcopy grammar for the allowed shell commands.
+        // 2026-09-21: the grammar /memcopy had then (/memory copy since 2026-09-22), for the allowed shell commands.
         Assert.Equal((SlashCommand.CmdCopy, "work"), SlashCommands.Parse("/cmdcopy work"));
         Assert.Equal((SlashCommand.CmdCopy, "work overwrite"), SlashCommands.Parse("/cmdcopy  work overwrite "));
         Assert.Equal((SlashCommand.CmdCopy, ""), SlashCommands.Parse("/cmdcopy"));
@@ -338,6 +338,8 @@ public class SlashCommandsTests
     [InlineData("/session")]   // /sessions took the word later on 2026-09-21
     [InlineData("/forget")]   // folded into /memory as a word on 2026-09-22; the standalone command went with it
     [InlineData("/forget everything")]
+    [InlineData("/memcopy")]   // folded into /memory as copy <profile> [overwrite] later on 2026-09-22; the standalone command went the same way
+    [InlineData("/memcopy work")]
     [InlineData("/")]
     [InlineData("/bogus")]
     [InlineData("/config")]   // retired 2026-09-16
@@ -380,7 +382,7 @@ public class SlashCommandsTests
             SlashCommand.Tts, SlashCommand.Voice, SlashCommand.Wake, SlashCommand.Interrupt, SlashCommand.Speak, SlashCommand.View, SlashCommand.Echo,
             SlashCommand.Learn,
             SlashCommand.Persona, SlashCommand.Operata, SlashCommand.Vocalia,
-            SlashCommand.Remember, SlashCommand.Memory, SlashCommand.MemCopy, SlashCommand.CmdCopy, SlashCommand.Profile, SlashCommand.Timer,   // /cmdcopy 2026-09-21; /memory 2026-09-22 (forget)
+            SlashCommand.Remember, SlashCommand.Memory, SlashCommand.CmdCopy, SlashCommand.Profile, SlashCommand.Timer,   // /cmdcopy 2026-09-21; /memory 2026-09-22 (forget, then copy <profile> [overwrite], the folded /memcopy)
             SlashCommand.Cwd, SlashCommand.Tree, SlashCommand.Explore, SlashCommand.Copy, SlashCommand.Session, SlashCommand.Git,
             SlashCommand.Loop, SlashCommand.Skills, SlashCommand.Queue,   // 2026-09-21 (/queue clear later that day)
         ];
@@ -509,8 +511,7 @@ public class SlashCommandsTests
         Assert.Contains(Row("/wake", "toggle the speech input wake word, or /wake on|off"), SlashCommands.HelpText);
         Assert.Contains(Row("/interrupt", "toggle the speech input wake word interrupt, or /interrupt on|off"), SlashCommands.HelpText);
         Assert.Contains(Row("/remember", "add a memory: /remember <text>"), SlashCommands.HelpText);
-        Assert.Contains(Row("/memory", "list and prune memory items, or /memory forget to forget them all"), SlashCommands.HelpText);   // the forget word folded in 2026-09-22, and /forget's row went
-        Assert.Contains(Row("/memcopy", "copy this profile's memory into another: /memcopy <profile> [overwrite]"), SlashCommands.HelpText);
+        Assert.Contains(Row("/memory", "list and prune memory items, or /memory forget | copy <profile> [overwrite]"), SlashCommands.HelpText);   // the forget word folded in 2026-09-22 and /forget's row went, the copy word later that day and /memcopy's row with it
         Assert.Contains(Row("/cmdcopy", "copy this profile's allowed shell commands into another: /cmdcopy <profile> [overwrite]"), SlashCommands.HelpText);   // 2026-09-21
         Assert.Contains(Row("/cwd", "show or change the working directory, or /cwd <path> | ~ | browse"), SlashCommands.HelpText);
         Assert.Contains(Row("/tree", "print a tree of the working directory's folders and files, or /tree <path>"), SlashCommands.HelpText);
@@ -558,8 +559,8 @@ public class SlashCommandsTests
         // from 2026-09-15 — gone later on 2026-09-18, /sessions under /profile and /copy under /queue the same day; later still on
         // 2026-09-19 /skills + /learn under /sessions, /windowsize → /window under /view, /timer under /help); the flat list is
         // the groups end to end.
-        Assert.Equal(new[] { 7, 6, 7, 4, 5, 5, 4, 3, 4 }, SlashCommands.HelpGroups.Select(g => g.Count));   // the memory group lost /forget on 2026-09-22, its wipe now /memory forget   // /cmdlist under /cmdcopy later on 2026-09-21   // /cmdcopy under /memcopy since 2026-09-21   // /loop under /draft since 2026-09-21   // /git under /emptytrash since 2026-09-21   // /mcp under /tools since 2026-09-20   // /learn under /skill since 2026-09-17; /skills folded into /skill 2026-09-18; /tools under /settings 2026-09-19; /draft under /copy later that day; /splash under /new later still
-        Assert.Equal(45, SlashCommands.HelpEntries.Count);   // 45 since /forget went (2026-09-22); 46 with /cmdlist (later on 2026-09-21), 45 with /cmdcopy, 44 with /loop, 43 with /git (2026-09-21)
+        Assert.Equal(new[] { 7, 6, 7, 4, 4, 5, 4, 3, 4 }, SlashCommands.HelpGroups.Select(g => g.Count));   // the memory group lost /forget on 2026-09-22, its wipe now /memory forget, and /memcopy later that day, its copy now /memory copy   // /cmdlist under /cmdcopy later on 2026-09-21   // /cmdcopy under /memcopy since 2026-09-21   // /loop under /draft since 2026-09-21   // /git under /emptytrash since 2026-09-21   // /mcp under /tools since 2026-09-20   // /learn under /skill since 2026-09-17; /skills folded into /skill 2026-09-18; /tools under /settings 2026-09-19; /draft under /copy later that day; /splash under /new later still
+        Assert.Equal(44, SlashCommands.HelpEntries.Count);   // 44 since /memcopy went (later on 2026-09-22), 45 since /forget went that morning; 46 with /cmdlist (later on 2026-09-21), 45 with /cmdcopy, 44 with /loop, 43 with /git (2026-09-21)
         Assert.Equal(SlashCommands.HelpGroups.SelectMany(g => g), SlashCommands.HelpEntries);
         // /help moved to the bottom group above /about, and /memory heads its group (the user's call, 2026-09-16).
         Assert.Equal(["/settings", "/profile", "/sessions", "/tools", "/mcp", "/skills", "/learn"], SlashCommands.HelpGroups[0].Select(e => e.Command));   // the user's order since 2026-09-22: the profile and its sessions ahead of the tool panes (/tools + /mcp led them from 2026-09-19); /sessions under /profile since later on 2026-09-18; /skills + /learn under /sessions since later on 2026-09-19
@@ -594,37 +595,36 @@ public class SlashCommandsTests
         Assert.Equal("repeat a message, each reply waited for: /loop <count> <message> | infinite <message> (ESC ends it)", SlashCommands.HelpEntries[19].Summary);
         Assert.Equal("/tts", SlashCommands.HelpEntries[20].Command);
         Assert.Equal(["/tts", "/stt", "/wake", "/interrupt"], SlashCommands.HelpGroups[3].Select(e => e.Command));
-        Assert.Equal(["/memory", "/remember", "/memcopy", "/cmdcopy", "/cmdlist"], SlashCommands.HelpGroups[4].Select(e => e.Command));   // /forget went 2026-09-22, folded into /memory as a word   // /cmdlist last since later on 2026-09-21; /cmdcopy last from earlier that day until then; /memcopy last from 2026-09-17 until then
+        Assert.Equal(["/memory", "/remember", "/cmdcopy", "/cmdlist"], SlashCommands.HelpGroups[4].Select(e => e.Command));   // /forget went 2026-09-22, folded into /memory as a word, and /memcopy later that day, folded in as copy <profile> [overwrite] — every row under it one up   // /cmdlist last since later on 2026-09-21; /cmdcopy last from earlier that day until then; /memcopy last from 2026-09-17 until then
         Assert.Equal("/memory", SlashCommands.HelpEntries[24].Command);
-        Assert.Equal("list and prune memory items, or /memory forget to forget them all", SlashCommands.HelpEntries[24].Summary);   // the forget word folded in 2026-09-22
+        Assert.Equal("list and prune memory items, or /memory forget | copy <profile> [overwrite]", SlashCommands.HelpEntries[24].Summary);   // the forget word folded in 2026-09-22, the copy one later that day
         Assert.Equal("add a memory: /remember <text>", SlashCommands.HelpEntries[25].Summary);
-        Assert.Equal("copy this profile's memory into another: /memcopy <profile> [overwrite]", SlashCommands.HelpEntries[26].Summary);
-        Assert.Equal("/cmdcopy", SlashCommands.HelpEntries[27].Command);   // 2026-09-21: every row under it one down
-        Assert.Equal("copy this profile's allowed shell commands into another: /cmdcopy <profile> [overwrite]", SlashCommands.HelpEntries[27].Summary);
-        Assert.Equal("/cmdlist", SlashCommands.HelpEntries[28].Command);   // later on 2026-09-21: every row under it one down again
-        Assert.Equal("list this profile's allowed shell commands on a pane, Enter removes one", SlashCommands.HelpEntries[28].Summary);
-        Assert.Equal("/cwd", SlashCommands.HelpEntries[29].Command);
+        Assert.Equal("/cmdcopy", SlashCommands.HelpEntries[26].Command);   // 2026-09-21: every row under it one down
+        Assert.Equal("copy this profile's allowed shell commands into another: /cmdcopy <profile> [overwrite]", SlashCommands.HelpEntries[26].Summary);
+        Assert.Equal("/cmdlist", SlashCommands.HelpEntries[27].Command);   // later on 2026-09-21: every row under it one down again
+        Assert.Equal("list this profile's allowed shell commands on a pane, Enter removes one", SlashCommands.HelpEntries[27].Summary);
+        Assert.Equal("/cwd", SlashCommands.HelpEntries[28].Command);
         Assert.Equal(["/cwd", "/tree", "/explore", "/emptytrash", "/git"], SlashCommands.HelpGroups[5].Select(e => e.Command));   // /git last since 2026-09-21
-        Assert.Equal("/emptytrash", SlashCommands.HelpEntries[32].Command);
-        Assert.Equal("/git", SlashCommands.HelpEntries[33].Command);   // the working-directory group's last row (2026-09-21)
-        Assert.Equal("write the Git native email and Git native name settings into the working directory's repository: /git user [force]", SlashCommands.HelpEntries[33].Summary);
+        Assert.Equal("/emptytrash", SlashCommands.HelpEntries[31].Command);
+        Assert.Equal("/git", SlashCommands.HelpEntries[32].Command);   // the working-directory group's last row (2026-09-21)
+        Assert.Equal("write the Git native email and Git native name settings into the working directory's repository: /git user [force]", SlashCommands.HelpEntries[32].Summary);
         // /speak and /view: a group of their own (the user's call, 2026-09-17); /window under /view since later on 2026-09-19.
         Assert.Equal(["/speak", "/echo", "/view", "/window"], SlashCommands.HelpGroups[6].Select(e => e.Command));   // /echo between them, later on 2026-09-17
-        Assert.Equal("/speak", SlashCommands.HelpEntries[34].Command);
-        Assert.Equal("read a text file from the working directory aloud, as a reply: /speak <file> [n], or /speak to resume, or /speak <n> from sentence n", SlashCommands.HelpEntries[34].Summary);
-        Assert.Equal("/echo", SlashCommands.HelpEntries[35].Command);
-        Assert.Equal("print a line as a reply and read it aloud when speech is on: /echo <text>", SlashCommands.HelpEntries[35].Summary);
-        Assert.Equal("/view", SlashCommands.HelpEntries[36].Command);
-        Assert.Equal("show an image from the working directory in the transcript, as large as the window allows: /view <image>", SlashCommands.HelpEntries[36].Summary);
-        Assert.Equal("/window", SlashCommands.HelpEntries[37].Command);
-        Assert.Equal("show the terminal window's width and height", SlashCommands.HelpEntries[37].Summary);
-        Assert.Equal("/persona", SlashCommands.HelpEntries[38].Command);
+        Assert.Equal("/speak", SlashCommands.HelpEntries[33].Command);
+        Assert.Equal("read a text file from the working directory aloud, as a reply: /speak <file> [n], or /speak to resume, or /speak <n> from sentence n", SlashCommands.HelpEntries[33].Summary);
+        Assert.Equal("/echo", SlashCommands.HelpEntries[34].Command);
+        Assert.Equal("print a line as a reply and read it aloud when speech is on: /echo <text>", SlashCommands.HelpEntries[34].Summary);
+        Assert.Equal("/view", SlashCommands.HelpEntries[35].Command);
+        Assert.Equal("show an image from the working directory in the transcript, as large as the window allows: /view <image>", SlashCommands.HelpEntries[35].Summary);
+        Assert.Equal("/window", SlashCommands.HelpEntries[36].Command);
+        Assert.Equal("show the terminal window's width and height", SlashCommands.HelpEntries[36].Summary);
+        Assert.Equal("/persona", SlashCommands.HelpEntries[37].Command);
         Assert.Equal(["/persona", "/operata", "/vocalia"], SlashCommands.HelpGroups[7].Select(e => e.Command));
         Assert.Equal(["/timer", "/help", "/about", "/exit"], SlashCommands.HelpGroups[^1].Select(e => e.Command));   // /exit the very last row since 2026-09-16, /help above /about; /timer under /help since later on 2026-09-19, /help under /timer later still that day
-        Assert.Equal("/timer", SlashCommands.HelpEntries[41].Command);
-        Assert.Equal("list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all", SlashCommands.HelpEntries[41].Summary);
-        Assert.Equal("/help", SlashCommands.HelpEntries[42].Command);
-        Assert.Equal("/about", SlashCommands.HelpEntries[43].Command);
+        Assert.Equal("/timer", SlashCommands.HelpEntries[40].Command);
+        Assert.Equal("list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all", SlashCommands.HelpEntries[40].Summary);
+        Assert.Equal("/help", SlashCommands.HelpEntries[41].Command);
+        Assert.Equal("/about", SlashCommands.HelpEntries[42].Command);
         Assert.Equal("/exit", SlashCommands.HelpEntries[^1].Command);
         Assert.DoesNotContain(SlashCommands.HelpEntries, e => e.Command == "/windowsize");
         Assert.DoesNotContain(SlashCommands.HelpEntries, e => e.Command is "/ask" or "/files" or "/web");
@@ -642,7 +642,7 @@ public class SlashCommandsTests
 
         // The plain text is the groups, one line each with a blank line between the groups, between the heading and the key line.
         string[] lines = SlashCommands.HelpText.Split('\n');
-        Assert.Equal(1 + 45 + 8 + 1, lines.Length);   // 45 rows since /forget went (2026-09-22); 46 with /cmdlist (later on 2026-09-21), 45 with /cmdcopy (2026-09-21), 44 with /loop, 43 with /git (2026-09-21); 42 with /mcp (2026-09-20)   // nine groups since later on 2026-09-19; 41 rows with /draft and /splash
+        Assert.Equal(1 + 44 + 8 + 1, lines.Length);   // 44 rows since /memcopy went (later on 2026-09-22), 45 since /forget went that morning; 46 with /cmdlist (later on 2026-09-21), 45 with /cmdcopy (2026-09-21), 44 with /loop, 43 with /git (2026-09-21); 42 with /mcp (2026-09-20)   // nine groups since later on 2026-09-19; 41 rows with /draft and /splash
         Assert.Equal("Commands:", lines[0]);
         Assert.Equal(SlashCommands.KeysLine, lines[^1]);
         var line = 1;

@@ -258,7 +258,7 @@ public class MemoryStoreTests : IDisposable
         Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
     }
 
-    // ── Import (/memcopy, 2026-09-17) ───────────────────────────────────────
+    // ── Import (/memory copy, 2026-09-17 as /memcopy) ───────────────────────
 
     private static MemoryEntry Entry(string text, int day = 1) => new() { Text = text, SavedAt = new DateTimeOffset(2026, 9, day, 0, 0, 0, TimeSpan.Zero) };
 

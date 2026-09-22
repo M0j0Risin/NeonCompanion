@@ -25,6 +25,19 @@ public static class Keys
         && (key.Modifiers & ConsoleModifiers.Control) != 0
         && (key.Modifiers & ConsoleModifiers.Alt) == 0;
 
+    /// <summary>
+    /// Ctrl+Enter: a line break typed into the chat line's draft, never a send (2026-09-22, the
+    /// user's call). The console reports it as Enter with Control held (the character is the LF the
+    /// record carries, not looked at); a plain Enter sends. The type-ahead under a reply
+    /// (<see cref="KeySource"/>) ends a line only on a plain Enter for the same reason, and a field
+    /// that is not multi-line (a settings slot) takes Ctrl+Enter as Enter.
+    /// </summary>
+    public static bool IsLineBreak(ConsoleKeyInfo key) =>
+        key.Key == ConsoleKey.Enter && (key.Modifiers & ConsoleModifiers.Control) != 0;
+
+    /// <summary>A plain Enter (or Shift+Enter, Alt+Enter): the key that sends a line and ends a type-ahead line; Ctrl+Enter is <see cref="IsLineBreak"/>.</summary>
+    public static bool IsSend(ConsoleKeyInfo key) => key.Key == ConsoleKey.Enter && !IsLineBreak(key);
+
     /// <summary>A printable character with no <see cref="ConsoleKey"/> (what a pasted or typed glyph looks like).</summary>
     public static ConsoleKeyInfo Char(char c) => new(c, ConsoleKey.None, false, false, false);
 
@@ -38,6 +51,9 @@ public static class Keys
     public static ConsoleKeyInfo Shift(ConsoleKey key) => new('\0', key, true, false, false);
 
     public static ConsoleKeyInfo Enter => Key(ConsoleKey.Enter);
+
+    /// <summary>Ctrl+Enter as the console delivers it: the LF character with the key and Control (a line break in the draft).</summary>
+    public static ConsoleKeyInfo CtrlEnter => new('\n', ConsoleKey.Enter, false, false, true);
     public static ConsoleKeyInfo Escape => Key(ConsoleKey.Escape);
     public static ConsoleKeyInfo Backspace => Key(ConsoleKey.Backspace);
     public static ConsoleKeyInfo Delete => Key(ConsoleKey.Delete);
