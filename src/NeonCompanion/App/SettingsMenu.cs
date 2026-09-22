@@ -637,7 +637,7 @@ internal sealed class SettingsMenu
     public INoticeSink Flow { get; set; }
 
     /// <summary>When the server lists nothing the voice row falls back to a typed name.</summary>
-    public static string VoicesUnavailableNotice(string detail) => $"The TTS server did not list voices ({detail}); type a voice name.";
+    public static string VoicesUnavailableNotice(string detail) => $"{NoticeGlyphs.Tts}The TTS server did not list voices ({detail}); type a voice name.";
 
     // ── Pinned statics ──────────────────────────────────────────────────────
 
@@ -762,7 +762,7 @@ internal sealed class SettingsMenu
         return "profiles: " + string.Join(", ", names.Select(n => Profiles.NameEquals(n, current) ? n + " (current)" : n));
     }
 
-    public static string AlreadyCurrentNotice(string profileName) => $"(already on profile \"{profileName}\")";
+    public static string AlreadyCurrentNotice(string profileName) => $"({NoticeGlyphs.Profile}already on profile \"{profileName}\")";
 
     /// <summary>The picker's name column: the longest <see cref="LlmServer.PortNames"/> value ("LM Studio" / "llama.cpp") plus two.</summary>
     public const int ServerNameWidth = 11;
@@ -789,7 +789,7 @@ internal sealed class SettingsMenu
     public static string ServerNotAnsweringWarning(Uri baseUrl, string detail) =>
         $"{baseUrl} did not answer /v1/models ({detail}); using it anyway because you asked.";
 
-    public static string SwitchedNotice(string profileName) => $"(switched to profile \"{profileName}\"; conversation cleared)";
+    public static string SwitchedNotice(string profileName) => $"({NoticeGlyphs.Profile}switched to profile \"{profileName}\"; conversation cleared)";
 
     public static bool IsToggle(SettingsField field) =>
         field is SettingsField.TtsOutput or SettingsField.SttInput or SettingsField.SttWake or SettingsField.SttInterrupt

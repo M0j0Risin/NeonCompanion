@@ -147,7 +147,7 @@ public partial class ChatScreenTests
 
         string output = await RunAsync();
 
-        Assert.Contains("(allowed for this session: echo)\n", output);
+        Assert.Contains("(🔓 allowed for this session: echo)\n", output);
         Assert.Contains("cmd › echo hi\n", output);
         Assert.DoesNotContain("cmd › echo again", output);   // the second echo rode the session's allow
         Assert.Equal("exit 0 in 0.0 s (cmd): echo hi\nhi", ToolResult(_chat.Requests[1], "c1"));
@@ -163,7 +163,7 @@ public partial class ChatScreenTests
 
         string output = await RunAsync();
 
-        Assert.Contains("(allowed always: echo — the Shell tab of /tools)\n", output);
+        Assert.Contains("(🔓 allowed always: echo — the Shell tab of /tools)\n", output);
         Assert.Equal(["echo"], _settings.Current.ShellCommandAllowed);
         Assert.Equal("exit 0 in 0.0 s (cmd): echo hi\nhi", ToolResult(_chat.Requests[1], "c1"));
     }
@@ -296,7 +296,7 @@ public partial class ChatScreenTests
         string output = await RunAsync();
 
         Assert.Contains("\n" + Titled(ShellText.ScriptApprovalTitle) + "\npowershell · 2 lines · first line: $d = Invoke-NeonTool get_working_directory\n \n▸ Deny\n  Allow once\n  Allow powershell scripts for this session\n  Allow powershell scripts always (saved to the profile)\n", output);
-        Assert.Contains("(allowed for this session: code:powershell)\n", output);
+        Assert.Contains("(🔓 allowed for this session: code:powershell)\n", output);
         Assert.DoesNotContain("first line: Write-Output again", output);   // the second script rode the session's allow
         string first = ToolResult(_chat.Requests[1], "c1");
         Assert.Equal("exit 0 in 0.0 s (powershell, 1 tool call): $d = Invoke-NeonTool get_working_directory\nseen: True", first);

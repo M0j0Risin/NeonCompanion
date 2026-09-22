@@ -37,7 +37,7 @@ public static class FolderText
     public const int IndentCells = 2;
 
     /// <summary>The transcript's line when the pane closes with nothing picked.</summary>
-    public const string KeptNotice = "Working directory kept.";
+    public const string KeptNotice = App.NoticeGlyphs.Folder + "Working directory kept.";   // the folder since 2026-09-22
 
     /// <summary>The transcript's line for <c>/cwd browse</c> with no pane to open (a redirected console).</summary>
     public const string NeedsPaneNotice = "/cwd browse needs the interactive screen.";

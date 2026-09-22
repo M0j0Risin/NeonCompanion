@@ -137,7 +137,7 @@ public static class McpText
     public const string OffLine = "MCP servers is off (the Options tab)";
 
     /// <summary>The status line's answer to Enter or Space on a server row while the master switch is off (later on 2026-09-20, the user's ask): nothing saved, nothing started.</summary>
-    public const string OffNotice = "MCP servers is off: switch it on under the Options tab first";
+    public const string OffNotice = Glyph + " MCP servers is off: switch it on under the Options tab first";
 
     /// <summary>The Servers tab with nothing configured in either file.</summary>
     public const string NoServersLine = "no MCP server is configured — the edit rows below open mcp.json";
@@ -161,15 +161,15 @@ public static class McpText
     public const string GlobalMark = "(global)";
 
     /// <summary><c>docker: on</c> on the status line after a flip (the /tools shape).</summary>
-    public static string ServerFlippedNotice(string name, bool on) => name + ": " + (on ? "on" : "off");
-    public static string ConnectingNotice(string name) => "connecting " + name + "…";
-    public static string ConnectedNotice(string name, int tools) => name + ": connected, " + Tools(tools);
+    public static string ServerFlippedNotice(string name, bool on) => Glyph + " " + name + ": " + (on ? "on" : "off");
+    public static string ConnectingNotice(string name) => Glyph + " connecting " + name + "…";
+    public static string ConnectedNotice(string name, int tools) => Glyph + " " + name + ": connected, " + Tools(tools);
     public static string FailedNotice(string name, string detail) => name + " failed: " + detail;
-    public static string StoppedNotice(string name) => name + ": stopped";
+    public static string StoppedNotice(string name) => Glyph + " " + name + ": stopped";
     public static string ReloadedNotice(int added, int removed, int kept) =>
-        "reloaded: " + added.ToString(CultureInfo.InvariantCulture) + " added, " + removed.ToString(CultureInfo.InvariantCulture) + " removed, " + kept.ToString(CultureInfo.InvariantCulture) + " kept";
+        Glyph + " reloaded: " + added.ToString(CultureInfo.InvariantCulture) + " added, " + removed.ToString(CultureInfo.InvariantCulture) + " removed, " + kept.ToString(CultureInfo.InvariantCulture) + " kept";
     /// <summary>After an edit row: <c>opened the profile's mcp.json</c> / <c>opened the global mcp.json</c> (the path is long; the row says which).</summary>
-    public static string EditingNotice(bool profile) => "opened the " + (profile ? "profile's" : "global") + " " + McpConfigFile.FileName;
+    public static string EditingNotice(bool profile) => Glyph + " opened the " + (profile ? "profile's" : "global") + " " + McpConfigFile.FileName;
     public static string EditFailedError(string path, string detail) => "could not open " + path + ": " + detail;
 
     // ── The Mcp log lines ───────────────────────────────────────────────────

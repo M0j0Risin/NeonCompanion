@@ -56,7 +56,7 @@ internal sealed class SkillsMenu
     /// <summary>What a declined confirmation says on the status line: the transcript's word.</summary>
     public const string KeptNotice = ChatScreen.KeptNotice;
 
-    public const string ExternalReadOnlyNotice = "(external skills are read only here; move the folder by hand)";
+    public const string ExternalReadOnlyNotice = "(" + NoticeGlyphs.Skill + "external skills are read only here; move the folder by hand)";
 
     /// <summary>The scope page's two root rows, in the roots' precedence order; <see cref="DeleteWord"/> after them when offered.</summary>
     public static readonly IReadOnlyList<SkillScope> ScopeRows = [SkillScope.Profile, SkillScope.Global];
@@ -132,7 +132,7 @@ internal sealed class SkillsMenu
     /// <summary>The delete row: the word padded to nine, what it does dim after it.</summary>
     public static string DeleteRow => Markup.Escape(DeleteWord.PadRight(9)) + Theme.DimMarkup("remove the folder and everything in it");
 
-    public static string RenamedNotice(string name, string newName) => $"(renamed: {name} → {newName})";
+    public static string RenamedNotice(string name, string newName) => $"({NoticeGlyphs.Skill}renamed: {name} → {newName})";
 
     /// <summary>The name typed is a skill's already, in <paramref name="where"/>'s root — the catalog's or the disk's word.</summary>
     public static string RenameExistsError(string name, string newName, SkillScope where) => $"Could not rename skill '{name}' to '{newName}': the {SkillScopes.Name(where)} skills already hold it";
@@ -175,7 +175,7 @@ internal sealed class SkillsMenu
 
     public static string MovePrompt(string name, SkillScope from, SkillScope to) => $"Move skill '{name}' from the {SkillScopes.Name(from)} skills to the {SkillScopes.Name(to)} skills?";
 
-    public static string MovedNotice(string name, SkillScope to) => $"(moved: {name} → {SkillScopes.Name(to)} skills)";
+    public static string MovedNotice(string name, SkillScope to) => $"({NoticeGlyphs.Skill}moved: {name} → {SkillScopes.Name(to)} skills)";
 
     /// <summary>The destination root already holds the folder — by the folder's name, which a skill's name may differ from.</summary>
     public static string ExistsError(string name, string folder, SkillScope to) => $"Could not move skill '{name}': the {SkillScopes.Name(to)} skills already hold '{folder}'";
@@ -184,7 +184,7 @@ internal sealed class SkillsMenu
 
     public static string DeletePrompt(string name, SkillScope scope) => $"Delete skill '{name}' from the {SkillScopes.Name(scope)} skills, folder and all?";
 
-    public static string DeletedNotice(string name, SkillScope scope) => $"(deleted: {name} from the {SkillScopes.Name(scope)} skills)";
+    public static string DeletedNotice(string name, SkillScope scope) => $"({NoticeGlyphs.Skill}deleted: {name} from the {SkillScopes.Name(scope)} skills)";
 
     public static string DeleteFailedError(string detail) => $"Could not delete the skill: {detail}";
 

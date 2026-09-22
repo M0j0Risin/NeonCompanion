@@ -83,7 +83,7 @@ public class MemoryMenuTests : IDisposable
 
         await _menu.ShowAsync(CancellationToken.None);
 
-        Assert.Contains("  · (removed: two)", _console.Output);
+        Assert.Contains("  · (💾 removed: two)", _console.Output);
         Assert.Equal(new[] { "one", "three" }, _store.Snapshot());
         Assert.Equal(new[] { "one", "three" }, new MemoryStore(_dir).Snapshot());
         // The title was drawn twice: once before the removal and once after.
@@ -98,7 +98,7 @@ public class MemoryMenuTests : IDisposable
 
         await _menu.ShowAsync(CancellationToken.None);
 
-        Assert.Contains("  · (removed: only)", _console.Output);
+        Assert.Contains("  · (💾 removed: only)", _console.Output);
         Assert.Contains("  · " + MemoryMenu.EmptyNotice, _console.Output);
         Assert.Equal(0, _store.Count);
     }
@@ -112,8 +112,8 @@ public class MemoryMenuTests : IDisposable
         await _menu.ShowAsync(CancellationToken.None);
 
         Assert.Equal(new[] { "one" }, _store.Snapshot());
-        Assert.Contains("(removed: two)", _console.Output);
-        Assert.Contains("(removed: three)", _console.Output);
+        Assert.Contains("(💾 removed: two)", _console.Output);
+        Assert.Contains("(💾 removed: three)", _console.Output);
     }
 
     [Fact]
@@ -186,7 +186,7 @@ public class MemoryMenuTests : IDisposable
         await menu.ShowAsync(CancellationToken.None);
 
         // The re-shown list: the notice where the spacer was, the cursor on the row that slid up.
-        Assert.Contains("\n" + Titled(MemoryMenu.Title) + "\n  · (removed: two)\n  " + rows[0] + "\n▸ " + rows[2] + "\n" + Rule(100) + "\n" + MemoryMenu.Keys + "\n", _console.Output);
+        Assert.Contains("\n" + Titled(MemoryMenu.Title) + "\n  · (💾 removed: two)\n  " + rows[0] + "\n▸ " + rows[2] + "\n" + Rule(100) + "\n" + MemoryMenu.Keys + "\n", _console.Output);
         Assert.Equal(flow, pane.FlowRow);   // the notice was a status line, not a transcript line
         Assert.False(pane.OverlayOpen);
         Assert.Equal(new[] { "one", "three" }, new MemoryStore(_dir).Snapshot());
@@ -205,7 +205,7 @@ public class MemoryMenuTests : IDisposable
 
         Assert.False(pane.OverlayOpen);
         Assert.Contains("  · " + MemoryMenu.EmptyNotice + "\n", _console.Output);
-        Assert.DoesNotContain("(removed: only)", _console.Output);   // said to a status line the close forgot
+        Assert.DoesNotContain("(💾 removed: only)", _console.Output);   // said to a status line the close forgot
         Assert.Equal(flow + 1, pane.FlowRow);
         Assert.Equal(0, _store.Count);
         pane.Dispose();
@@ -220,8 +220,8 @@ public class MemoryMenuTests : IDisposable
         Assert.Equal("💾 Memory", MemoryMenu.Title);
         Assert.Equal("Enter = remove · ESC = back", MemoryMenu.Keys);
         Assert.Equal(MemoryMenu.Title + "   Enter = remove · ESC = back", SettingsMenu.PromptTitle(MemoryMenu.Title, MemoryMenu.Keys));
-        Assert.Equal("(nothing remembered)", MemoryMenu.EmptyNotice);
-        Assert.Equal("(removed: x)", MemoryMenu.RemovedNotice("x"));
+        Assert.Equal("(💾 nothing remembered)", MemoryMenu.EmptyNotice);
+        Assert.Equal("(💾 removed: x)", MemoryMenu.RemovedNotice("x"));
         Assert.Equal("Could not remove the memory: locked", MemoryMenu.RemoveFailedError("locked"));
         Assert.Equal("2026-09-11", MemoryMenu.DateLabel(dated));
         Assert.Equal("----------", MemoryMenu.DateLabel(undated));

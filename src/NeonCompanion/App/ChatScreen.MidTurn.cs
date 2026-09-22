@@ -72,8 +72,19 @@ internal sealed partial class ChatScreen
     public static string MidTurnRefusedNotice(string word) => $"({word} waits for the reply to end)";
 
     /// <summary>The notice after a switch saved mid-turn: the reconnect it needs follows the reply. Pinned.</summary>
-    public static string MidTurnSwitchNotice(string what, bool on) =>
-        on ? $"({what} on — connecting when this reply ends)" : $"({what} off — applies when this reply ends)";
+    public static string MidTurnSwitchNotice(string what, bool on)
+    {
+        // The switch's own glyph, on and off alike (2026-09-22, the user's pick).
+        string glyph = what switch
+        {
+            SpeechOutputWord => NoticeGlyphs.Tts,
+            VoiceInputWord => NoticeGlyphs.Stt,
+            WakeWordWord => NoticeGlyphs.Wake,
+            InterruptWord => NoticeGlyphs.Interrupt,
+            _ => "",
+        };
+        return on ? $"({glyph}{what} on — connecting when this reply ends)" : $"({glyph}{what} off — applies when this reply ends)";
+    }
 
     /// <summary>The notice after <c>/reasoning</c> saved a level mid-turn (under the menu's own saved line). Pinned.</summary>
     public const string MidTurnAppliesNotice = "(applies when this reply ends)";

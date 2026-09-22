@@ -78,8 +78,8 @@ public class QueueMenuTests : IDisposable
         Assert.Equal("⊠ clear all", QueueMenu.ClearAllButton);
         Assert.Equal('c', QueueMenu.ClearAllKey);
         Assert.Equal(new MenuButton("⊠ clear all", 'c'), Assert.Single(QueueMenu.Buttons));
-        Assert.Equal("(nothing queued)", QueueMenu.EmptyNotice);
-        Assert.Equal("(removed: and then?)", QueueMenu.RemovedNotice("and then?"));
+        Assert.Equal("(⏳ nothing queued)", QueueMenu.EmptyNotice);
+        Assert.Equal("(⏳ removed: and then?)", QueueMenu.RemovedNotice("and then?"));
         Assert.Equal("[#9A8BB8]1[/]  a [[b]]", QueueMenu.RowMarkup(0, "a [b]"));
         Assert.Equal("[#9A8BB8]12[/]  x", QueueMenu.RowMarkup(11, "x"));
     }
@@ -139,7 +139,7 @@ public class QueueMenuTests : IDisposable
         await menu.ShowAsync(CancellationToken.None);
 
         // The re-shown list: the notice where the spacer was, the cursor on the row that slid up, the numbers fresh.
-        Assert.Contains("\n" + Titled(Strip) + "\n  · (removed: two)\n  " + Row(0, "one") + "\n▸ " + Row(1, "three") + "\n" + Rule(100) + "\n" + QueueMenu.Keys + "\n", _console.Output);
+        Assert.Contains("\n" + Titled(Strip) + "\n  · (⏳ removed: two)\n  " + Row(0, "one") + "\n▸ " + Row(1, "three") + "\n" + Rule(100) + "\n" + QueueMenu.Keys + "\n", _console.Output);
         Assert.Equal(flow, pane.FlowRow);   // the notice was a status line, not a transcript line
         Assert.False(pane.OverlayOpen);
         Assert.Equal(new[] { "one", "three" }, Labels());
@@ -158,7 +158,7 @@ public class QueueMenuTests : IDisposable
 
         Assert.False(pane.OverlayOpen);
         Assert.Contains("  · " + QueueMenu.EmptyNotice + "\n", _console.Output);
-        Assert.DoesNotContain("(removed: only)", _console.Output);   // said to a status line the close forgot
+        Assert.DoesNotContain("(⏳ removed: only)", _console.Output);   // said to a status line the close forgot
         Assert.Equal(flow + 1, pane.FlowRow);
         Assert.Equal(0, _queue.Count);
         pane.Dispose();
@@ -175,7 +175,7 @@ public class QueueMenuTests : IDisposable
 
         await menu.ShowAsync(CancellationToken.None);
 
-        Assert.Contains("\n  · (removed: three)\n  " + Row(0, "one") + "\n▸ " + Row(1, "two") + "\n", _console.Output);
+        Assert.Contains("\n  · (⏳ removed: three)\n  " + Row(0, "one") + "\n▸ " + Row(1, "two") + "\n", _console.Output);
         Assert.Equal(new[] { "one", "two" }, Labels());
         Assert.False(pane.OverlayOpen);
         pane.Dispose();

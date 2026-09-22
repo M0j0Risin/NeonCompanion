@@ -133,7 +133,7 @@ public class SkillsMenuTests : IDisposable
         Assert.Equal("Enter = choose · ESC = back", SkillsMenu.ScopeKeys);
         Assert.Equal("delete", SkillsMenu.DeleteWord);
         Assert.Equal("(kept)", SkillsMenu.KeptNotice);
-        Assert.Equal("(external skills are read only here; move the folder by hand)", SkillsMenu.ExternalReadOnlyNotice);
+        Assert.Equal("(🎓 external skills are read only here; move the folder by hand)", SkillsMenu.ExternalReadOnlyNotice);
         Assert.Equal([SkillScope.Profile, SkillScope.Global], SkillsMenu.ScopeRows);
         Assert.Equal(SkillsText.Label + " › haiku", SkillsMenu.ScopeTitle("haiku"));
         Assert.Equal(1, SkillsMenu.OptionsTab);
@@ -145,16 +145,16 @@ public class SkillsMenuTests : IDisposable
         // The rename (2026-09-21).
         Assert.Equal("rename", SkillsMenu.RenameWord);
         Assert.Equal("rename   [#9A8BB8]give it a new name (letters, digits and hyphens)[/]", SkillsMenu.RenameRow);
-        Assert.Equal("(renamed: haiku → my-haiku)", SkillsMenu.RenamedNotice("haiku", "my-haiku"));
+        Assert.Equal("(🎓 renamed: haiku → my-haiku)", SkillsMenu.RenamedNotice("haiku", "my-haiku"));
         Assert.Equal("Could not rename skill 'haiku' to 'pdf': the global skills already hold it", SkillsMenu.RenameExistsError("haiku", "pdf", SkillScope.Global));
         Assert.Equal("Could not rename the skill: the name needs at least one letter or digit", SkillsMenu.RenameEmptyError);
         Assert.Equal("Could not rename the skill: boom", SkillsMenu.RenameFailedError("boom"));
         Assert.Equal("Move skill 'haiku' from the profile skills to the global skills?", SkillsMenu.MovePrompt("haiku", SkillScope.Profile, SkillScope.Global));
-        Assert.Equal("(moved: haiku → global skills)", SkillsMenu.MovedNotice("haiku", SkillScope.Global));
+        Assert.Equal("(🎓 moved: haiku → global skills)", SkillsMenu.MovedNotice("haiku", SkillScope.Global));
         Assert.Equal("Could not move skill 'pdf-processing': the global skills already hold 'pdf'", SkillsMenu.ExistsError("pdf-processing", "pdf", SkillScope.Global));
         Assert.Equal("Could not move the skill: boom", SkillsMenu.MoveFailedError("boom"));
         Assert.Equal("Delete skill 'haiku' from the global skills, folder and all?", SkillsMenu.DeletePrompt("haiku", SkillScope.Global));
-        Assert.Equal("(deleted: haiku from the global skills)", SkillsMenu.DeletedNotice("haiku", SkillScope.Global));
+        Assert.Equal("(🎓 deleted: haiku from the global skills)", SkillsMenu.DeletedNotice("haiku", SkillScope.Global));
         Assert.Equal("Could not delete the skill: boom", SkillsMenu.DeleteFailedError("boom"));
         Assert.Equal("Could not find skill 'haiku' on disk any more; the list was read again", SkillsMenu.MissingError("haiku"));
     }

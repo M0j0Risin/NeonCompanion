@@ -386,10 +386,10 @@ public static class ShellText
         request.IsScript ? $"{request.Kind} scripts" : string.Join(", ", request.Prefixes.Select(Quote));
 
     /// <summary>The transcript's line after a Session pick: <c>(allowed for this session: git push)</c>. Pinned.</summary>
-    public static string SessionAllowedNotice(IReadOnlyList<string> prefixes) => $"(allowed for this session: {string.Join(", ", prefixes)})";
+    public static string SessionAllowedNotice(IReadOnlyList<string> prefixes) => $"({App.NoticeGlyphs.Allowed}allowed for this session: {string.Join(", ", prefixes)})";
 
     /// <summary>The transcript's line after a Permanent pick: <c>(allowed always: git push — the Shell tab of /tools)</c>. Pinned.</summary>
-    public static string PermanentAllowedNotice(IReadOnlyList<string> prefixes) => $"(allowed always: {string.Join(", ", prefixes)} — the Shell tab of /tools)";
+    public static string PermanentAllowedNotice(IReadOnlyList<string> prefixes) => $"({App.NoticeGlyphs.Allowed}allowed always: {string.Join(", ", prefixes)} — the Shell tab of /tools)";
 
     // ── Formatting ───────────────────────────────────────────────────────────
 

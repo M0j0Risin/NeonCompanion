@@ -16,7 +16,7 @@ internal sealed class InterruptTracker
         "Interrupting switched off for this session: the microphone keeps hearing the assistant. Headphones fix this; /interrupt on turns it back on.";
 
     /// <summary>The notice after an interruption that heard nothing. Pinned.</summary>
-    public static string SilentHint(int silentInARow) => $"(heard nothing — {silentInARow} of {Threshold})";
+    public static string SilentHint(int silentInARow) => $"({NoticeGlyphs.Stt}heard nothing — {silentInARow} of {Threshold})";
 
     /// <summary>Interruptions in a row that produced no request.</summary>
     public int SilentInARow { get; private set; }

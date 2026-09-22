@@ -812,7 +812,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("· " + ChatScreen.ConnectCancelledNotice, output);
+        Assert.Contains("· " + ChatScreen.ConnectCancelledNotice(NoticeGlyphs.Llm), output);   // the connect's glyph since 2026-09-22
         Assert.DoesNotContain("LLM:", output);
         Assert.Contains("› /exit", output);
         Assert.Empty(_chat.Requests);
@@ -833,7 +833,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("· " + ChatScreen.ConnectCancelledNotice, output);
+        Assert.Contains("· " + ChatScreen.ConnectCancelledNotice(NoticeGlyphs.Tts), output);
         Assert.False(_speech.Available);
         Assert.Equal(SpeechSession.ConnectCancelledDetail, _speech.Detail);
         Assert.Contains("› /exit", output);
@@ -854,7 +854,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains("● One. Two.", output);
         Assert.DoesNotContain(ChatScreen.SpeechStoppedNotice, output);
         Assert.True(_playback.Stopped >= 1);
-        Assert.Contains("(started the tea timer: 10 minutes, done at 14:15)", output);   // the command ran
+        Assert.Contains("(⏰ started the tea timer: 10 minutes, done at 14:15)", output);   // the command ran
         Assert.Single(_chat.Requests);
     }
 
@@ -1602,7 +1602,7 @@ public partial class ChatScreenTests : IDisposable
     [Fact]
     public void NoServerHintFor_IsPinned()
     {
-        Assert.Equal("Set the URL with /settings (LLM URL, or /server <url>) or NEONCOMPANION_LLM_URL, or set LLM scan mode to local, remote or both.", ChatScreen.ScanDisabledHint);
+        Assert.Equal("🖥️ Set the URL with /settings (LLM URL, or /server <url>) or NEONCOMPANION_LLM_URL, or set LLM scan mode to local, remote or both.", ChatScreen.ScanDisabledHint);
         Assert.Equal(ChatScreen.ScanDisabledHint, ChatScreen.NoServerHintFor(ScanScope.Disabled));
         Assert.Equal(ChatScreen.NoServerHint, ChatScreen.NoServerHintFor(ScanScope.Local));
         Assert.Equal(ChatScreen.NoServerHint, ChatScreen.NoServerHintFor(ScanScope.Remote));
@@ -2697,7 +2697,7 @@ public partial class ChatScreenTests : IDisposable
     public async Task Interrupt_HitInTheTail_WithADraft_StopsSpeech_AndKeepsTheDraft()
     {
         // The phrase over the tail with text on the line: "stop talking", not a request — the
-        // speaker is silenced with (speech stopped), no listen, and the draft is still there.
+        // speaker is silenced with (🔊 speech stopped), no listen, and the draft is still there.
         InterruptOn();
         var input = Scripted();
         _playback.HoldBytes = true;
@@ -3262,7 +3262,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("  · (remembered: my name is Chris)", output);
+        Assert.Contains("  · (💾 remembered: my name is Chris)", output);
         Assert.Equal(new[] { "my name is Chris" }, new MemoryStore(_settings.ProfileDirectory).Snapshot());
         Assert.Empty(_chat.Requests);   // no model involved
     }
@@ -3311,7 +3311,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("  · (already remembered: I like tea)", output);
+        Assert.Contains("  · (💾 already remembered: I like tea)", output);
         Assert.Equal(1, _memory.Count);
     }
 
@@ -3353,8 +3353,8 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         // The yes/no prompt: the question as its title, No on the cursor, ↓ Enter = Yes.
-        Assert.Contains(SettingsMenu.PromptTitle("Forget 2 memories?", SettingsMenu.ConfirmKeys), output);
-        Assert.Contains("  · (forgot 2 memories)", output);
+        Assert.Contains(SettingsMenu.PromptTitle("💾 Forget 2 memories?", SettingsMenu.ConfirmKeys), output);
+        Assert.Contains("  · (💾 forgot 2 memories)", output);
         Assert.Equal(0, _memory.Count);
         Assert.False(File.Exists(_memory.FilePath));
     }
@@ -3369,8 +3369,8 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains(SettingsMenu.PromptTitle("Forget 1 memory?", SettingsMenu.ConfirmKeys), output);
-        Assert.Contains("  · (forgot 1 memory)", output);
+        Assert.Contains(SettingsMenu.PromptTitle("💾 Forget 1 memory?", SettingsMenu.ConfirmKeys), output);
+        Assert.Contains("  · (💾 forgot 1 memory)", output);
     }
 
     [Fact]
@@ -3385,7 +3385,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("\n" + Titled("Forget 2 memories?") + "\n \n▸ No\n  Yes\n", output);
+        Assert.Contains("\n" + Titled("💾 Forget 2 memories?") + "\n \n▸ No\n  Yes\n", output);
         Assert.Contains("\n  No\n▸ Yes\n", output);
         Assert.Contains(SettingsMenu.ConfirmKeys, output);
         Assert.Contains("  · " + ChatScreen.ForgotNotice(2), output);
@@ -3959,7 +3959,7 @@ public partial class ChatScreenTests : IDisposable
 
         Assert.Contains(McpText.Label + "   Servers    Tools    Options ", output);
         Assert.Contains("\n▸ pipe        on   connected · 2 tools  stdio: pipe-server\n", output);
-        Assert.Contains("  · pipe: off\n  · pipe: stopped\n▸ pipe        off  off  stdio: pipe-server\n", output);
+        Assert.Contains("  · 🔌 pipe: off\n  · 🔌 pipe: stopped\n▸ pipe        off  off  stdio: pipe-server\n", output);
         Assert.Contains(McpText.NoToolsLine, output);   // the Tools tab after the stop
         Assert.Contains("\n▸ MCP servers              on\n", output);
         Assert.Contains("  · MCP servers: off\n", output);
@@ -4020,7 +4020,7 @@ public partial class ChatScreenTests : IDisposable
 
         Assert.Contains(McpText.Label + "   Servers    Tools    Options ", output);
         Assert.Contains("  · " + SettingsMenu.NotWhileReplyRunsNotice + "\n▸ pipe", output);
-        Assert.Contains("  · pipe__echo: off", output);
+        Assert.Contains("  · 🔌 pipe__echo: off", output);
         Assert.Equal(["pipe__echo"], _settings.Current.ToolsDisabled);
         Assert.Empty(_settings.Current.McpServersDisabled);
         Assert.DoesNotContain(ChatScreen.MidTurnRefusedNotice("/mcp"), output);
@@ -4528,10 +4528,10 @@ public partial class ChatScreenTests : IDisposable
     {
         Assert.Equal("reset", ChatScreen.ResetWord);
         Assert.Equal("/operata takes nothing (open operata.md in your editor), reset, or copy <profile> [force].", ChatScreen.PromptFileUsageError("/operata", "operata.md"));   // copy 2026-09-21
-        Assert.Equal("Remove vocalia.md and go back to the default voice directive?", ChatScreen.PromptFileResetPrompt("vocalia.md", "voice directive"));
-        Assert.Equal("(removed operata.md; the next reply uses the default operating rules)", ChatScreen.PromptFileResetNotice("operata.md", "operating rules", spoken: false));
-        Assert.Equal("(removed vocalia.md; the next spoken reply uses the default voice directive)", ChatScreen.PromptFileResetNotice("vocalia.md", "voice directive", spoken: true));
-        Assert.Equal("(operata.md is not there; the default operating rules is already in use)", ChatScreen.PromptFileAbsentNotice("operata.md", "operating rules"));
+        Assert.Equal("🗣️ Remove vocalia.md and go back to the default voice directive?", ChatScreen.PromptFileResetPrompt("vocalia.md", "voice directive"));
+        Assert.Equal("(📋 removed operata.md; the next reply uses the default operating rules)", ChatScreen.PromptFileResetNotice("operata.md", "operating rules", spoken: false));
+        Assert.Equal("(🗣️ removed vocalia.md; the next spoken reply uses the default voice directive)", ChatScreen.PromptFileResetNotice("vocalia.md", "voice directive", spoken: true));
+        Assert.Equal("(📋 operata.md is not there; the default operating rules is already in use)", ChatScreen.PromptFileAbsentNotice("operata.md", "operating rules"));
         Assert.Equal("Could not remove persona.md: locked", ChatScreen.PromptFileResetFailedError("persona.md", "locked"));
         Assert.EndsWith("; /persona reset goes back to the default)", ChatScreen.PersonaCreatedNotice);
         Assert.EndsWith("; /operata reset goes back to the default)", ChatScreen.OperataCreatedNotice);
@@ -4697,7 +4697,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal("force", ChatScreen.ForceWord);
         Assert.Equal(ChatScreen.ForceWord, ChatScreen.GitForceWord);
         Assert.Equal("/persona copy copies into another profile; that one is loaded.", ChatScreen.PromptFileCopySelfError("/persona"));
-        Assert.Equal("(operata.md is not there; the default operating rules is in use, so there is nothing to copy)", ChatScreen.PromptFileNothingToCopyNotice("operata.md", "operating rules"));
+        Assert.Equal("(📋 operata.md is not there; the default operating rules is in use, so there is nothing to copy)", ChatScreen.PromptFileNothingToCopyNotice("operata.md", "operating rules"));
         Assert.Equal("\"work\" already has a vocalia.md; /vocalia copy work force replaces it.", ChatScreen.PromptFileTargetExistsError("/vocalia", "vocalia.md", "work"));
         Assert.Equal("Copy persona.md into \"work\"?", ChatScreen.PromptFileCopyPrompt("persona.md", "work", replacing: false));
         Assert.Equal("Replace \"work\"'s persona.md with this one?", ChatScreen.PromptFileCopyPrompt("persona.md", "work", replacing: true));
@@ -4924,8 +4924,8 @@ public partial class ChatScreenTests : IDisposable
     [Fact]
     public void OperataStrings_ArePinned()
     {
-        Assert.Equal("(opened operata.md in your editor; save it and the next reply uses it)", ChatScreen.OperataOpenedNotice);
-        Assert.Equal("(created operata.md with the default operating rules and opened it in your editor; edit it, save, and the next reply uses it; /operata reset goes back to the default)", ChatScreen.OperataCreatedNotice);
+        Assert.Equal("(📋 opened operata.md in your editor; save it and the next reply uses it)", ChatScreen.OperataOpenedNotice);
+        Assert.Equal("(📋 created operata.md with the default operating rules and opened it in your editor; edit it, save, and the next reply uses it; /operata reset goes back to the default)", ChatScreen.OperataCreatedNotice);
         Assert.Equal("Could not open operata.md: why", ChatScreen.OperataOpenFailedError("why"));
     }
 
@@ -5042,8 +5042,8 @@ public partial class ChatScreenTests : IDisposable
     [Fact]
     public void VocaliaStrings_ArePinned()
     {
-        Assert.Equal("(opened vocalia.md in your editor; save it and the next spoken reply uses it)", ChatScreen.VocaliaOpenedNotice);
-        Assert.Equal("(created vocalia.md with the default voice directive and opened it in your editor; edit it, save, and the next spoken reply uses it; /vocalia reset goes back to the default)", ChatScreen.VocaliaCreatedNotice);
+        Assert.Equal("(🗣️ opened vocalia.md in your editor; save it and the next spoken reply uses it)", ChatScreen.VocaliaOpenedNotice);
+        Assert.Equal("(🗣️ created vocalia.md with the default voice directive and opened it in your editor; edit it, save, and the next spoken reply uses it; /vocalia reset goes back to the default)", ChatScreen.VocaliaCreatedNotice);
         Assert.Equal("Could not open vocalia.md: why", ChatScreen.VocaliaOpenFailedError("why"));
     }
 
@@ -5535,7 +5535,7 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         Assert.Contains(SettingsMenu.PromptTitle(MemoryMenu.Title, MemoryMenu.Keys), output);
-        Assert.Contains("  · (removed: Their name is Chris.)", output);
+        Assert.Contains("  · (💾 removed: Their name is Chris.)", output);
         Assert.Equal(new[] { "They live in Leeds." }, new MemoryStore(_settings.ProfileDirectory).Snapshot());
         Assert.Empty(_chat.Requests);
     }
@@ -5561,7 +5561,7 @@ public partial class ChatScreenTests : IDisposable
         // The list in the pane: the title, a spacer, the rows with the pointer, the keys on the hint row.
         Assert.Contains(rule + "\n" + Titled(MemoryMenu.Title) + "\n \n▸ " + rows[0] + "\n  " + rows[1] + "\n" + rule + "\n" + Row(MemoryMenu.Keys) + "\n", output);
         // Re-shown after the removal with the notice as the status line, not a transcript line.
-        Assert.Contains("\n" + Titled(MemoryMenu.Title) + "\n  · (removed: Their name is Chris.)\n▸ " + rows[1] + "\n" + rule + "\n", output);
+        Assert.Contains("\n" + Titled(MemoryMenu.Title) + "\n  · (💾 removed: Their name is Chris.)\n▸ " + rows[1] + "\n" + rule + "\n", output);
         Assert.DoesNotContain(SettingsMenu.PromptTitle(MemoryMenu.Title, MemoryMenu.Keys), output);
         Assert.Equal(new[] { "They live in Leeds." }, new MemoryStore(_settings.ProfileDirectory).Snapshot());
         Assert.Empty(_chat.Requests);
@@ -5695,17 +5695,17 @@ public partial class ChatScreenTests : IDisposable
     public void MemoryLabels_ArePinned()
     {
         Assert.Equal("/remember takes the text to keep: /remember <text>", ChatScreen.RememberUsageError);
-        Assert.Equal("Memory is off; turn it on in /settings (the Memory row).", ChatScreen.MemoryOffNotice);
+        Assert.Equal("💾 Memory is off; turn it on in /settings (the Memory row).", ChatScreen.MemoryOffNotice);
         Assert.Equal("Memory is full (200 entries); /memory forget clears it.", ChatScreen.MemoryFullError);
         Assert.Equal("Could not save the memory; the log has the reason.", ChatScreen.MemoryFailedError);
-        Assert.Equal("(nothing to forget)", ChatScreen.NothingToForgetNotice);
+        Assert.Equal("(💾 nothing to forget)", ChatScreen.NothingToForgetNotice);
         Assert.Equal("forget every memory", ChatScreen.MemoryForgetNote);
         Assert.Equal("(kept)", ChatScreen.KeptNotice);
-        Assert.Equal("(remembered: x)", ChatScreen.RememberedNotice("x"));
-        Assert.Equal("(already remembered: x)", ChatScreen.AlreadyRememberedNotice("x"));
-        Assert.Equal("Forget 3 memories?", ChatScreen.ForgetPrompt(3));
-        Assert.Equal("Forget 3 memories? y = yes, anything else = keep", ChatScreen.TypedConfirm(ChatScreen.ForgetPrompt(3)));
-        Assert.Equal("(forgot 1 memory)", ChatScreen.ForgotNotice(1));
+        Assert.Equal("(💾 remembered: x)", ChatScreen.RememberedNotice("x"));
+        Assert.Equal("(💾 already remembered: x)", ChatScreen.AlreadyRememberedNotice("x"));
+        Assert.Equal("💾 Forget 3 memories?", ChatScreen.ForgetPrompt(3));
+        Assert.Equal("💾 Forget 3 memories? y = yes, anything else = keep", ChatScreen.TypedConfirm(ChatScreen.ForgetPrompt(3)));
+        Assert.Equal("(💾 forgot 1 memory)", ChatScreen.ForgotNotice(1));
         Assert.Equal("Could not clear the memories: locked", ChatScreen.ForgetFailedError("locked"));
         Assert.True(ChatScreen.IsYes(" Y "));
         Assert.True(ChatScreen.IsYes("yes"));
@@ -5717,26 +5717,26 @@ public partial class ChatScreenTests : IDisposable
     public void Labels_ArePinned()
     {
         Assert.Equal("/interrupt takes on or off, or nothing to toggle.", ChatScreen.InterruptUsageError);
-        Assert.Equal("Interrupting on; it works once voice input (/stt) and speech output (/tts) are on.", ChatScreen.InterruptOnNeedsVoiceNotice);
-        Assert.Equal("Interrupting off.", ChatScreen.InterruptOffNotice);
-        Assert.Equal("Interrupting works only while a reply is spoken; /tts turns speech output on.", ChatScreen.InterruptNeedsSpeechNotice);
-        Assert.Equal("Interrupting needs the wake word; /wake on turns it on.", ChatScreen.InterruptNeedsWakeNotice);
-        Assert.Equal("Interrupting off with the wake word.", ChatScreen.InterruptOffWithWakeNotice);
-        Assert.Equal("(interrupted)", ChatScreen.InterruptedNotice);
+        Assert.Equal("✋ Interrupting on; it works once voice input (/stt) and speech output (/tts) are on.", ChatScreen.InterruptOnNeedsVoiceNotice);
+        Assert.Equal("✋ Interrupting off.", ChatScreen.InterruptOffNotice);
+        Assert.Equal("✋ Interrupting works only while a reply is spoken; /tts turns speech output on.", ChatScreen.InterruptNeedsSpeechNotice);
+        Assert.Equal("✋ Interrupting needs the wake word; /wake on turns it on.", ChatScreen.InterruptNeedsWakeNotice);
+        Assert.Equal("✋ Interrupting off with the wake word.", ChatScreen.InterruptOffWithWakeNotice);
+        Assert.Equal("(✋ interrupted)", ChatScreen.InterruptedNotice);
         Assert.Equal("interrupted — say your request…  F4 or Enter = done   ESC = discard", ChatScreen.InterruptedLabel("F4"));
         Assert.Equal(TimeSpan.FromMilliseconds(300), ChatScreen.InterruptSettle);
         Assert.Equal("switched off after two interruptions heard nothing", ChatScreen.InterruptDisabledReason);
         Assert.Equal("heard \"neon\"…  F4 or Enter = done   ESC = discard", ChatScreen.WakeListeningLabel("neon", "F4"));
         Assert.Equal("/wake takes on or off, or nothing to toggle.", ChatScreen.WakeUsageError);
-        Assert.Equal("Wake word on; it listens once voice input is on (/stt).", ChatScreen.WakeOnNeedsVoiceNotice);
-        Assert.Equal("Wake word off.", ChatScreen.WakeOffNotice);
+        Assert.Equal("👂 Wake word on; it listens once voice input is on (/stt).", ChatScreen.WakeOnNeedsVoiceNotice);
+        Assert.Equal("👂 Wake word off.", ChatScreen.WakeOffNotice);
         Assert.Equal("listening…  F4 or Enter = done   ESC = discard", ChatScreen.ListeningLabel("F4"));
         Assert.Equal("transcribing…", ChatScreen.TranscribingLabel);
         Assert.Equal("preparing voice input", ChatScreen.VoiceConnectingLabel);
-        Assert.Equal("(heard nothing)", ChatScreen.HeardNothingNotice);
-        Assert.Equal("(discarded)", ChatScreen.VoiceDiscardedNotice);
+        Assert.Equal("(🎤 heard nothing)", ChatScreen.HeardNothingNotice);
+        Assert.Equal("(🎤 discarded)", ChatScreen.VoiceDiscardedNotice);
         Assert.Equal("/stt takes on or off, or nothing to toggle.", ChatScreen.VoiceUsageError);
-        Assert.Equal("Voice input is off; /stt turns it on.", ChatScreen.VoiceOffHint);
+        Assert.Equal("🎤 Voice input is off; /stt turns it on.", ChatScreen.VoiceOffHint);
     }
 
     // ── /profile ────────────────────────────────────────────────────────────
@@ -5760,28 +5760,28 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal("/profile takes nothing (pick), a name, add <name>, delete <name>, rename <name> <new-name>, reset [name], edit or reload.", ChatScreen.ProfileUsageError);
         Assert.Equal("Profile name must be 1 to 32 letters, digits, - or _ (and not neon, add, delete, edit, reload, rename or reset).", ChatScreen.ProfileNameError);
         // /profile edit and /profile reload (2026-09-21).
-        Assert.Equal("(opened profile \"x\"'s profile.json in your editor; /profile reload reads it back)", ChatScreen.ProfileEditOpenedNotice("x"));
-        Assert.Equal("(created and opened profile \"x\"'s profile.json in your editor; /profile reload reads it back)", ChatScreen.ProfileEditCreatedNotice("x"));
+        Assert.Equal("(🪪 opened profile \"x\"'s profile.json in your editor; /profile reload reads it back)", ChatScreen.ProfileEditOpenedNotice("x"));
+        Assert.Equal("(🪪 created and opened profile \"x\"'s profile.json in your editor; /profile reload reads it back)", ChatScreen.ProfileEditCreatedNotice("x"));
         Assert.Equal("Could not open profile.json: why", ChatScreen.ProfileEditFailedError("why"));
-        Assert.Equal("(reloaded profile \"x\"; nothing changed)", ChatScreen.ProfileReloadedNotice("x", 0));
-        Assert.Equal("(reloaded profile \"x\"; 1 setting changed)", ChatScreen.ProfileReloadedNotice("x", 1));
-        Assert.Equal("(reloaded profile \"x\"; 3 settings changed)", ChatScreen.ProfileReloadedNotice("x", 3));
+        Assert.Equal("(🪪 reloaded profile \"x\"; nothing changed)", ChatScreen.ProfileReloadedNotice("x", 0));
+        Assert.Equal("(🪪 reloaded profile \"x\"; 1 setting changed)", ChatScreen.ProfileReloadedNotice("x", 1));
+        Assert.Equal("(🪪 reloaded profile \"x\"; 3 settings changed)", ChatScreen.ProfileReloadedNotice("x", 3));
         Assert.Equal("No profile named \"x\"; /profile lists them.", ChatScreen.ProfileMissingError("x"));
         Assert.Equal("A profile named \"x\" already exists; /profile x switches to it.", ChatScreen.ProfileExistsError("x"));
-        Assert.Equal("(created profile \"x\" from the current settings)", ChatScreen.ProfileCreatedNotice("x"));
-        Assert.Equal("(created profile \"x\" from the current settings)", ChatScreen.ProfileCreatedNotice("x", Array.Empty<string>()));
-        Assert.Equal("(created profile \"x\" from the current settings, memories, persona, operating rules, voice directive, MCP servers)", ChatScreen.ProfileCreatedNotice("x", Profiles.CompanionFiles));
-        Assert.Equal("(created profile \"x\" from the current settings, persona, voice directive)", ChatScreen.ProfileCreatedNotice("x", new[] { PersonaFile.FileName, VocaliaFile.FileName }));
-        Assert.Equal("(deleted profile \"x\")", ChatScreen.ProfileDeletedNotice("x"));
+        Assert.Equal("(🪪 created profile \"x\" from the current settings)", ChatScreen.ProfileCreatedNotice("x"));
+        Assert.Equal("(🪪 created profile \"x\" from the current settings)", ChatScreen.ProfileCreatedNotice("x", Array.Empty<string>()));
+        Assert.Equal("(🪪 created profile \"x\" from the current settings, memories, persona, operating rules, voice directive, MCP servers)", ChatScreen.ProfileCreatedNotice("x", Profiles.CompanionFiles));
+        Assert.Equal("(🪪 created profile \"x\" from the current settings, persona, voice directive)", ChatScreen.ProfileCreatedNotice("x", new[] { PersonaFile.FileName, VocaliaFile.FileName }));
+        Assert.Equal("(🪪 deleted profile \"x\")", ChatScreen.ProfileDeletedNotice("x"));
         Assert.Equal("Could not change profiles: why", ChatScreen.ProfileFailedError("why"));
         Assert.Equal("Could not delete the profile: why", ChatScreen.ProfileDeleteFailedError("why"));
-        Assert.Equal("Delete profile \"x\" and everything in it (settings, memories, persona, operating rules, voice directive, MCP servers, sessions)?", ChatScreen.DeleteProfilePrompt("x"));
+        Assert.Equal("🪪 Delete profile \"x\" and everything in it (settings, memories, persona, operating rules, voice directive, MCP servers, sessions)?", ChatScreen.DeleteProfilePrompt("x"));
         // 2026-09-20, the user's wording: a reset takes the settings alone back, the notice names nothing else.
-        Assert.Equal("Reset profile \"x\" to the default settings?", ChatScreen.ResetProfilePrompt("x"));
-        Assert.Equal("(reset profile \"x\" to the defaults; conversation cleared)", ChatScreen.ProfileResetNotice("x", loaded: true));
-        Assert.Equal("(reset profile \"x\" to the defaults)", ChatScreen.ProfileResetNotice("x", loaded: false));
+        Assert.Equal("🪪 Reset profile \"x\" to the default settings?", ChatScreen.ResetProfilePrompt("x"));
+        Assert.Equal("(🪪 reset profile \"x\" to the defaults; conversation cleared)", ChatScreen.ProfileResetNotice("x", loaded: true));
+        Assert.Equal("(🪪 reset profile \"x\" to the defaults)", ChatScreen.ProfileResetNotice("x", loaded: false));
         Assert.Equal("Could not reset the profile: why", ChatScreen.ProfileResetFailedError("why"));
-        Assert.Equal("(renamed profile \"x\" to \"y\")", ChatScreen.ProfileRenamedNotice("x", "y"));
+        Assert.Equal("(🪪 renamed profile \"x\" to \"y\")", ChatScreen.ProfileRenamedNotice("x", "y"));
         Assert.Equal("Could not rename the profile: why", ChatScreen.ProfileRenameFailedError("why"));
     }
 
@@ -5840,8 +5840,8 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal("Git native email is not set; set it on the Git (native) tab of /tools.", ChatScreen.GitIdentityUnsetError(true, false));
         Assert.Equal("Git native name is not set; set it on the Git (native) tab of /tools.", ChatScreen.GitIdentityUnsetError(false, true));
         Assert.Equal("Git native tools is off; /git user does nothing until it is on (the Git (native) tab of /tools).", ChatScreen.GitNativeToolsOffError);
-        Assert.Equal("(git user set for this repository: Some User <user@email.com>)", ChatScreen.GitIdentityWrittenNotice("Some User", "user@email.com"));
-        Assert.Equal("(this repository already has a [user] section: Old <old@x>; /git user force replaces it)", ChatScreen.GitIdentityPresentNotice("Old", "old@x"));
+        Assert.Equal("(🛠️ git user set for this repository: Some User <user@email.com>)", ChatScreen.GitIdentityWrittenNotice("Some User", "user@email.com"));   // the tools' glyph since 2026-09-22
+        Assert.Equal("Git repository already has a [user] section: Old <old@x>; /git user force replaces it.", ChatScreen.GitIdentityPresentError("Old", "old@x"));   // an error since 2026-09-22
         Assert.Equal(@"'D:\x' is not inside a git repository; /cwd into one first.", ChatScreen.GitNoRepositoryError(@"D:\x"));
         Assert.Equal("Could not write the git identity: why", ChatScreen.GitIdentityFailedError("why"));
         Assert.Equal(["user", "user force"], ChatScreen.GitVerbs.Select(v => v.Text));
@@ -5869,7 +5869,7 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         Assert.Contains("  · " + ChatScreen.GitIdentityWrittenNotice("Some User", "user@email.com"), output);
-        Assert.Contains("  · " + ChatScreen.GitIdentityPresentNotice("Some User", "user@email.com"), output);
+        Assert.Contains("  ✗ " + ChatScreen.GitIdentityPresentError("Some User", "user@email.com"), output);
         using (var repo = new Repository(files))
         {
             Assert.Equal("user@email.com", repo.Config.Get<string>("user.email", ConfigurationLevel.Local)!.Value);
@@ -6044,7 +6044,7 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         Assert.Contains("  · " + ChatScreen.ProfileCreatedNotice("work", Profiles.BasicCompanionFiles), output);
-        Assert.Contains("(created profile \"work\" from the current settings, memories)", output);
+        Assert.Contains("(🪪 created profile \"work\" from the current settings, memories)", output);
         Assert.Equal("work", _settings.ProfileName);
         Assert.Equal(new[] { MemoryStore.FileName, Profiles.FileName, SessionStore.FileName }, Directory.GetFiles(ProfileDir("work")).Select(Path.GetFileName).Order());   // sessions.db from the turn, never copied
         Assert.Equal("basic", _settings.Current.NewProfileMode);   // the setting itself came along, like every saved value
@@ -6733,8 +6733,8 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains(SettingsMenu.PromptTitle("Copy 2 memories into \"work\"?", SettingsMenu.ConfirmKeys), output);
-        Assert.Contains("  · (1 memory copied into \"work\", 1 already there)", output);
+        Assert.Contains(SettingsMenu.PromptTitle("💾 Copy 2 memories into \"work\"?", SettingsMenu.ConfirmKeys), output);
+        Assert.Contains("  · (💾 1 memory copied into \"work\", 1 already there)", output);
         Assert.Equal(new[] { "They like tea.", "Their name is Chris." }, new MemoryStore(ProfileDir("work")).Snapshot());
         Assert.Equal(new[] { "Their name is Chris.", "they LIKE tea." }, _memory.Snapshot());   // the source untouched
         Assert.Equal(Profiles.DefaultName, _settings.ProfileName);
@@ -6752,8 +6752,8 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains(SettingsMenu.PromptTitle("Replace \"work\"'s memory with these 1 memory?", SettingsMenu.ConfirmKeys), output);
-        Assert.Contains("  · (replaced \"work\"'s memory with 1 memory)", output);
+        Assert.Contains(SettingsMenu.PromptTitle("💾 Replace \"work\"'s memory with these 1 memory?", SettingsMenu.ConfirmKeys), output);
+        Assert.Contains("  · (💾 replaced \"work\"'s memory with 1 memory)", output);
         Assert.Equal(new[] { "Their name is Chris." }, new MemoryStore(ProfileDir("work")).Snapshot());
     }
 
@@ -6769,7 +6769,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("  · (1 memory copied into \"default\")", output);
+        Assert.Contains("  · (💾 1 memory copied into \"default\")", output);
         Assert.Equal(new[] { "Their name is Chris.", "They like tea." }, new MemoryStore(ProfileDir(Profiles.DefaultName)).Snapshot());
     }
 
@@ -6816,12 +6816,12 @@ public partial class ChatScreenTests : IDisposable
     public void MemoryCopyText_IsPinned()
     {
         Assert.Equal("/memory copy copies into another profile; that one is loaded.", ChatScreen.MemoryCopySelfError);
-        Assert.Equal("(nothing to copy: this profile has no memory)", ChatScreen.MemoryCopyNothingNotice);
-        Assert.Equal("Copy 12 memories into \"work\"?", ChatScreen.MemoryCopyPrompt(12, "work", overwrite: false));
-        Assert.Equal("Replace \"work\"'s memory with these 12 memories?", ChatScreen.MemoryCopyPrompt(12, "work", overwrite: true));
-        Assert.Equal("(12 memories copied into \"work\")", ChatScreen.MemoryCopiedNotice(new MemoryImportResult(12, 0, 0), "work", overwrite: false));
-        Assert.Equal("(9 memories copied into \"work\", 3 already there, 2 dropped: its memory is full)", ChatScreen.MemoryCopiedNotice(new MemoryImportResult(9, 3, 2), "work", overwrite: false));
-        Assert.Equal("(replaced \"work\"'s memory with 12 memories)", ChatScreen.MemoryCopiedNotice(new MemoryImportResult(12, 0, 0), "work", overwrite: true));
+        Assert.Equal("(💾 nothing to copy: this profile has no memory)", ChatScreen.MemoryCopyNothingNotice);
+        Assert.Equal("💾 Copy 12 memories into \"work\"?", ChatScreen.MemoryCopyPrompt(12, "work", overwrite: false));
+        Assert.Equal("💾 Replace \"work\"'s memory with these 12 memories?", ChatScreen.MemoryCopyPrompt(12, "work", overwrite: true));
+        Assert.Equal("(💾 12 memories copied into \"work\")", ChatScreen.MemoryCopiedNotice(new MemoryImportResult(12, 0, 0), "work", overwrite: false));
+        Assert.Equal("(💾 9 memories copied into \"work\", 3 already there, 2 dropped: its memory is full)", ChatScreen.MemoryCopiedNotice(new MemoryImportResult(9, 3, 2), "work", overwrite: false));
+        Assert.Equal("(💾 replaced \"work\"'s memory with 12 memories)", ChatScreen.MemoryCopiedNotice(new MemoryImportResult(12, 0, 0), "work", overwrite: true));
         Assert.Equal("Could not write the profile's memory: x", ChatScreen.MemoryCopyFailedError("x"));
         Assert.Equal("overwrite", ChatScreen.OverwriteWord);
     }
@@ -7170,7 +7170,7 @@ public partial class ChatScreenTests : IDisposable
 
     // ── Timers ──────────────────────────────────────────────────────────────
 
-    private const string CookingStarted = "(started the cooking timer: 10 minutes, done at 14:15)";
+    private const string CookingStarted = "(⏰ started the cooking timer: 10 minutes, done at 14:15)";
     private const string CookingAlert = "cooking timer done (10 minutes) — press Enter to silence";
 
     [Theory]
@@ -7213,11 +7213,11 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         Assert.Contains("  · " + CookingStarted, output);
-        Assert.Contains("  · (started the 1 minute 30 second timer: 1 minute 30 seconds, done at 14:07)", output);
-        Assert.Contains("  · 1 minute 30 second: 1 minute 30 seconds left of 1 minute 30 seconds (done at 14:07)", output);
-        Assert.Contains("  · cooking: 10 minutes left of 10 minutes (done at 14:15)", output);
-        Assert.Contains("  · (stopped the cooking timer with 10 minutes left)", output);
-        Assert.Contains("  · (stopped 1 timer)", output);
+        Assert.Contains("  · (⏰ started the 1 minute 30 second timer: 1 minute 30 seconds, done at 14:07)", output);
+        Assert.Contains("  · ⏰ 1 minute 30 second: 1 minute 30 seconds left of 1 minute 30 seconds (done at 14:07)", output);
+        Assert.Contains("  · ⏰ cooking: 10 minutes left of 10 minutes (done at 14:15)", output);
+        Assert.Contains("  · (⏰ stopped the cooking timer with 10 minutes left)", output);
+        Assert.Contains("  · (⏰ stopped 1 timer)", output);
         Assert.Contains("  · " + ChatScreen.NoTimersNotice, output);
         Assert.Empty(_chat.Requests);
         Assert.Empty(_synth.Spoken);
@@ -7283,7 +7283,7 @@ public partial class ChatScreenTests : IDisposable
 
         Assert.Contains("  · " + CookingStarted, output);
         Assert.Contains("  ⏰ " + CookingAlert, output);
-        Assert.Equal(1, output.Split("⏰").Length - 1);
+        Assert.Equal(1, output.Split("  ⏰ ").Length - 1);
         Assert.Equal(new[] { "The cooking timer is done." }, _synth.SpokenText);
         Assert.Contains("  · " + ChatScreen.NoTimersNotice, output);
         Assert.Empty(_chat.Requests);
@@ -7366,7 +7366,7 @@ public partial class ChatScreenTests : IDisposable
 
         Assert.Contains("  ⏰ " + CookingAlert, output);
         Assert.Contains("  ⏰ cooking timer still ringing (1 minute) — press Enter to silence", output);
-        Assert.Equal(2, output.Split("⏰").Length - 1);
+        Assert.Equal(2, output.Split("  ⏰ ").Length - 1);
         Assert.DoesNotContain("ESC = ", output);   // ESC silenced the timer and printed nothing
         Assert.Empty(_synth.Spoken);
     }
@@ -7427,7 +7427,7 @@ public partial class ChatScreenTests : IDisposable
         int alert = output.IndexOf("⏰ " + CookingAlert, StringComparison.Ordinal);
         Assert.True(alert > output.IndexOf("Two.", StringComparison.Ordinal));
         Assert.True(alert < output.IndexOf("Three.", StringComparison.Ordinal));
-        Assert.Equal(1, output.Split("⏰").Length - 1);
+        Assert.Equal(1, output.Split("  ⏰ ").Length - 1);
         Assert.Equal(new[] { "One.", "Two.", "Three." }, _synth.SpokenText);
     }
 
@@ -7445,7 +7445,7 @@ public partial class ChatScreenTests : IDisposable
 
         Assert.Contains("🛠️ started the tea timer: 3 minutes, done at 14:08", output);
         Assert.DoesNotContain(StartTimerTool.ToolName, output);
-        Assert.Contains("  · tea: 3 minutes left of 3 minutes (done at 14:08)", output);
+        Assert.Contains("  · ⏰ tea: 3 minutes left of 3 minutes (done at 14:08)", output);
         var toolResult = Assert.Single(_chat.Requests[1][^1].Contents.OfType<FunctionResultContent>());
         Assert.Equal("started the tea timer: 3 minutes, done at 14:08", toolResult.Result);
     }
@@ -7465,7 +7465,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(2, Refreshes(output));                                     // /clear and the switch
         Assert.Equal(2, Count(output, "  · ⏰ cooking 10:00"));   // after /clear and after the switch
         Assert.Contains("  · " + SettingsMenu.SwitchedNotice("work"), output);
-        Assert.Contains("  · cooking: 10 minutes left of 10 minutes (done at 14:15)", output);
+        Assert.Contains("  · ⏰ cooking: 10 minutes left of 10 minutes (done at 14:15)", output);
     }
 
     [Fact]
@@ -8796,9 +8796,9 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(new CwdAction(CwdActionKind.Set, "browse2"), ChatScreen.ParseCwdArgs("browse2"));
         Assert.Equal("~", ChatScreen.CwdHomeWord);
         Assert.Equal("browse", ChatScreen.CwdBrowseWord);
-        Assert.Equal(@"Working directory: D:\x  (profile folder)", ChatScreen.CwdNotice(@"D:\x", isDefault: true, null));
-        Assert.Equal(@"Working directory: D:\x", ChatScreen.CwdNotice(@"D:\x", isDefault: false, null));
-        Assert.Equal(@"Working directory: D:\x  (--cwd this launch)", ChatScreen.CwdNotice(@"D:\x", isDefault: true, "--cwd"));
+        Assert.Equal(@"📂 Working directory: D:\x  (profile folder)", ChatScreen.CwdNotice(@"D:\x", isDefault: true, null));
+        Assert.Equal(@"📂 Working directory: D:\x", ChatScreen.CwdNotice(@"D:\x", isDefault: false, null));
+        Assert.Equal(@"📂 Working directory: D:\x  (--cwd this launch)", ChatScreen.CwdNotice(@"D:\x", isDefault: true, "--cwd"));
     }
 
     [Fact]
@@ -8927,13 +8927,13 @@ public partial class ChatScreenTests : IDisposable
     [Fact]
     public void EmptyTrashAndWindowLabels_ArePinned()
     {
-        Assert.Equal(@"Empty D:\x\.trash — 3 files, 1 folder, 1.2 KB?", ChatScreen.EmptyTrashPrompt(@"D:\x\.trash", 3, 1, 1_234, false));
-        Assert.Equal(@"Empty D:\x\.trash — 1 file, 0 folders, 0 B, counted the first 10,000 entries only?", ChatScreen.EmptyTrashPrompt(@"D:\x\.trash", 1, 0, 0, true));
+        Assert.Equal(@"🗑️ Empty D:\x\.trash — 3 files, 1 folder, 1.2 KB?", ChatScreen.EmptyTrashPrompt(@"D:\x\.trash", 3, 1, 1_234, false));
+        Assert.Equal(@"🗑️ Empty D:\x\.trash — 1 file, 0 folders, 0 B, counted the first 10,000 entries only?", ChatScreen.EmptyTrashPrompt(@"D:\x\.trash", 1, 0, 0, true));
         Assert.Equal(" y = yes, anything else = keep", ChatScreen.TypedConfirmSuffix);
-        Assert.Equal(@"(nothing in D:\x\.trash)", ChatScreen.TrashAlreadyEmptyNotice(@"D:\x\.trash"));
+        Assert.Equal(@"(🗑️ nothing in D:\x\.trash)", ChatScreen.TrashAlreadyEmptyNotice(@"D:\x\.trash"));
         Assert.Equal("(🗑️ emptied the trash: 2 files, 2 folders, 8 B)", ChatScreen.TrashEmptiedNotice(2, 2, 8));
         Assert.Equal("Could not empty the trash: locked", ChatScreen.EmptyTrashFailedError("locked"));
-        Assert.Equal("Terminal window: 120 columns × 30 rows", ChatScreen.WindowNotice(120, 30));
+        Assert.Equal("🖥️ Terminal window: 120 columns × 30 rows", ChatScreen.WindowNotice(120, 30));
     }
 
     // ── /usage ──────────────────────────────────────────────────────────────
@@ -9754,8 +9754,8 @@ public partial class ChatScreenTests : IDisposable
     public void MidTurnStrings_ArePinned()
     {
         Assert.Equal("(/profile waits for the reply to end)", ChatScreen.MidTurnRefusedNotice("/profile"));
-        Assert.Equal("(speech output on — connecting when this reply ends)", ChatScreen.MidTurnSwitchNotice(ChatScreen.SpeechOutputWord, true));
-        Assert.Equal("(voice input off — applies when this reply ends)", ChatScreen.MidTurnSwitchNotice(ChatScreen.VoiceInputWord, false));
+        Assert.Equal("(🔊 speech output on — connecting when this reply ends)", ChatScreen.MidTurnSwitchNotice(ChatScreen.SpeechOutputWord, true));
+        Assert.Equal("(🎤 voice input off — applies when this reply ends)", ChatScreen.MidTurnSwitchNotice(ChatScreen.VoiceInputWord, false));
         Assert.Equal("wake word", ChatScreen.WakeWordWord);
         Assert.Equal("interrupt", ChatScreen.InterruptWord);
         Assert.Equal("(applies when this reply ends)", ChatScreen.MidTurnAppliesNotice);
@@ -10603,8 +10603,8 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(2, TextCells.Width(ChatScreen.QueueGlyph));
         Assert.Equal("📨 1 queued", ChatScreen.QueuedHintPart(1));
         Assert.Equal("📨 12 queued", ChatScreen.QueuedHintPart(12));
-        Assert.Equal("(1 queued message dropped)", ChatScreen.QueueDroppedNotice(1));
-        Assert.Equal("(3 queued messages dropped)", ChatScreen.QueueDroppedNotice(3));
+        Assert.Equal("(⏳ 1 queued message dropped)", ChatScreen.QueueDroppedNotice(1));
+        Assert.Equal("(⏳ 3 queued messages dropped)", ChatScreen.QueueDroppedNotice(3));
         Assert.Equal("/queue", SlashCommands.QueueWord);
     }
 
@@ -10668,7 +10668,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("\n" + Titled("Forget 2 memories?") + "\n \n▸ No\n  Yes\n", output);
+        Assert.Contains("\n" + Titled("💾 Forget 2 memories?") + "\n \n▸ No\n  Yes\n", output);
         Assert.Contains("  · " + ChatScreen.ForgotNotice(2), output);
         Assert.Equal(0, _memory.Count);
         Assert.DoesNotContain(ChatScreen.CancelledNotice, output);
@@ -10698,7 +10698,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("\n" + Titled("Copy 1 memory into \"work\"?") + "\n \n▸ No\n  Yes\n", output);
+        Assert.Contains("\n" + Titled("💾 Copy 1 memory into \"work\"?") + "\n \n▸ No\n  Yes\n", output);
         Assert.Contains("  · " + ChatScreen.MemoryCopiedNotice(new MemoryImportResult(1, 0, 0), "work", overwrite: false), output);
         Assert.Equal(new[] { "They like tea.", "Their name is Chris." }, new MemoryStore(ProfileDir("work")).Snapshot());
         Assert.DoesNotContain(ChatScreen.MidTurnRefusedNotice("/memory"), output);
@@ -10738,7 +10738,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("  · (" + TimerText.Started(new TimerSnapshot("tea", TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(5), _time.GetLocalNow().AddMinutes(5), false)) + ")", output);
+        Assert.Contains("  · (" + NoticeGlyphs.Timer + TimerText.Started(new TimerSnapshot("tea", TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(5), _time.GetLocalNow().AddMinutes(5), false)) + ")", output);
         Assert.Single(_chat.Requests);
     }
 
@@ -10883,7 +10883,7 @@ public partial class ChatScreenTests : IDisposable
 
         Assert.Equal(new[] { files, Path.Combine(files, "docs") }, _openedFiles);
         Assert.Contains("  · " + ChatScreen.ExploreOpenedNotice(""), output);
-        Assert.Contains("  · (opened the working directory in your file browser)", output);
+        Assert.Contains("  · (📂 opened the working directory in your file browser)", output);
         Assert.Contains("  · " + ChatScreen.ExploreOpenedNotice(@"docs\"), output);
         Assert.Contains("  ✗ " + FileText.Missing("nope"), output);
         Assert.Contains("  ✗ " + FileText.IsAFile("notes.txt"), output);
@@ -10956,7 +10956,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains("  ✗ " + FileText.IsDirectory(@"docs\"), output);
         Assert.Contains("  ✗ " + FileText.OutsideRoot(@"..\x"), output);
         Assert.Contains("  ✗ " + FileText.NotText("pic.bin"), output);
-        Assert.Contains("  · " + ChatScreen.SpeakEmptyNotice("blank.txt"), output);
+        Assert.Contains("  ✗ " + ChatScreen.SpeakEmptyError("blank.txt"), output);   // an error since 2026-09-22
         Assert.Contains("● " + new string('x', 50) + "\n", output);
         Assert.Contains("  · " + ChatScreen.SpeakCutNotice(WorkingDirectory.MaxReadChars), output);
         Assert.Equal("(cut at 32,000 characters)", ChatScreen.SpeakCutNotice(WorkingDirectory.MaxReadChars));
@@ -12990,7 +12990,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal("open a skill's SKILL.md in your editor: /skills edit <name>", ChatScreen.SkillsEditNote);
         Assert.Equal("Usage: /skills, or /skills edit <skill-name>.", ChatScreen.SkillsUsageError);
         Assert.Equal("No skill named \"nope\" is offered; /skills lists them.", ChatScreen.SkillMissingError("nope"));
-        Assert.Equal(@"(opened skill ""haiku""'s SKILL.md in your editor: C:\s\haiku\SKILL.md)", ChatScreen.SkillEditOpenedNotice("haiku", @"C:\s\haiku\SKILL.md"));
+        Assert.Equal(@"(🎓 opened skill ""haiku""'s SKILL.md in your editor: C:\s\haiku\SKILL.md)", ChatScreen.SkillEditOpenedNotice("haiku", @"C:\s\haiku\SKILL.md"));
         Assert.Equal("Could not open the SKILL.md: boom", ChatScreen.SkillEditFailedError("boom"));
 
         // The argument list: edit, then edit with each offered skill's name; the word's case is nothing.
@@ -14748,11 +14748,11 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         using var store = OpenSessions();
-        Assert.Contains("  · (no sessions older than 1 day)", output);
-        Assert.Equal("Purge 1 session older than 2 hours?", ChatScreen.PurgeOlderPrompt(TimeSpan.FromHours(2), 1));
+        Assert.Contains("  · (💬 no sessions older than 1 day)", output);
+        Assert.Equal("💬 Purge 1 session older than 2 hours?", ChatScreen.PurgeOlderPrompt(TimeSpan.FromHours(2), 1));
         Assert.Contains("\n" + Titled(ChatScreen.PurgeOlderPrompt(TimeSpan.FromHours(2), 1)) + "\n \n▸ No\n  Yes\n", output);
         Assert.Contains("  · (🗑️ purged 1 session older than 2 hours)", output);
-        Assert.Contains("  · (no sessions older than 1 hour 30 minutes)", output);
+        Assert.Contains("  · (💬 no sessions older than 1 hour 30 minutes)", output);
         Assert.Equal(recent, Assert.Single(store.List(0)).Id);
         Assert.Null(store.Load(old));
     }
@@ -14959,16 +14959,16 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal("/sessions lists the sessions, or /sessions <id> | purge <id> | purge older <age> | purge all | title <text>", ChatScreen.SessionUsageError);
         Assert.Equal("No session #12; /sessions lists them.", ChatScreen.SessionMissingError(12));
         Assert.Equal("Could not restore session #12: bad json", ChatScreen.SessionRestoreFailedError(12, "bad json"));
-        Assert.Equal("(restored session #12 \"Vosk wiring\" · 12 turns · 2026-09-11 14:05)", ChatScreen.SessionRestoredNotice(summary, ManualTimeProvider.DefaultZone));
-        Assert.Equal("Purge 3 sessions older than 30 days?", ChatScreen.PurgeOlderPrompt(TimeSpan.FromDays(30), 3));
-        Assert.Equal("Purge 3 sessions older than 12 hours?", ChatScreen.PurgeOlderPrompt(TimeSpan.FromHours(12), 3));
-        Assert.Equal("Purge all 1 session?", ChatScreen.PurgeAllPrompt(1));
+        Assert.Equal("(💬 restored session #12 \"Vosk wiring\" · 12 turns · 2026-09-11 14:05)", ChatScreen.SessionRestoredNotice(summary, ManualTimeProvider.DefaultZone));
+        Assert.Equal("💬 Purge 3 sessions older than 30 days?", ChatScreen.PurgeOlderPrompt(TimeSpan.FromDays(30), 3));
+        Assert.Equal("💬 Purge 3 sessions older than 12 hours?", ChatScreen.PurgeOlderPrompt(TimeSpan.FromHours(12), 3));
+        Assert.Equal("💬 Purge all 1 session?", ChatScreen.PurgeAllPrompt(1));
         Assert.Equal("(🗑️ purged 3 sessions)", ChatScreen.SessionsPurgedNotice(3));
         Assert.Equal("(🗑️ purged 1 session older than 30 days)", ChatScreen.SessionsPurgedOlderNotice(1, TimeSpan.FromDays(30)));
         Assert.Equal("(🗑️ purged 1 session older than 45 minutes)", ChatScreen.SessionsPurgedOlderNotice(1, TimeSpan.FromMinutes(45)));
-        Assert.Equal("(no sessions older than 30 days)", ChatScreen.NoSessionsOlderNotice(TimeSpan.FromDays(30)));
-        Assert.Equal("(no sessions older than 0 days)", ChatScreen.NoSessionsOlderNotice(TimeSpan.Zero));
-        Assert.Equal("(no session yet: send a message first)", ChatScreen.SessionNoneYetNotice);
+        Assert.Equal("(💬 no sessions older than 30 days)", ChatScreen.NoSessionsOlderNotice(TimeSpan.FromDays(30)));
+        Assert.Equal("(💬 no sessions older than 0 days)", ChatScreen.NoSessionsOlderNotice(TimeSpan.Zero));
+        Assert.Equal("(💬 no session yet: send a message first)", ChatScreen.SessionNoneYetNotice);
         Assert.Equal("purge", ChatScreen.SessionPurgeWord);
         Assert.Equal("older", ChatScreen.SessionOlderWord);
         Assert.Equal("all", ChatScreen.SessionAllWord);

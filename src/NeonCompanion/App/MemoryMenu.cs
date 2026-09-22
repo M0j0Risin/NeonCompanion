@@ -25,7 +25,7 @@ internal sealed class MemoryMenu
     // row; the prompt host joins them (SettingsMenu.PromptTitle). Pinned.
     public const string Title = ChatScreen.MemoryToolGlyph + " Memory";   // the glyph the toolbar wears for the pane too (2026-09-22)
     public const string Keys = "Enter = remove · ESC = back";
-    public const string EmptyNotice = "(nothing remembered)";
+    public const string EmptyNotice = "(" + NoticeGlyphs.Memory + "nothing remembered)";   // the disk since 2026-09-22
 
     /// <summary>How an entry with no saved date shows; the width of a <c>yyyy-MM-dd</c> date.</summary>
     public const string NoDate = "----------";
@@ -50,7 +50,7 @@ internal sealed class MemoryMenu
 
     // ── Pinned statics ──────────────────────────────────────────────────────
 
-    public static string RemovedNotice(string text) => $"(removed: {text})";
+    public static string RemovedNotice(string text) => $"({NoticeGlyphs.Memory}removed: {text})";
 
     public static string RemoveFailedError(string detail) => $"Could not remove the memory: {detail}";
 

@@ -245,7 +245,7 @@ internal sealed partial class ChatScreen
 {
     public const string CancelledNotice = "(cancelled)";
     public const string WithdrawnNotice = "(cancelled — your message is back on the line)";
-    public const string SpeechStoppedNotice = "(speech stopped)";
+    public const string SpeechStoppedNotice = "(" + NoticeGlyphs.Tts + "speech stopped)";   // the speaker since 2026-09-22
     /// <summary>The hint row after one Ctrl+C with nothing to copy, stop or cancel; the next within <see cref="ExitConfirmWindow"/> exits (2026-09-17).</summary>
     public const string ExitHint = "Press Ctrl+C again to exit";
     /// <summary>
@@ -255,10 +255,15 @@ internal sealed partial class ChatScreen
     /// Ranked after <see cref="ExitHint"/>; an open list's or the scroll's hint hides it like both.
     /// </summary>
     public const string SplashHint = "← → slideshow";
-    /// <summary>A connect or model download cancelled by Ctrl+C under its spinner (2026-09-17); the app stays.</summary>
-    public const string ConnectCancelledNotice = "(cancelled)";
-    public const string HeardNothingNotice = "(heard nothing)";
-    public const string VoiceDiscardedNotice = "(discarded)";
+    /// <summary>
+    /// A connect or model download cancelled by Ctrl+C under its spinner (2026-09-17); the app stays.
+    /// Since 2026-09-22 (the user's pick) it wears the glyph of what was connecting —
+    /// <c>(🖥️ cancelled)</c> the LLM, <c>(🔊 cancelled)</c> speech, <c>(🎤 cancelled)</c> voice,
+    /// <c>(🔌 cancelled)</c> MCP. Pinned.
+    /// </summary>
+    public static string ConnectCancelledNotice(string glyph) => "(" + glyph + "cancelled)";
+    public const string HeardNothingNotice = "(" + NoticeGlyphs.Stt + "heard nothing)";   // the microphone since 2026-09-22
+    public const string VoiceDiscardedNotice = "(" + NoticeGlyphs.Stt + "discarded)";
     public const string ThinkingLabel = "thinking";
 
     /// <summary>The ghost text on the empty idle input row (<see cref="ScreenPane.Placeholder"/>): dim, gone with the first key, never under the spinner. Pinned.</summary>
@@ -278,23 +283,23 @@ internal sealed partial class ChatScreen
     public const string TurnFailedPrefix = "Turn failed: ";
     public const string TtsUsageError = "/tts takes on or off, or nothing to toggle.";
     public const string VoiceUsageError = "/stt takes on or off, or nothing to toggle.";
-    public const string VoiceOffHint = "Voice input is off; /stt turns it on.";
+    public const string VoiceOffHint = NoticeGlyphs.Stt + "Voice input is off; /stt turns it on.";
     public const string WakeUsageError = "/wake takes on or off, or nothing to toggle.";
-    public const string WakeOnNeedsVoiceNotice = "Wake word on; it listens once voice input is on (/stt).";
-    public const string WakeOffNotice = "Wake word off.";
+    public const string WakeOnNeedsVoiceNotice = NoticeGlyphs.Wake + "Wake word on; it listens once voice input is on (/stt).";
+    public const string WakeOffNotice = NoticeGlyphs.Wake + "Wake word off.";
     public const string InterruptUsageError = "/interrupt takes on or off, or nothing to toggle.";
-    public const string InterruptOnNeedsVoiceNotice = "Interrupting on; it works once voice input (/stt) and speech output (/tts) are on.";
-    public const string InterruptOffNotice = "Interrupting off.";
-    public const string InterruptNeedsSpeechNotice = "Interrupting works only while a reply is spoken; /tts turns speech output on.";
-    public const string InterruptNeedsWakeNotice = "Interrupting needs the wake word; /wake on turns it on.";
-    public const string InterruptOffWithWakeNotice = "Interrupting off with the wake word.";
-    public const string InterruptedNotice = "(interrupted)";
+    public const string InterruptOnNeedsVoiceNotice = NoticeGlyphs.Interrupt + "Interrupting on; it works once voice input (/stt) and speech output (/tts) are on.";
+    public const string InterruptOffNotice = NoticeGlyphs.Interrupt + "Interrupting off.";
+    public const string InterruptNeedsSpeechNotice = NoticeGlyphs.Interrupt + "Interrupting works only while a reply is spoken; /tts turns speech output on.";
+    public const string InterruptNeedsWakeNotice = NoticeGlyphs.Interrupt + "Interrupting needs the wake word; /wake on turns it on.";
+    public const string InterruptOffWithWakeNotice = NoticeGlyphs.Interrupt + "Interrupting off with the wake word.";
+    public const string InterruptedNotice = "(" + NoticeGlyphs.Interrupt + "interrupted)";
     public const string InterruptDisabledReason = "switched off after two interruptions heard nothing";
     public const string RememberUsageError = "/remember takes the text to keep: /remember <text>";
-    public const string MemoryOffNotice = "Memory is off; turn it on in /settings (the Memory row).";
+    public const string MemoryOffNotice = NoticeGlyphs.Memory + "Memory is off; turn it on in /settings (the Memory row).";
     public const string MemoryFullError = "Memory is full (" + MaxMemoriesText + " entries); /memory forget clears it.";
     public const string MemoryFailedError = "Could not save the memory; the log has the reason.";
-    public const string NothingToForgetNotice = "(nothing to forget)";
+    public const string NothingToForgetNotice = "(" + NoticeGlyphs.Memory + "nothing to forget)";
     public const string KeptNotice = "(kept)";
     public const string ProfileUsageError = "/profile takes nothing (pick), a name, add <name>, delete <name>, rename <name> <new-name>, reset [name], edit or reload.";
 
@@ -359,7 +364,7 @@ internal sealed partial class ChatScreen
     public const string GitUserNote = "write the Git native email and Git native name settings into this repository's .git/config";
     public const string GitUserForceNote = "the same, replacing a [user] section already there";
     public const string TimerUsageError = "/timer takes nothing (list), <duration> [name], stop <name> or stop all; a duration is 10m, 90s, 1h30m, or minutes as a number.";
-    public const string NoTimersNotice = "(no timers)";
+    public const string NoTimersNotice = "(" + NoticeGlyphs.Timer + "no timers)";
 
     /// <summary>The <c>/cwd</c> word that clears the setting back to the profile's own folder: the shell's home word, bare only (<c>~/x</c> is a path). <c>default</c> was a second word until 2026-09-16 (the user's call); it reads as a relative path now, which the save refuses.</summary>
     public const string CwdHomeWord = "~";
@@ -410,10 +415,10 @@ internal sealed partial class ChatScreen
     public static readonly TimeSpan InterruptSettle = TimeSpan.FromMilliseconds(300);
 
     /// <summary>Under the no-server line. Pinned.</summary>
-    public static readonly string NoServerHint = $"Set the URL with /settings or {EnvironmentOverrides.LlmUrlVariable}.";
+    public static readonly string NoServerHint = $"{NoticeGlyphs.Llm}Set the URL with /settings or {EnvironmentOverrides.LlmUrlVariable}.";
 
     /// <summary>Under the no-server line when <c>LLM scan mode</c> is <c>disabled</c> (2026-09-15): the two ways out. Pinned.</summary>
-    public static readonly string ScanDisabledHint = $"Set the URL with /settings (LLM URL, or /server <url>) or {EnvironmentOverrides.LlmUrlVariable}, or set LLM scan mode to local, remote or both.";
+    public static readonly string ScanDisabledHint = $"{NoticeGlyphs.Llm}Set the URL with /settings (LLM URL, or /server <url>) or {EnvironmentOverrides.LlmUrlVariable}, or set LLM scan mode to local, remote or both.";
 
     /// <summary>The hint under <see cref="LlmSession.NoServerLine"/> for <paramref name="scope"/>: <see cref="ScanDisabledHint"/> when nothing was looked for, else <see cref="NoServerHint"/>.</summary>
     public static string NoServerHintFor(ScanScope scope) => Llm.LlmScanMode.Scans(scope) ? NoServerHint : ScanDisabledHint;
@@ -1333,7 +1338,7 @@ internal sealed partial class ChatScreen
 
     /// <summary>The transcript's notice when the queue is dropped — a cancelled reply under <c>Queue cancel mode</c> <c>empty</c>, or a conversation forgotten. Pinned.</summary>
     public static string QueueDroppedNotice(int count) =>
-        count == 1 ? "(1 queued message dropped)" : $"({count.ToString(CultureInfo.InvariantCulture)} queued messages dropped)";
+        count == 1 ? "(" + NoticeGlyphs.Queue + "1 queued message dropped)" : $"({NoticeGlyphs.Queue}{count.ToString(CultureInfo.InvariantCulture)} queued messages dropped)";
 
     /// <summary>
     /// The watcher's click hook (2026-09-18), on the watcher task: two left clicks on the busy row's
@@ -3144,7 +3149,7 @@ internal sealed partial class ChatScreen
         return window is { Tokens: > 0 } w ? new Assistant.TurnContextGuard(w.Tokens, effective.LlmAutoCompactPercent, ToolCompactType.Resolve(effective), SkillCompactMode.Resolve(effective)) : null;
     }
 
-    public static string RememberedNotice(string text) => $"(remembered: {text})";
+    public static string RememberedNotice(string text) => $"({NoticeGlyphs.Memory}remembered: {text})";
 
     /// <summary>After <c>/settings</c> flipped <c>LLM offer tools</c>: the conversation went with it. Pinned.</summary>
     public static string ToolsChangedNotice(bool on) => on ? "(LLM offer tools on; conversation cleared)" : "(LLM offer tools off; conversation cleared)";
@@ -3153,26 +3158,26 @@ internal sealed partial class ChatScreen
     public const string NewConversationNotice = "(new conversation)";
 
     /// <summary>After <c>/persona</c> opened an existing file. Pinned.</summary>
-    public const string PersonaOpenedNotice = "(opened persona.md in your editor; save it and the next reply uses it)";
+    public const string PersonaOpenedNotice = "(" + NoticeGlyphs.Profile + "opened persona.md in your editor; save it and the next reply uses it)";
 
     /// <summary>After <c>/persona</c> created the file with the default persona and opened it. Pinned.</summary>
-    public const string PersonaCreatedNotice = "(created persona.md with the default persona and opened it in your editor; edit it, save, and the next reply uses it; /persona reset goes back to the default)";
+    public const string PersonaCreatedNotice = "(" + NoticeGlyphs.Profile + "created persona.md with the default persona and opened it in your editor; edit it, save, and the next reply uses it; /persona reset goes back to the default)";
 
     public static string PersonaOpenFailedError(string detail) => $"Could not open persona.md: {detail}";
 
     /// <summary>After <c>/operata</c> opened an existing file. Pinned.</summary>
-    public const string OperataOpenedNotice = "(opened operata.md in your editor; save it and the next reply uses it)";
+    public const string OperataOpenedNotice = "(" + NoticeGlyphs.Operata + "opened operata.md in your editor; save it and the next reply uses it)";
 
     /// <summary>After <c>/operata</c> created the file with the default operating rules and opened it. Pinned.</summary>
-    public const string OperataCreatedNotice = "(created operata.md with the default operating rules and opened it in your editor; edit it, save, and the next reply uses it; /operata reset goes back to the default)";
+    public const string OperataCreatedNotice = "(" + NoticeGlyphs.Operata + "created operata.md with the default operating rules and opened it in your editor; edit it, save, and the next reply uses it; /operata reset goes back to the default)";
 
     public static string OperataOpenFailedError(string detail) => $"Could not open operata.md: {detail}";
 
     /// <summary>After <c>/vocalia</c> opened an existing file. Pinned.</summary>
-    public const string VocaliaOpenedNotice = "(opened vocalia.md in your editor; save it and the next spoken reply uses it)";
+    public const string VocaliaOpenedNotice = "(" + NoticeGlyphs.Vocalia + "opened vocalia.md in your editor; save it and the next spoken reply uses it)";
 
     /// <summary>After <c>/vocalia</c> created the file with the default voice directive and opened it. Pinned.</summary>
-    public const string VocaliaCreatedNotice = "(created vocalia.md with the default voice directive and opened it in your editor; edit it, save, and the next spoken reply uses it; /vocalia reset goes back to the default)";
+    public const string VocaliaCreatedNotice = "(" + NoticeGlyphs.Vocalia + "created vocalia.md with the default voice directive and opened it in your editor; edit it, save, and the next spoken reply uses it; /vocalia reset goes back to the default)";
 
     public static string VocaliaOpenFailedError(string detail) => $"Could not open vocalia.md: {detail}";
 
@@ -3189,7 +3194,7 @@ internal sealed partial class ChatScreen
     public static string PromptFileCopySelfError(string command) => $"{command} {CopyWord} copies into another profile; that one is loaded.";
 
     /// <summary>A copy with no file to copy: the default is in use here. Pinned.</summary>
-    public static string PromptFileNothingToCopyNotice(string fileName, string defaultLabel) => $"({fileName} is not there; the default {defaultLabel} is in use, so there is nothing to copy)";
+    public static string PromptFileNothingToCopyNotice(string fileName, string defaultLabel) => $"({NoticeGlyphs.PromptFile(fileName)}{fileName} is not there; the default {defaultLabel} is in use, so there is nothing to copy)";
 
     /// <summary>The target has the file and <c>force</c> was not given (the user's rule, 2026-09-21): an error naming the way past it, nothing written. Pinned.</summary>
     public static string PromptFileTargetExistsError(string command, string fileName, string profile) => $"\"{profile}\" already has a {fileName}; {command} {CopyWord} {profile} {ForceWord} replaces it.";
@@ -3205,13 +3210,13 @@ internal sealed partial class ChatScreen
     public static string PromptFileCopyFailedError(string fileName, string detail) => $"Could not copy {fileName}: {detail}";
 
     /// <summary>The question before a <c>/persona reset</c> (the yes/no pane's title; <see cref="TypedConfirm"/> where menus cannot open); <c>y</c> or <c>yes</c> removes, anything else keeps. Pinned.</summary>
-    public static string PromptFileResetPrompt(string fileName, string defaultLabel) => $"Remove {fileName} and go back to the default {defaultLabel}?";
+    public static string PromptFileResetPrompt(string fileName, string defaultLabel) => $"{NoticeGlyphs.PromptFile(fileName)}Remove {fileName} and go back to the default {defaultLabel}?";
 
     /// <summary>The notice after the file went; <paramref name="spoken"/> for the voice directive, which only a spoken reply carries. Pinned.</summary>
-    public static string PromptFileResetNotice(string fileName, string defaultLabel, bool spoken) => $"(removed {fileName}; the next {(spoken ? "spoken " : "")}reply uses the default {defaultLabel})";
+    public static string PromptFileResetNotice(string fileName, string defaultLabel, bool spoken) => $"({NoticeGlyphs.PromptFile(fileName)}removed {fileName}; the next {(spoken ? "spoken " : "")}reply uses the default {defaultLabel})";
 
     /// <summary>The notice for a reset with no file to remove. Pinned.</summary>
-    public static string PromptFileAbsentNotice(string fileName, string defaultLabel) => $"({fileName} is not there; the default {defaultLabel} is already in use)";
+    public static string PromptFileAbsentNotice(string fileName, string defaultLabel) => $"({NoticeGlyphs.PromptFile(fileName)}{fileName} is not there; the default {defaultLabel} is already in use)";
 
     public static string PromptFileResetFailedError(string fileName, string detail) => $"Could not remove {fileName}: {detail}";
 
@@ -3344,12 +3349,12 @@ internal sealed partial class ChatScreen
         }
     }
 
-    public static string AlreadyRememberedNotice(string text) => $"(already remembered: {text})";
+    public static string AlreadyRememberedNotice(string text) => $"({NoticeGlyphs.Memory}already remembered: {text})";
 
     /// <summary>The question before a <c>/memory forget</c> (the yes/no pane's title; <see cref="TypedConfirm"/> where menus cannot open, the answer typed — <c>y</c> or <c>yes</c> clears, anything else keeps). Pinned.</summary>
-    public static string ForgetPrompt(int count) => $"Forget {Memories(count)}?";
+    public static string ForgetPrompt(int count) => $"{NoticeGlyphs.Memory}Forget {Memories(count)}?";
 
-    public static string ForgotNotice(int count) => $"(forgot {Memories(count)})";
+    public static string ForgotNotice(int count) => $"({NoticeGlyphs.Memory}forgot {Memories(count)})";
 
     public static string ForgetFailedError(string detail) => $"Could not clear the memories: {detail}";
 
@@ -3465,11 +3470,11 @@ internal sealed partial class ChatScreen
 
     public const string MemoryCopySelfError = "/memory copy copies into another profile; that one is loaded.";
 
-    public const string MemoryCopyNothingNotice = "(nothing to copy: this profile has no memory)";
+    public const string MemoryCopyNothingNotice = "(" + NoticeGlyphs.Memory + "nothing to copy: this profile has no memory)";
 
     /// <summary>The question before a copy (the yes/no pane's title; <see cref="TypedConfirm"/> where menus cannot open). Pinned.</summary>
     public static string MemoryCopyPrompt(int count, string profile, bool overwrite) =>
-        overwrite ? $"Replace \"{profile}\"'s memory with these {Memories(count)}?" : $"Copy {Memories(count)} into \"{profile}\"?";
+        NoticeGlyphs.Memory + (overwrite ? $"Replace \"{profile}\"'s memory with these {Memories(count)}?" : $"Copy {Memories(count)} into \"{profile}\"?");
 
     /// <summary>
     /// <c>(12 memories copied into "work")</c>; <c>(9 memories copied into "work", 3 already there, 2 dropped: its memory is full)</c>;
@@ -3477,7 +3482,7 @@ internal sealed partial class ChatScreen
     /// </summary>
     public static string MemoryCopiedNotice(MemoryImportResult result, string profile, bool overwrite)
     {
-        var sb = new StringBuilder("(");
+        var sb = new StringBuilder("(" + NoticeGlyphs.Memory);
         sb.Append(overwrite ? $"replaced \"{profile}\"'s memory with {Memories(result.Added)}" : $"{Memories(result.Added)} copied into \"{profile}\"");
         if (result.Duplicates > 0)
         {
@@ -3506,20 +3511,20 @@ internal sealed partial class ChatScreen
     public static string SessionRestoredNotice(SessionSummary session, TimeZoneInfo zone)
     {
         ArgumentNullException.ThrowIfNull(session);
-        return $"(restored session {SessionText.Id(session.Id)} \"{session.Title}\" · {SessionText.Turns(session.Turns)} · {SessionText.Moment(session.UpdatedAt, zone)})";
+        return $"({NoticeGlyphs.Session}restored session {SessionText.Id(session.Id)} \"{session.Title}\" · {SessionText.Turns(session.Turns)} · {SessionText.Moment(session.UpdatedAt, zone)})";
     }
 
-    public static string PurgeOlderPrompt(TimeSpan age, int count) => $"Purge {SessionText.Sessions(count)} older than {SessionText.Age(age)}?";
+    public static string PurgeOlderPrompt(TimeSpan age, int count) => $"{NoticeGlyphs.Session}Purge {SessionText.Sessions(count)} older than {SessionText.Age(age)}?";
 
-    public static string PurgeAllPrompt(int count) => $"Purge all {SessionText.Sessions(count)}?";
+    public static string PurgeAllPrompt(int count) => $"{NoticeGlyphs.Session}Purge all {SessionText.Sessions(count)}?";
 
     public static string SessionsPurgedNotice(int count) => $"({TrashGlyph}purged {SessionText.Sessions(count)})";
 
     public static string SessionsPurgedOlderNotice(int count, TimeSpan age) => $"({TrashGlyph}purged {SessionText.Sessions(count)} older than {SessionText.Age(age)})";
 
-    public static string NoSessionsOlderNotice(TimeSpan age) => $"(no sessions older than {SessionText.Age(age)})";
+    public static string NoSessionsOlderNotice(TimeSpan age) => $"({NoticeGlyphs.Session}no sessions older than {SessionText.Age(age)})";
 
-    public const string SessionNoneYetNotice = "(no session yet: send a message first)";
+    public const string SessionNoneYetNotice = "(" + NoticeGlyphs.Session + "no session yet: send a message first)";
 
     /// <summary>
     /// The <c>/sessions</c> grammar: nothing = the pane; <c>12</c> or <c>#12</c> = restore; <c>purge 12</c>,
@@ -4012,7 +4017,7 @@ internal sealed partial class ChatScreen
 
                 foreach (var timer in timers)
                 {
-                    _transcript.Notice(TimerText.Line(timer));
+                    _transcript.Notice(NoticeGlyphs.Timer + TimerText.Line(timer));
                 }
 
                 break;
@@ -4022,7 +4027,7 @@ internal sealed partial class ChatScreen
                 string sentence = StartTimerTool.Describe(result);
                 if (result.Outcome == TimerStartOutcome.Started)
                 {
-                    _transcript.Notice("(" + sentence + ")");
+                    _transcript.Notice("(" + NoticeGlyphs.Timer + sentence + ")");
                 }
                 else
                 {
@@ -4034,7 +4039,7 @@ internal sealed partial class ChatScreen
             case TimerActionKind.Stop:
                 if (_timers.Stop(action.Name, out var removed))
                 {
-                    _transcript.Notice("(" + TimerText.Stopped(removed) + ")");
+                    _transcript.Notice("(" + NoticeGlyphs.Timer + TimerText.Stopped(removed) + ")");
                 }
                 else
                 {
@@ -4071,7 +4076,7 @@ internal sealed partial class ChatScreen
 
     /// <summary>The <c>/cwd</c> line: the resolved path, and how it came to be in force. Pinned.</summary>
     public static string CwdNotice(string path, bool isDefault, string? overriddenBy) =>
-        "Working directory: " + path
+        NoticeGlyphs.Folder + "Working directory: " + path
         + (overriddenBy is not null ? $"  ({overriddenBy} this launch)" : isDefault ? "  " + SettingsMenu.ProfileFolderNote : "");
 
     /// <summary>
@@ -4210,10 +4215,11 @@ internal sealed partial class ChatScreen
     /// <summary>The setting <c>Git native tools</c> is off (later on 2026-09-21, the user's call): <c>/git user</c> writes nothing and says why. Pinned.</summary>
     public const string GitNativeToolsOffError = "Git native tools is off; /git user does nothing until it is on (the Git (native) tab of /tools).";
 
-    public static string GitIdentityWrittenNotice(string name, string email) => $"(git user set for this repository: {name} <{email}>)";
+    public static string GitIdentityWrittenNotice(string name, string email) => $"({NoticeGlyphs.Git}git user set for this repository: {name} <{email}>)";
 
     /// <summary>A <c>[user]</c> section was there and <c>force</c> was not given: what it holds, and the way past it.</summary>
-    public static string GitIdentityPresentNotice(string name, string email) => $"(this repository already has a [user] section: {name} <{email}>; /git user force replaces it)";
+    /// <remarks>An error since 2026-09-22 (the user's call; a notice before): nothing was written.</remarks>
+    public static string GitIdentityPresentError(string name, string email) => $"Git repository already has a [user] section: {name} <{email}>; /git user force replaces it.";
 
     public static string GitNoRepositoryError(string root) => $"'{root}' is not inside a git repository; /cwd into one first.";
 
@@ -4257,7 +4263,7 @@ internal sealed partial class ChatScreen
                 _transcript.Notice(GitIdentityWrittenNotice(result.Name, result.Email));
                 break;
             case GitOutcome.Ok:
-                _transcript.Notice(GitIdentityPresentNotice(result.Name, result.Email));
+                _transcript.Error(GitIdentityPresentError(result.Name, result.Email));
                 break;
             case GitOutcome.NoRepository:
                 _transcript.Error(GitNoRepositoryError(_files.Root));
@@ -4273,7 +4279,7 @@ internal sealed partial class ChatScreen
     // ── /explore ────────────────────────────────────────────────────────────
 
     /// <summary>The <c>/explore</c> notice: the folder as the file tools name it (blank = the working directory). Pinned.</summary>
-    public static string ExploreOpenedNotice(string relative) => "(opened " + FileText.Name(relative) + " in your file browser)";
+    public static string ExploreOpenedNotice(string relative) => "(" + NoticeGlyphs.Folder + "opened " + FileText.Name(relative) + " in your file browser)";
 
     /// <summary>
     /// <c>/explore [path]</c>: the working directory (or a folder under it, resolved through the
@@ -4307,7 +4313,8 @@ internal sealed partial class ChatScreen
         $"{file} has {FileText.Count(total, "sentence", "sentences")}; nothing at {at.ToString(CultureInfo.InvariantCulture)}";
 
     /// <summary>The notice for a file with nothing to say: blank, whitespace, or punctuation alone. Pinned.</summary>
-    public static string SpeakEmptyNotice(string relative) => $"({relative} is empty)";
+    /// <remarks>An error since 2026-09-22 (the user's call; a notice before): nothing is read.</remarks>
+    public static string SpeakEmptyError(string relative) => $"{relative} is empty";
 
     /// <summary>The dim line under a block <c>/speak</c> cut at <see cref="WorkingDirectory.MaxReadChars"/>. Pinned.</summary>
     public static string SpeakCutNotice(int chars) => $"(cut at {chars.ToString("N0", CultureInfo.InvariantCulture)} characters)";
@@ -4386,7 +4393,7 @@ internal sealed partial class ChatScreen
         var reading = new SpeakReading(read.Relative, read.Text) { Cut = read.Truncated };
         if (reading.Count == 0)
         {
-            _transcript.Notice(SpeakEmptyNotice(read.Relative));
+            _transcript.Error(SpeakEmptyError(read.Relative));
             return;
         }
 
@@ -4517,11 +4524,11 @@ internal sealed partial class ChatScreen
 
     /// <summary>The confirmation line before an <c>/emptytrash</c>: the folder and what is in it; <c>y</c> or <c>yes</c> empties, anything else keeps. Pinned.</summary>
     public static string EmptyTrashPrompt(string trashPath, int files, int folders, long bytes, bool truncated) =>
-        $"Empty {trashPath} — {TrashContents(files, folders, bytes)}"
+        $"{TrashGlyph}Empty {trashPath} — {TrashContents(files, folders, bytes)}"
         + (truncated ? $", counted the first {WorkingDirectory.MaxInfoEntries.ToString("N0", CultureInfo.InvariantCulture)} entries only" : "")
         + "?";
 
-    public static string TrashAlreadyEmptyNotice(string trashPath) => $"(nothing in {trashPath})";
+    public static string TrashAlreadyEmptyNotice(string trashPath) => $"({TrashGlyph}nothing in {trashPath})";
 
     /// <summary>
     /// What the emptied-trash line opens with, inside its parentheses (2026-09-18, the reflection lines' shape,
@@ -4587,7 +4594,7 @@ internal sealed partial class ChatScreen
 
     /// <summary>The <c>/window</c> line (<c>/windowsize</c> until later on 2026-09-19): the console profile's width and height, the numbers the pane lays out by. Pinned.</summary>
     public static string WindowNotice(int width, int height) =>
-        $"Terminal window: {width.ToString(CultureInfo.InvariantCulture)} columns × {height.ToString(CultureInfo.InvariantCulture)} rows";
+        $"{NoticeGlyphs.Window}Terminal window: {width.ToString(CultureInfo.InvariantCulture)} columns × {height.ToString(CultureInfo.InvariantCulture)} rows";
 
     // ── /copy ───────────────────────────────────────────────────────────────
 
@@ -4705,15 +4712,15 @@ internal sealed partial class ChatScreen
     public const string SkillsEditNote = "open a skill's SKILL.md in your editor: /skills edit <name>";
     public const string SkillsUsageError = "Usage: /skills, or /skills edit <skill-name>.";
     public static string SkillMissingError(string name) => $"No skill named \"{name}\" is offered; /skills lists them.";
-    public static string SkillEditOpenedNotice(string name, string path) => $"(opened skill \"{name}\"'s SKILL.md in your editor: {path})";
+    public static string SkillEditOpenedNotice(string name, string path) => $"({NoticeGlyphs.Skill}opened skill \"{name}\"'s SKILL.md in your editor: {path})";
     public static string SkillEditFailedError(string detail) => $"Could not open the SKILL.md: {detail}";
 
     // /profile edit and /profile reload (2026-09-21). Pinned.
-    public static string ProfileEditOpenedNotice(string name) => $"(opened profile \"{name}\"'s profile.json in your editor; /profile reload reads it back)";
-    public static string ProfileEditCreatedNotice(string name) => $"(created and opened profile \"{name}\"'s profile.json in your editor; /profile reload reads it back)";
+    public static string ProfileEditOpenedNotice(string name) => $"({NoticeGlyphs.Profile}opened profile \"{name}\"'s profile.json in your editor; /profile reload reads it back)";
+    public static string ProfileEditCreatedNotice(string name) => $"({NoticeGlyphs.Profile}created and opened profile \"{name}\"'s profile.json in your editor; /profile reload reads it back)";
     public static string ProfileEditFailedError(string detail) => $"Could not open profile.json: {detail}";
     public static string ProfileReloadedNotice(string name, int changed) =>
-        $"(reloaded profile \"{name}\"; " + (changed == 0 ? "nothing changed" : UsageText.Plural(changed, "setting", "settings") + " changed") + ")";
+        $"({NoticeGlyphs.Profile}reloaded profile \"{name}\"; " + (changed == 0 ? "nothing changed" : UsageText.Plural(changed, "setting", "settings") + " changed") + ")";
 
     /// <summary>
     /// What a reload's changes ask the screen to rebuild (2026-09-21): each <see cref="SettingsDiff.Changes"/>
@@ -4766,7 +4773,7 @@ internal sealed partial class ChatScreen
 
     public static string ProfileExistsError(string name) => $"A profile named \"{name}\" already exists; /profile {name} switches to it.";
 
-    public static string ProfileCreatedNotice(string name) => $"(created profile \"{name}\" from the current settings)";
+    public static string ProfileCreatedNotice(string name) => $"({NoticeGlyphs.Profile}created profile \"{name}\" from the current settings)";
 
     /// <summary>
     /// The created notice naming what came along under the <c>advanced</c> <see cref="NewProfileMode"/>:
@@ -4774,9 +4781,9 @@ internal sealed partial class ChatScreen
     /// in <see cref="Profiles.Describe"/>'s word. Nothing copied reads like <see cref="ProfileCreatedNotice(string)"/>.
     /// </summary>
     public static string ProfileCreatedNotice(string name, IReadOnlyList<string> copiedFiles) =>
-        $"(created profile \"{name}\" from the current {CompanionWords(copiedFiles)})";
+        $"({NoticeGlyphs.Profile}created profile \"{name}\" from the current {CompanionWords(copiedFiles)})";
 
-    public static string ProfileDeletedNotice(string name) => $"(deleted profile \"{name}\")";
+    public static string ProfileDeletedNotice(string name) => $"({NoticeGlyphs.Profile}deleted profile \"{name}\")";
 
     public static string ProfileFailedError(string detail) => $"Could not change profiles: {detail}";
 
@@ -4784,7 +4791,7 @@ internal sealed partial class ChatScreen
 
     /// <summary>The confirmation line before a <c>/profile delete</c>; <c>y</c> or <c>yes</c> deletes, anything else keeps.</summary>
     public static string DeleteProfilePrompt(string name) =>
-        $"Delete profile \"{name}\" and everything in it (settings, memories, persona, operating rules, voice directive, MCP servers, sessions)?";
+        $"{NoticeGlyphs.Profile}Delete profile \"{name}\" and everything in it (settings, memories, persona, operating rules, voice directive, MCP servers, sessions)?";
 
     /// <summary>
     /// The confirmation line before a <c>/profile reset</c> — the user's wording (2026-09-20, later
@@ -4793,19 +4800,19 @@ internal sealed partial class ChatScreen
     /// resets, anything else keeps. Pinned.
     /// </summary>
     public static string ResetProfilePrompt(string name) =>
-        $"Reset profile \"{name}\" to the default settings?";
+        $"{NoticeGlyphs.Profile}Reset profile \"{name}\" to the default settings?";
 
     /// <summary>
     /// The notice after a reset, the user's wording (2026-09-20): <c>; conversation cleared</c> when it
     /// was the loaded profile (the reset is a switch in all but the name). Pinned.
     /// </summary>
     public static string ProfileResetNotice(string name, bool loaded) =>
-        $"(reset profile \"{name}\" to the defaults{(loaded ? "; conversation cleared" : "")})";
+        $"({NoticeGlyphs.Profile}reset profile \"{name}\" to the defaults{(loaded ? "; conversation cleared" : "")})";
 
     public static string ProfileResetFailedError(string detail) => $"Could not reset the profile: {detail}";
 
     /// <summary>The notice after a <c>/profile rename</c>: the old spelling as the disk had it, the new one as typed. Pinned.</summary>
-    public static string ProfileRenamedNotice(string name, string newName) => $"(renamed profile \"{name}\" to \"{newName}\")";
+    public static string ProfileRenamedNotice(string name, string newName) => $"({NoticeGlyphs.Profile}renamed profile \"{name}\" to \"{newName}\")";
 
     public static string ProfileRenameFailedError(string detail) => $"Could not rename the profile: {detail}";
 
@@ -5735,7 +5742,7 @@ internal sealed partial class ChatScreen
 
         if (!blankUrl || !_menu.CanShowMenus())
         {
-            if (await ConnectUnderWatchAsync(token => _transcript.WithSpinnerAsync(ConnectingLabel, () => _session.ConnectAsync(effective, token)), cancellationToken).ConfigureAwait(false))
+            if (await ConnectUnderWatchAsync(NoticeGlyphs.Llm, token => _transcript.WithSpinnerAsync(ConnectingLabel, () => _session.ConnectAsync(effective, token)), cancellationToken).ConfigureAwait(false))
             {
                 return;
             }
@@ -5745,7 +5752,7 @@ internal sealed partial class ChatScreen
         }
 
         IReadOnlyList<LlmServer> servers = Array.Empty<LlmServer>();
-        if (await ConnectUnderWatchAsync(async token => servers = await _transcript.WithSpinnerAsync(SearchLabel(effective, ConnectingLabel), () => _session.DiscoverAsync(effective, token)).ConfigureAwait(false), cancellationToken).ConfigureAwait(false))
+        if (await ConnectUnderWatchAsync(NoticeGlyphs.Llm, async token => servers = await _transcript.WithSpinnerAsync(SearchLabel(effective, ConnectingLabel), () => _session.DiscoverAsync(effective, token)).ConfigureAwait(false), cancellationToken).ConfigureAwait(false))
         {
             return;
         }
@@ -5768,7 +5775,7 @@ internal sealed partial class ChatScreen
             }
 
             // The connect itself is instant; the spinner covers the context-window probe that follows it.
-            if (await ConnectUnderWatchAsync(token => _transcript.WithSpinnerAsync(ConnectingLabel, () => _session.ConnectAsync(effective, endpoint, token)), cancellationToken).ConfigureAwait(false))
+            if (await ConnectUnderWatchAsync(NoticeGlyphs.Llm, token => _transcript.WithSpinnerAsync(ConnectingLabel, () => _session.ConnectAsync(effective, endpoint, token)), cancellationToken).ConfigureAwait(false))
             {
                 return;
             }
@@ -5784,17 +5791,17 @@ internal sealed partial class ChatScreen
     /// ESC typed under it stays type-ahead as it always has). The token handed to the connect is
     /// linked to the app's; the sessions either throw on it or swallow it into a "cancelled"
     /// result (the LLM probes do), so the token is read after, not only caught. True when the key
-    /// cancelled it — <see cref="ConnectCancelledNotice"/> printed, the caller reports nothing;
+    /// cancelled it — <see cref="ConnectCancelledNotice"/> printed with <paramref name="glyph"/> (what was connecting, 2026-09-22), the caller reports nothing;
     /// the app token still propagates. Drains the diagnostics either way. No <c>spend</c> hook:
     /// nothing scrolls under a connect, and PgUp / PgDn typed there stay type-ahead for the pane
     /// they were meant for. <see cref="WaitUnderWatchAsync"/> is the body; <c>/draft</c>'s wait
     /// shares it with ESC as a cancel too (2026-09-19).
     /// </summary>
-    private async Task<bool> ConnectUnderWatchAsync(Func<CancellationToken, Task> connect, CancellationToken cancellationToken)
+    private async Task<bool> ConnectUnderWatchAsync(string glyph, Func<CancellationToken, Task> connect, CancellationToken cancellationToken)
     {
         if (await WaitUnderWatchAsync(connect, Keys.IsInterrupt, cancellationToken).ConfigureAwait(false))
         {
-            _transcript.Notice(ConnectCancelledNotice);
+            _transcript.Notice(ConnectCancelledNotice(glyph));
             return true;
         }
 
@@ -5932,7 +5939,7 @@ internal sealed partial class ChatScreen
         }
         else if (!quiet || !SettingsNameEndpoint(_effective()))
         {
-            _transcript.Notice(LlmSession.ConnectedLine(_session.Endpoint));
+            _transcript.Notice(NoticeGlyphs.Llm + LlmSession.ConnectedLine(_session.Endpoint));   // the screen's glyph (2026-09-22); the log and headless keep the bare line
         }
     }
 
@@ -5949,7 +5956,7 @@ internal sealed partial class ChatScreen
         if (effective.TtsOutput)
         {
             string label = TtsSource.Resolve(effective) == TtsEngine.InProcess ? SpeechLoadingLabel : SpeechConnectingLabel;
-            if (await ConnectUnderWatchAsync(token => _transcript.WithSpinnerAsync(label, async setLabel =>
+            if (await ConnectUnderWatchAsync(NoticeGlyphs.Tts, token => _transcript.WithSpinnerAsync(label, async setLabel =>
             {
                 await _speech.ConnectAsync(effective, setLabel, token).ConfigureAwait(false);
                 return true;
@@ -5991,7 +5998,7 @@ internal sealed partial class ChatScreen
         var effective = _effective();
         if (effective.SttInput)
         {
-            if (await ConnectUnderWatchAsync(token => _transcript.WithSpinnerAsync(VoiceConnectingLabel, async setLabel =>
+            if (await ConnectUnderWatchAsync(NoticeGlyphs.Stt, token => _transcript.WithSpinnerAsync(VoiceConnectingLabel, async setLabel =>
             {
                 await _voice.ConnectAsync(effective, setLabel, token).ConfigureAwait(false);
                 return true;
@@ -6051,7 +6058,7 @@ internal sealed partial class ChatScreen
         bool any = effective.McpServers && merged.Entries.Any(e => e.Startable && !disabled.Contains(e.Name));
         if (any)
         {
-            if (await ConnectUnderWatchAsync(token => _transcript.WithSpinnerAsync(McpText.ConnectingLabel, async setLabel =>
+            if (await ConnectUnderWatchAsync(NoticeGlyphs.Mcp, token => _transcript.WithSpinnerAsync(McpText.ConnectingLabel, async setLabel =>
             {
                 await _mcp.ConnectAllAsync(effective, setLabel, token).ConfigureAwait(false);
                 return true;

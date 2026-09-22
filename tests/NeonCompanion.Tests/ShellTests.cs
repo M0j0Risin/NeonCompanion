@@ -428,8 +428,8 @@ public sealed class ShellTests
         var script = new CommandRequest("python", "import os\nprint(os.getcwd())\n", ["code:python"], IsScript: true);
         Assert.Equal("python · 3 lines · first line: import os", ShellText.Caption(script));
         Assert.Equal("Allow python scripts for this session", ShellText.SessionRow(script));
-        Assert.Equal("(allowed for this session: git push, rm)", ShellText.SessionAllowedNotice(["git push", "rm"]));
-        Assert.Equal("(allowed always: git push — the Shell tab of /tools)", ShellText.PermanentAllowedNotice(["git push"]));
+        Assert.Equal("(🔓 allowed for this session: git push, rm)", ShellText.SessionAllowedNotice(["git push", "rm"]));
+        Assert.Equal("(🔓 allowed always: git push — the Shell tab of /tools)", ShellText.PermanentAllowedNotice(["git push"]));
 
         var page = App.CommandApprovalMenu.Page(request);
         Assert.Equal("Run this command?", page.Title);

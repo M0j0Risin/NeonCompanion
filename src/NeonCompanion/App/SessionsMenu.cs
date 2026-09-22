@@ -24,7 +24,7 @@ internal sealed class SessionsMenu
     public const string Keys = "Enter = open · ESC = close";
     public const string RowKeys = SettingsMenu.PickKeys;
 
-    public const string EmptyNotice = "(no sessions)";
+    public const string EmptyNotice = "(" + NoticeGlyphs.Session + "no sessions)";   // the balloon since 2026-09-22
 
     /// <summary>The dim note after the row of the conversation on screen.</summary>
     public const string CurrentNote = "this conversation";
@@ -121,19 +121,19 @@ internal sealed class SessionsMenu
     public static string PurgePrompt(SessionSummary session)
     {
         ArgumentNullException.ThrowIfNull(session);
-        return "Purge session " + SessionText.Id(session.Id) + " \"" + session.Title + "\" (" + SessionText.Turns(session.Turns) + ")?";
+        return NoticeGlyphs.Session + "Purge session " + SessionText.Id(session.Id) + " \"" + session.Title + "\" (" + SessionText.Turns(session.Turns) + ")?";
     }
 
     public static string PurgedNotice(long id) => "(" + ChatScreen.TrashGlyph + "purged session " + SessionText.Id(id) + ")";
 
     public static string PurgeFailedError(long id) => "Could not purge session " + SessionText.Id(id) + "; it may be gone already";
 
-    public static string RenamedNotice(string title) => "(renamed: " + title + ")";
+    public static string RenamedNotice(string title) => "(" + NoticeGlyphs.Session + "renamed: " + title + ")";
 
     public static string RenameFailedError(long id) => "Could not rename session " + SessionText.Id(id) + "; it may be gone already";
 
     /// <summary>The row page's <c>restore</c> on the conversation already on screen.</summary>
-    public const string CurrentNotice = "(that is this conversation)";
+    public const string CurrentNotice = "(" + NoticeGlyphs.Session + "that is this conversation)";
 
     // ── Screen ──────────────────────────────────────────────────────────────
 

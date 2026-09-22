@@ -2466,8 +2466,8 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal(@"Profile                               [#EFE6FF]p[/][#9A8BB8] (D:\h[[x]]\profiles\p)[/]", SettingsMenu.ProfileLabel("p", @"D:\h[x]\profiles\p"));   // the path escaped
         Assert.Equal("profiles: default (current), work", SettingsMenu.ProfileListLine(new[] { "default", "work" }, "default"));
         Assert.Equal("profiles: default, work (current)", SettingsMenu.ProfileListLine(new[] { "default", "work" }, "Work"));
-        Assert.Equal("(already on profile \"default\")", SettingsMenu.AlreadyCurrentNotice("default"));
-        Assert.Equal("(switched to profile \"work\"; conversation cleared)", SettingsMenu.SwitchedNotice("work"));
+        Assert.Equal("(🪪 already on profile \"default\")", SettingsMenu.AlreadyCurrentNotice("default"));
+        Assert.Equal("(🪪 switched to profile \"work\"; conversation cleared)", SettingsMenu.SwitchedNotice("work"));
         Assert.Equal("Profile", SettingsMenu.FieldName(SettingsField.Profile));
         Assert.Equal("", SettingsMenu.FieldValue(SettingsField.Profile, new AppSettingsData(), _settings.ProfileDirectory));
         Assert.Equal("", SettingsMenu.EditableValue(SettingsField.Profile, new AppSettingsData()));
@@ -2889,15 +2889,15 @@ public class SettingsMenuTests : IDisposable
     {
         var (menu, pane) = PaneMenu();
         Push(Keys.Down, Keys.Enter);
-        Assert.True(await menu.ConfirmAsync("Forget 2 memories?", CancellationToken.None));
-        Assert.Contains("\n" + Titled("Forget 2 memories?") + "\n \n▸ No\n  Yes\n" + Rule(100) + "\n" + SettingsMenu.ConfirmKeys + "\n", _console.Output);
+        Assert.True(await menu.ConfirmAsync("💾 Forget 2 memories?", CancellationToken.None));
+        Assert.Contains("\n" + Titled("💾 Forget 2 memories?") + "\n \n▸ No\n  Yes\n" + Rule(100) + "\n" + SettingsMenu.ConfirmKeys + "\n", _console.Output);
         Assert.Contains("\n  No\n▸ Yes\n", _console.Output);
         Assert.False(pane.OverlayOpen);
 
         Push(Keys.Enter);
-        Assert.False(await menu.ConfirmAsync("Forget 2 memories?", CancellationToken.None));
+        Assert.False(await menu.ConfirmAsync("💾 Forget 2 memories?", CancellationToken.None));
         Push(Keys.Escape);
-        Assert.False(await menu.ConfirmAsync("Forget 2 memories?", CancellationToken.None));
+        Assert.False(await menu.ConfirmAsync("💾 Forget 2 memories?", CancellationToken.None));
         Assert.False(pane.OverlayOpen);
         Assert.Equal(0, pane.FlowRow);
         pane.Dispose();
@@ -2924,22 +2924,22 @@ public class SettingsMenuTests : IDisposable
     {
         var (menu, pane) = PaneMenu();
         Push(Keys.Char('y'), Keys.Enter);
-        Assert.True(await menu.ConfirmAsync("Forget 2 memories?", CancellationToken.None));
+        Assert.True(await menu.ConfirmAsync("💾 Forget 2 memories?", CancellationToken.None));
         Assert.Contains("\n  No\n▸ Yes\n", _console.Output);
 
         _console.Clear();
         Push(Keys.Char('Y'), Keys.Char('n'), Keys.Enter);
-        Assert.False(await menu.ConfirmAsync("Forget 2 memories?", CancellationToken.None));
+        Assert.False(await menu.ConfirmAsync("💾 Forget 2 memories?", CancellationToken.None));
         Assert.Contains("\n  No\n▸ Yes\n", _console.Output);
         Assert.Contains("\n▸ No\n  Yes\n", _console.Output);
 
         _console.Clear();
         Push(Keys.Char('y'), Keys.Escape);
-        Assert.False(await menu.ConfirmAsync("Forget 2 memories?", CancellationToken.None));
+        Assert.False(await menu.ConfirmAsync("💾 Forget 2 memories?", CancellationToken.None));
         Assert.Contains("\n  No\n▸ Yes\n", _console.Output);
 
         Push(Keys.Char('x'), Keys.Enter);
-        Assert.False(await menu.ConfirmAsync("Forget 2 memories?", CancellationToken.None));
+        Assert.False(await menu.ConfirmAsync("💾 Forget 2 memories?", CancellationToken.None));
         Assert.False(pane.OverlayOpen);
         pane.Dispose();
     }

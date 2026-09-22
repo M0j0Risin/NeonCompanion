@@ -157,7 +157,7 @@ internal sealed class McpMenu
 
                     bool on = facts.Disabled.Contains(tool);   // off now → on
                     _settings.Update(d => d.ToolsDisabled = ToolsText.Flip(d.ToolsDisabled, tool));
-                    Sink.Notice(ToolsText.FlippedNotice(tool, on));
+                    Sink.Notice(NoticeGlyphs.Mcp + ToolsText.FlippedNotice(tool, on));   // the plug ahead (2026-09-22); the Tools pane's own line goes without
                     continue;
                 }
 

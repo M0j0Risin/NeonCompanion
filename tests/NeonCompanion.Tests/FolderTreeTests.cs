@@ -285,7 +285,7 @@ public class FolderTreeTests
         Assert.Equal("⊟ collapse all", FolderText.CollapseAllButton);
         Assert.Equal('-', FolderText.CollapseAllKey);
         Assert.Equal("Enter = choose · Space = expand/collapse · - = collapse all · ESC = back", FolderText.Hint);
-        Assert.Equal("Working directory kept.", FolderText.KeptNotice);
+        Assert.Equal("📂 Working directory kept.", FolderText.KeptNotice);
         Assert.Equal("/cwd browse needs the interactive screen.", FolderText.NeedsPaneNotice);
         Assert.Equal("pick a folder on the screen", FolderText.BrowseNote);
         Assert.Equal("Cannot read X.", FolderText.DeniedNotice("X"));

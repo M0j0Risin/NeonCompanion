@@ -311,5 +311,5 @@ public static class TimerText
     }
 
     /// <summary><c>(stopped 2 timers)</c>, <c>(stopped 1 timer)</c>, <c>(no timers)</c>.</summary>
-    public static string StoppedAll(int count) => count == 0 ? "(no timers)" : "(stopped " + ClockText.Count(count, "timer") + ")";
+    public static string StoppedAll(int count) => count == 0 ? "(" + StatusGlyph + " no timers)" : "(" + StatusGlyph + " stopped " + ClockText.Count(count, "timer") + ")";   // the clock since 2026-09-22
 }

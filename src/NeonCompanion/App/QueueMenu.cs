@@ -22,7 +22,7 @@ internal sealed class QueueMenu
     // The label and the key hints: the pane shows the label as its title and the keys in its hint row. Pinned.
     public const string Title = "⏳ Queue";
     public const string Keys = "Enter = remove · c = clear all · ESC = back";
-    public const string EmptyNotice = "(nothing queued)";
+    public const string EmptyNotice = "(" + NoticeGlyphs.Queue + "nothing queued)";   // the hourglass since 2026-09-22
 
     /// <summary>The one button on the title row (2026-09-21), drawn as a dim tab: every queued message dropped.</summary>
     public const string ClearAllButton = "⊠ clear all";
@@ -51,7 +51,7 @@ internal sealed class QueueMenu
 
     // ── Pinned statics ──────────────────────────────────────────────────────
 
-    public static string RemovedNotice(string text) => $"(removed: {text})";
+    public static string RemovedNotice(string text) => $"({NoticeGlyphs.Queue}removed: {text})";
 
     /// <summary>One menu row as markup: the position (1-based) dimmed, two spaces, the text escaped; the pane cuts it at the edge.</summary>
     public static string RowMarkup(int index, string text) =>

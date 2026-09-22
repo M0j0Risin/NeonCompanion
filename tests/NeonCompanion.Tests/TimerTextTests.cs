@@ -163,8 +163,8 @@ public class TimerTextTests
         Assert.Equal("⏰ cooking 07:12 · tea ringing", TimerText.StatusLine(new[] { Running("cooking", 600, 432), Ringing("tea") }));
         Assert.Equal(2, NeonCompanion.UI.TextCells.Width(TimerText.StatusGlyph));
         Assert.Equal("⏰ the big p… 07:12 · 0123456789 ringing", TimerText.StatusLine(new[] { Running("the big pot", 600, 432), Ringing("0123456789") }));
-        Assert.Equal("(no timers)", TimerText.StoppedAll(0));
-        Assert.Equal("(stopped 1 timer)", TimerText.StoppedAll(1));
-        Assert.Equal("(stopped 2 timers)", TimerText.StoppedAll(2));
+        Assert.Equal("(⏰ no timers)", TimerText.StoppedAll(0));
+        Assert.Equal("(⏰ stopped 1 timer)", TimerText.StoppedAll(1));
+        Assert.Equal("(⏰ stopped 2 timers)", TimerText.StoppedAll(2));
     }
 }

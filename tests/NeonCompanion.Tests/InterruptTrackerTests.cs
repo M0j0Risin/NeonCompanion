@@ -59,7 +59,7 @@ public class InterruptTrackerTests
     public void Wording_IsPinned()
     {
         Assert.Equal(2, InterruptTracker.Threshold);
-        Assert.Equal("(heard nothing — 1 of 2)", InterruptTracker.SilentHint(1));
+        Assert.Equal("(🎤 heard nothing — 1 of 2)", InterruptTracker.SilentHint(1));
         Assert.Equal("Interrupting switched off for this session: the microphone keeps hearing the assistant. Headphones fix this; /interrupt on turns it back on.", InterruptTracker.DisabledWarning);
     }
 }
