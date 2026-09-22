@@ -223,7 +223,7 @@ public partial class ChatScreenTests
                     break;
                 case 1:
                     // The idle line waits for the exit: the registry's signal ends the read, the alert prints, the read re-arms and asks again.
-                    if (_console.Output.Contains(TranscriptRenderer.ProcessGlyph, StringComparison.Ordinal))
+                    if (Output.Contains(TranscriptRenderer.ProcessGlyph, StringComparison.Ordinal))
                     {
                         step = 2;
                         PushLine(input, "and?");

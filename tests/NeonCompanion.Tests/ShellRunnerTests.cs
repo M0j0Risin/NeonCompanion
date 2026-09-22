@@ -110,7 +110,10 @@ public sealed class ShellRunnerTests : IDisposable
         session.Dispose();
 
         Assert.True(session.Killed);
-        await session.Exited.WaitAsync(TimeSpan.FromSeconds(60));   // the pumps see the pipes close and the session completes; nothing hangs
+        // Dispose waited for the kill to land before the handle went (2026-09-22), so the runner's WaitForExitAsync
+        // saw the exit and the pumps the pipes close: the session completes soon after, never hangs.
+        Assert.NotEqual(0, await session.Exited.WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.True(session.HasExited);
     }
 
     [Fact]

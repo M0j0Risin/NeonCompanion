@@ -46,6 +46,8 @@ public partial class ChatScreenTests : IDisposable
 
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "NeonCompanion.Tests", Guid.NewGuid().ToString("N"));
     private readonly TestConsole _console = new();
+    /// <summary>The console's writer under a lock (2026-09-22): the scripts that poll the output mid-turn read <see cref="Output"/>, never <c>_console.Output</c>.</summary>
+    private readonly LockedWriter _output;
     private readonly AppSettings _settings;
     private readonly StubHttpMessageHandler _http = new();
     private readonly FakeChatClient _chat = new();
@@ -88,6 +90,8 @@ public partial class ChatScreenTests : IDisposable
     public ChatScreenTests()
     {
         _console.Interactive();
+        _output = new LockedWriter(((AnsiConsoleOutput)_console.Profile.Out).Writer);
+        _console.Profile.Out = new AnsiConsoleOutput(_output);   // not a terminal, so the profile's width and height stay as set
         _console.Profile.Width = 240;
         _settings = new AppSettings(_dir);
         // Speech output is off by default; these scripts were written with it on (the TTS: ready line, spoken turns), so the fixture opts in —
@@ -136,6 +140,12 @@ public partial class ChatScreenTests : IDisposable
         _console.Dispose();
         try { Directory.Delete(_dir, recursive: true); } catch { /* best effort */ }
     }
+
+    /// <summary>Everything the screen has written, snapshotted under the writer's lock: safe to poll while a turn runs.</summary>
+    private string Output => _output.Snapshot();
+
+    /// <summary>Whether the pane drawn last (after the last rule glyph) still shows the scrolled hint; one snapshot, so the index cannot outrun the text.</summary>
+    private static bool ScrolledAfterLastRule(string output) => output[output.LastIndexOf(ScreenPane.RuleGlyph)..].Contains("rows below", StringComparison.Ordinal);
 
     private string ModelsDir => Path.Combine(_dir, "models");
 
@@ -231,7 +241,7 @@ public partial class ChatScreenTests : IDisposable
         var screen = new ChatScreen(_console, _settings, () => _settings.Current, _overriddenBy, _session, _speech, _keys, _voice, _openFile ?? _openedFiles.Add, RenderScreen, _time, _geometry, mouse: _mouse, copyToClipboard: CopyToClipboard, random: _random, clipboardImage: _clipboardImage, web: _web, setTitle: _titles.Add, externalSkills: Path.Combine(_dir, "agents-skills"), holdWheel: _holdWheel, splash: _splash, editDraft: _editDraft, mcp: _mcp);
         int code = await screen.RunAsync(cancellationToken);
         Assert.Equal(0, code);
-        return _console.Output;
+        return Output;
     }
 
     /// <summary>The picture the input line's own paste finds on the clipboard; null (the default) = none.</summary>
@@ -702,14 +712,14 @@ public partial class ChatScreenTests : IDisposable
             Key(Keys.CtrlC),
             input =>
             {
-                hintsSeen = Count(_console.Output, ChatScreen.ExitHint);
-                Assert.True(hintsSeen >= 1, "the hint row after the first press:\n" + _console.Output);
+                hintsSeen = Count(Output, ChatScreen.ExitHint);
+                Assert.True(hintsSeen >= 1, "the hint row after the first press:\n" + Output);
                 // The window passes: the pane's tick re-reads the hint and redraws the row (the
                 // hint row alone, no rule) as the plain line again — the fixture has no usage to show.
-                int before = _console.Output.Length;
+                int before = Output.Length;
                 _time.Advance(ChatScreen.ExitConfirmWindow + TimeSpan.FromSeconds(1));
-                Assert.DoesNotContain(ChatScreen.ExitHint, _console.Output[before..]);
-                Assert.Contains(Row(""), _console.Output[before..]);
+                Assert.DoesNotContain(ChatScreen.ExitHint, Output[before..]);
+                Assert.Contains(Row(""), Output[before..]);
                 input.Push(Keys.CtrlC);   // a first again: the hint, not the exit
             },
             Line("/exit"));
@@ -1424,8 +1434,8 @@ public partial class ChatScreenTests : IDisposable
 
         Assert.Equal(0, await screen.RunAsync(CancellationToken.None));
 
-        Assert.Contains("✗ " + LlmSession.NoServerLine(ScanScope.Local), _console.Output);
-        Assert.Contains(ChatScreen.NoServerHint, _console.Output);
+        Assert.Contains("✗ " + LlmSession.NoServerLine(ScanScope.Local), Output);
+        Assert.Contains(ChatScreen.NoServerHint, Output);
         Assert.Null(session.Endpoint);
     }
 
@@ -1447,7 +1457,7 @@ public partial class ChatScreenTests : IDisposable
         PushLine("/exit");
 
         Assert.Equal(0, await screen.RunAsync(CancellationToken.None));
-        string output = _console.Output;
+        string output = Output;
 
         Assert.Contains(SettingsMenu.ServerTitle, output);
         Assert.Contains(SettingsMenu.ModelTitle, output);
@@ -1572,7 +1582,7 @@ public partial class ChatScreenTests : IDisposable
         PushLine("/exit");
 
         Assert.Equal(0, await screen.RunAsync(CancellationToken.None));
-        string output = _console.Output;
+        string output = Output;
 
         Assert.Contains("LLM: http://127.0.0.1:1234/v1 model=llama (probed http://127.0.0.1:1234/v1)", output);
         Assert.Contains("✗ " + LlmSession.NoServerLine(ScanScope.Local), output);
@@ -2520,7 +2530,7 @@ public partial class ChatScreenTests : IDisposable
     /// </summary>
     private int OverlayRowsDrawn()
     {
-        var lines = _console.Output.Split('\n');
+        var lines = Output.Split('\n');
         int title = Array.FindLastIndex(lines, l => l.EndsWith(ScreenPane.CloseGlyph, StringComparison.Ordinal));
         int rule = Array.FindIndex(lines, title, l => l == new string(ScreenPane.RuleGlyph, _console.Profile.Width));
         return rule - title;
@@ -5035,7 +5045,7 @@ public partial class ChatScreenTests : IDisposable
             {
                 // PgUp once the first chunk is on the screen: the watcher spends it on the pane.
                 Scripted().Push(Keys.PageUp);
-                await WaitUntilAsync(() => _console.Output.Contains("rows below", StringComparison.Ordinal));
+                await WaitUntilAsync(() => Output.Contains("rows below", StringComparison.Ordinal));
             }
         };
         LinesWhenIdle("hi", "/exit");
@@ -5061,7 +5071,7 @@ public partial class ChatScreenTests : IDisposable
             if (i == 1)
             {
                 Scripted().PushWheel(1, 5, 5);   // one notch away: three rows up
-                await WaitUntilAsync(() => _console.Output.Contains("rows below", StringComparison.Ordinal));
+                await WaitUntilAsync(() => Output.Contains("rows below", StringComparison.Ordinal));
             }
         };
         LinesWhenIdle("hi", "/exit");
@@ -5088,9 +5098,9 @@ public partial class ChatScreenTests : IDisposable
             if (i == 1)
             {
                 Scripted().Push(Keys.PageUp);
-                await WaitUntilAsync(() => _console.Output.Contains(ScreenPane.ScrolledHint(5), StringComparison.Ordinal));
+                await WaitUntilAsync(() => Output.Contains(ScreenPane.ScrolledHint(5), StringComparison.Ordinal));
                 Scripted().Push(Keys.Ctrl(ConsoleKey.Home));
-                await WaitUntilAsync(() => _console.Output.Contains(ScreenPane.ScrolledHint(8), StringComparison.Ordinal));
+                await WaitUntilAsync(() => Output.Contains(ScreenPane.ScrolledHint(8), StringComparison.Ordinal));
                 topped = true;
             }
         };
@@ -5120,9 +5130,9 @@ public partial class ChatScreenTests : IDisposable
             if (i == 1)
             {
                 Scripted().Push(Keys.PageUp);
-                await WaitUntilAsync(() => _console.Output.Contains("rows below", StringComparison.Ordinal));
+                await WaitUntilAsync(() => Output.Contains("rows below", StringComparison.Ordinal));
                 Scripted().Push(Keys.Ctrl(ConsoleKey.End));
-                await WaitUntilAsync(() => !_console.Output[_console.Output.LastIndexOf(ScreenPane.RuleGlyph)..].Contains("rows below", StringComparison.Ordinal));
+                await WaitUntilAsync(() => !ScrolledAfterLastRule(Output));
                 ended = true;
             }
         };
@@ -5152,10 +5162,10 @@ public partial class ChatScreenTests : IDisposable
             if (i == 1)
             {
                 Scripted().Push(Keys.PageUp);
-                await WaitUntilAsync(() => _console.Output.Contains("rows below", StringComparison.Ordinal));
+                await WaitUntilAsync(() => Output.Contains("rows below", StringComparison.Ordinal));
                 Scripted().PushClick(20, 102);
                 Scripted().PushClick(20, 102);
-                await WaitUntilAsync(() => !_console.Output[_console.Output.LastIndexOf(ScreenPane.RuleGlyph)..].Contains("rows below", StringComparison.Ordinal));
+                await WaitUntilAsync(() => !ScrolledAfterLastRule(Output));
                 ended = true;
             }
         };
@@ -8310,7 +8320,7 @@ public partial class ChatScreenTests : IDisposable
 
         // The groups with a blank row between them; the label column is the grid's own measure of the
         // widest label, and it lands on the same width HelpText pads to — one column, two hosts.
-        string[] lines = _console.Output.TrimEnd('\n').Split('\n');
+        string[] lines = Output.TrimEnd('\n').Split('\n');
         Assert.Equal(SlashCommands.HelpEntries.Count + SlashCommands.HelpGroups.Count - 1, lines.Length);
         var line = 0;
         foreach (var group in SlashCommands.HelpGroups)
@@ -8372,11 +8382,11 @@ public partial class ChatScreenTests : IDisposable
         Assert.StartsWith(HelpRow("/help", "show help"), lines[51]);   // the bottom group since 2026-09-16, above /about; under /timer since later still on 2026-09-19
         Assert.StartsWith(HelpRow("/about", "show general information about the app and profile"), lines[52]);
         Assert.StartsWith(HelpRow("/exit", "exit/quit the application"), lines[^1]);   // the very last row since 2026-09-16
-        Assert.DoesNotContain("/windowsize", _console.Output);
-        Assert.DoesNotContain("(also", _console.Output);
-        Assert.DoesNotContain("/ask", _console.Output);
-        Assert.DoesNotContain("/files", _console.Output);
-        Assert.DoesNotContain("/web", _console.Output);
+        Assert.DoesNotContain("/windowsize", Output);
+        Assert.DoesNotContain("(also", Output);
+        Assert.DoesNotContain("/ask", Output);
+        Assert.DoesNotContain("/files", Output);
+        Assert.DoesNotContain("/web", Output);
     }
 
     /// <summary>A row of the Commands tab as the pane lays it out: the label padded to the measured column, then the summary.</summary>
@@ -9145,7 +9155,7 @@ public partial class ChatScreenTests : IDisposable
 
         Assert.Equal(0, await screen.RunAsync(CancellationToken.None));
 
-        Assert.Contains("✗ " + ChatScreen.NoAssistantError, _console.Output);
+        Assert.Contains("✗ " + ChatScreen.NoAssistantError, Output);
         Assert.Empty(_chat.Requests);
     }
 
@@ -9629,7 +9639,7 @@ public partial class ChatScreenTests : IDisposable
                     Scripted().PushClick(21, ToolbarUnderPane());
                     break;
                 case 3:
-                    SpinWait.SpinUntil(() => _console.Output.Contains(AllowedCommandsTitle, StringComparison.Ordinal), 2000);   // the list drawn: its toolbar row sits higher than the system prompt's
+                    SpinWait.SpinUntil(() => Output.Contains(AllowedCommandsTitle, StringComparison.Ordinal), 2000);   // the list drawn: its toolbar row sits higher than the system prompt's
                     Scripted().PushClick(15, ToolbarUnderPane());    // 💬 under it (later on 2026-09-21): closed, the Sessions opened
                     Scripted().PushClick(15, ToolbarUnderPane());
                     break;
@@ -11255,11 +11265,11 @@ public partial class ChatScreenTests : IDisposable
         _chat.EnqueueText("Hi.");
         int atStart = 0, afterKey = 0, afterBackspace = 0, afterWalk = 0, afterSend = 0;
         StepsWhenIdle(
-            input => { atStart = Count(_console.Output, ChatScreen.SplashHint); input.Push(Keys.Char('x')); },
-            input => { afterKey = Count(_console.Output, ChatScreen.SplashHint); input.Push(Keys.Backspace); },
-            input => { afterBackspace = Count(_console.Output, ChatScreen.SplashHint); input.Push(Keys.Right); },
-            input => { afterWalk = Count(_console.Output, ChatScreen.SplashHint); PushLine(input, "hello"); },
-            input => { afterSend = Count(_console.Output, ChatScreen.SplashHint); PushLine(input, "/exit"); });
+            input => { atStart = Count(Output, ChatScreen.SplashHint); input.Push(Keys.Char('x')); },
+            input => { afterKey = Count(Output, ChatScreen.SplashHint); input.Push(Keys.Backspace); },
+            input => { afterBackspace = Count(Output, ChatScreen.SplashHint); input.Push(Keys.Right); },
+            input => { afterWalk = Count(Output, ChatScreen.SplashHint); PushLine(input, "hello"); },
+            input => { afterSend = Count(Output, ChatScreen.SplashHint); PushLine(input, "/exit"); });
 
         string output = await RunAsync();
 
@@ -11322,14 +11332,14 @@ public partial class ChatScreenTests : IDisposable
         StepsWhenIdle(
             input =>
             {
-                hintsBefore = Count(_console.Output, ChatScreen.SplashHint);
+                hintsBefore = Count(Output, ChatScreen.SplashHint);
                 _settings.Update(d => d.WelcomeSplash = false);
-                int mark = _console.Output.Length;
+                int mark = Output.Length;
                 _time.Advance(ScreenPane.Tick);   // the tick re-reads the hint: the row again without it
-                Assert.Equal(Row(ChatScreen.HintLine(null)), _console.Output[mark..]);
+                Assert.Equal(Row(ChatScreen.HintLine(null)), Output[mark..]);
                 input.Push(Keys.Right); input.Push(Keys.Left); input.Push(Keys.Enter);
             },
-            input => { hintsAfter = Count(_console.Output, ChatScreen.SplashHint); PushLine(input, "/exit"); });
+            input => { hintsAfter = Count(Output, ChatScreen.SplashHint); PushLine(input, "/exit"); });
 
         string output = await RunAsync();
 
@@ -12814,7 +12824,7 @@ public partial class ChatScreenTests : IDisposable
                 sent = true;
                 PushLine(input, line);
             }
-            else if (!quit && _session.Learning is { IsCompleted: true } && _console.Output.Contains(notice, StringComparison.Ordinal))
+            else if (!quit && _session.Learning is { IsCompleted: true } && Output.Contains(notice, StringComparison.Ordinal))
             {
                 quit = true;
                 PushLine(input, "/exit");
@@ -12918,7 +12928,7 @@ public partial class ChatScreenTests : IDisposable
                 case 1: step++; PushLine(input, "hi"); break;
                 case 2: step++; PushLine(input, "/learn keep the greeting"); break;
                 case 3:
-                    if (_session.Learning is { IsCompleted: true } && _console.Output.Contains("(🧠 learned: created skill 'greeting'", StringComparison.Ordinal))
+                    if (_session.Learning is { IsCompleted: true } && Output.Contains("(🧠 learned: created skill 'greeting'", StringComparison.Ordinal))
                     {
                         step++;
                         PushLine(input, "/exit");
@@ -12978,11 +12988,11 @@ public partial class ChatScreenTests : IDisposable
                     WaitForRequests(2);
                     Assert.True(_session.IsLearning);
                     _time.Advance(ScreenPane.Tick);   // the pane's tick: the row follows the job
-                    running = _console.Output;
+                    running = Output;
                     gate.SetResult();
                     break;
                 case 3:
-                    if (_session.Learning is { IsCompleted: true } && _console.Output.Contains("(🧠 learned: created skill 'greeting'", StringComparison.Ordinal))
+                    if (_session.Learning is { IsCompleted: true } && Output.Contains("(🧠 learned: created skill 'greeting'", StringComparison.Ordinal))
                     {
                         step++;
                         PushLine(input, "/exit");
@@ -13032,7 +13042,7 @@ public partial class ChatScreenTests : IDisposable
                     // Unlike a reflection, the title lands silently (no alert wakes the idle read), so this step sees the job through.
                     step++;
                     _time.Advance(ScreenPane.Tick);   // the pane's tick: the row follows the job
-                    running = _console.Output;
+                    running = Output;
                     gate.SetResult();
                     Assert.True(SpinWait.SpinUntil(() => !_session.IsTitling, TimeSpan.FromSeconds(5)), "the title never landed");
                     _time.Advance(ScreenPane.Tick);   // the next tick: the tag gone with the job
@@ -13135,7 +13145,7 @@ public partial class ChatScreenTests : IDisposable
                     input.PushClick(1, 102);
                     break;
                 case 3:
-                    if (_session.Learning is { IsCompleted: true } && _console.Output.Contains(ChatScreen.LearnCancelledNotice, StringComparison.Ordinal))
+                    if (_session.Learning is { IsCompleted: true } && Output.Contains(ChatScreen.LearnCancelledNotice, StringComparison.Ordinal))
                     {
                         step++;
                         PushLine(input, "/exit");
@@ -13221,7 +13231,7 @@ public partial class ChatScreenTests : IDisposable
                 case 1: step++; WaitForRequests(3); PushLine(input, "what time is it, twice again"); break;
                 case 2: step++; gate.SetResult(); break;                              // the first reflection ends at the idle line
                 case 3:
-                    if (_console.Output.Contains("(🧠 learned: created skill 'second'", StringComparison.Ordinal))
+                    if (Output.Contains("(🧠 learned: created skill 'second'", StringComparison.Ordinal))
                     {
                         step++;
                         PushLine(input, "/exit");
@@ -13269,17 +13279,17 @@ public partial class ChatScreenTests : IDisposable
                 case 1: step++; WaitForRequests(3); PushLine(input, "what time is it, twice again"); break;
                 case 2: step++; gate.SetResult(); break;
                 case 3:
-                    if (_console.Output.Contains("(🧠 learned: created skill 'second'", StringComparison.Ordinal))
+                    if (Output.Contains("(🧠 learned: created skill 'second'", StringComparison.Ordinal))
                     {
                         step++;
-                        Assert.False(HasLearnStartLine(_console.Output), _console.Output);   // the queued line alone so far
+                        Assert.False(HasLearnStartLine(Output), Output);   // the queued line alone so far
                         _chat.Enqueue(FakeChatClient.Call("r3", SkillEditorTool.ToolName, CreateSkillArgs("third", "Wrote the third.")));   // 6: the /learn
                         PushLine(input, "/learn");
                     }
 
                     break;
                 case 4:
-                    if (_session.Learning is { IsCompleted: true } && _console.Output.Contains("(🧠 learned: created skill 'third'", StringComparison.Ordinal))
+                    if (_session.Learning is { IsCompleted: true } && Output.Contains("(🧠 learned: created skill 'third'", StringComparison.Ordinal))
                     {
                         step++;
                         _settings.Update(d => d.AgentSkills = false);
@@ -13331,7 +13341,7 @@ public partial class ChatScreenTests : IDisposable
                 case 2: step++; PushLine(input, "what time is it, twice again"); break;
                 case 3: step++; gate.SetResult(); break;
                 case 4:
-                    if (_console.Output.Contains("(🧠 learned: created skill 'second'", StringComparison.Ordinal))
+                    if (Output.Contains("(🧠 learned: created skill 'second'", StringComparison.Ordinal))
                     {
                         step++;
                         PushLine(input, "/exit");
@@ -13372,7 +13382,7 @@ public partial class ChatScreenTests : IDisposable
                 case 2: step++; PushLine(input, "/learn keep the clock"); break;
                 case 3: step++; gate.SetResult(); break;
                 case 4:
-                    if (_console.Output.Contains("(🧠 learned: created skill 'second'", StringComparison.Ordinal))
+                    if (Output.Contains("(🧠 learned: created skill 'second'", StringComparison.Ordinal))
                     {
                         step++;
                         PushLine(input, "/exit");
@@ -13433,11 +13443,11 @@ public partial class ChatScreenTests : IDisposable
                 case 1: step++; PushLine(input, "b"); break;
                 case 2: step++; PushLine(input, "c"); break;
                 case 3:
-                    if (_console.Output.Contains("(🧠 learned: created skill 'clock-arc'", StringComparison.Ordinal)) { step++; PushLine(input, "d"); }
+                    if (Output.Contains("(🧠 learned: created skill 'clock-arc'", StringComparison.Ordinal)) { step++; PushLine(input, "d"); }
                     break;
                 case 4: step++; PushLine(input, "e"); break;
                 case 5:
-                    if (_console.Output.Contains("(🧠 learned: created skill 'clock-arc-2'", StringComparison.Ordinal)) { step++; PushLine(input, "/exit"); }
+                    if (Output.Contains("(🧠 learned: created skill 'clock-arc-2'", StringComparison.Ordinal)) { step++; PushLine(input, "/exit"); }
                     break;
             }
         };
@@ -13487,13 +13497,13 @@ public partial class ChatScreenTests : IDisposable
             {
                 case 0: step++; PushLine(input, "a"); break;
                 case 1:
-                    if (_console.Output.Contains("(🧠 learned: created skill 'clock-check'", StringComparison.Ordinal)) { step++; PushLine(input, "b"); }
+                    if (Output.Contains("(🧠 learned: created skill 'clock-check'", StringComparison.Ordinal)) { step++; PushLine(input, "b"); }
                     break;
                 case 2:
-                    if (_console.Output.Contains("Checked five times.", StringComparison.Ordinal) && CountOf(_console.Output, "Checked five times.") >= 2) { step++; _time.Advance(TimeSpan.FromMinutes(31)); PushLine(input, "c"); }
+                    if (Output.Contains("Checked five times.", StringComparison.Ordinal) && CountOf(Output, "Checked five times.") >= 2) { step++; _time.Advance(TimeSpan.FromMinutes(31)); PushLine(input, "c"); }
                     break;
                 case 3:
-                    if (_console.Output.Contains("(🧠 learned: created skill 'clock-check-2'", StringComparison.Ordinal)) { step++; PushLine(input, "/exit"); }
+                    if (Output.Contains("(🧠 learned: created skill 'clock-check-2'", StringComparison.Ordinal)) { step++; PushLine(input, "/exit"); }
                     break;
             }
         };
@@ -13550,16 +13560,16 @@ public partial class ChatScreenTests : IDisposable
             {
                 case 0: step++; PushLine(input, "a"); break;
                 case 1:
-                    if (_console.Output.Contains("(🧠 learned: created skill 'clock-check'", StringComparison.Ordinal)) { step++; PushLine(input, "b"); }
+                    if (Output.Contains("(🧠 learned: created skill 'clock-check'", StringComparison.Ordinal)) { step++; PushLine(input, "b"); }
                     break;
                 case 2:
-                    if (_console.Output.Contains("(🧠 learned: created skill 'clock-check-2'", StringComparison.Ordinal)) { step++; PushLine(input, "c"); }
+                    if (Output.Contains("(🧠 learned: created skill 'clock-check-2'", StringComparison.Ordinal)) { step++; PushLine(input, "c"); }
                     break;
                 case 3:
-                    if (CountOf(_console.Output, "Checked five times.") >= 3) { step++; _time.Advance(TimeSpan.FromMinutes(6)); PushLine(input, "d"); }
+                    if (CountOf(Output, "Checked five times.") >= 3) { step++; _time.Advance(TimeSpan.FromMinutes(6)); PushLine(input, "d"); }
                     break;
                 case 4:
-                    if (_console.Output.Contains("(🧠 learned: created skill 'clock-check-3'", StringComparison.Ordinal)) { step++; PushLine(input, "/exit"); }
+                    if (Output.Contains("(🧠 learned: created skill 'clock-check-3'", StringComparison.Ordinal)) { step++; PushLine(input, "/exit"); }
                     break;
             }
         };
@@ -13772,7 +13782,7 @@ public partial class ChatScreenTests : IDisposable
                 case 0: step++; PushLine(input, "a"); break;
                 case 1: step++; PushLine(input, "b"); break;
                 case 2:
-                    if (_console.Output.Contains("(🧠 learned: created skill 'recovery'", StringComparison.Ordinal)) { step++; PushLine(input, "/exit"); }
+                    if (Output.Contains("(🧠 learned: created skill 'recovery'", StringComparison.Ordinal)) { step++; PushLine(input, "/exit"); }
                     break;
             }
         };
@@ -13807,7 +13817,7 @@ public partial class ChatScreenTests : IDisposable
                 case 2: step++; PushLine(input, "/compact"); break;
                 case 3: step++; PushLine(input, "c"); break;
                 case 4:
-                    if (_console.Output.Contains("(🧠 learned: created skill 'after-compact'", StringComparison.Ordinal)) { step++; PushLine(input, "/exit"); }
+                    if (Output.Contains("(🧠 learned: created skill 'after-compact'", StringComparison.Ordinal)) { step++; PushLine(input, "/exit"); }
                     break;
             }
         };

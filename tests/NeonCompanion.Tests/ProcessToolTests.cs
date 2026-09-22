@@ -235,7 +235,7 @@ public sealed class ProcessToolTests : IDisposable
         foreach (var sleeper in sleepers)
         {
             Assert.True(sleeper.Killed);
-            await sleeper.Exited.WaitAsync(TimeSpan.FromSeconds(60));
+            await sleeper.Exited.WaitAsync(TimeSpan.FromSeconds(15));   // Dispose waited for each kill to land (2026-09-22): the exits are in, or nearly
         }
 
         Assert.Empty(_registry.List());

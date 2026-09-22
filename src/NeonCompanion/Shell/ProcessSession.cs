@@ -9,7 +9,8 @@ namespace NeonCompanion.Shell;
 /// (<see cref="Exited"/> completes with the code once the process is gone <em>and</em> both pumps
 /// have drained — a result never misses a trailing line), its stdin (<see cref="WriteAsync"/>,
 /// <see cref="CloseInput"/>) and its kill (<see cref="Kill"/>, the whole tree, parent first as .NET
-/// does it). Time is the <see cref="TimeProvider"/>'s: <see cref="Elapsed"/> freezes at exit, and
+/// does it; <see cref="Dispose"/> kills and waits for the exit before the handle goes). Time is the
+/// <see cref="TimeProvider"/>'s: <see cref="Elapsed"/> freezes at exit, and
 /// <see cref="WaitAsync"/> races the exit against <c>Task.Delay</c> on the same clock, so a manual
 /// clock drives a timeout in tests. A foreground run and a background one are the same object;
 /// only the registry's bookkeeping (<see cref="Notify"/>, <see cref="PollCursor"/>) differs.
@@ -19,6 +20,9 @@ public sealed class ProcessSession : IDisposable
     private readonly Process _process;
     private readonly TimeProvider _time;
     private readonly long _started;
+    /// <summary>How long <see cref="Dispose"/> waits for a killed child to be gone before its handle goes; the tools' kill grace.</summary>
+    public static readonly TimeSpan DisposeGrace = TimeSpan.FromSeconds(5);
+
     private readonly TaskCompletionSource<int> _exited = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private long _ended;
     private bool _inputClosed;
@@ -158,6 +162,18 @@ public sealed class ProcessSession : IDisposable
         }
     }
 
+    /// <summary>
+    /// Kills what still runs, then waits for the kill to land before the handle goes (2026-09-22):
+    /// <c>TerminateProcess</c> returns before the process is gone, and the exit is noticed by a wait
+    /// on the handle whose callback runs on the pool. <c>Process.Dispose</c> unregisters that wait,
+    /// and a callback already queued then returns without raising <c>Exited</c> — so the runner's
+    /// <c>WaitForExitAsync</c> never completes and <see cref="Exited"/> stays pending for good. CI
+    /// lost that race (a starved pool under 16 sessions: <c>ProcessToolTests</c> timed out after
+    /// 60 s). <c>Process.WaitForExit(int)</c> raises <c>Exited</c> itself when it finds the process
+    /// gone, so the pump completes first; a child that ignores the kill past <see cref="DisposeGrace"/>
+    /// is completed here as <c>-1</c>, the code a killed child gives, so a dispose never leaves a
+    /// pending exit.
+    /// </summary>
     public void Dispose()
     {
         if (_disposed)
@@ -168,6 +184,23 @@ public sealed class ProcessSession : IDisposable
         _disposed = true;
         Kill();
         CloseInput();
+        if (!HasExited)
+        {
+            try
+            {
+                _process.WaitForExit((int)DisposeGrace.TotalMilliseconds);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+            {
+                // Already gone: the handle is invalid, the wait moot.
+            }
+        }
+
         _process.Dispose();
+        if (!HasExited)
+        {
+            DiagnosticLog.Debug(ShellKinds.Category, $"{Id}: still running after the kill's grace; completed as -1");
+            Complete(-1);
+        }
     }
 }
