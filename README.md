@@ -475,7 +475,7 @@ Every connected MCP server is a group of its own, its tools offered as `<server>
 ### Model picker
 ![model](./assets/screenshots/screenshot_model_picker.png)
 
-### Model picker
+### Reasoning picker
 ![reasoning](./assets/screenshots/screenshot_reasoning_picker.png)
 
 ### Profile picker
@@ -538,7 +538,7 @@ Every connected MCP server is a group of its own, its tools offered as `<server>
 ### File settings
 ![tools](./assets/screenshots/screenshot_file_settings.png)
 
-### File settings
+### Shell settings
 ![tools](./assets/screenshots/screenshot_shell_settings.png)
 
 ### Ask (questions) settings
