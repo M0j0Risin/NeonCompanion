@@ -374,10 +374,11 @@ public class AssistantTests
         Assert.Equal(Assistant.OperatingRules, Assistant.DefaultRules(false, tools: true, delete: true));
 
         // File safe edits off with delete offered (2026-09-20, the user's call): the clause tells the truth — delete removes for good — and, later still that day
-        // (the user's ask), names neither restore nor .trash: the tool is not offered then, and the prompt never mentions a trash.
-        Assert.Equal(Assistant.FileRuleDeleteInPlace, Assistant.FileRule.Replace("delete only moves to its .trash folder and restore brings things back. ", "delete removes a file or a folder for good, with everything in it (nothing is kept — File safe edits is off). ", StringComparison.Ordinal));
+        // (the user's ask), names neither restore nor .trash: the tool is not offered then, and the prompt never mentions a trash; nor the setting (2026-09-21, the user's ask again).
+        Assert.Equal(Assistant.FileRuleDeleteInPlace, Assistant.FileRule.Replace("delete only moves to its .trash folder and restore brings things back. ", "delete removes a file or a folder for good, with everything in it. ", StringComparison.Ordinal));
         Assert.DoesNotContain("restore", Assistant.FileRuleDeleteInPlace, StringComparison.Ordinal);
         Assert.DoesNotContain(".trash", Assistant.FileRuleDeleteInPlace, StringComparison.Ordinal);
+        Assert.DoesNotContain("safe edits", Assistant.FileRuleDeleteInPlace, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("trash", Assistant.DefaultRules(false, tools: true, web: true, ask: AskLimits.Default, sessions: true, mcp: true, safeEdits: false, git: true), StringComparison.OrdinalIgnoreCase);
         Assert.Equal(Assistant.PlainTextRule + " " + Assistant.ToolRules + " " + Assistant.FileRuleDeleteInPlace, Assistant.DefaultRules(false, tools: true, safeEdits: false));
         Assert.Equal(Assistant.PlainTextRule + " " + Assistant.ToolRules + " " + Assistant.FileRuleWithoutDelete, Assistant.DefaultRules(false, tools: true, delete: false, safeEdits: false));   // delete off wins: no clause to reword

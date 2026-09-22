@@ -143,9 +143,13 @@ public static class FileText
     /// <summary>What every write-side sentence ends with when <c>File safe edits</c> kept the previous version. Pinned.</summary>
     public const string CopyKeptSuffix = " (previous version in .trash)";
 
-    /// <summary>A folder at a <c>move</c> / <c>copy</c> / <c>restore</c> destination under <c>overwrite</c> while <c>File safe edits</c> is off (2026-09-20). Pinned.</summary>
+    /// <summary>
+    /// A folder at a <c>move</c> / <c>copy</c> / <c>restore</c> destination under <c>overwrite</c> while <c>File safe edits</c>
+    /// is off (2026-09-20). It names neither the setting nor <c>.trash</c> (2026-09-21, the user's ask: the model hears of
+    /// neither while the setting is off — it said so, and the model reasoned about a switch it cannot reach). Pinned.
+    /// </summary>
     public static string FolderInTheWay(string path) =>
-        $"Error: '{path}' is a folder in the way; a folder is replaced only while File safe edits is on (it goes to .trash first) — move it aside first";
+        $"Error: '{path}' is a folder in the way — move it aside first";
 
     /// <summary><c>restore</c> over something that is there again, without <c>overwrite</c>. Pinned.</summary>
     public static string RestoreExists(string path) => $"Error: '{path}' is already there; call again with overwrite true to put the trashed copy over it";
@@ -786,14 +790,14 @@ public static class FileText
 
         if (result.Destroyed)
         {
-            return "deleted " + (result.IsDirectory ? "the folder " + result.Relative + " and everything in it" : result.Relative) + DeletedInPlaceSuffix;
+            // An in-place delete (File safe edits off, 2026-09-20): what is gone, a folder with everything in it. It names no
+            // restore, a tool the turn does not offer then (later still that day), and since 2026-09-21 (the user's ask) not
+            // the setting either — "(File safe edits is off: nothing was kept)" had the model reasoning about a switch it cannot reach.
+            return "deleted " + (result.IsDirectory ? "the folder " + result.Relative + " and everything in it" : result.Relative);
         }
 
         return "moved " + result.Relative + " to " + result.TrashPath + " (nothing is destroyed; restore brings it back)";
     }
-
-    /// <summary>The tail of an in-place <c>delete</c> (<c>File safe edits</c> off, 2026-09-20); it names no <c>restore</c>, a tool the turn does not offer then (later still that day). Pinned.</summary>
-    public const string DeletedInPlaceSuffix = " (File safe edits is off: nothing was kept)";
 
     public static string Restored(TrashResult result)
     {

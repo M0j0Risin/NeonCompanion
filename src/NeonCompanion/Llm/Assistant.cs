@@ -120,13 +120,14 @@ public sealed class Assistant
     /// <c>File safe edits</c> off (2026-09-20, the user's call): <c>delete</c> removes for good, a folder with
     /// everything in it — and, since later still that day (the user's ask), neither <c>restore</c> nor
     /// <c>.trash</c> is named: the tool is not offered while the setting is off (<c>ChatScreen.FileToolsFor</c>),
-    /// so the prompt never mentions a trash. The default rules while <c>delete</c> is offered and the
-    /// setting is off; <see cref="OperatingRules"/> stays byte-identical. Pinned.
+    /// so the prompt never mentions a trash — nor, since 2026-09-21 (the user's ask), the setting itself:
+    /// told <c>File safe edits is off</c>, the model reasoned about a switch it cannot reach. The default
+    /// rules while <c>delete</c> is offered and the setting is off; <see cref="OperatingRules"/> stays byte-identical. Pinned.
     /// </summary>
     public const string FileRuleDeleteInPlace =
         "The user's working directory — also called the cwd, the current directory or the current working directory — is a folder on this computer where you may read, search, write and organise files with the file tools " +
         "(" + NeonCompanion.Llm.Tools.GetWorkingDirectoryTool.ToolName + " gives its path); every path you pass is relative to it and nothing outside it is reachable; " +
-        NeonCompanion.Llm.Tools.DeleteTool.ToolName + " removes a file or a folder for good, with everything in it (nothing is kept — File safe edits is off). " +
+        NeonCompanion.Llm.Tools.DeleteTool.ToolName + " removes a file or a folder for good, with everything in it. " +
         "To look at a picture (png, jpg, gif, webp, bmp) in the working directory call " + NeonCompanion.Llm.Tools.ViewImageTool.ToolName + " (several at once with " + NeonCompanion.Llm.Tools.ViewImageTool.PathsArgument + "); " + NeonCompanion.Llm.Tools.ReadFileTool.ToolName + " cannot read one.";
 
     /// <summary>

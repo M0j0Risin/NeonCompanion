@@ -1,9 +1,9 @@
 # Neon Companion
 
-Neon Companion is a streamlined agentic TUI for local LLMs, built on .NET 10. It attempts to combine and improve on many of my favorite features from tools like Claude Code, Hermes Agent, and Cline with a local-first workflow.
+Neon Companion is a streamlined agentic TUI harness for local LLMs, built on .NET 10. It attempts to combine and improve on many of my favorite features from tools like Claude Code, Hermes Agent, and Cline with a local-first workflow.
 
 Current State: A foundational shell for continued tool development (Windows-first).
-On the Roadmap: More coding functionality and official macOS/Linux support.
+On the Roadmap: Expanded coding capabilities and official macOS/Linux support.
 
 ## Contents
 
@@ -44,8 +44,7 @@ Neon Companion is released under the GPLv3 license.
 * **Self-Learning:** An automatic self-reflection system that dynamically updates and creates new skills based on interactions and tool outcomes.
 
 ### Built-In Tooling & Voice
-**Essential Tools:** Sandboxed file I/O, web search (DuckDuckGo/SearXNG), web browsing (httpClient/Chromium), graphical clarification prompts, clock/timer functions, and built-in local Git management capabilities to seamlessly inspect, manage, and interact with repositories.
-* **Shell Commands & Scripts:** `run_command` runs a command line in PowerShell, cmd or Git Bash from the working directory (foreground, or in the background with a `process` tool to poll, feed and kill it), and `execute_code` runs a Python, Node or PowerShell script that can call the other tools — all behind an approval pane (allow once, for the session, or for good) and a `yolo` mode for trusted setups.
+* **Essential Tools:** Sandboxed file I/O, shell integration (powershell/cmd/bash), scripting (powershell/python/node), Git management, web search (DuckDuckGo/SearXNG), web browsing (httpClient/Chromium), graphical clarification prompts, and clock/timers.
 * **MCP Server Support:** Seamless integration with Model Context Protocol (MCP) servers to expand tool capabilities and connect to external data sources.
 * **Native Voice Stack:** Features in-process Whisper STT, push-to-talk, and Vosk wake-word integration.
 * **Text-to-Speech:** Includes in-process Kokoro TTS, with support for an external HTTP Kokoro endpoint.
@@ -217,7 +216,7 @@ Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Web, Memory, 
 | Setting | What it does | Default |
 |---|---|---|
 | File tools | Offers the sandboxed file tools (read, write, patch, search, move, copy, zip, view_image…) under the working directory. | on |
-| File safe edits | Every edit keeps the previous version in `.trash` first and `delete` moves there, with `restore` as the undo; off writes in place and `delete` removes for good. | off |
+| File safe edits | Every edit keeps the previous version in `.trash` first and `delete` moves there, with `restore` as the undo; off writes in place and `delete` removes for good. Best when working a directory without Git. | off |
 | File /tree max length | How many entries `/tree` prints before it stops (1–10000). | 500 |
 | File /tree show sizes | `/tree` carries each file's size. | on |
 | File @-mention folder mode | Picking a folder from the `@` list: `folder-remain` keeps the list open inside it; `folder-apply` writes `@folder/` and closes. | `folder-remain` |
@@ -362,7 +361,7 @@ What the model can call, in the groups `/tools` and `/sys` show. A group's switc
 
 ### Files
 
-All paths are relative to the working directory; nothing outside it is reachable. `restore` is offered only while *File safe edits* is on; `delete`, `zip` and `unzip` start switched off.
+All paths are relative to the working directory; nothing outside it is reachable. `restore` is offered only while *File safe edits* is on; `delete`, `zip` and `unzip` are disabled by default.
 
 | Tool | Arguments | What it does |
 |---|---|---|
@@ -382,9 +381,9 @@ All paths are relative to the working directory; nothing outside it is reachable
 | `unzip` | `path, to?, overwrite?` | Extracts a `.zip` archive into a folder, all or nothing. |
 | `open` | `path?` | Opens a file in the user's own editor or viewer, or a folder in Explorer; no path opens the working directory. |
 
-### Git
+### Git (native)
 
-Every git tool takes an optional `path` — the file or folder the call is about, and where the repository is looked for (a nested repository is reached through it). The repository's root must be the working directory or a folder inside it. Runs in-process (LibGit2Sharp), local only: no fetch, pull, push or clone. `git_discard` and `git_delete` start switched off.
+A built-in Git for the sandbox, for when the shell tools are off or you would rather the model never ran `git.exe`. It runs in-process (LibGit2Sharp) and stays local: no fetch, pull, push or clone. Every tool takes an optional `path` — the file or folder the call is about, and where the repository is looked for (a nested repository is reached through it); the repository's root must be the working directory or a folder inside it. `git_discard` and `git_delete` start switched off. Commits need an author: set *Git native email* and *Git native name* on the Git (native) tab of `/tools`, then run `/git user` to write them into the repository's config. If you use the shell tools for Git instead, turn *Git native tools* off and the whole group disappears from the model's list.
 
 | Tool | Arguments | What it does |
 |---|---|---|

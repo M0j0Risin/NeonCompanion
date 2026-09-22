@@ -323,7 +323,7 @@ public sealed class FileToolsTests : IDisposable
         Put("e.txt", "e");
         _settings.FileSafeEdits = false;
         Assert.Equal(FileText.FolderInTheWay(@"papers\"), await Invoke(move, ("from", "e.txt"), ("to", "papers"), ("overwrite", Json("true"))));
-        Assert.Equal("Error: 'papers\\' is a folder in the way; a folder is replaced only while File safe edits is on (it goes to .trash first) — move it aside first", FileText.FolderInTheWay(@"papers\"));
+        Assert.Equal("Error: 'papers\\' is a folder in the way — move it aside first", FileText.FolderInTheWay(@"papers\"));
         Assert.Equal("moved e.txt to papers\\b.txt", await Invoke(move, ("from", "e.txt"), ("to", @"papers\b.txt"), ("overwrite", Json("true"))));
         Assert.False(File.Exists(Path.Combine(_root, ".trash", "20260911-140530", "papers", "b.txt (2)")));
         _settings.FileSafeEdits = true;
@@ -366,11 +366,11 @@ public sealed class FileToolsTests : IDisposable
             DeleteTool.DescribeTool(false));
         Assert.DoesNotContain("safe edits", DeleteTool.DescribeTool(false), StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("brings it back", DeleteTool.DescribeTool(false));
-        Assert.Equal("deleted d.txt (File safe edits is off: nothing was kept)", await Invoke(delete, ("path", "d.txt")));
+        Assert.Equal("deleted d.txt", await Invoke(delete, ("path", "d.txt")));   // no "(File safe edits is off: nothing was kept)" since 2026-09-21
         Assert.False(File.Exists(Path.Combine(_root, "d.txt")));
         Assert.False(File.Exists(Path.Combine(_root, ".trash", "20260911-140530", "d.txt (2)")));
         Assert.Equal(FileText.NotInTrash("d.txt"), await Invoke(Tool<RestoreTool>(), ("path", "d.txt")));   // the earlier copy was restored already; nothing new kept
-        Assert.Equal("deleted the folder backup\\ and everything in it (File safe edits is off: nothing was kept)", await Invoke(delete, ("path", "backup")));
+        Assert.Equal("deleted the folder backup\\ and everything in it", await Invoke(delete, ("path", "backup")));
         Assert.False(Directory.Exists(Path.Combine(_root, "backup")));
         Assert.Equal(FileText.TrashReadOnly(@".trash\20260911-140530"), await Invoke(delete, ("path", @".trash\20260911-140530")));
         _settings.FileSafeEdits = true;
@@ -422,7 +422,6 @@ public sealed class FileToolsTests : IDisposable
             }
         }
 
-        Assert.Equal(" (File safe edits is off: nothing was kept)", FileText.DeletedInPlaceSuffix);
         var cut = ChatScreen.FileToolsFor(_tools, safeEdits: false);
         Assert.DoesNotContain(cut, t => t is RestoreTool);
         Assert.Equal(_tools.Count - 1, cut.Count);

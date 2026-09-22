@@ -310,10 +310,9 @@ public class FileTextTests
             "moved notes.txt to .trash\\20260912-140500\\notes.txt (nothing is destroyed; restore brings it back)",
             FileText.Trashed(new TrashResult(FileOutcome.Ok, "notes.txt", @".trash\20260912-140500\notes.txt", false)));
         Assert.Equal(FileText.RootItself, FileText.Trashed(new TrashResult(FileOutcome.IntoItself, "", "", true)));
-        // An in-place delete (File safe edits off, 2026-09-20): the sentence says what is gone and that nothing was kept, a folder with everything in it.
-        Assert.Equal(" (File safe edits is off: nothing was kept)", FileText.DeletedInPlaceSuffix);
-        Assert.Equal("deleted notes.txt (File safe edits is off: nothing was kept)", FileText.Trashed(new TrashResult(FileOutcome.Ok, "notes.txt", "", false, Destroyed: true)));
-        Assert.Equal("deleted the folder docs\\ and everything in it (File safe edits is off: nothing was kept)", FileText.Trashed(new TrashResult(FileOutcome.Ok, @"docs\", "", true, Destroyed: true)));
+        // An in-place delete (File safe edits off, 2026-09-20): the sentence says what is gone, a folder with everything in it — and since 2026-09-21 (the user's ask) not that the setting is off.
+        Assert.Equal("deleted notes.txt", FileText.Trashed(new TrashResult(FileOutcome.Ok, "notes.txt", "", false, Destroyed: true)));
+        Assert.Equal("deleted the folder docs\\ and everything in it", FileText.Trashed(new TrashResult(FileOutcome.Ok, @"docs\", "", true, Destroyed: true)));
         Assert.Equal(FileText.Missing("x"), FileText.Trashed(new TrashResult(FileOutcome.Missing, "x", "", false)));
         Assert.Equal("restored notes.txt from .trash\\20260912-140500\\", FileText.Restored(new TrashResult(FileOutcome.Ok, "notes.txt", @".trash\20260912-140500\", false)));
         // What an overwrite replaced is kept in .trash under File safe edits (2026-09-20): the write-side suffix on the three; a folder in the way without it is refused, the destination named.
@@ -323,7 +322,7 @@ public class FileTextTests
         Assert.Equal(FileText.FolderInTheWay(@"b\"), FileText.Moved(new MoveResult(FileOutcome.FolderInTheWay, "a.txt", @"b\", false, false)));
         Assert.Equal(FileText.FolderInTheWay(@"b\"), FileText.Copied(new MoveResult(FileOutcome.FolderInTheWay, "a.txt", @"b\", false, false)));
         Assert.Equal(FileText.FolderInTheWay(@"b\"), FileText.Restored(new TrashResult(FileOutcome.FolderInTheWay, @"b\", "", true)));
-        Assert.Equal("Error: 'b\\' is a folder in the way; a folder is replaced only while File safe edits is on (it goes to .trash first) — move it aside first", FileText.FolderInTheWay(@"b\"));
+        Assert.Equal("Error: 'b\\' is a folder in the way — move it aside first", FileText.FolderInTheWay(@"b\"));   // neither the setting nor .trash since 2026-09-21
         Assert.Equal(FileText.RestoreExists("notes.txt"), FileText.Restored(new TrashResult(FileOutcome.Exists, "notes.txt", "", false)));
         Assert.Equal(FileText.NotInTrash("x"), FileText.Restored(new TrashResult(FileOutcome.NotInTrash, "x", "", false)));
 
