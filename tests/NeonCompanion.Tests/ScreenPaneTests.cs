@@ -3392,4 +3392,223 @@ public class ScreenPaneTests : IDisposable
         Assert.Equal("Alternate buffer left", ScreenPane.AlternateLeftLogLine);
         Assert.Equal("Resized 240×60 → 200×50", ScreenPane.ResizedLogLine(240, 60, 200, 50));
     }
+
+    // ── The toolbar (2026-09-21) ────────────────────────────────────────────
+
+    /// <summary>The toolbar's text: the strip at column 0, the path ending on the last cell and cut from the front to the room between, gone under eight cells; the strip alone without one, cut to the row.</summary>
+    [Fact]
+    public void ToolbarRow_IsPinned()
+    {
+        Assert.Equal(2, ScreenPane.ToolbarGap);
+        Assert.Equal(8, ScreenPane.ToolbarPathMinCells);
+        const string strip = "🔧 🎓";   // five cells
+        const string path = @"D:\Repo\NeonCompanion";   // twenty-one
+        Assert.Equal(strip + new string(' ', 13) + path, ScreenPane.ToolbarRow(strip, path, 39));
+        Assert.Equal(39, TextCells.Width(ScreenPane.ToolbarRow(strip, path, 39)));
+        Assert.Equal(strip + "  …eonCompanion", ScreenPane.ToolbarRow(strip, path, 20));   // thirteen cells of room: the tail
+        Assert.Equal(strip + "  …mpanion", ScreenPane.ToolbarRow(strip, path, 15));        // eight: the least
+        Assert.Equal(strip, ScreenPane.ToolbarRow(strip, path, 14));                        // seven: no path
+        Assert.Equal(strip, ScreenPane.ToolbarRow(strip, "", 39));
+        Assert.Equal(new string(' ', 18) + path, ScreenPane.ToolbarRow("", path, 39));
+        Assert.Equal(ScreenPane.Fit(strip, 4), ScreenPane.ToolbarRow(strip, path, 4));      // the strip cut to the row
+        Assert.Equal("…", ScreenPane.ToolbarRow(strip, path, 1));
+        Assert.Equal("", ScreenPane.ToolbarRow(strip, path, 0));
+    }
+
+    /// <summary>The toolbar's zones: each strip glyph with its first column — a variation selector with its glyph (later on 2026-09-21) — the path's cells at the right edge the path, the separators and the blanks the row.</summary>
+    [Fact]
+    public void ToolbarHitAt_IsPinned()
+    {
+        const string strip = "⚙️ 🛠️ 🧰";   // a one-cell gear with the selector, a pair with it, a bare pair: two cells each
+        Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "⚙️", 0), ScreenPane.ToolbarHitAt(strip, 35, 4, 0));
+        Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "⚙️", 0), ScreenPane.ToolbarHitAt(strip, 35, 4, 1));
+        Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Row, "", -1), ScreenPane.ToolbarHitAt(strip, 35, 4, 2));
+        Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "🛠️", 3), ScreenPane.ToolbarHitAt(strip, 35, 4, 3));
+        Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "🛠️", 3), ScreenPane.ToolbarHitAt(strip, 35, 4, 4));
+        Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "🧰", 6), ScreenPane.ToolbarHitAt(strip, 35, 4, 7));
+        Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Row, "", -1), ScreenPane.ToolbarHitAt(strip, 35, 4, 8));
+        Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Row, "", -1), ScreenPane.ToolbarHitAt(strip, 35, 4, 34));
+        Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Path, "", 35), ScreenPane.ToolbarHitAt(strip, 35, 4, 35));
+        Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Path, "", 35), ScreenPane.ToolbarHitAt(strip, 35, 4, 38));
+        Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Row, "", -1), ScreenPane.ToolbarHitAt(strip, 35, 4, 39));
+        Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Row, "", -1), ScreenPane.ToolbarHitAt(strip, -1, 0, 36));   // no path drawn
+        Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Row, "", -1), ScreenPane.ToolbarHitAt("", -1, 0, 0));
+        // The hint row's walk is the same one: the tag keeps its selector, the glyph after it its column.
+        Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Strip, "🏷️", 0), ScreenPane.HintHitAt("🏷️ 🔊", -1, 1));
+        Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Strip, "🔊", 3), ScreenPane.HintHitAt("🏷️ 🔊", -1, 3));
+    }
+
+    /// <summary>The row under the hint row while the provider answers: the pane one row taller (the padding one less), the path rewritten in place on the tick, the whole pane again when the row goes or comes.</summary>
+    [Fact]
+    public void Toolbar_IsDrawnUnderTheHintRow_AndFollowsOnTheTick()
+    {
+        string path = @"D:\x";
+        bool shown = true;
+        using var pane = Pane();
+        pane.Hint = () => "idle";
+        pane.Toolbar = () => shown ? new ScreenPane.ToolbarParts("🔧", path) : null;
+        pane.Show();
+
+        // 10 rows, the flow at row 0: five empty rows, then rule / input / rule / hint / toolbar — the toolbar at 39 cells, the path ending on the last.
+        Assert.Equal(5, pane.Padding);
+        Assert.Equal(1, pane.ToolbarRows);
+        Assert.Equal(9, pane.LayoutHeight);
+        string toolbar = "🔧" + new string(' ', 33) + @"D:\x";
+        Assert.Equal(new string('\n', 5) + Rule(40) + "\n" + InputLine.PromptGlyph + "\n" + Rule(40) + "\nidle\n" + toolbar, Output);
+        Assert.Equal(1, Draws);
+
+        // The working directory changed: the row again in place, nothing else.
+        path = @"D:\Repo";
+        int mark = Output.Length;
+        _time.Advance(ScreenPane.Tick);
+        Assert.Equal("🔧" + new string(' ', 30) + @"D:\Repo", Output[mark..]);
+        Assert.Equal(1, Draws);
+
+        // The same again: nothing.
+        mark = Output.Length;
+        _time.Advance(ScreenPane.Tick);
+        Assert.Equal("", Output[mark..]);
+
+        // The switch off: the pane's shape changed, so the whole pane again — the hint row its last.
+        shown = false;
+        _time.Advance(ScreenPane.Tick);
+        Assert.Equal(2, Draws);
+        Assert.Equal(0, pane.ToolbarRows);
+        Assert.Equal(10, pane.LayoutHeight);
+        Assert.Equal(6, pane.Padding);
+        Assert.EndsWith(Rule(40) + "\n" + InputLine.PromptGlyph + "\n" + Rule(40) + "\nidle", Output);
+
+        // And on again.
+        shown = true;
+        _time.Advance(ScreenPane.Tick);
+        Assert.Equal(3, Draws);
+        Assert.Equal(5, pane.Padding);
+        Assert.EndsWith("\nidle\n🔧" + new string(' ', 30) + @"D:\Repo", Output);
+    }
+
+    /// <summary>A window too short for a transcript row over the smallest pane and the toolbar draws none: the pane as before.</summary>
+    [Fact]
+    public void Toolbar_IsDroppedInAWindowUnderSixRows()
+    {
+        _console.Profile.Height = 5;
+        using var pane = Pane();
+        pane.Hint = () => "idle";
+        pane.Toolbar = () => new ScreenPane.ToolbarParts("🔧", @"D:\x");
+        pane.Show();
+        Assert.Equal(0, pane.ToolbarRows);
+        Assert.Equal(5, pane.LayoutHeight);
+        Assert.Equal(1, pane.Padding);
+        Assert.EndsWith(Rule(40) + "\n" + InputLine.PromptGlyph + "\n" + Rule(40) + "\nidle", Output);
+
+        _console.Profile.Height = 6;
+        _time.Advance(ScreenPane.Tick);
+        Assert.Equal(1, pane.ToolbarRows);
+        Assert.EndsWith("\nidle\n🔧" + new string(' ', 33) + @"D:\x", Output);
+    }
+
+    /// <summary>The overlay and the draft are capped over the rows the toolbar leaves: one transcript row, the rule, the content, the rule, the hint, the toolbar.</summary>
+    [Fact]
+    public void Toolbar_ShortensTheOverlaysRoom()
+    {
+        using var pane = Pane();
+        pane.Hint = () => "idle";
+        pane.Toolbar = () => new ScreenPane.ToolbarParts("🔧", @"D:\x");
+        pane.Show();
+
+        pane.ShowOverlay(new Markup(string.Join('\n', Enumerable.Range(1, 30).Select(i => "line " + i))), "hint");
+
+        // 10 rows: one for the transcript, the rule, 5 content rows, the lower rule, the hint, the toolbar.
+        Assert.Equal(5, pane.OverlayRows);
+        Assert.Equal(1, pane.Padding);
+        Assert.Contains("line 5\n" + Rule(40) + "\nhint\n🔧", Output);
+        Assert.DoesNotContain("line 6", Output);
+        Assert.False(pane.TryHitToolbar(0, 103, out _));   // under an overlay the row is the overlay's dismiss
+    }
+
+    /// <summary>The drawn row's zones from the cursor's row: the hint row still two under it, the toolbar three; the glyphs and the path answer under the busy row too, the blanks are the row.</summary>
+    [Fact]
+    public void TryHitToolbar_NamesTheGlyphsAndThePath_TheHintRowStaysAbove()
+    {
+        _cursorTop = 100;
+        using var pane = Pane();
+        pane.Hint = () => "idle";
+        pane.Strip = () => "🔊";
+        pane.Toolbar = () => new ScreenPane.ToolbarParts("🔧 🎓", @"D:\x");
+        pane.Show();
+        pane.ShowInput("abc", 3);
+
+        Assert.True(pane.TryHitHint(0, 102, out var hint));
+        Assert.Equal(new ScreenPane.HintHit(ScreenPane.HintZone.Strip, "🔊", 0), hint);
+        Assert.False(pane.TryHitToolbar(0, 102, out _));
+        Assert.False(pane.TryHitHint(0, 103, out _));
+        Assert.True(pane.TryHitToolbar(1, 103, out var tool));
+        Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "🔧", 0), tool);
+        Assert.True(pane.TryHitToolbar(3, 103, out tool));
+        Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "🎓", 3), tool);
+        Assert.True(pane.TryHitToolbar(20, 103, out tool));
+        Assert.Equal(ScreenPane.ToolbarZone.Row, tool.Zone);
+        Assert.True(pane.TryHitToolbar(34, 103, out tool));   // the blank before the path
+        Assert.Equal(ScreenPane.ToolbarZone.Row, tool.Zone);
+        Assert.True(pane.TryHitToolbar(35, 103, out tool));   // D:\x on the last four cells
+        Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Path, "", 35), tool);
+        Assert.True(pane.TryHitToolbar(38, 103, out tool));
+        Assert.Equal(ScreenPane.ToolbarZone.Path, tool.Zone);
+
+        using (pane.BeginBusy("thinking"))
+        {
+            Assert.True(pane.TryHitToolbar(0, 103, out tool));
+            Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "🔧", 0), tool);
+            Assert.True(pane.TryHitToolbar(36, 103, out tool));
+            Assert.Equal(ScreenPane.ToolbarZone.Path, tool.Zone);
+        }
+
+        // A path the row has no room for: no zone there.
+        pane.Toolbar = () => new ScreenPane.ToolbarParts("🔧 🎓", new string('p', 60));
+        _time.Advance(ScreenPane.Tick);
+        Assert.True(pane.TryHitToolbar(38, 103, out tool));
+        Assert.Equal(ScreenPane.ToolbarZone.Path, tool.Zone);   // cut from the front, still the path
+        pane.Toolbar = () => new ScreenPane.ToolbarParts(new string('s', 35), @"D:\x");
+        _time.Advance(ScreenPane.Tick);
+        Assert.True(pane.TryHitToolbar(38, 103, out tool));
+        Assert.Equal(ScreenPane.ToolbarZone.Row, tool.Zone);    // two cells of room: no path
+        pane.Toolbar = () => new ScreenPane.ToolbarParts("🔧 🎓", @"D:\x");
+        _time.Advance(ScreenPane.Tick);
+
+        // A two-row draft: the cursor's row is the first input row, the hint row three under it, the toolbar four.
+        pane.ShowInput(new string('x', 50), 3);
+        Assert.Equal(2, pane.InputRows);
+        Assert.True(pane.TryHitHint(0, 103, out _));
+        Assert.True(pane.TryHitToolbar(0, 104, out tool));
+        Assert.Equal(ScreenPane.ToolbarZone.Glyph, tool.Zone);
+
+        // No toolbar: nothing.
+        pane.Toolbar = static () => null;
+        _time.Advance(ScreenPane.Tick);
+        Assert.False(pane.TryHitToolbar(0, 104, out _));
+        Assert.False(pane.TryHitToolbar(0, 103, out _));
+    }
+
+    /// <summary>Scrolled, the toolbar stays the screen's last row and the region is a row shorter.</summary>
+    [Fact]
+    public void Toolbar_StaysUnderTheScrolledWindow()
+    {
+        using var pane = Pane();
+        pane.Toolbar = () => new ScreenPane.ToolbarParts("🔧", @"D:\x");
+        pane.Open();
+        pane.Show();
+        for (int i = 1; i <= 12; i++)
+        {
+            pane.Write(new Markup(Line(i) + Environment.NewLine));
+        }
+
+        // The region is five rows (10 − the five-row pane): a page is four.
+        pane.ScrollPage(-1);
+        Assert.True(pane.Scrolled);
+        Assert.Equal(3, pane.ScrollTop);
+        Assert.EndsWith(Lines(4, 8) + Rule(40) + "\n" + InputLine.PromptGlyph + "\n" + Rule(40) + "\n" + ScreenPane.Fit(ScreenPane.ScrolledHint(4), 39) + "\n🔧" + new string(' ', 33) + @"D:\x", Strip(Output).TrimEnd());
+
+        pane.ScrollToEnd();
+        Assert.False(pane.Scrolled);
+        Assert.EndsWith("\n🔧" + new string(' ', 33) + @"D:\x", Strip(Output).TrimEnd());
+    }
 }

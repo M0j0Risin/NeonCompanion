@@ -37,6 +37,7 @@ public class AppSettingsTests : IDisposable
         TranscriptMarkdown = false,
         WelcomeSplash = false,
         ShowWorkingDirectory = false,
+        ShowToolbar = false,
         WorkingDirectory = @"D:\elsewhere\files",
         LlmApiKey = "sk-test",
         LlmAutoCompactPercent = 65,
@@ -135,6 +136,7 @@ public class AppSettingsTests : IDisposable
         Assert.Equal(expected.TranscriptMarkdown, actual.TranscriptMarkdown);
         Assert.Equal(expected.WelcomeSplash, actual.WelcomeSplash);
         Assert.Equal(expected.ShowWorkingDirectory, actual.ShowWorkingDirectory);
+        Assert.Equal(expected.ShowToolbar, actual.ShowToolbar);
         Assert.Equal(expected.WorkingDirectory, actual.WorkingDirectory);
         Assert.Equal(expected.LlmApiKey, actual.LlmApiKey);
         Assert.Equal(expected.LlmAutoCompactPercent, actual.LlmAutoCompactPercent);
@@ -245,6 +247,7 @@ public class AppSettingsTests : IDisposable
             d.TranscriptMarkdown = full.TranscriptMarkdown;
             d.WelcomeSplash = full.WelcomeSplash;
             d.ShowWorkingDirectory = full.ShowWorkingDirectory;
+            d.ShowToolbar = full.ShowToolbar;
             d.WorkingDirectory = full.WorkingDirectory;
             d.LlmApiKey = full.LlmApiKey;
             d.LlmAutoCompactPercent = full.LlmAutoCompactPercent;
@@ -352,6 +355,7 @@ public class AppSettingsTests : IDisposable
                 d.TranscriptMarkdown = full.TranscriptMarkdown;
                 d.WelcomeSplash = full.WelcomeSplash;
                 d.ShowWorkingDirectory = full.ShowWorkingDirectory;
+                d.ShowToolbar = full.ShowToolbar;
                 d.WorkingDirectory = full.WorkingDirectory;
                 d.LlmApiKey = full.LlmApiKey;
                 d.LlmAutoCompactPercent = full.LlmAutoCompactPercent;
@@ -900,6 +904,7 @@ public class AppSettingsTests : IDisposable
         Assert.True(s.TranscriptMarkdown);
         Assert.True(s.WelcomeSplash);   // 2026-09-18
         Assert.True(s.ShowWorkingDirectory);   // 2026-09-18
+        Assert.True(s.ShowToolbar);   // 2026-09-21
         Assert.Equal("", s.DraftEditor);   // 2026-09-19: the shell's default for .txt
         // The Sessions tab (2026-09-18): logging and the tool on, the model writes the title (the first line until later that day), kept forever, ten hits.
         Assert.True(s.SessionLogging);

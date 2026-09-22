@@ -291,7 +291,7 @@ public sealed class InfoPane
     {
         var titles = Titles(tabs);
         int width = Math.Max(1, _pane.Profile.Width);
-        int height = _pane.Profile.Height > 0 ? _pane.Profile.Height : DefaultHeight;
+        int height = _pane.Profile.Height > 0 ? _pane.LayoutHeight : DefaultHeight;   // less the toolbar's row (2026-09-21)
         int capacity = ScreenPane.MaxOverlayRows(height, 0) - HeaderRows;
         var content = ScreenPane.RenderLines(tabs[active].Content(), _pane, width);
         _count = content.Count;

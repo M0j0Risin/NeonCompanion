@@ -596,7 +596,8 @@ public sealed class MenuPane : INoticeSink
 
     private int Width => Math.Max(1, _pane.Profile.Width);
 
-    private int Height => _pane.Profile.Height > 0 ? _pane.Profile.Height : DefaultHeight;
+    /// <summary>The window less the toolbar's row (<see cref="ScreenPane.LayoutHeight"/>, 2026-09-21): what the pane's caps are counted over.</summary>
+    private int Height => _pane.Profile.Height > 0 ? _pane.LayoutHeight : DefaultHeight;
 
     /// <summary>The overlay rows above the first list row: the title (or the tab strip), the caption's rows, then the status lines or the one spacer.</summary>
     private int Header => 1 + _captionRows + Math.Max(1, _status.Count);

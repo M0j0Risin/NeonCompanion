@@ -713,6 +713,10 @@ internal sealed partial class ChatScreen
             // The tally as HintText carries it (2026-09-21): the pane finds it in the drawn row and
             // records where, so a double-click on it (or on the spinner under a turn) opens /usage.
             Usage = () => UsageText.HintPart(_session.Usage, _session.ContextLength) ?? "",
+            // The toolbar under the hint row (2026-09-21): the pane glyphs, the working directory in
+            // force (the resolved path, what /cwd prints and the banner shows) and the folder; read
+            // per draw and on the tick, so a /cwd change or a flipped Show toolbar shows at once.
+            Toolbar = () => _effective() is { ShowToolbar: true } shown ? new ScreenPane.ToolbarParts(ToolbarStrip, WorkingDirectory.Resolve(shown.WorkingDirectory, _settings.ProfileDirectory)) : null,
             Placeholder = InputPlaceholder,
             // A pane's × close glyph only while the pane holds the mouse (2026-09-18): the same
             // setting the panes' mouse hook reads, so an unclickable button is never drawn.
@@ -817,6 +821,38 @@ internal sealed partial class ChatScreen
     /// No click of its own: the job ends by itself within seconds. Pinned.
     /// </summary>
     public const string TitleStripGlyph = "🏷️";
+
+    /// <summary>
+    /// The toolbar under the hint row (2026-09-21, the user's ask): the pane glyphs pinned at its
+    /// left in the user's order — settings, tools, MCP, skills, system prompt — and the working
+    /// directory pinned at its right (cut from the front, as the banner's). A double-click on a
+    /// glyph opens the pane (<see cref="ToolbarWord"/> names the command), one on the path is
+    /// <c>/cwd browse</c> (a folder glyph carried that until later that day; the user's call).
+    /// Every glyph is two cells: a surrogate pair, or a character with the variation selector
+    /// (the gear, the tools, the detective — the user's picks), which <see cref="UI.TextCells"/>
+    /// counts as the terminal draws it and the pane's strip walk keeps with its glyph.
+    /// <c>Show toolbar</c> in the settings hides the row. Pinned.
+    /// </summary>
+    public const string SettingsToolGlyph = "⚙️";
+    public const string ToolsToolGlyph = "🛠️";
+    public const string McpToolGlyph = McpText.Glyph;
+    public const string SkillsToolGlyph = "🎓";
+    public const string SysToolGlyph = "🕵️";
+    public static readonly string ToolbarStrip = string.Join(GlyphSeparator, SettingsToolGlyph, ToolsToolGlyph, McpToolGlyph, SkillsToolGlyph, SysToolGlyph);
+
+    /// <summary>The line the path's double-click runs: <c>/cwd browse</c>, the picker on the pane. Pinned.</summary>
+    public const string CwdBrowseLine = "/cwd " + CwdBrowseWord;
+
+    /// <summary>The command a double-click on a toolbar glyph runs (2026-09-21), as the typed word; null for anything else. Pinned.</summary>
+    public static string? ToolbarWord(string glyph) => glyph switch
+    {
+        SettingsToolGlyph => SlashCommands.SettingsWord,
+        SkillsToolGlyph => SlashCommands.SkillsWord,
+        ToolsToolGlyph => SlashCommands.ToolsWord,
+        McpToolGlyph => SlashCommands.McpWord,
+        SysToolGlyph => SlashCommands.SysWord,
+        _ => null,
+    };
 
     /// <summary>
     /// The switch a double-click on a strip glyph turns off (2026-09-18): the glyph is drawn only
@@ -1149,7 +1185,10 @@ internal sealed partial class ChatScreen
     /// typed command — the Queue pane; two on the scroll's hint (<see cref="ScreenPane.HintZone.Scrolled"/>,
     /// later that day) are the bottom again, as Ctrl+End through <see cref="ScrollInput"/> — spent
     /// here, nothing answered; two on the spinner and its label (<see cref="ScreenPane.HintZone.Usage"/>,
-    /// 2026-09-21) answer <see cref="SlashCommands.UsageWord"/> — the Usage pane under the reply.
+    /// 2026-09-21) answer <see cref="SlashCommands.UsageWord"/> — the Usage pane under the reply;
+    /// two on a toolbar glyph (later on 2026-09-21) answer its <see cref="ToolbarWord"/> — the
+    /// pane under the reply, as the typed command's — while the path is inert there (<c>/cwd</c>
+    /// is refused mid-turn, and a click deserves no refusal notice).
     /// Any other click ends a pair. Every watcher passes it (a reply, a
     /// compact, a recording): a word answered without a line hook is dropped.
     /// </summary>
@@ -1160,6 +1199,18 @@ internal sealed partial class ChatScreen
             if (_pane.TryHitQueued(click.X, click.Y))
             {
                 return _queuedClicks.Second(0) ? SlashCommands.QueueWord : null;
+            }
+
+            if (_pane.TryHitToolbar(click.X, click.Y, out var tool))
+            {
+                // The path (the folder picker) is inert here: only a glyph's word answers.
+                if (tool.Zone == ScreenPane.ToolbarZone.Glyph && ToolbarWord(tool.Glyph) is { } word)
+                {
+                    return _queuedClicks.Second(InputLine.ToolbarPairKey(tool)) ? word : null;
+                }
+
+                _queuedClicks.Reset();
+                return null;
             }
 
             if (_pane.TryHitHint(click.X, click.Y, out var hit) && hit.Zone == ScreenPane.HintZone.Scrolled)
@@ -3929,7 +3980,7 @@ internal sealed partial class ChatScreen
             return;
         }
 
-        var box = ThumbnailSize.Fit(_pane.Profile.Width, _pane.Profile.Height, _pane.Enabled ? ScreenPane.PaneRows + _pane.InputRows : 0);
+        var box = ThumbnailSize.Fit(_pane.Profile.Width, _pane.Profile.Height, _pane.Enabled ? ScreenPane.PaneRows + _pane.InputRows + _pane.ToolbarRows : 0);
         if (ImageThumbnail.Read(image, box.Columns, box.MaxRows) is not { } picture)
         {
             _transcript.Error(ViewNotDrawnError(result.Relative));
@@ -4531,6 +4582,22 @@ internal sealed partial class ChatScreen
                         }
 
                         break;
+                    case InputResult.ToolbarRow tool:
+                        // A double-click on the toolbar (2026-09-21): a pane glyph's word, or the
+                        // path's /cwd browse, through the dispatch as the typed line — without
+                        // the transcript row or the history, the draft back after, as the hint
+                        // row's. A glyph the strip does not name (none today) is nothing.
+                        _timers.Acknowledge();
+                        DisarmExit();
+                        await _speech.StopAsync().ConfigureAwait(false);
+                        draft = tool.Draft;
+                        string? toolbarLine = tool.Hit.Zone == ScreenPane.ToolbarZone.Path ? CwdBrowseLine : ToolbarWord(tool.Hit.Glyph);
+                        if (toolbarLine is not null && await HandleAsync(toolbarLine, [], cancellationToken).ConfigureAwait(false))
+                        {
+                            return 0;
+                        }
+
+                        break;
                     case InputResult.Submitted submitted:
                         _timers.Acknowledge();
                         DisarmExit();
@@ -4987,7 +5054,7 @@ internal sealed partial class ChatScreen
             return;
         }
 
-        var box = ThumbnailSize.Fit(_pane.Profile.Width, _pane.Profile.Height, _pane.FlowRow + ScreenPane.PaneRows + _pane.InputRows);
+        var box = ThumbnailSize.Fit(_pane.Profile.Width, _pane.Profile.Height, _pane.FlowRow + ScreenPane.PaneRows + _pane.InputRows + _pane.ToolbarRows);
         if (ImageThumbnail.Read(image, box.Columns, box.MaxRows) is not { } picture)
         {
             return;

@@ -303,7 +303,8 @@ public sealed class FolderPane
         Show();
     }
 
-    private int Height => _pane.Profile.Height > 0 ? _pane.Profile.Height : DefaultHeight;
+    /// <summary>The window less the toolbar's row (<see cref="ScreenPane.LayoutHeight"/>, 2026-09-21): what the pane's caps are counted over.</summary>
+    private int Height => _pane.Profile.Height > 0 ? _pane.LayoutHeight : DefaultHeight;
 
     /// <summary>The pane laid out for the window: the strip, the path row (or the status), the rows in view, the more row.</summary>
     private void Show()

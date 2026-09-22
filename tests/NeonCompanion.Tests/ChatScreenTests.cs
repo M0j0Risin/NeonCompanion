@@ -103,6 +103,9 @@ public partial class ChatScreenTests : IDisposable
         // The model-written session title is the default (2026-09-18, the user's call); the same shape — the title request
         // would dequeue the next scripted reply — so the fixture opts out and the titling tests opt in.
         _settings.Update(d => d.SessionNamingMode = "first-line");
+        // The toolbar under the hint row is on by default (2026-09-21) and takes a row of every pane drawn here — the scroll
+        // tests count rows at height 10, the menu tests their tab's rows — so the fixture opts out and the toolbar tests opt in.
+        _settings.Update(d => d.ShowToolbar = false);
         // delete is off in a fresh profile (2026-09-20, the user's call: the trash tool is opt-in): the scripts here pin the full file rule and
         // every file tool offered, so the fixture opts it back on; the delete-off tests pin the fresh-profile picture themselves. The same
         // rule reads "into .trash" only while File safe edits is on (later on 2026-09-20; off by default since 2026-09-19), so that goes on too.
@@ -7306,6 +7309,144 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal("ok!", _chat.Requests[1].Last(m => m.Role == ChatRole.User).Text);
     }
 
+    /// <summary>
+    /// The toolbar under the hint row (2026-09-21, the user's ask): the glyphs at its left in the
+    /// user's order — settings, tools, MCP, skills, system prompt — the working directory at its
+    /// right. At the idle line a double-click on a glyph opens its pane as the typed command
+    /// would — no transcript row, the draft back under it — and one on the path is /cwd browse;
+    /// the blanks between are nobody's.
+    /// </summary>
+    [Fact]
+    public async Task ADoubleClickOnAToolbarGlyph_OpensItsPane_OnThePath_TheBrowser_AndTheDraftComesBack()
+    {
+        _settings.Update(d => { d.TtsOutput = false; d.ShowToolbar = true; });
+        _console.Profile.Height = 40;
+        _console.Profile.Width = 240;
+        _geometry = new ScreenGeometry(() => null, () => 100);   // an empty line: row 100, the rule 101, the hint row 102, the toolbar 103
+        StepsWhenIdle(
+            input =>
+            {
+                input.Push(Keys.Char('h'), Keys.Char('i'));
+                input.PushClick(0, 103);                         // ⚙️
+                input.PushClick(1, 103);
+            },
+            Key(Keys.Escape),                                    // the settings closed
+            input => { input.PushClick(3, 103); input.PushClick(3, 103); },      // 🛠️
+            Key(Keys.Escape),
+            input => { input.PushClick(6, 103); input.PushClick(6, 103); },      // 🔌
+            Key(Keys.Escape),
+            input => { input.PushClick(9, 103); input.PushClick(9, 103); },      // 🎓
+            Key(Keys.Escape),
+            input => { input.PushClick(12, 103); input.PushClick(12, 103); },    // 🕵️
+            Key(Keys.Escape),
+            input =>
+            {
+                input.PushClick(120, 103);                       // the blanks: nothing
+                input.PushClick(120, 103);
+                input.PushClick(238, 103);                       // the path ends on the last cell (239 cells)
+                input.PushClick(237, 103);
+            },
+            Key(Keys.Escape),                                    // the folder picker closed: the directory kept
+            input => input.Push(Keys.Char('!'), Keys.Enter),
+            Line("/exit"));
+
+        string output = await RunAsync();
+
+        string cwd = WorkingDirectory.Resolve("", _settings.ProfileDirectory);
+        Assert.Contains("\n" + ScreenPane.ToolbarRow(ChatScreen.ToolbarStrip, cwd, 239), output);
+        int settings = output.IndexOf("\n" + Titled("Settings   General    Sessions    LLM    TTS    STT ") + "\n", StringComparison.Ordinal);
+        int tools = output.IndexOf("Tools   Offered    Options    Web    Files    Shell    Ask    Git (native) ", StringComparison.Ordinal);
+        int mcp = output.IndexOf("MCP   Servers    Tools    Options ", StringComparison.Ordinal);
+        int skills = output.IndexOf("Skills   Offered    Options    Reflection    Project ", StringComparison.Ordinal);
+        int sys = output.IndexOf("\n" + Titled("System prompt   Prompt    Tools ") + "\n", StringComparison.Ordinal);
+        int folder = output.IndexOf("\n" + Titled(FolderText.Title + "   " + FolderText.CollapseAllButton + " ") + "\n" + cwd + "\n", StringComparison.Ordinal);
+        Assert.True(settings > 0 && tools > settings && mcp > tools && skills > mcp && sys > skills && folder > sys, output);
+        Assert.Contains("  · " + FolderText.KeptNotice + "\n", output);
+        Assert.All(new[] { "/settings", "/skills", "/tools", "/mcp", "/sys", "/cwd" }, word => Assert.DoesNotContain("› " + word, output));
+        Assert.Contains("› hi!", output);
+        Assert.Equal("hi!", Assert.Single(_chat.Requests).Last(m => m.Role == ChatRole.User).Text);
+    }
+
+    /// <summary>Show toolbar off (the fixture's default here): no row under the hint row, and clicks where it would be are nothing — Enter sends the draft.</summary>
+    [Fact]
+    public async Task ShowToolbar_Off_DrawsNoRow_AndClicksUnderTheHintRow_AreNothing()
+    {
+        _settings.Update(d => d.TtsOutput = false);
+        _console.Profile.Height = 40;
+        _console.Profile.Width = 240;
+        _geometry = new ScreenGeometry(() => null, () => 100);
+        StepsWhenIdle(
+            input =>
+            {
+                input.Push(Keys.Char('h'), Keys.Char('i'));
+                input.PushClick(0, 103);
+                input.PushClick(0, 103);
+                input.Push(Keys.Enter);
+            },
+            Line("/exit"));
+
+        string output = await RunAsync();
+
+        Assert.DoesNotContain(ChatScreen.SysToolGlyph, output);
+        Assert.DoesNotContain(ChatScreen.ToolsToolGlyph, output);
+        Assert.DoesNotContain("Settings   General", output);
+        Assert.Contains("› hi", output);
+        Assert.Equal("hi", Assert.Single(_chat.Requests).Last(m => m.Role == ChatRole.User).Text);
+    }
+
+    /// <summary>Mouse in menus off: the toolbar is still drawn (it carries the working directory) but the mouse is the terminal's, so a pair on a glyph is nothing.</summary>
+    [Fact]
+    public async Task ShowToolbar_WithMouseInMenusOff_DrawsTheRow_AndItsClicksAreNothing()
+    {
+        _settings.Update(d => { d.TtsOutput = false; d.ShowToolbar = true; d.MouseInMenus = false; });
+        _console.Profile.Height = 40;
+        _console.Profile.Width = 240;
+        _geometry = new ScreenGeometry(() => null, () => 100);
+        StepsWhenIdle(
+            input =>
+            {
+                input.Push(Keys.Char('h'), Keys.Char('i'));
+                input.PushClick(0, 103);
+                input.PushClick(0, 103);
+                input.Push(Keys.Enter);
+            },
+            Line("/exit"));
+
+        string output = await RunAsync();
+
+        string cwd = WorkingDirectory.Resolve("", _settings.ProfileDirectory);
+        Assert.Contains("\n" + ScreenPane.ToolbarRow(ChatScreen.ToolbarStrip, cwd, 239), output);
+        Assert.DoesNotContain("Settings   General", output);
+        Assert.Contains("› hi", output);
+        Assert.Equal("hi", Assert.Single(_chat.Requests).Last(m => m.Role == ChatRole.User).Text);
+    }
+
+    /// <summary>The toolbar's glyphs, in the user's order, name their commands (2026-09-21): the five pane words, nothing for anything else (the path's line is /cwd browse); every glyph two cells, whole under the pane's walk at either cell.</summary>
+    [Fact]
+    public void ToolbarWord_IsPinned()
+    {
+        Assert.Equal("⚙️ 🛠️ 🔌 🎓 🕵️", ChatScreen.ToolbarStrip);
+        Assert.Equal(McpText.Glyph, ChatScreen.McpToolGlyph);
+        Assert.Equal("/cwd browse", ChatScreen.CwdBrowseLine);
+        Assert.Equal("/settings", ChatScreen.ToolbarWord(ChatScreen.SettingsToolGlyph));
+        Assert.Equal("/tools", ChatScreen.ToolbarWord(ChatScreen.ToolsToolGlyph));
+        Assert.Equal("/mcp", ChatScreen.ToolbarWord(ChatScreen.McpToolGlyph));
+        Assert.Equal("/skills", ChatScreen.ToolbarWord(ChatScreen.SkillsToolGlyph));
+        Assert.Equal("/sys", ChatScreen.ToolbarWord(ChatScreen.SysToolGlyph));
+        Assert.Null(ChatScreen.ToolbarWord("📁"));
+        Assert.Null(ChatScreen.ToolbarWord(ChatScreen.TtsGlyph));
+        Assert.Null(ChatScreen.ToolbarWord(""));
+        string[] glyphs = [ChatScreen.SettingsToolGlyph, ChatScreen.ToolsToolGlyph, ChatScreen.McpToolGlyph, ChatScreen.SkillsToolGlyph, ChatScreen.SysToolGlyph];
+        for (int i = 0; i < glyphs.Length; i++)
+        {
+            Assert.Equal(2, TextCells.Width(glyphs[i]));
+            Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, glyphs[i], 3 * i), ScreenPane.ToolbarHitAt(ChatScreen.ToolbarStrip, -1, 0, 3 * i));
+            Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, glyphs[i], 3 * i), ScreenPane.ToolbarHitAt(ChatScreen.ToolbarStrip, -1, 0, 3 * i + 1));
+        }
+
+        Assert.Equal(ScreenPane.ToolbarZone.Row, ScreenPane.ToolbarHitAt(ChatScreen.ToolbarStrip, -1, 0, 14).Zone);
+    }
+
     /// <summary>A double-click on the scroll's hint at the idle line (later on 2026-09-18) is Ctrl+End — the bottom again, the draft kept, no settings pane; with Mouse in menus off the clicks are nothing and the sent line takes the bottom.</summary>
     [Fact]
     public async Task ADoubleClickOnTheScrolledHint_AtIdle_IsTheBottomAgain_AndOpensNothing()
@@ -8737,6 +8878,45 @@ public partial class ChatScreenTests : IDisposable
         Assert.True(pane > 0, output);
         Assert.True(pane < output.LastIndexOf("three.", StringComparison.Ordinal));
         Assert.DoesNotContain("› /usage", output);
+        Assert.DoesNotContain(ChatScreen.CancelledNotice, output);
+        Assert.Single(_chat.Requests);
+        Assert.Equal(1, _session.History.TurnCount);
+    }
+
+    /// <summary>A double-click on a toolbar glyph during a reply (2026-09-21) is its command through the watcher's click hook: the pane under the busy row, ESC closes it, the reply runs on; the path is inert there (/cwd is refused mid-turn, without a notice).</summary>
+    [Fact]
+    public async Task MidTurn_ADoubleClickOnAToolbarGlyph_OpensItsPane_ThePathIsInert_TheReplyRunsOn()
+    {
+        MidTurnFixture(i =>
+        {
+            if (i == 0)
+            {
+                Scripted().PushClick(238, 103);                  // the path: nothing under a reply
+                Scripted().PushClick(238, 103);
+            }
+            else if (i == 1)
+            {
+                Scripted().PushClick(12, 103);                   // 🕵️: the busy row at 102, the toolbar at 103
+                Scripted().PushClick(13, 103);
+            }
+            else if (i == 2)
+            {
+                Scripted().Push(Keys.Escape);
+            }
+        });
+        _settings.Update(d => d.ShowToolbar = true);
+        _console.Profile.Width = 240;
+        _geometry = new ScreenGeometry(() => null, () => 100);   // MidTurnFixture's own geometry has no cursor row
+
+        string output = await RunAsync();
+
+        output = string.Join("\n", output.Split('\n').Select(l => l.TrimEnd()));
+        int pane = output.IndexOf("\n" + Titled("System prompt   Prompt    Tools ") + "\n", StringComparison.Ordinal);
+        Assert.True(pane > 0, output);
+        Assert.True(pane < output.LastIndexOf("three.", StringComparison.Ordinal));
+        Assert.DoesNotContain("› /sys", output);
+        Assert.DoesNotContain(FolderText.Title + "   ", output);
+        Assert.DoesNotContain(FolderText.KeptNotice, output);
         Assert.DoesNotContain(ChatScreen.CancelledNotice, output);
         Assert.Single(_chat.Requests);
         Assert.Equal(1, _session.History.TurnCount);

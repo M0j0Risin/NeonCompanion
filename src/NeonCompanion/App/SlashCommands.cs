@@ -286,6 +286,13 @@ public static class SlashCommands
     /// <summary>The <c>/usage</c> word: what a double-click on the busy row's spinner and label sends through the mid-turn line hook (2026-09-21), the Usage pane under the reply as the typed command's. Pinned.</summary>
     public const string UsageWord = "/usage";
 
+    /// <summary>The words the toolbar's pane glyphs send (2026-09-21) — through the mid-turn line hook under a reply, through the screen's dispatch at idle — so each pane opens exactly as the typed command's does. Pinned.</summary>
+    public const string SettingsWord = "/settings";
+    public const string SkillsWord = "/skills";
+    public const string ToolsWord = "/tools";
+    public const string McpWord = "/mcp";
+    public const string SysWord = "/sys";
+
     /// <summary>Classifies <paramref name="line"/>; <c>Args</c> is the trimmed remainder — meaningful for the commands <see cref="TakesArgument"/> names, and carried by <see cref="SlashCommand.Overloaded"/> for the error line.</summary>
     public static (SlashCommand Command, string Args) Parse(string line)
     {

@@ -301,6 +301,9 @@ public enum SettingsField
 
     /// <summary>A picker over <see cref="Files.FileBrowserMode.Names"/>: what the <c>/cwd browse</c> tree lists (<see cref="Settings.AppSettingsData.FileBrowserMode"/>). The Files tab's row under the @-mention folder mode (2026-09-21); no reconnect (read when the pane opens).</summary>
     FileBrowserMode,
+
+    /// <summary>A toggle: whether the toolbar is drawn under the hint row (<see cref="Settings.AppSettingsData.ShowToolbar"/>). The General tab's row after Show working directory (2026-09-21); no reconnect (read at each pane draw).</summary>
+    ShowToolbar,
 }
 
 /// <summary>The tabs of <c>/settings</c> on the pane, in strip order (Sessions right after General — the user's order, 2026-09-18; STT last since 2026-09-19, when the Ask, Files and Web tabs moved to <c>/tools</c> — <see cref="SettingsMenu.ToolsTabFields"/> — and, later that day, the Skills tab to <c>/skills</c> as its Options tab — <see cref="SettingsMenu.SkillsTabFields"/>); the value is the index into <see cref="SettingsMenu.TabTitles"/> and <see cref="SettingsMenu.TabFields"/>.</summary>
@@ -502,7 +505,7 @@ internal sealed class SettingsMenu
     /// </summary>
     public static readonly IReadOnlyList<IReadOnlyList<SettingsField>> TabFields =
     [
-        [SettingsField.Profile, SettingsField.NewProfileMode, SettingsField.WorkingDirectory, SettingsField.QueueMessages, SettingsField.QueueCancelMode, SettingsField.Memory, SettingsField.CopyUserPrompt, SettingsField.MouseInMenus, SettingsField.ShowImageThumbnails, SettingsField.ImageThumbnailSize, SettingsField.TranscriptMarkdown, SettingsField.PastePreviewLines, SettingsField.HideExitAutocomplete, SettingsField.CommandTypoIntercept, SettingsField.WelcomeSplash, SettingsField.ShowWorkingDirectory, SettingsField.DraftEditor],
+        [SettingsField.Profile, SettingsField.NewProfileMode, SettingsField.WorkingDirectory, SettingsField.QueueMessages, SettingsField.QueueCancelMode, SettingsField.Memory, SettingsField.CopyUserPrompt, SettingsField.MouseInMenus, SettingsField.ShowImageThumbnails, SettingsField.ImageThumbnailSize, SettingsField.TranscriptMarkdown, SettingsField.PastePreviewLines, SettingsField.HideExitAutocomplete, SettingsField.CommandTypoIntercept, SettingsField.WelcomeSplash, SettingsField.ShowWorkingDirectory, SettingsField.ShowToolbar, SettingsField.DraftEditor],
         [SettingsField.SessionLogging, SettingsField.SessionRetentionDays, SettingsField.SessionNamingMode, SettingsField.SessionShowName, SettingsField.SessionTool, SettingsField.SessionSearchMaxResults],
         [SettingsField.LlmScanMode, SettingsField.LlmUrl, SettingsField.LlmModel, SettingsField.LlmApiKey, SettingsField.LlmReasoning, SettingsField.LlmRequestTimeoutSeconds, SettingsField.LlmTurnTimeoutSeconds, SettingsField.LlmContextLength, SettingsField.LlmCompactType, SettingsField.LlmCompactKeepRecent, SettingsField.LlmCompactShowSummary, SettingsField.LlmAutoCompactPercent, SettingsField.LlmOfferTools, SettingsField.LlmToolCompactType, SettingsField.LlmMaxToolIterations, SettingsField.LlmUseFunVerbs],
         [SettingsField.TtsOutput, SettingsField.TtsSource, SettingsField.TtsHttpUrl, SettingsField.TtsVoicePreview, SettingsField.TtsVoice, SettingsField.TtsVoice2, SettingsField.TtsVoiceMix, SettingsField.TtsSpeed],
@@ -777,7 +780,7 @@ internal sealed class SettingsMenu
             or SettingsField.AgentSkills or SettingsField.ExternalSkills or SettingsField.TranscriptMarkdown
             or SettingsField.FileSafeEdits
             or SettingsField.SkillHashMention or SettingsField.ReflectionAutoLearn
-            or SettingsField.HideExitAutocomplete or SettingsField.CommandTypoIntercept or SettingsField.WelcomeSplash or SettingsField.ShowWorkingDirectory
+            or SettingsField.HideExitAutocomplete or SettingsField.CommandTypoIntercept or SettingsField.WelcomeSplash or SettingsField.ShowWorkingDirectory or SettingsField.ShowToolbar
             or SettingsField.QueueMessages or SettingsField.AllowSkillDelete or SettingsField.SessionLogging or SettingsField.SessionTool
             or SettingsField.ToolsDollarMention or SettingsField.ReflectionIncludesSessions or SettingsField.McpServers or SettingsField.GitNativeTools
             or SettingsField.LlmCompactShowSummary or SettingsField.ShellToolBridge;
@@ -879,6 +882,7 @@ internal sealed class SettingsMenu
         SettingsField.CommandTypoIntercept => "Command typo intercept",
         SettingsField.WelcomeSplash => "Welcome splash",
         SettingsField.ShowWorkingDirectory => "Show working directory",
+        SettingsField.ShowToolbar => "Show toolbar",
         SettingsField.QueueMessages => "Queue messages",
         SettingsField.QueueCancelMode => "Queue cancel mode",
         SettingsField.AllowSkillDelete => "Allow skill delete",
@@ -1016,6 +1020,7 @@ internal sealed class SettingsMenu
             SettingsField.SessionSearchMaxResults => Results(data.SessionSearchMaxResults),
             SettingsField.SessionTool => OnOff(data.SessionTool),
             SettingsField.ShowWorkingDirectory => OnOff(data.ShowWorkingDirectory),
+            SettingsField.ShowToolbar => OnOff(data.ShowToolbar),
             SettingsField.QueueMessages => OnOff(data.QueueMessages),
             SettingsField.QueueCancelMode => data.QueueCancelMode,
             SettingsField.AllowSkillDelete => OnOff(data.AllowSkillDelete),
@@ -2674,6 +2679,7 @@ internal sealed class SettingsMenu
             SettingsField.CommandTypoIntercept => data.CommandTypoIntercept,
             SettingsField.WelcomeSplash => data.WelcomeSplash,
             SettingsField.ShowWorkingDirectory => data.ShowWorkingDirectory,
+            SettingsField.ShowToolbar => data.ShowToolbar,
             SettingsField.QueueMessages => data.QueueMessages,
             SettingsField.AllowSkillDelete => data.AllowSkillDelete,
             SettingsField.SessionLogging => data.SessionLogging,
@@ -2718,6 +2724,7 @@ internal sealed class SettingsMenu
             case SettingsField.CommandTypoIntercept: data.CommandTypoIntercept = on; break;
             case SettingsField.WelcomeSplash: data.WelcomeSplash = on; break;
             case SettingsField.ShowWorkingDirectory: data.ShowWorkingDirectory = on; break;
+            case SettingsField.ShowToolbar: data.ShowToolbar = on; break;
             case SettingsField.QueueMessages: data.QueueMessages = on; break;
             case SettingsField.AllowSkillDelete: data.AllowSkillDelete = on; break;
             case SettingsField.SessionLogging: data.SessionLogging = on; break;
@@ -2766,6 +2773,7 @@ internal sealed class SettingsMenu
         SettingsField.CommandTypoIntercept => on ? "a line that is only a command's name offers the command first" : "a line that is only a command's name is sent as typed",
         SettingsField.WelcomeSplash => on ? "a picture greets you under the banner at startup, until the first line" : "the banner alone at startup",
         SettingsField.ShowWorkingDirectory => on ? "the working directory sits at the banner's right edge" : "the banner is the title and the version alone",
+        SettingsField.ShowToolbar => on ? "the pane glyphs and the working directory sit under the hint row" : "the hint row is the pane's last row",
         SettingsField.QueueMessages => on ? "a message sent while a reply runs is queued and sent when the reply ends" : "a message sent during a reply stays type-ahead; /queue leaves the / list",
         SettingsField.AllowSkillDelete => on ? "the scope picker in /skills offers delete, after a confirmation" : "a skill is moved between the profile and global roots only",
         SettingsField.SessionLogging => on ? "every completed turn is written to this profile's session store" : "nothing is written; what is stored still lists, restores and purges",

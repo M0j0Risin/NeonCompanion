@@ -50,6 +50,14 @@ public abstract record InputResult
     /// the line and comes back on the next read.
     /// </summary>
     public sealed record HintRow(string Draft, ScreenPane.HintHit Hit) : InputResult;
+
+    /// <summary>
+    /// A double-click on the pane's toolbar under <c>hintDoubleClick</c> (2026-09-21): <see cref="Hit"/>
+    /// says which part — a pane glyph or the path (the screen opens the pane, or the folder
+    /// picker); <see cref="Draft"/> as <see cref="HintRow"/>'s. Never the row itself: a pair
+    /// there is nobody's.
+    /// </summary>
+    public sealed record ToolbarRow(string Draft, ScreenPane.ToolbarHit Hit) : InputResult;
 }
 
 /// <summary>
@@ -225,6 +233,13 @@ public sealed class InputLine
 
     /// <summary>The hint-pair key of a click off an open pane under a typed value (later on 2026-09-18): below every zone's number, and never the pairing's own −1.</summary>
     public const int OutsidePairKey = -2;
+
+    /// <summary>
+    /// What two toolbar clicks must share to pair (2026-09-21), in the hint pairing's own key space:
+    /// below <see cref="OutsidePairKey"/>, never the pairing's −1 and never a <see cref="HintPairKey"/>
+    /// value — the path, then one key per glyph column. Pinned.
+    /// </summary>
+    public static int ToolbarPairKey(ScreenPane.ToolbarHit hit) => hit.Zone == ScreenPane.ToolbarZone.Path ? -3 : -4 - hit.Column;
 
     public static string SubmittedMarkup(string text)
     {
@@ -468,6 +483,17 @@ public sealed class InputLine
 
                                 EndRow();
                                 return new InputResult.HintRow(text.ToString(), hit);
+                            }
+                        }
+                        else if (hintDoubleClick && _pane.TryHitToolbar(click.X, click.Y, out var tool) && tool.Zone != ScreenPane.ToolbarZone.Row)
+                        {
+                            // The toolbar (2026-09-21): a glyph or the path, paired per part like
+                            // the hint row's; the blanks between them are a miss.
+                            anchor = -1;
+                            if (_hintClicks.Second(ToolbarPairKey(tool)))
+                            {
+                                EndRow();
+                                return new InputResult.ToolbarRow(text.ToString(), tool);
                             }
                         }
                         else
@@ -1149,7 +1175,7 @@ public sealed class InputLine
 
         void ShowList()
         {
-            int height = _pane.Profile.Height > 0 ? _pane.Profile.Height : MenuPane.DefaultHeight;
+            int height = _pane.Profile.Height > 0 ? _pane.LayoutHeight : MenuPane.DefaultHeight;   // less the toolbar's row (2026-09-21)
             int capacity = Math.Min(MentionCompleter.MaxRows, ScreenPane.MaxOverlayRows(height, _pane.InputRows));
             if (list!.IsWordList)
             {

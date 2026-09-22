@@ -965,6 +965,61 @@ public class InputLineTests : IDisposable
         Assert.Equal(ScreenPane.HintZone.Row, hint.Hit.Zone);
     }
 
+    /// <summary>The toolbar pair key (2026-09-21): below the outside key and the pairing's own −1, never a hint key — the path its own, each glyph column its own.</summary>
+    [Fact]
+    public void ToolbarPairKey_IsDistinctFromEveryHintKey_AndTheOutsideKey()
+    {
+        Assert.Equal(-3, InputLine.ToolbarPairKey(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Path, "", 200)));
+        Assert.Equal(-4, InputLine.ToolbarPairKey(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "⚙️", 0)));
+        Assert.Equal(-7, InputLine.ToolbarPairKey(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "🛠️", 3)));
+        Assert.Equal(-16, InputLine.ToolbarPairKey(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "🕵️", 12)));
+        var keys = new[] { -3, -4, -7, -10, -13, -16 };
+        Assert.DoesNotContain(-1, keys);
+        Assert.DoesNotContain(InputLine.OutsidePairKey, keys);
+        Assert.All(keys, key => Assert.True(key < InputLine.HintPairKey(new ScreenPane.HintHit(ScreenPane.HintZone.Row, "", -1))));
+    }
+
+    /// <summary>Two left clicks on a toolbar glyph or on the path within DoubleClick.Interval end the read as ToolbarRow with the draft (2026-09-21); the blanks between them, or one click on each of two parts, are nothing.</summary>
+    [Fact]
+    public async Task OnThePane_ADoubleClickOnTheToolbar_EndsTheRead_WithTheDraft_AndItsPart()
+    {
+        _console.Profile.Height = 10;
+        _console.Profile.Width = 40;
+        var time = new ManualTimeProvider();
+        using var pane = new ScreenPane(_console, new ScreenGeometry(() => null, () => 100), time) { Toolbar = () => new ScreenPane.ToolbarParts("🔧 🎓", @"D:\x") };
+        pane.Show();
+        var scripted = new ScriptedInput();
+        var line = new InputLine(pane, new KeySource(scripted, TimeSpan.FromMilliseconds(1)));
+        scripted.Push(Chars("a draft"));
+        // A one-row draft: row 100, the rule 101, the hint row 102, the toolbar 103.
+        scripted.PushClick(0, 103);               // 🔧
+        scripted.PushClick(3, 103);               // 🎓: another glyph, a first
+        scripted.PushClick(20, 103);              // the row: nobody's, and the pair's end
+        scripted.PushClick(4, 103);               // 🎓: a first
+        scripted.PushClick(3, 103);               // the pair
+
+        var tool = Assert.IsType<InputResult.ToolbarRow>(await line.ReadAsync(hintDoubleClick: true));
+        Assert.Equal("a draft", tool.Draft);
+        Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, "🎓", 3), tool.Hit);
+        Assert.Empty(line.History);
+
+        // The path (D:\x on the last four cells): a pair there is its own.
+        scripted.PushClick(38, 103);
+        scripted.PushClick(36, 103);
+        tool = Assert.IsType<InputResult.ToolbarRow>(await line.ReadAsync(initialText: "a draft", hintDoubleClick: true));
+        Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Path, "", 35), tool.Hit);
+
+        // Two on the blanks, or a glyph pair with the flag off: nothing, and Enter sends the draft.
+        scripted.PushClick(20, 103);
+        scripted.PushClick(20, 103);
+        scripted.Push(Keys.Enter);
+        Assert.Equal("a draft", Assert.IsType<InputResult.Submitted>(await line.ReadAsync(initialText: "a draft", hintDoubleClick: true)).Text);
+        scripted.PushClick(0, 103);
+        scripted.PushClick(0, 103);
+        scripted.Push(Keys.Enter);
+        Assert.Equal("a draft", Assert.IsType<InputResult.Submitted>(await line.ReadAsync(initialText: "a draft")).Text);
+    }
+
     /// <summary>Two clicks apart, a click on the draft or in the transcript between them, or the flag off: the hint row is nothing and Enter sends.</summary>
     [Fact]
     public async Task OnThePane_HintRowClicks_ThatAreNoPair_OrWithTheFlagOff_ChangeNothing()

@@ -208,6 +208,17 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
     // then every hit that is neither a strip glyph nor the trailer is Scrolled, not the row.
     private bool _hintScrolled;
 
+    // The toolbar (2026-09-21): the provider, the rows the last draw gave it (0 or 1 — Draw is the
+    // only writer, like _drawnOverlay), the row's text as drawn (null = no row; the tick's
+    // comparison), and its zones: the strip at column 0 as the row cut it, and the path's first
+    // column and width, −1 / 0 when the row had no room for it.
+    private Func<ToolbarParts?> _toolbar = static () => null;
+    private int _toolbarRows;
+    private string? _shownToolbar;
+    private string _toolbarStrip = "";
+    private int _toolbarPathColumn = -1;
+    private int _toolbarPathCells;
+
     private sealed record Overlay(IRenderable Content, string Hint, bool Input, bool Close);
 
     /// <summary>The part of the standing hint row a click landed on (<see cref="TryHitHint(int, int, out HintHit)"/>).</summary>
@@ -242,6 +253,32 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
 
     /// <summary>Where on the hint row a click landed: the zone, the strip glyph under it (<c>""</c> elsewhere) and the zone's first column (−1 for the row).</summary>
     public readonly record struct HintHit(HintZone Zone, string Glyph, int Column);
+
+    /// <summary>
+    /// What <see cref="Toolbar"/> answers for the row under the hint row (2026-09-21, the user's
+    /// ask): <paramref name="Strip"/> is the glyphs pinned at column 0, <paramref name="Path"/>
+    /// the text pinned at the right edge — the working directory, cut from the front to what is
+    /// left (<see cref="ToolbarRow"/>) — and a target of its own (<see cref="ToolbarZone.Path"/>):
+    /// a folder glyph sat beside it as the button until later that day, when the user made the
+    /// path the button.
+    /// </summary>
+    public readonly record struct ToolbarParts(string Strip, string Path);
+
+    /// <summary>The part of the toolbar a click landed on (<see cref="TryHitToolbar"/>).</summary>
+    public enum ToolbarZone
+    {
+        /// <summary>Anywhere that is neither a strip glyph nor the path: a separator, a blank.</summary>
+        Row,
+
+        /// <summary>One of the strip's glyphs at the row's start (<see cref="ToolbarHit.Glyph"/> says which).</summary>
+        Glyph,
+
+        /// <summary>The path at the right edge, as drawn — the screen opens the folder picker on a pair there.</summary>
+        Path,
+    }
+
+    /// <summary>Where on the toolbar a click landed: the zone, the strip glyph under it (<c>""</c> elsewhere) and the zone's first column (−1 for the row).</summary>
+    public readonly record struct ToolbarHit(ToolbarZone Zone, string Glyph, int Column);
 
     /// <param name="inner">The console the pane draws on.</param>
     /// <param name="geometry">Where the cursor is; null disables the pane (a plain transcript).</param>
@@ -368,6 +405,39 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
     }
 
     /// <summary>
+    /// The toolbar under the hint row (2026-09-21, the user's ask): a row the pane draws in every
+    /// state — idle, busy, scrolled, under an overlay — like the strip; null (the default) = no
+    /// row. Read like <see cref="Strip"/> on every draw and on the tick, which rewrites the row in
+    /// place when its text changes (the working directory) and repaints the pane when the row
+    /// comes or goes (the screen's <c>Show toolbar</c> switch). A window under
+    /// <c>PaneRows + 2</c> rows draws none, so a transcript row survives. The screen puts the
+    /// pane glyphs at the left and the working directory at the right;
+    /// <see cref="ToolbarRow"/> is the row, <see cref="TryHitToolbar"/> the double-click's zones.
+    /// </summary>
+    public Func<ToolbarParts?> Toolbar
+    {
+        get => _toolbar;
+        set => _toolbar = value ?? throw new ArgumentNullException(nameof(value));
+    }
+
+    /// <summary>The rows the toolbar took in the last draw: 1 while drawn, else 0 (the thumbnail sizing adds it to <see cref="PaneRows"/> and <see cref="InputRows"/>).</summary>
+    public int ToolbarRows
+    {
+        get { lock (_gate) { return _toolbarRows; } }
+    }
+
+    /// <summary>
+    /// The window height less the toolbar's row when <see cref="Toolbar"/> answers one: what an
+    /// overlay host lays out against (the menus, the info and folder panes, the completion list),
+    /// since <see cref="MaxOverlayRows"/> and <see cref="MaxInputRows"/> are counted over the rows
+    /// the toolbar leaves. The provider, not the drawn count: the host lays out BEFORE the draw.
+    /// </summary>
+    public int LayoutHeight => Height - ToolbarRowsFor(Height);
+
+    /// <summary>The rows the toolbar takes in a window of <paramref name="height"/>: one when <see cref="Toolbar"/> answers and the window keeps a transcript row over the smallest pane, else none.</summary>
+    private int ToolbarRowsFor(int height) => _toolbar() is not null && height >= PaneRows + 2 ? 1 : 0;
+
+    /// <summary>
     /// A short glyph after the trailer, <see cref="MarkSeparator"/> between, drawn in
     /// <see cref="Theme.TrailerMark"/> and never cut — the trailer's text is cut ahead of it; read
     /// like <see cref="Trailer"/>; empty = none. The screen puts the reasoning glyph there.
@@ -410,6 +480,29 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
 
     /// <summary>Between the trailer's text and its mark.</summary>
     public const string MarkSeparator = " ";
+
+    /// <summary>The least blanks between the toolbar's strip and its path.</summary>
+    public const int ToolbarGap = 2;
+
+    /// <summary>The least cells the toolbar's path is drawn in: fewer and the path goes, as <c>CompanionApp.BannerPathMinCells</c> drops the banner's (2026-09-18).</summary>
+    public const int ToolbarPathMinCells = 8;
+
+    /// <summary>
+    /// The toolbar of <paramref name="cells"/> (2026-09-21): <paramref name="strip"/> from column 0
+    /// (cut to the row, <see cref="Fit"/>), <paramref name="path"/> ending on the last cell, cut
+    /// from the front (<see cref="FitTail"/>) to the room <see cref="ToolbarGap"/> leaves after the
+    /// strip — none under <see cref="ToolbarPathMinCells"/>, and the strip stands alone. Pinned.
+    /// </summary>
+    public static string ToolbarRow(string strip, string path, int cells)
+    {
+        ArgumentNullException.ThrowIfNull(strip);
+        ArgumentNullException.ThrowIfNull(path);
+        string left = Fit(strip, cells);
+        int leftCells = TextCells.Width(left);
+        int room = cells - leftCells - ToolbarGap;
+        string shown = path.Length == 0 || room < ToolbarPathMinCells ? "" : FitTail(path, room);
+        return shown.Length == 0 ? left : left + new string(' ', cells - leftCells - TextCells.Width(shown)) + shown;
+    }
 
     /// <summary>
     /// The hint row with <paramref name="trailer"/> on its last cell: the trailer cut to half of
@@ -1401,7 +1494,7 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
             return;
         }
 
-        var shown = LayoutInput(Width, Height);
+        var shown = LayoutInput(Width, Height - _toolbarRows);
         if (shown.Rows.Count == _inputRows)
         {
             RewriteInputRows(shown);
@@ -1462,6 +1555,11 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
             {
                 RedrawHint();
             }
+
+            if (ToolbarChanged())
+            {
+                RedrawToolbar();
+            }
         }
     }
 
@@ -1480,8 +1578,8 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
         {
             if (_drawn)
             {
-                // From the cursor's row to the hint row: over the input rows below it and the lower rule, or the overlay's rows and it.
-                _inner.Cursor.Move(CursorDirection.Down, _paneRows - 2 - CursorDepth);
+                // From the cursor's row to the pane's last row (the hint row, or the toolbar under it): over the input rows below it and the lower rule, or the overlay's rows and it.
+                _inner.Cursor.Move(CursorDirection.Down, LastRowBelowCursor);
                 _inner.WriteLine();
                 _drawn = false;
                 _drawnScrolled = false;
@@ -1713,7 +1811,7 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
         }
 
         int firstRow = _firstRow;
-        var shown = LayoutInput(Width, Height);
+        var shown = LayoutInput(Width, Height - _toolbarRows);
         if (shown.Rows.Count == _inputRows && firstRow == _firstRow)
         {
             RewriteInputRows(shown);
@@ -2030,7 +2128,7 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
     /// drawn hint row — the pane's last row, any column (2026-09-18: the input line's double-click
     /// there opens the settings). False under an overlay (that hint row is the overlay's, and the
     /// overlay reads the click), when the pane is lifted, or when the console cannot say where the
-    /// cursor is. The hint row is <c>_paneRows - 2 - CursorDepth</c> rows under the terminal's
+    /// cursor is. The hint row is <see cref="HintRowBelowCursor"/> rows under the terminal's
     /// cursor, the offset <see cref="RedrawHint"/> writes it at.
     /// </summary>
     public bool TryHitHint(int x, int y) => TryHitHint(x, y, out _);
@@ -2062,7 +2160,7 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
                 return false;
             }
 
-            if (y != top + _paneRows - 2 - CursorDepth)
+            if (y != top + HintRowBelowCursor)
             {
                 return false;
             }
@@ -2092,7 +2190,7 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
                 return false;
             }
 
-            return y == top + _paneRows - 2 - CursorDepth && _queuedColumn >= 0 && x >= _queuedColumn && x < _queuedColumn + _queuedCells;
+            return y == top + HintRowBelowCursor && _queuedColumn >= 0 && x >= _queuedColumn && x < _queuedColumn + _queuedCells;
         }
     }
 
@@ -2137,22 +2235,104 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
             return new HintHit(HintZone.Usage, "", usageColumn);
         }
 
-        int column = 0;
+        if (TryStripGlyphAt(strip, x, out string glyph, out int column))
+        {
+            return new HintHit(HintZone.Strip, glyph, column);
+        }
+
+        return new HintHit(scrolled ? HintZone.Scrolled : HintZone.Row, "", -1);
+    }
+
+    /// <summary>
+    /// The glyph of <paramref name="strip"/> (from column 0) under column <paramref name="x"/> and
+    /// its first column, walking the strip's elements by their cell width; false on a blank, a
+    /// separator, or past the strip. The hint row's strip and the toolbar's share it. A variation
+    /// selector (U+FE0F/U+FE0E) after a glyph belongs to it — <c>⚙️</c> is one two-cell glyph, not a
+    /// gear and a selector cell (later on 2026-09-21, for the toolbar's gear, tools and detective),
+    /// so the glyph handed back is the whole string a caller compares against.
+    /// </summary>
+    private static bool TryStripGlyphAt(string strip, int x, out string glyph, out int column)
+    {
+        column = 0;
         int i = 0;
         while (i < strip.Length && column <= x)
         {
             int width = TextCells.ElementWidth(strip, i, out int length);
             length = Math.Max(1, length);
+            if (i + length < strip.Length && strip[i + length] is '\uFE0F' or '\uFE0E')
+            {
+                width += TextCells.ElementWidth(strip, i + length, out int selector);
+                length += selector;
+            }
+
             if (x < column + width && !string.IsNullOrWhiteSpace(strip.AsSpan(i, length).ToString()))
             {
-                return new HintHit(HintZone.Strip, strip.Substring(i, length), column);
+                glyph = strip.Substring(i, length);
+                return true;
             }
 
             column += width;
             i += length;
         }
 
-        return new HintHit(scrolled ? HintZone.Scrolled : HintZone.Row, "", -1);
+        glyph = "";
+        column = -1;
+        return false;
+    }
+
+    /// <summary>
+    /// Whether a click at buffer cell (<paramref name="x"/>, <paramref name="y"/>) lands on the
+    /// drawn toolbar (2026-09-21) — the pane's last row while one is drawn — naming the part under
+    /// it (<see cref="ToolbarHitAt"/>). It answers under the busy row (the pane glyphs work under
+    /// a reply, as the tally does) and while scrolled; false under an overlay (the row is off the
+    /// pane there: a double-click is the overlay's dismiss, <see cref="TryHitOutside"/>), when no
+    /// toolbar is drawn, when the pane is lifted, or when the console cannot say where the cursor is.
+    /// </summary>
+    public bool TryHitToolbar(int x, int y, out ToolbarHit hit)
+    {
+        hit = default;
+        if (!Enabled)
+        {
+            return false;
+        }
+
+        lock (_gate)
+        {
+            if (!_drawn || _drawnOverlay || _toolbarRows == 0 || _batch > 0 || _modal > 0 || _geometry?.CursorTop() is not int top)
+            {
+                return false;
+            }
+
+            if (y != top + LastRowBelowCursor)
+            {
+                return false;
+            }
+
+            hit = ToolbarHitAt(_toolbarStrip, _toolbarPathColumn, _toolbarPathCells, x);
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// The zone of column <paramref name="x"/> on a toolbar whose strip is <paramref name="strip"/>
+    /// (from column 0) and whose path takes <paramref name="pathCells"/> from
+    /// <paramref name="pathColumn"/> (−1 for none): a strip glyph with its first column, else the
+    /// path with its first, else the row. Pinned.
+    /// </summary>
+    public static ToolbarHit ToolbarHitAt(string strip, int pathColumn, int pathCells, int x)
+    {
+        ArgumentNullException.ThrowIfNull(strip);
+        if (TryStripGlyphAt(strip, x, out string glyph, out int column))
+        {
+            return new ToolbarHit(ToolbarZone.Glyph, glyph, column);
+        }
+
+        if (pathColumn >= 0 && x >= pathColumn && x < pathColumn + pathCells)
+        {
+            return new ToolbarHit(ToolbarZone.Path, "", pathColumn);
+        }
+
+        return new ToolbarHit(ToolbarZone.Row, "", -1);
     }
 
     /// <summary>
@@ -2352,19 +2532,25 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
         // The overlay, and the draft, are laid out again on every draw, at the window's width; the
         // draft to MaxInputRows around the cursor, the overlay cut to what the window leaves over
         // one transcript row and the input rows it keeps.
+        // The toolbar (2026-09-21) takes the screen's last row when the provider answers and the
+        // window keeps a transcript row over the smallest pane; the caps below count over the
+        // rows it leaves, and the offsets under the cursor add it (HintRowBelowCursor).
+        var toolbar = _toolbar();
+        int toolbarRows = toolbar is not null && h >= PaneRows + 2 ? 1 : 0;
+
         List<SegmentLine>? overlayLines = null;
         int overlayRows = 0;
         ShownInput? shown = null;
         if (_overlay is null || _overlay.Input)
         {
-            shown = LayoutInput(w, h);
+            shown = LayoutInput(w, h - toolbarRows);
         }
 
         int closeColumn = -1;
         if (_overlay is { } overlay)
         {
             overlayLines = Segment.SplitLines(overlay.Content.GetSegments(_inner), w);
-            overlayRows = Math.Clamp(overlayLines.Count, 0, MaxOverlayRows(h, shown?.Rows.Count ?? 0));
+            overlayRows = Math.Clamp(overlayLines.Count, 0, MaxOverlayRows(h - toolbarRows, shown?.Rows.Count ?? 0));
             if (overlay.Close && overlayRows > 0 && CloseGlyphShown())
             {
                 // The close glyph in column w − 2 of the first row, TrailerGap cells clear of the
@@ -2381,7 +2567,8 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
             }
         }
 
-        _paneRows = 3 + overlayRows + (shown?.Rows.Count ?? 0);
+        _paneRows = 3 + overlayRows + (shown?.Rows.Count ?? 0) + toolbarRows;
+        _toolbarRows = toolbarRows;
 
         // Scrolled: the anchor against the region this pane leaves; at or past the last window it
         // is the bottom after all (a taller pane, a store that shrank).
@@ -2522,23 +2709,32 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
 
         WriteRule(w);
         WriteHintRow();
+        if (toolbarRows > 0)
+        {
+            _inner.WriteLine();
+            WriteToolbarRow(toolbar!.Value, w);
+        }
+        else
+        {
+            ForgetToolbar();
+        }
 
         _liveRows = liveRows;
         _liveDirty = false;
 
-        // From the hint row back up over the lower rule into the area: the overlay's first row
-        // when it has no slot, else the cursor's input row.
+        // From the pane's last row (the toolbar's, when drawn) back up over the hint row and the
+        // lower rule into the area: the overlay's first row when it has no slot, else the cursor's input row.
         _overlayRows = overlayRows;
         if (shown is null)
         {
             _cursorRow = 0;
-            _inner.Cursor.Move(CursorDirection.Up, overlayRows + 1);
+            _inner.Cursor.Move(CursorDirection.Up, overlayRows + 1 + toolbarRows);
             ColumnZero();
         }
         else
         {
             SetShown(shown, ghostCells);
-            _inner.Cursor.Move(CursorDirection.Up, _inputRows - _cursorRow + 1);
+            _inner.Cursor.Move(CursorDirection.Up, _inputRows - _cursorRow + 1 + toolbarRows);
             ColumnZero();
             _inner.Cursor.Move(CursorDirection.Right, TextCells.Width(InputLine.PromptGlyph) + _cursorCell);
             _inner.Cursor.Show(true);
@@ -2606,13 +2802,13 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
     }
 
     /// <summary>
-    /// Drawn scrolled (the hint row on the screen's last row, the cursor <c>_paneRows − 2 − CursorDepth</c>
+    /// Drawn scrolled (the pane's last row on the screen's, the cursor <see cref="LastRowBelowCursor"/>
     /// rows above it): the cursor to the top row and the whole screen erased. Also the resize: the
     /// buffer is not reflowed, so the screen is rebuilt from the store.
     /// </summary>
     private void LiftToTop()
     {
-        int up = Math.Max(0, _lastHeight - 1 - (_paneRows - 2 - CursorDepth));
+        int up = Math.Max(0, _lastHeight - 1 - LastRowBelowCursor);
         _inner.Cursor.Show(false);
         _inner.Cursor.Move(CursorDirection.Up, up);
         ColumnZero();
@@ -2679,6 +2875,12 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
     /// <see cref="RedrawHint"/> count from.
     /// </summary>
     private int CursorDepth => !_drawnOverlay ? _cursorRow : _drawnInput ? _overlayRows + _cursorRow : 0;
+
+    /// <summary>How many rows under the terminal's cursor the hint row sits, as last drawn: over the rows under the cursor and the lower rule; the toolbar, when drawn, is one further.</summary>
+    private int HintRowBelowCursor => _paneRows - 2 - _toolbarRows - CursorDepth;
+
+    /// <summary>How many rows under the terminal's cursor the pane's last row sits, as last drawn: the hint row, or the toolbar under it (2026-09-21).</summary>
+    private int LastRowBelowCursor => _paneRows - 2 - CursorDepth;
 
     private void WriteRule(int width)
     {
@@ -2809,6 +3011,36 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
     }
 
     /// <summary>
+    /// The toolbar (2026-09-21) on the cursor's row, at the hint row's width (the last column left
+    /// empty, as every row leaves it — a full row would leave the terminal a wrap pending): the
+    /// strip in the hint's style, the path dim after it; the strip as cut and the path's place
+    /// remembered for <see cref="TryHitToolbar"/> — the path's column −1 when the row had no room for it.
+    /// </summary>
+    private void WriteToolbarRow(ToolbarParts toolbar, int width)
+    {
+        int cells = Math.Max(1, width - 1);
+        string row = ToolbarRow(toolbar.Strip, toolbar.Path, cells);
+        string strip = Fit(toolbar.Strip, cells);   // as ToolbarRow placed it: the path is what follows the blanks
+        string path = row[strip.Length..].TrimStart(' ');
+        _inner.Write(new RawText(strip, Theme.Hint));
+        _inner.Write(new RawText(row[strip.Length..], Theme.DimText));
+        _inner.Write(EraseLineEnd);
+        _shownToolbar = row;
+        _toolbarStrip = strip;
+        _toolbarPathCells = TextCells.Width(path);
+        _toolbarPathColumn = path.Length == 0 ? -1 : cells - _toolbarPathCells;
+    }
+
+    /// <summary>No toolbar drawn: nothing for the tick to compare, no zones for the hit test.</summary>
+    private void ForgetToolbar()
+    {
+        _shownToolbar = null;
+        _toolbarStrip = "";
+        _toolbarPathColumn = -1;
+        _toolbarPathCells = 0;
+    }
+
+    /// <summary>
     /// <paramref name="text"/> in the hint style, its trailing <paramref name="mark"/> — the row
     /// ends with the mark whenever there is one (<see cref="Trail"/>) — in the mark's own.
     /// </summary>
@@ -2845,11 +3077,27 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
             return;
         }
 
-        int down = _paneRows - 2 - CursorDepth;
+        RedrawRow(HintRowBelowCursor, WriteHintRow);
+    }
+
+    /// <summary><see cref="RedrawHint"/> for the toolbar (2026-09-21): its row again, in place, one under the hint row; nothing while none is drawn.</summary>
+    private void RedrawToolbar()
+    {
+        if (!_drawn || _batch > 0 || _modal > 0 || _toolbarRows == 0 || _toolbar() is not { } toolbar)
+        {
+            return;
+        }
+
+        RedrawRow(LastRowBelowCursor, () => WriteToolbarRow(toolbar, Width));
+    }
+
+    /// <summary>The row <paramref name="down"/> rows under the cursor's written again by <paramref name="write"/>, the cursor back where it was.</summary>
+    private void RedrawRow(int down, Action write)
+    {
         _inner.Cursor.Show(false);
         _inner.Cursor.Move(CursorDirection.Down, down);
         ColumnZero();
-        WriteHintRow();
+        write();
         _inner.Cursor.Move(CursorDirection.Up, down);
         ColumnZero();
         if (_drawnOverlay && !_drawnInput)
@@ -2931,6 +3179,28 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
                 return;
             }
 
+            if (ToolbarRowsFor(h) != _toolbarRows)
+            {
+                // The toolbar came or went (the screen's switch, a window at the edge): the whole
+                // pane again — its shape changed.
+                if (_busyLabel is not null)
+                {
+                    _frame++;
+                }
+
+                BeginSync();
+                Lift();
+                Draw();
+                EndSync();
+                return;
+            }
+
+            if (ToolbarChanged())
+            {
+                // The working directory changed under it: the row again, in place.
+                RedrawToolbar();
+            }
+
             if (_busyLabel is not null)
             {
                 _frame++;
@@ -2944,6 +3214,9 @@ public sealed class ScreenPane : IAnsiConsole, IDisposable
             }
         }
     }
+
+    /// <summary>The toolbar <see cref="Toolbar"/> answers now is not the drawn one (its text — a presence change is <see cref="ToolbarRowsFor"/> against the drawn rows).</summary>
+    private bool ToolbarChanged() => _toolbarRows > 0 && _toolbar() is { } toolbar && !string.Equals(ToolbarRow(toolbar.Strip, toolbar.Path, Math.Max(1, Width - 1)), _shownToolbar, StringComparison.Ordinal);
 
     /// <summary>The standing hint (the overlay's while one is open) with the trailer is not what the hint row shows.</summary>
     private bool HintChanged() => !string.Equals(PinRight(StandingRow(), _trailer(), _trailerMark(), Math.Max(1, Width - 1)), _shownHint, StringComparison.Ordinal);

@@ -135,6 +135,15 @@ public sealed class AppSettingsData
     public bool ShowWorkingDirectory { get; set; } = true;
 
     /// <summary>
+    /// Whether the toolbar is drawn under the hint row (2026-09-21, the user's ask): the pane
+    /// glyphs at its left (a double-click opens <c>/settings</c>, <c>/skills</c>, <c>/tools</c>,
+    /// <c>/mcp</c> or <c>/sys</c>), the working directory in force and the folder glyph
+    /// (<c>/cwd browse</c>) at its right. Read on every pane draw and on its tick, so a flip
+    /// shows when the settings pane closes. No variable.
+    /// </summary>
+    public bool ShowToolbar { get; set; } = true;
+
+    /// <summary>
     /// Whether the assistant's reply is shown as styled Markdown (2026-09-16): bold, lists, code
     /// blocks, headings rendered in the pane's live slot, the markers consumed, and the model asked
     /// for light Markdown instead of plain text on a turn that is not spoken. Off = the plain

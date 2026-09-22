@@ -761,7 +761,7 @@ public class SettingsMenuTests : IDisposable
                 SettingsField.McpServers, SettingsField.McpConnectTimeoutSeconds, SettingsField.GitNativeTools, SettingsField.GitNativeDiffMaxLines, SettingsField.GitNativeLogMaxCommits,
                 SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars,
                 SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellCodeMaxToolCalls,
-                SettingsField.LlmCompactShowSummary, SettingsField.GitNativeEmail, SettingsField.GitNativeName, SettingsField.ShellToolBridge, SettingsField.FileBrowserMode,
+                SettingsField.LlmCompactShowSummary, SettingsField.GitNativeEmail, SettingsField.GitNativeName, SettingsField.ShellToolBridge, SettingsField.FileBrowserMode, SettingsField.ShowToolbar,
             },
             Enum.GetValues<SettingsField>());
         // The compact rows: on the LLM tab after the context length but no reconnect; the type a picker, the two others typed.
@@ -920,7 +920,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal(6, SettingsMenu.ToolsTabFields.Count);   // Options first since later on 2026-09-19; Git between Files and Web since 2026-09-20; Shell between Git and Web since 2026-09-21
         Assert.Equal(2, SettingsMenu.SkillsTabFields.Count);   // Options and Reflection, since later on 2026-09-19 (one list of 11, then 14, before)
         Assert.Equal(13, SettingsMenu.SkillsTabFields.Sum(t => t.Count));   // 14 until Reflection verbose went later still on 2026-09-19
-        Assert.Equal(new[] { SettingsField.Profile, SettingsField.NewProfileMode, SettingsField.WorkingDirectory, SettingsField.QueueMessages, SettingsField.QueueCancelMode, SettingsField.Memory, SettingsField.CopyUserPrompt, SettingsField.MouseInMenus, SettingsField.ShowImageThumbnails, SettingsField.ImageThumbnailSize, SettingsField.TranscriptMarkdown, SettingsField.PastePreviewLines, SettingsField.HideExitAutocomplete, SettingsField.CommandTypoIntercept, SettingsField.WelcomeSplash, SettingsField.ShowWorkingDirectory, SettingsField.DraftEditor }, SettingsMenu.TabFields[(int)SettingsTab.General]);
+        Assert.Equal(new[] { SettingsField.Profile, SettingsField.NewProfileMode, SettingsField.WorkingDirectory, SettingsField.QueueMessages, SettingsField.QueueCancelMode, SettingsField.Memory, SettingsField.CopyUserPrompt, SettingsField.MouseInMenus, SettingsField.ShowImageThumbnails, SettingsField.ImageThumbnailSize, SettingsField.TranscriptMarkdown, SettingsField.PastePreviewLines, SettingsField.HideExitAutocomplete, SettingsField.CommandTypoIntercept, SettingsField.WelcomeSplash, SettingsField.ShowWorkingDirectory, SettingsField.ShowToolbar, SettingsField.DraftEditor }, SettingsMenu.TabFields[(int)SettingsTab.General]);
         // Draft editor (2026-09-19): typed, the General tab's last row, blank = the shell's default for .txt, no reconnect (read at each /draft).
         Assert.False(SettingsMenu.IsToggle(SettingsField.DraftEditor));
         Assert.Equal("Draft editor", SettingsMenu.FieldName(SettingsField.DraftEditor));
@@ -949,6 +949,12 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("on", SettingsMenu.FieldValue(SettingsField.ShowWorkingDirectory, data, _settings.ProfileDirectory));
         Assert.Equal("off", SettingsMenu.FieldValue(SettingsField.ShowWorkingDirectory, new AppSettingsData { ShowWorkingDirectory = false }, _settings.ProfileDirectory));
         Assert.False(SettingsMenu.RefusedMidTurn(SettingsField.ShowWorkingDirectory) || SettingsMenu.IsLlmField(SettingsField.ShowWorkingDirectory) || SettingsMenu.IsTtsField(SettingsField.ShowWorkingDirectory) || SettingsMenu.IsVoiceField(SettingsField.ShowWorkingDirectory));
+        // Show toolbar (2026-09-21): the General row after it, a toggle, no reconnect (the pane reads it at each draw).
+        Assert.True(SettingsMenu.IsToggle(SettingsField.ShowToolbar));
+        Assert.Equal("Show toolbar", SettingsMenu.FieldName(SettingsField.ShowToolbar));
+        Assert.Equal("on", SettingsMenu.FieldValue(SettingsField.ShowToolbar, data, _settings.ProfileDirectory));
+        Assert.Equal("off", SettingsMenu.FieldValue(SettingsField.ShowToolbar, new AppSettingsData { ShowToolbar = false }, _settings.ProfileDirectory));
+        Assert.False(SettingsMenu.RefusedMidTurn(SettingsField.ShowToolbar) || SettingsMenu.IsLlmField(SettingsField.ShowToolbar) || SettingsMenu.IsTtsField(SettingsField.ShowToolbar) || SettingsMenu.IsVoiceField(SettingsField.ShowToolbar));
         // Welcome splash (2026-09-18): a toggle, the General tab's row before Show working directory (the user's order), no reconnect.
         Assert.True(SettingsMenu.IsToggle(SettingsField.WelcomeSplash));
         Assert.Equal("Welcome splash", SettingsMenu.FieldName(SettingsField.WelcomeSplash));
@@ -2647,11 +2653,11 @@ public class SettingsMenuTests : IDisposable
 
         Assert.Equal(SettingsChanges.None, await menu.ShowAsync(CancellationToken.None));
 
-        // General: the seventeen rows in their own order (Draft editor last, 2026-09-19) (the six web rows moved to the Web tab and the two /tree rows to Files, 2026-09-15; Transcript markdown and Paste preview lines, 2026-09-16; the @-mention folder mode to Files, 2026-09-17; the two line switches, Welcome splash, then Show working directory last, and the queue's two rows under Working directory, 2026-09-18), padded to the tab's own column (25), nothing of the other tabs.
+        // General: the eighteen rows in their own order (Draft editor last, 2026-09-19; Show toolbar after Show working directory, 2026-09-21) (the six web rows moved to the Web tab and the two /tree rows to Files, 2026-09-15; Transcript markdown and Paste preview lines, 2026-09-16; the @-mention folder mode to Files, 2026-09-17; the two line switches, Welcome splash, then Show working directory last, and the queue's two rows under Working directory, 2026-09-18), padded to the tab's own column (25), nothing of the other tabs.
         string cwd = SettingsMenu.DefaultWorkingDirectoryLabel(_settings.ProfileDirectory);
         Assert.StartsWith("(", cwd);
         Assert.EndsWith(@"\profiles\default\files)", cwd);
-        Assert.Contains(Rule(240) + "\n" + Titled(Strip) + "\n \n▸ Profile                  default (" + _settings.ProfileDirectory + ")\n  New profile mode         basic\n  Working directory        " + cwd + "\n  Queue messages           on\n  Queue cancel mode        empty\n  Memory                   on\n  Copy user prompt         on\n  Mouse in menus           on\n  Show image thumbnails    on\n  Image thumbnail size     small\n  Transcript markdown      on\n  Paste preview lines      25 lines\n  Hide /exit autocomplete  on\n  Command typo intercept   on\n  Welcome splash           on\n  Show working directory   on\n  Draft editor             (default .txt editor)\n" + Rule(240) + "\n" + SettingsMenu.TabKeys + "\n", _console.Output);
+        Assert.Contains(Rule(240) + "\n" + Titled(Strip) + "\n \n▸ Profile                  default (" + _settings.ProfileDirectory + ")\n  New profile mode         basic\n  Working directory        " + cwd + "\n  Queue messages           on\n  Queue cancel mode        empty\n  Memory                   on\n  Copy user prompt         on\n  Mouse in menus           on\n  Show image thumbnails    on\n  Image thumbnail size     small\n  Transcript markdown      on\n  Paste preview lines      25 lines\n  Hide /exit autocomplete  on\n  Command typo intercept   on\n  Welcome splash           on\n  Show working directory   on\n  Show toolbar             on\n  Draft editor             (default .txt editor)\n" + Rule(240) + "\n" + SettingsMenu.TabKeys + "\n", _console.Output);
         Assert.DoesNotContain("File /tree max length", _console.Output);   // the Files tab's since 2026-09-15
         Assert.DoesNotContain("LLM URL", _console.Output);
         Assert.False(pane.OverlayOpen);
@@ -3764,6 +3770,8 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("the banner alone at startup", SettingsMenu.ToggleDescribe(SettingsField.WelcomeSplash, false));
         Assert.Equal("the working directory sits at the banner's right edge", SettingsMenu.ToggleDescribe(SettingsField.ShowWorkingDirectory, true));
         Assert.Equal("the banner is the title and the version alone", SettingsMenu.ToggleDescribe(SettingsField.ShowWorkingDirectory, false));
+        Assert.Equal("the pane glyphs and the working directory sit under the hint row", SettingsMenu.ToggleDescribe(SettingsField.ShowToolbar, true));
+        Assert.Equal("the hint row is the pane's last row", SettingsMenu.ToggleDescribe(SettingsField.ShowToolbar, false));
         Assert.Equal("a message sent while a reply runs is queued and sent when the reply ends", SettingsMenu.ToggleDescribe(SettingsField.QueueMessages, true));
         Assert.Equal("a message sent during a reply stays type-ahead; /queue leaves the / list", SettingsMenu.ToggleDescribe(SettingsField.QueueMessages, false));
     }
@@ -3825,6 +3833,21 @@ public class SettingsMenuTests : IDisposable
 
         Assert.False(_settings.Current.ShowWorkingDirectory);
         Assert.Contains("  · Show working directory: off", _console.Output);
+        Assert.Equal(0, _synth.ListCalls);
+    }
+
+    [Fact]
+    public async Task Toggle_ShowToolbar_IsRow105_OnByDefault_PersistsAndNeedsNoReconnect()
+    {
+        // 2026-09-21: the enum's last member (the General tab's row after Show working directory); the pane reads it at its next draw.
+        Assert.True(_settings.Current.ShowToolbar);
+        Down(104);
+        Push(Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape);
+
+        Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
+
+        Assert.False(_settings.Current.ShowToolbar);
+        Assert.Contains("  · Show toolbar: off", _console.Output);
         Assert.Equal(0, _synth.ListCalls);
     }
 

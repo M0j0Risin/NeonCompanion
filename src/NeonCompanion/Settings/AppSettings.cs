@@ -565,6 +565,7 @@ public sealed class AppSettings : IDisposable
         QueueMessages = source.QueueMessages,
         ShowImageThumbnails = source.ShowImageThumbnails,
         ShowWorkingDirectory = source.ShowWorkingDirectory,
+        ShowToolbar = source.ShowToolbar,
         TranscriptMarkdown = source.TranscriptMarkdown,
         WelcomeSplash = source.WelcomeSplash,
         WorkingDirectory = source.WorkingDirectory,

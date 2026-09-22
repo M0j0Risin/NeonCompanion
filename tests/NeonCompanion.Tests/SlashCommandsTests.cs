@@ -637,4 +637,24 @@ public class SlashCommandsTests
 
         Assert.Equal(lines.Length - 1, line);
     }
+
+    /// <summary>The words the hint row and the toolbar send through the line hooks (2026-09-18, 2026-09-21): each parses to its command, so the pane opens as the typed command's does.</summary>
+    [Fact]
+    public void HookWords_ArePinned_AndParseToTheirCommands()
+    {
+        Assert.Equal("/queue", SlashCommands.QueueWord);
+        Assert.Equal("/usage", SlashCommands.UsageWord);
+        Assert.Equal("/settings", SlashCommands.SettingsWord);
+        Assert.Equal("/skills", SlashCommands.SkillsWord);
+        Assert.Equal("/tools", SlashCommands.ToolsWord);
+        Assert.Equal("/mcp", SlashCommands.McpWord);
+        Assert.Equal("/sys", SlashCommands.SysWord);
+        Assert.Equal((SlashCommand.Queue, ""), SlashCommands.Parse(SlashCommands.QueueWord));
+        Assert.Equal((SlashCommand.Usage, ""), SlashCommands.Parse(SlashCommands.UsageWord));
+        Assert.Equal((SlashCommand.Settings, ""), SlashCommands.Parse(SlashCommands.SettingsWord));
+        Assert.Equal((SlashCommand.Skills, ""), SlashCommands.Parse(SlashCommands.SkillsWord));
+        Assert.Equal((SlashCommand.Tools, ""), SlashCommands.Parse(SlashCommands.ToolsWord));
+        Assert.Equal((SlashCommand.Mcp, ""), SlashCommands.Parse(SlashCommands.McpWord));
+        Assert.Equal((SlashCommand.Sys, ""), SlashCommands.Parse(SlashCommands.SysWord));
+    }
 }

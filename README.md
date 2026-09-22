@@ -85,7 +85,7 @@ Every setting lives in a profile and is edited from a pane inside the app — `�
 | Queue cancel mode | What a cancelled reply does with the queue: `hold` keeps it until your next message, `drain` sends the next queued message at once, `empty` drops them all. | `empty` |
 | Memory | Offers the model `save_memory` / `recall_memory` and opens every conversation with what it remembers. | on |
 | Copy user prompt | `/copy` includes your prompt above the reply; off copies the reply alone. | on |
-| Mouse in menus | The app keeps the mouse under a menu: a double-click picks a row, one off the pane closes it, one on the hint row opens `/settings` (on the token tally, or on the reply's spinner mid-turn, `/usage`). Off hands the mouse to the terminal there. | on |
+| Mouse in menus | The app keeps the mouse under a menu: a double-click picks a row, one off the pane closes it, one on the hint row opens `/settings` (on the token tally, or on the reply's spinner mid-turn, `/usage`), one on a toolbar glyph opens its pane and one on the toolbar's working directory `/cwd browse`. Off hands the mouse to the terminal there. | on |
 | Show image thumbnails | Draws a small colour block of each picture you send under your line. | on |
 | Image thumbnail size | The block's size: `small` (48×12), `medium` (64×16), `large` (80×20) or `xlarge` (96×24) columns × rows. | `small` |
 | Transcript markdown | Renders replies as styled Markdown (bold, lists, code fences, tables) instead of plain streamed text. | on |
@@ -94,6 +94,7 @@ Every setting lives in a profile and is edited from a pane inside the app — `�
 | Command typo intercept | A line that is exactly a command's name without its slash (`clear`) asks *Did you mean /clear?* before sending it as text. | on |
 | Welcome splash | Shows one of the splash pictures under the banner at startup until the first line is sent (`←`/`→` walk the set; a profile's own `splash\` folder replaces the built-in pictures). | on |
 | Show working directory | Prints the working directory at the right edge of the banner's title line. | on |
+| Show toolbar | Draws a toolbar under the hint row: at its left the glyphs a double-click opens — `/settings`, `/tools`, `/mcp`, `/skills`, `/sys` — and at its right the working directory, a double-click on which is `/cwd browse`. | on |
 | Draft editor | The command `/draft` opens its temporary file with (`code --wait`, `notepad`…); empty uses whatever Windows opens `.txt` files with. | (default .txt editor) |
 
 #### Sessions
