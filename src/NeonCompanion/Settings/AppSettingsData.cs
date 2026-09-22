@@ -73,7 +73,7 @@ public sealed class AppSettingsData
     /// <summary>
     /// Whether long-term memory is on: the model is offered <c>save_memory</c> and sees what is
     /// remembered on every turn, and <c>/remember</c> works. Off leaves <c>memory.json</c>
-    /// untouched; <c>/forget</c> erases it. The toolbar wears 💾 while it is on (2026-09-22), whose
+    /// untouched; <c>/memory forget</c> erases it. The toolbar wears 💾 while it is on (2026-09-22), whose
     /// double-click is <c>/memory</c> — the typed word works either way. No environment variable,
     /// like the other switches.
     /// </summary>

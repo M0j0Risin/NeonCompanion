@@ -76,7 +76,7 @@ public sealed class AppSettings : IDisposable
             TrySavePointer(resolved);
         }
 
-        EnsureSkillsDirectories();
+        EnsureProfileDirectories();
     }
 
     /// <summary>The home directory: the pointer, the models and the profiles.</summary>
@@ -93,6 +93,9 @@ public sealed class AppSettings : IDisposable
 
     /// <summary>The loaded profile's own skills folder: <c>skills</c> under <see cref="ProfileDirectory"/>.</summary>
     public string ProfileSkillsDirectory => Path.Combine(ProfileDirectory, Skills.SkillRoots.DirectoryName);
+
+    /// <summary>The loaded profile's own splash folder: <c>splash</c> under <see cref="ProfileDirectory"/>, whose pictures stand in for the embedded set (<see cref="UI.SplashImages.FromDirectory"/>).</summary>
+    public string ProfileSplashDirectory => Path.Combine(ProfileDirectory, UI.SplashImages.ProfileFolderName);
 
     /// <summary>The loaded profile's name, spelt as its directory is.</summary>
     public string ProfileName
@@ -123,16 +126,29 @@ public sealed class AppSettings : IDisposable
     public static string SkillsFolderWarning(string path, string detail) =>
         $"Could not create the skills folder {path}: {detail}";
 
+    /// <summary>The warning when the profile's splash folder could not be created (2026-09-22); the app runs on, and an absent folder is the embedded set. Pinned.</summary>
+    public static string SplashFolderWarning(string path, string detail) =>
+        $"Could not create the splash folder {path}: {detail}";
+
     /// <summary>
-    /// The two skills folders exist (2026-09-18, the user's call): <see cref="GlobalSkillsDirectory"/>
-    /// at every start and <see cref="ProfileSkillsDirectory"/> whenever a profile is loaded — the
-    /// constructor, a switch (the one after <c>/profile add</c> included), a reset of the loaded
-    /// profile. Never for a profile that is not loaded (nothing is created for a look). A failure
-    /// is a warning, never an exception.
+    /// The folders a loaded profile is given exist: the two skills roots (2026-09-18, the user's
+    /// call) — <see cref="GlobalSkillsDirectory"/> and <see cref="ProfileSkillsDirectory"/> — and
+    /// <see cref="ProfileSplashDirectory"/> (2026-09-22, the user's ask: nothing created the splash
+    /// folder before, so using it meant making it by hand; empty, it is no splash at all, since
+    /// <see cref="UI.SplashImages.FromDirectory"/> reads a folder with no picture as none and the
+    /// embedded set stands). Made whenever a profile is loaded — the constructor, a switch (the one
+    /// after <c>/profile add</c> included), a reset of the loaded profile, a reload. Never for a
+    /// profile that is not loaded (nothing is created for a look). A failure is a warning, never an
+    /// exception. Named <c>EnsureSkillsDirectories</c> until the splash folder joined it.
     /// </summary>
-    private void EnsureSkillsDirectories()
+    private void EnsureProfileDirectories()
     {
-        foreach (string path in new[] { GlobalSkillsDirectory, ProfileSkillsDirectory })
+        foreach ((string path, bool skills) in new[]
+        {
+            (GlobalSkillsDirectory, true),
+            (ProfileSkillsDirectory, true),
+            (ProfileSplashDirectory, false),
+        })
         {
             try
             {
@@ -140,7 +156,7 @@ public sealed class AppSettings : IDisposable
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                DiagnosticLog.Warn(Category, SkillsFolderWarning(path, ex.Message));
+                DiagnosticLog.Warn(Category, skills ? SkillsFolderWarning(path, ex.Message) : SplashFolderWarning(path, ex.Message));
             }
         }
     }
@@ -234,7 +250,7 @@ public sealed class AppSettings : IDisposable
 
         DiagnosticLog.Info(Category, $"Switched to profile \"{resolved}\".");
         TrySavePointer(resolved);
-        EnsureSkillsDirectories();
+        EnsureProfileDirectories();
         RaiseChanged(snapshot);
     }
 
@@ -273,7 +289,7 @@ public sealed class AppSettings : IDisposable
         }
 
         DiagnosticLog.Info(Category, $"Reset profile \"{resolved}\" (loaded).");
-        EnsureSkillsDirectories();
+        EnsureProfileDirectories();
         RaiseChanged(snapshot);
     }
 
@@ -282,7 +298,7 @@ public sealed class AppSettings : IDisposable
     /// the way back in after <c>/profile edit</c>): the pending debounced save is cancelled — the
     /// hand-edited file is what the user wants, not what the menu last saved —, the data replaced in
     /// place (the compiled defaults when the file is unreadable, as <see cref="Load"/> says), the
-    /// skills folders made sure of, and <see cref="Changed"/> raised with the new snapshot. The
+    /// profile folders made sure of, and <see cref="Changed"/> raised with the new snapshot. The
     /// pointer is untouched. A save already past its debounce and inside its write at that instant
     /// still lands; the window is milliseconds, and the next reload reads it.
     /// </summary>
@@ -301,7 +317,7 @@ public sealed class AppSettings : IDisposable
         }
 
         DiagnosticLog.Info(Category, $"Reloaded profile \"{name}\" from disk.");
-        EnsureSkillsDirectories();
+        EnsureProfileDirectories();
         RaiseChanged(snapshot);
     }
 

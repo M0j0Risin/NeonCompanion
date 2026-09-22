@@ -15,7 +15,8 @@ namespace NeonCompanion.App;
 /// (the last row removed, a failed removal) is said in the transcript once the pane has closed.
 ///
 /// <para>No confirmation per row: the row is visible and chosen deliberately, and the notice names
-/// what went. <c>/forget</c> keeps its typed confirmation because it is everything at once. A
+/// what went. <c>/memory forget</c> keeps its confirmation because it is everything at once
+/// (2026-09-22: that wipe was <c>/forget</c>, its own command, until the word folded in here). A
 /// console that cannot show menus gets the numbered list instead, and removes nothing.</para>
 /// </summary>
 internal sealed class MemoryMenu

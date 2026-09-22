@@ -574,6 +574,7 @@ internal sealed class SettingsMenu
     private readonly TranscriptRenderer _transcript;
     private readonly SpeechSession _speech;
     private readonly MenuPane _pane;
+    private readonly Func<CancellationToken, Task<string?>>? _browseFolder;
     private readonly Func<string, string?> _locateBrowser;
     private readonly Func<IReadOnlySet<string>> _installedShells;
     private readonly Func<IReadOnlySet<string>> _installedLanguages;
@@ -594,8 +595,10 @@ internal sealed class SettingsMenu
     /// <param name="locateBrowser">What the empty <c>Web browser path</c> row names: the headless browser auto-detection finds (<see cref="Web.IHeadlessBrowser.Locate"/>); null = the real one.</param>
     /// <param name="installedShells">The shells the <c>Shell default</c> picker marks as found (their <see cref="Shell.ShellKinds.Names"/> words; the screen's <see cref="Shell.Interpreters"/>, 2026-09-21); null = all three marked found.</param>
     /// <param name="installedLanguages">The languages the <c>Shell code languages</c> list marks as found (their <see cref="Shell.CodeLanguages.Names"/> words); null = all three marked found.</param>
-    public SettingsMenu(IAnsiConsole console, AppSettings settings, Func<SettingsField, string?> overriddenBy, InputLine input, TranscriptRenderer transcript, SpeechSession speech, MenuPane pane, Func<string, string?>? locateBrowser = null, Func<IReadOnlySet<string>>? installedShells = null, Func<IReadOnlySet<string>>? installedLanguages = null)
+    /// <param name="browseFolder">The folder picker the <c>Working directory (cwd)</c> row opens (2026-09-22, the user's ask): the screen's <c>/cwd browse</c> tree, returning what to save — <c>""</c> for the profile's folder, a full path, or null for nothing chosen. Null (and a console with no pane) falls back to the typed path the row asked for until then.</param>
+    public SettingsMenu(IAnsiConsole console, AppSettings settings, Func<SettingsField, string?> overriddenBy, InputLine input, TranscriptRenderer transcript, SpeechSession speech, MenuPane pane, Func<string, string?>? locateBrowser = null, Func<IReadOnlySet<string>>? installedShells = null, Func<IReadOnlySet<string>>? installedLanguages = null, Func<CancellationToken, Task<string?>>? browseFolder = null)
     {
+        _browseFolder = browseFolder;
         _locateBrowser = locateBrowser ?? new Web.HeadlessBrowser().Locate;
         _installedShells = installedShells ?? (() => new HashSet<string>(Shell.ShellKinds.Names, StringComparer.Ordinal));
         _installedLanguages = installedLanguages ?? (() => new HashSet<string>(Shell.CodeLanguages.Names, StringComparer.Ordinal));
@@ -1873,6 +1876,11 @@ internal sealed class SettingsMenu
             return await PickNewProfileModeAsync(saved, cancellationToken).ConfigureAwait(false);
         }
 
+        if (field == SettingsField.WorkingDirectory && _browseFolder is not null && _pane.Enabled)
+        {
+            return await PickWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         if (field == SettingsField.SttPushToTalkKey)
         {
             return await PickPushToTalkAsync(saved, cancellationToken).ConfigureAwait(false);
@@ -3094,6 +3102,19 @@ internal sealed class SettingsMenu
     {
         Sink.Notice(UnchangedNotice);
         return false;
+    }
+
+    /// <summary>
+    /// The <c>Working directory (cwd)</c> row (2026-09-22, the user's ask): the <c>/cwd browse</c>
+    /// folder picker in place of the typed path it asked for until then — the same tree, the same
+    /// one save. Nothing chosen leaves the setting as it was, the pane saying so where the picker
+    /// stood; <c>/cwd &lt;path&gt;</c> still types one. Only reached with a picker and a pane: the
+    /// prompt host falls back to <see cref="EditTextAsync"/>.
+    /// </summary>
+    private async Task<bool> PickWorkingDirectoryAsync(CancellationToken cancellationToken)
+    {
+        string? picked = await _browseFolder!(cancellationToken).ConfigureAwait(false);
+        return picked is not null ? TrySaveWorkingDirectory(picked) : Unchanged();
     }
 
     /// <summary>A working directory the row and <c>/cwd</c> accept: a full (rooted) path, or nothing at all.</summary>

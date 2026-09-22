@@ -14,7 +14,7 @@ namespace NeonCompanion.Llm.Tools;
 /// must match; nothing checks that at compile time.
 ///
 /// <para>The result is a sentence for the model and, verbatim, the one dim line the transcript
-/// shows (<c>🛠️ remembered: …</c>), so a wrong save is visible and <c>/forget</c> can undo it.</para>
+/// shows (<c>🛠️ remembered: …</c>), so a wrong save is visible and <c>/memory</c> can undo it — the row, or <c>/memory forget</c> for the lot.</para>
 /// </summary>
 public sealed class SaveMemoryTool : AIFunction
 {
@@ -55,7 +55,7 @@ public sealed class SaveMemoryTool : AIFunction
     {
         MemoryAddOutcome.Added => "remembered: " + result.Text,
         MemoryAddOutcome.Duplicate => "already remembered: " + result.Text,
-        MemoryAddOutcome.Full => $"memory is full ({MemoryStore.MaxEntries.ToString(CultureInfo.InvariantCulture)} entries); the user can clear it with /forget",
+        MemoryAddOutcome.Full => $"memory is full ({MemoryStore.MaxEntries.ToString(CultureInfo.InvariantCulture)} entries); the user can clear it with /memory forget",
         MemoryAddOutcome.Empty => "nothing to remember: the text was empty",
         _ => "could not save the memory (the file could not be written); tell the user",
     };

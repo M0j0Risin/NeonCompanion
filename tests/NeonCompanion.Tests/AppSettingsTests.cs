@@ -734,6 +734,65 @@ public class AppSettingsTests : IDisposable
     }
 
     [Fact]
+    public void Constructor_CreatesTheProfilesSplashFolder()
+    {
+        // 2026-09-22, the user's ask: nothing created it before, so using a profile's own splash
+        // pictures meant making the folder by hand. Empty, it is no splash at all — SplashImages
+        // reads a folder with no picture as none and the embedded set stands.
+        using var settings = new AppSettings(_dir);
+
+        Assert.True(Directory.Exists(settings.ProfileSplashDirectory));
+        Assert.Equal(Path.Combine(Profiles.Directory(_dir, Profiles.DefaultName), "splash"), settings.ProfileSplashDirectory);
+        Assert.Equal(SplashImages.ProfileFolderName, Path.GetFileName(settings.ProfileSplashDirectory));
+        Assert.Null(SplashImages.FromDirectory(settings.ProfileSplashDirectory));   // made, but empty: the embedded set is still in force
+    }
+
+    [Fact]
+    public async Task SwitchProfile_CreatesTheNewProfilesSplashFolder_NeverAnothers()
+    {
+        Directory.CreateDirectory(Profiles.Directory(_dir, "work"));
+        Directory.CreateDirectory(Profiles.Directory(_dir, "other"));
+        using var settings = new AppSettings(_dir);
+        Assert.False(Directory.Exists(Path.Combine(Profiles.Directory(_dir, "work"), "splash")));
+
+        await settings.SwitchProfileAsync("work");
+
+        Assert.True(Directory.Exists(settings.ProfileSplashDirectory));
+        Assert.EndsWith(Path.Combine("work", "splash"), settings.ProfileSplashDirectory);
+        Assert.False(Directory.Exists(Path.Combine(Profiles.Directory(_dir, "other"), "splash")));   // nothing is created for a look
+    }
+
+    [Fact]
+    public async Task ResetProfile_TheLoadedOne_KeepsItsSplashFolder()
+    {
+        using var settings = new AppSettings(_dir);
+        Directory.Delete(settings.ProfileSplashDirectory);
+
+        await settings.ResetProfileAsync(Profiles.DefaultName);
+
+        Assert.True(Directory.Exists(settings.ProfileSplashDirectory));
+    }
+
+    [Fact]
+    public void Reload_RemakesTheProfileFolders()
+    {
+        using var settings = new AppSettings(_dir);
+        Directory.Delete(settings.ProfileSplashDirectory);
+        Directory.Delete(settings.ProfileSkillsDirectory);
+
+        settings.Reload();
+
+        Assert.True(Directory.Exists(settings.ProfileSplashDirectory));
+        Assert.True(Directory.Exists(settings.ProfileSkillsDirectory));
+    }
+
+    [Fact]
+    public void SplashFolderWarning_IsPinned()
+    {
+        Assert.Equal(@"Could not create the splash folder C:\x\splash: denied", AppSettings.SplashFolderWarning(@"C:\x\splash", "denied"));
+    }
+
+    [Fact]
     public async Task SwitchProfile_UnknownName_Throws()
     {
         using var settings = new AppSettings(_dir);

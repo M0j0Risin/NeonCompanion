@@ -2603,14 +2603,70 @@ public class SettingsMenuTests : IDisposable
     // ── On the pane ─────────────────────────────────────────────────────────
 
     /// <summary>The menu over a pane with geometry: every list is a level of the pane, the notices its status line.</summary>
-    private (SettingsMenu Menu, ScreenPane Pane) PaneMenu()
+    /// <param name="browseFolder">The folder picker the Working directory (cwd) row opens (2026-09-22); null leaves the row asking for a typed path, as it did before the picker.</param>
+    private (SettingsMenu Menu, ScreenPane Pane) PaneMenu(Func<CancellationToken, Task<string?>>? browseFolder = null)
     {
         _console.Profile.Height = 40;
         var pane = new ScreenPane(_console, new ScreenGeometry(() => null), new ManualTimeProvider()) { Hint = () => "idle" };
         var keys = new KeySource(_console.Input, TimeSpan.FromMilliseconds(1));
-        var menu = new SettingsMenu(new ConsoleWithInput(pane, keys), _settings, f => _overrides.GetValueOrDefault(f), new InputLine(pane, keys), new TranscriptRenderer(pane), _speech, new MenuPane(pane, keys), _ => FakeBrowserPath);
+        var menu = new SettingsMenu(new ConsoleWithInput(pane, keys), _settings, f => _overrides.GetValueOrDefault(f), new InputLine(pane, keys), new TranscriptRenderer(pane), _speech, new MenuPane(pane, keys), _ => FakeBrowserPath, browseFolder: browseFolder);
         pane.Show();
         return (menu, pane);
+    }
+
+    /// <summary>
+    /// The Working directory (cwd) row over a pane (2026-09-22, the user's ask): Enter opens the
+    /// <c>/cwd browse</c> folder picker instead of asking for a typed path, and what it chose goes
+    /// through the one save — which creates the folder. <c>/cwd &lt;path&gt;</c> still types one.
+    /// </summary>
+    [Fact]
+    public async Task OnThePane_TheWorkingDirectoryRow_OpensTheFolderPicker_AndSavesWhatItChose()
+    {
+        _console.Profile.Width = 240;
+        string picked = Path.Combine(_dir, "picked");
+        int opened = 0;
+        var (menu, _) = PaneMenu(_ =>
+        {
+            opened++;
+            return Task.FromResult<string?>(picked);
+        });
+        Push(Keys.Down, Keys.Down, Keys.Enter, Keys.Escape);   // Profile, New profile mode, then the working directory row
+
+        await menu.ShowAsync(CancellationToken.None);
+
+        Assert.Equal(1, opened);
+        Assert.Equal(picked, _settings.Current.WorkingDirectory);
+        Assert.True(Directory.Exists(picked));
+        Assert.DoesNotContain(SettingsMenu.WorkingDirectoryError, _console.Output);   // nothing was typed, so nothing was rejected
+    }
+
+    /// <summary>The picker closed with nothing chosen: the setting stands and the row says so, as every cancelled edit does.</summary>
+    [Fact]
+    public async Task OnThePane_TheWorkingDirectoryRow_PickerCancelled_KeepsTheSetting()
+    {
+        _console.Profile.Width = 240;
+        _settings.Update(d => d.WorkingDirectory = _dir);
+        var (menu, _) = PaneMenu(_ => Task.FromResult<string?>(null));
+        Push(Keys.Down, Keys.Down, Keys.Enter, Keys.Escape);
+
+        await menu.ShowAsync(CancellationToken.None);
+
+        Assert.Equal(_dir, _settings.Current.WorkingDirectory);
+        Assert.Contains(SettingsMenu.UnchangedNotice, _console.Output);
+    }
+
+    /// <summary>The picker chose the profile's own folder: the empty value is saved, so the row reads as the default again.</summary>
+    [Fact]
+    public async Task OnThePane_TheWorkingDirectoryRow_PickerChoseTheProfileFolder_ClearsTheSetting()
+    {
+        _console.Profile.Width = 240;
+        _settings.Update(d => d.WorkingDirectory = _dir);
+        var (menu, _) = PaneMenu(_ => Task.FromResult<string?>(""));   // what the screen returns for the profile's files folder
+        Push(Keys.Down, Keys.Down, Keys.Enter, Keys.Escape);
+
+        await menu.ShowAsync(CancellationToken.None);
+
+        Assert.Equal("", _settings.Current.WorkingDirectory);
     }
 
     /// <summary><see cref="PaneMenu"/> over a scripted source that carries clicks, the overlay's first row at buffer row <paramref name="cursorTop"/> (the strip; the spacer under it, the rows from +2).</summary>

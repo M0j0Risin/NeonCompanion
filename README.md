@@ -79,7 +79,7 @@ Every setting lives in a profile and is edited from a pane inside the app — `�
 |---|---|---|
 | Profile | Switches to another profile (each has its own settings, persona, memory, skills and sessions). | `default` |
 | New profile mode | What `/profile add` copies from the current profile: `basic` copies the settings and memories; `advanced` also copies the persona, operating-rules and voice-directive files. | `basic` |
-| Working directory (cwd) | The folder the file and git tools work under; empty means the profile's own `files\` folder. | profile's `files\` |
+| Working directory (cwd) | The folder the file and git tools work under; empty means the profile's own `files\` folder. Editing the row opens the folder picker `/cwd browse` uses; `/cwd <path>` still takes a typed path. | profile's `files\` |
 | Queue messages | A message sent while a reply is streaming is queued and sent when the reply ends, instead of waiting on the input row. | on |
 | Queue cancel mode | What a cancelled reply does with the queue: `hold` keeps it until your next message, `drain` sends the next queued message at once, `empty` drops them all. | `empty` |
 | Memory | Offers the model `save_memory` / `recall_memory` and opens every conversation with what it remembers. The toolbar shows 💾 while it is on, whose double-click is `/memory`. | on |
@@ -90,7 +90,7 @@ Every setting lives in a profile and is edited from a pane inside the app — `�
 | Paste preview lines | How many lines of a long paste the transcript shows in dim under its `[Pasted text #n]` placeholder (0–200; 0 = the placeholder alone). | 25 |
 | Hide /exit autocomplete | Leaves `/exit` out of the `/` completion list so a pick never closes the app by mistake; typed in full it still exits. | on |
 | Command typo intercept | A line that is exactly a command's name without its slash (`clear`) asks *Did you mean /clear?* before sending it as text. | on |
-| Welcome splash | Shows one of the splash pictures under the banner at startup until the first line is sent (`←`/`→` walk the set; a profile's own `splash\` folder replaces the built-in pictures). | on |
+| Welcome splash | Shows one of the splash pictures under the banner at startup until the first line is sent (`←`/`→` walk the set; a profile's own `splash\` folder replaces the built-in pictures — the folder is made for you, so a picture can be dropped straight in). | on |
 | Working directory in header | Prints the working directory at the right edge of the banner's title line. | off |
 | Show toolbar | Draws a toolbar under the hint row: at its left the glyphs a double-click opens — ⚙️ `/settings`, 🛠️ `/tools`, 🔌 `/mcp`, 🎓 `/skills`, 🎭 `/sys`, 💬 `/sessions`, 💾 `/memory` while *Memory* is on, then a lock that follows *Shell command policy* (🔒 under `ask`, 🔓 under `yolo`, none under `off`) `/cmdlist`, and 👮 while *Shell police outside paths* is on (nothing on a double-click yet) — at its right the working directory, a double-click on which is `/cwd browse`, and between them blanks a double-click on which is `/settings`. | on |
 | Draft editor | The command `/draft` opens its temporary file with (`code --wait`, `notepad`…); empty uses whatever Windows opens `.txt` files with. | (default .txt editor) |
@@ -305,7 +305,6 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/emptytrash` | Empty the working directory's `.trash` for good (asks first). |
 | `/exit` | Exit the app. |
 | `/explore [path]` | Open the working directory in your file browser. |
-| `/forget` | Forget every memory (asks first). |
 | `/git user [force]` | Write the *Git native email* and *Git native name* settings into the working directory's repository config as `user.email` / `user.name`; a `[user]` section already there is kept unless `force`. Does nothing while *Git native tools* is off. |
 | `/help` | Show the commands and the keys. |
 | `/interrupt [on\|off]` | Toggle the wake-word interrupt during a spoken reply. |
@@ -313,7 +312,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/loop <count> <message>`, `/loop infinite <message>` | Send the message that many times, or until ESC or Ctrl+C stops it, each reply waited for; a cancelled, withdrawn or failed turn ends the loop. |
 | `/mcp` | Connect external MCP servers and switch their tools on or off. |
 | `/memcopy <profile> [overwrite]` | Copy this profile's memory into another. |
-| `/memory` | List and prune the memory items on a pane (the toolbar's 💾 opens it too): Enter removes one, ESC closes. |
+| `/memory [forget]` | List and prune the memory items on a pane (the toolbar's 💾 opens it too): Enter removes one, ESC closes. `/memory forget` forgets every one (asks first). |
 | `/model [id]` | Pick a model from the server's list, or set one. |
 | `/new` | Start a new conversation without clearing the screen. |
 | `/operata [reset \| copy <profile> [force]]` | Edit `operata.md` (the operating rules) in your editor, go back to the default, or copy it into another profile (`force` replaces the one it has). |
@@ -552,6 +551,9 @@ Every connected MCP server is a group of its own, its tools offered as `<server>
 
 ### Session recall
 ![mcp](./assets/screenshots/screenshot_session_recall.png)
+
+### Folder browser
+![folders](./assets/screenshots/screenshot_folder_browser.png)
 
 ### Custom persona
 ![persona](./assets/screenshots/screenshot_custom_profile_persona.png)

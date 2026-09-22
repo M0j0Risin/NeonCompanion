@@ -172,6 +172,22 @@ public enum QueueAction
 }
 
 /// <summary>
+/// What a <c>/memory</c> line asks for (2026-09-22, the user's ask: <c>/forget</c> folded into
+/// <c>/memory</c> as a word, and the standalone command went). The <see cref="QueueAction"/> shape.
+/// </summary>
+public enum MemoryAction
+{
+    /// <summary>Nothing: the pane, one row per memory.</summary>
+    List,
+
+    /// <summary><c>forget</c>: every memory erased, after the confirmation <c>/forget</c> asked.</summary>
+    Forget,
+
+    /// <summary>Anything else; <see cref="ChatScreen.MemoryUsageError"/>.</summary>
+    Invalid,
+}
+
+/// <summary>
 /// The interactive chat: connect, read a line, dispatch a command or run a turn, repeat. Owns the
 /// transcript, the input line and the menus; <see cref="CompanionApp"/> owns the banner and the
 /// mode switch.
@@ -268,7 +284,7 @@ internal sealed partial class ChatScreen
     public const string InterruptDisabledReason = "switched off after two interruptions heard nothing";
     public const string RememberUsageError = "/remember takes the text to keep: /remember <text>";
     public const string MemoryOffNotice = "Memory is off; turn it on in /settings (the Memory row).";
-    public const string MemoryFullError = "Memory is full (" + MaxMemoriesText + " entries); /forget clears it.";
+    public const string MemoryFullError = "Memory is full (" + MaxMemoriesText + " entries); /memory forget clears it.";
     public const string MemoryFailedError = "Could not save the memory; the log has the reason.";
     public const string NothingToForgetNotice = "(nothing to forget)";
     public const string KeptNotice = "(kept)";
@@ -347,6 +363,12 @@ internal sealed partial class ChatScreen
     public const string QueueClearWord = "clear";
     public const string QueueClearNote = "drop every queued message";
     public const string QueueUsageError = "/queue lists the queued messages; /queue clear drops them all.";
+
+    // The /memory grammar's word, its note on the argument list and the usage error (2026-09-22,
+    // the user's ask: the wipe was the standalone /forget until then). The /queue trio's shape. Pinned.
+    public const string MemoryForgetWord = "forget";
+    public const string MemoryForgetNote = "forget every memory";
+    public const string MemoryUsageError = "/memory lists the memories; /memory forget forgets them all.";
 
     /// <summary>The <c>/copy</c> word for every exchange.</summary>
     public const string CopyAllWord = "all";
@@ -772,7 +794,7 @@ internal sealed partial class ChatScreen
         _flow = new FlowSink(this);
         _queueMenu = new QueueMenu(_queue, _flow, _menuPane);
         _queuedClicks = new DoubleClick(_pane.Time);
-        _menu = new SettingsMenu(new ConsoleWithInput(_pane, keys), settings, overriddenBy, _input, _transcript, speech, _menuPane, _web.Browser.Locate, () => _interpreters.AvailableShells().Select(ShellKinds.Name).ToHashSet(StringComparer.Ordinal), () => _interpreters.AvailableLanguages([CodeLanguage.PowerShell, CodeLanguage.Python, CodeLanguage.Node]).Select(CodeLanguages.Name).ToHashSet(StringComparer.Ordinal))
+        _menu = new SettingsMenu(new ConsoleWithInput(_pane, keys), settings, overriddenBy, _input, _transcript, speech, _menuPane, _web.Browser.Locate, () => _interpreters.AvailableShells().Select(ShellKinds.Name).ToHashSet(StringComparer.Ordinal), () => _interpreters.AvailableLanguages([CodeLanguage.PowerShell, CodeLanguage.Python, CodeLanguage.Node]).Select(CodeLanguages.Name).ToHashSet(StringComparer.Ordinal), BrowseWorkingDirectoryAsync)
         {
             // A picker opened mid-turn closes on the watcher task: its saved line waits for the turn task.
             Flow = _flow,
@@ -1393,6 +1415,15 @@ internal sealed partial class ChatScreen
         return text.Length == 0 ? QueueAction.List
             : text.Equals(QueueClearWord, StringComparison.OrdinalIgnoreCase) ? QueueAction.Clear
             : QueueAction.Invalid;
+    }
+
+    /// <summary>The <c>/memory</c> grammar, pure (2026-09-22): nothing ⇒ the pane; <c>forget</c> (ignoring case) ⇒ the wipe, after its confirmation; anything else ⇒ invalid.</summary>
+    public static MemoryAction ParseMemoryArgs(string args)
+    {
+        string text = (args ?? "").Trim();
+        return text.Length == 0 ? MemoryAction.List
+            : text.Equals(MemoryForgetWord, StringComparison.OrdinalIgnoreCase) ? MemoryAction.Forget
+            : MemoryAction.Invalid;
     }
 
     /// <summary>
@@ -2337,6 +2368,9 @@ internal sealed partial class ChatScreen
             case SlashCommand.Queue:
                 return MentionCompleter.Matches([new(QueueClearWord, QueueClearNote)], argText);
 
+            case SlashCommand.Memory:
+                return MentionCompleter.Matches([new(MemoryForgetWord, MemoryForgetNote)], argText);
+
             case SlashCommand.Persona or SlashCommand.Operata or SlashCommand.Vocalia:
             {
                 // reset or copy; after "copy " every profile but the loaded one; after "copy <name> " the force word (2026-09-21).
@@ -2497,7 +2531,7 @@ internal sealed partial class ChatScreen
 
     /// <summary>
     /// Everything that lives in the profile's directory, built over <see cref="AppSettings.ProfileDirectory"/>:
-    /// the memory store (shared by <c>/remember</c>, <c>/memory</c>, <c>/forget</c> and the model's
+    /// the memory store (shared by <c>/remember</c>, <c>/memory</c>, <c>/memory forget</c> and the model's
     /// <c>save_memory</c>), its tool and menu, and the persona, operating-rules and voice-directive files. Called once at construction
     /// and again after every switch, so a command always acts on the loaded profile.
     /// </summary>
@@ -2942,7 +2976,7 @@ internal sealed partial class ChatScreen
 
         // The memories last (2026-09-17): the freshest context before the first reply, where a
         // first-turn question finds them — a list far back in the system prompt went unread. The
-        // result is kept current the cwd way, so a save_memory, /remember, /memory, /forget or
+        // result is kept current the cwd way, so a save_memory, /remember, /memory, /memory forget or
         // /memcopy since the first message is in the next request. Memory switched on
         // mid-conversation seeds nothing (as File tools does); the model has the tool.
         var recall = memoryEnabled ? memoryTools.OfType<RecallMemoryTool>().FirstOrDefault() : null;
@@ -3217,8 +3251,7 @@ internal sealed partial class ChatScreen
 
     public static string AlreadyRememberedNotice(string text) => $"(already remembered: {text})";
 
-    /// <summary>The confirmation line before a <c>/forget</c>; <c>y</c> or <c>yes</c> on the input line clears, anything else keeps.</summary>
-    /// <summary>The question before <c>/forget</c> (the yes/no pane's title; <see cref="TypedConfirm"/> where menus cannot open). Pinned.</summary>
+    /// <summary>The question before a <c>/memory forget</c> (the yes/no pane's title; <see cref="TypedConfirm"/> where menus cannot open, the answer typed — <c>y</c> or <c>yes</c> clears, anything else keeps). Pinned.</summary>
     public static string ForgetPrompt(int count) => $"Forget {Memories(count)}?";
 
     public static string ForgotNotice(int count) => $"(forgot {Memories(count)})";
@@ -3373,7 +3406,7 @@ internal sealed partial class ChatScreen
     /// confirmation either way (the user's call). The target is named as <c>/profile</c> resolves
     /// it; <c>default</c> is an ordinary target, so any profile can push into it and it into any.
     /// Appending skips what the target already holds (<see cref="MemoryStore.Import"/>); the
-    /// <c>Memory</c> switch has no say (a file operation, like <c>/forget</c>).
+    /// <c>Memory</c> switch has no say (a file operation, like <c>/memory forget</c>).
     /// </summary>
     // ── /sessions (2026-09-18) ──────────────────────────────────────────────
 
@@ -3988,24 +4021,11 @@ internal sealed partial class ChatScreen
                     break;
                 }
 
-                string profileFiles = WorkingDirectory.Resolve("", _settings.ProfileDirectory);
-                try
-                {
-                    Directory.CreateDirectory(profileFiles);
-                }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-                {
-                    // Left to the tree: the row opens as denied.
-                }
-
-                var tree = new FolderTree(new FileSystemFolders(FileBrowserMode.Resolve(effective)), [new FolderShortcut(FolderText.ProfileLabel, profileFiles)]);
-                int cursor = tree.ExpandTo(WorkingDirectory.Resolve(effective.WorkingDirectory, _settings.ProfileDirectory));
-                string? picked = await _folderPane.PickAsync(tree, cursor, cancellationToken).ConfigureAwait(false);
-                if (picked is null)
+                if (await BrowseWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false) is not { } picked)
                 {
                     _transcript.Notice(FolderText.KeptNotice);
                 }
-                else if (_menu.TrySaveWorkingDirectory(string.Equals(picked, profileFiles, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal) ? "" : picked))
+                else if (_menu.TrySaveWorkingDirectory(picked))
                 {
                     ForgetReading();
                 }
@@ -4020,6 +4040,36 @@ internal sealed partial class ChatScreen
 
                 break;
         }
+    }
+
+    /// <summary>
+    /// The folder picker behind <c>/cwd browse</c> and, since 2026-09-22 (the user's ask), the
+    /// Settings pane's <c>Working directory (cwd)</c> row — which asked for a typed path until then
+    /// (<c>/cwd &lt;path&gt;</c> still takes one). The tree is the drives <c>File browser roots</c>
+    /// allows with the profile's own <c>files</c> folder as a shortcut above them, opened on the
+    /// directory in force. Returns what <see cref="SettingsMenu.TrySaveWorkingDirectory"/> should
+    /// save — <c>""</c> for the profile's folder, so the row keeps reading as the default, or the
+    /// full path — or null when the pane closed with nothing chosen. The caller checks
+    /// <see cref="FolderPane.Enabled"/>: with no pane there is no picker.
+    /// </summary>
+    private async Task<string?> BrowseWorkingDirectoryAsync(CancellationToken cancellationToken)
+    {
+        var effective = _effective();
+        string profileFiles = WorkingDirectory.Resolve("", _settings.ProfileDirectory);
+        try
+        {
+            Directory.CreateDirectory(profileFiles);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Left to the tree: the row opens as denied.
+        }
+
+        var tree = new FolderTree(new FileSystemFolders(FileBrowserMode.Resolve(effective)), [new FolderShortcut(FolderText.ProfileLabel, profileFiles)]);
+        int cursor = tree.ExpandTo(WorkingDirectory.Resolve(effective.WorkingDirectory, _settings.ProfileDirectory));
+        string? picked = await _folderPane.PickAsync(tree, cursor, cancellationToken).ConfigureAwait(false);
+        return picked is null ? null
+            : string.Equals(picked, profileFiles, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal) ? "" : picked;
     }
 
     // ── /tree ───────────────────────────────────────────────────────────────
@@ -6157,13 +6207,8 @@ internal sealed partial class ChatScreen
                 Remember(args);
                 return false;
 
-            case SlashCommand.Forget:
-                await ForgetAsync(cancellationToken).ConfigureAwait(false);
-                return false;
-
             case SlashCommand.Memory:
-                await _memoryMenu.ShowAsync(cancellationToken).ConfigureAwait(false);
-                DrainDiagnostics();
+                await HandleMemoryAsync(args, cancellationToken).ConfigureAwait(false);
                 return false;
 
             case SlashCommand.Queue:
@@ -6478,7 +6523,7 @@ internal sealed partial class ChatScreen
     /// <c>/profile</c>: the picker, a switch by name, <c>add</c> (a copy of the loaded profile's
     /// saved settings — never the effective ones, a variable must not be baked into a file — then
     /// the switch), <c>delete</c> (refused for the default and the loaded profile, confirmed on
-    /// the input line like <c>/forget</c>), <c>reset [name]</c> (any profile, the loaded one
+    /// the input line like <c>/memory forget</c>), <c>reset [name]</c> (any profile, the loaded one
     /// without a name, confirmed the same way) or <c>rename &lt;name&gt; &lt;new-name&gt;</c> (another
     /// profile's directory moved, no confirmation — nothing is lost). Runs only from the input
     /// line: no turn in flight, the microphone already closed.
@@ -6820,9 +6865,35 @@ internal sealed partial class ChatScreen
     }
 
     /// <summary>
-    /// <c>/forget</c>: one typed confirmation on the input line (ESC or anything but <c>y</c> keeps),
-    /// then the file is deleted. Works with memory off too — the switch governs use, not the file.
-    /// A delete that fails is reported as such, never as done.
+    /// <c>/memory</c> (2026-09-22, the user's ask): bare, the list pane; <c>forget</c>, the wipe the
+    /// standalone <c>/forget</c> did, confirmation and all; anything else <see cref="MemoryUsageError"/>.
+    /// The one method both dispatches call — the idle line's and the mid-turn pane phase's — so the
+    /// word behaves the same under a reply; the error goes through <see cref="_flow"/> for that
+    /// reason, as <see cref="EmptyTrashAsync"/>'s does.
+    /// </summary>
+    private async Task HandleMemoryAsync(string args, CancellationToken cancellationToken)
+    {
+        switch (ParseMemoryArgs(args))
+        {
+            case MemoryAction.List:
+                await _memoryMenu.ShowAsync(cancellationToken).ConfigureAwait(false);
+                DrainDiagnostics();
+                break;
+
+            case MemoryAction.Forget:
+                await ForgetAsync(cancellationToken).ConfigureAwait(false);
+                break;
+
+            default:
+                _flow.Error(MemoryUsageError);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// <c>/memory forget</c>: one typed confirmation on the input line (ESC or anything but <c>y</c>
+    /// keeps), then the file is deleted. Works with memory off too — the switch governs use, not the
+    /// file. A delete that fails is reported as such, never as done.
     /// </summary>
     private async Task ForgetAsync(CancellationToken cancellationToken)
     {

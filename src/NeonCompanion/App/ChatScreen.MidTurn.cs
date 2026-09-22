@@ -92,7 +92,9 @@ internal sealed partial class ChatScreen
 
     /// <summary>
     /// What a line does while a reply runs, by command (the user's lists, 2026-09-15): the info
-    /// panes, <c>/settings</c>, <c>/memory</c>, the two confirmations and the <c>/reasoning</c>
+    /// panes, <c>/settings</c>, <c>/memory</c> either way (2026-09-22: <c>forget</c>'s confirmation
+    /// is a pane as the list is, so the word never changes the class — the standalone <c>/forget</c>
+    /// was a pane too), <c>/emptytrash</c>'s confirmation and the <c>/reasoning</c>
     /// picker and <c>/queue</c> (2026-09-18) are <see cref="MidTurnClass.Pane"/>, as is <c>/cmdlist</c> (2026-09-21: the <c>Shell allowed commands</c> row, which <c>/tools</c> edits under a reply too); the four speech switches, <c>/reasoning</c>
     /// with a level, <c>/queue</c> with a word (<c>clear</c>, 2026-09-21: the drop on the turn task, or the usage error), <c>/copy</c>, <c>/remember</c>, <c>/explore</c>, <c>/timer</c> and an unknown
     /// command are <see cref="MidTurnClass.Quick"/>; <c>/clear</c>, <c>/new</c>, <c>/splash</c> (2026-09-19) and <c>/exit</c> cancel; the rest
@@ -103,7 +105,7 @@ internal sealed partial class ChatScreen
     {
         SlashCommand.None => MidTurnClass.Message,
         SlashCommand.Help or SlashCommand.Settings or SlashCommand.Sys or SlashCommand.Memory
-            or SlashCommand.Usage or SlashCommand.About or SlashCommand.Forget or SlashCommand.EmptyTrash or SlashCommand.Tools or SlashCommand.Mcp or SlashCommand.CmdList => MidTurnClass.Pane,
+            or SlashCommand.Usage or SlashCommand.About or SlashCommand.EmptyTrash or SlashCommand.Tools or SlashCommand.Mcp or SlashCommand.CmdList => MidTurnClass.Pane,
         SlashCommand.Reasoning or SlashCommand.Queue => hasArgs ? MidTurnClass.Quick : MidTurnClass.Pane,
         SlashCommand.Skills => hasArgs ? MidTurnClass.Refused : MidTurnClass.Pane,
         SlashCommand.Session => hasArgs ? MidTurnClass.Refused : MidTurnClass.Pane,
@@ -162,7 +164,7 @@ internal sealed partial class ChatScreen
                 Post(() => HandleQuickAsync(command, args, text, paneToken));
                 return true;
             default:
-                await RunPaneAsync(command, paneToken).ConfigureAwait(false);
+                await RunPaneAsync(command, args, paneToken).ConfigureAwait(false);
                 return true;
         }
     }
@@ -192,27 +194,28 @@ internal sealed partial class ChatScreen
     /// pane; a word refused under the reply (<c>/model</c>, <c>/cwd browse</c>) is the close alone —
     /// a click deserves no refusal notice.
     /// </summary>
-    private async Task RunPaneAsync(SlashCommand command, CancellationToken cancellationToken)
+    private async Task RunPaneAsync(SlashCommand command, string args, CancellationToken cancellationToken)
     {
         while (true)
         {
-            await RunPaneOnceAsync(command, cancellationToken).ConfigureAwait(false);
+            await RunPaneOnceAsync(command, args, cancellationToken).ConfigureAwait(false);
             if (_pane.TakeDismissHit() is not { } hit || OffPaneLine(hit) is not { } next)
             {
                 return;
             }
 
-            var (nextCommand, args) = SlashCommands.Parse(next);
-            if (nextCommand == command || MidTurnPolicy(nextCommand, args.Length > 0) != MidTurnClass.Pane)
+            var (nextCommand, nextArgs) = SlashCommands.Parse(next);
+            if (nextCommand == command || MidTurnPolicy(nextCommand, nextArgs.Length > 0) != MidTurnClass.Pane)
             {
                 return;
             }
 
             command = nextCommand;
+            args = nextArgs;
         }
     }
 
-    private async Task RunPaneOnceAsync(SlashCommand command, CancellationToken cancellationToken)
+    private async Task RunPaneOnceAsync(SlashCommand command, string args, CancellationToken cancellationToken)
     {
         switch (command)
         {
@@ -250,7 +253,9 @@ internal sealed partial class ChatScreen
                 await _menu.ShowAsync(cancellationToken, midTurn: true).ConfigureAwait(false);
                 break;
             case SlashCommand.Memory:
-                await _memoryMenu.ShowAsync(cancellationToken).ConfigureAwait(false);
+                // /memory (2026-09-22): the list pane, or forget's confirmation — the pane /forget
+                // opened until the word folded in, so both forms stay panes under a reply.
+                await HandleMemoryAsync(args, cancellationToken).ConfigureAwait(false);
                 break;
             case SlashCommand.Queue:
                 await _queueMenu.ShowAsync(cancellationToken).ConfigureAwait(false);
@@ -258,9 +263,6 @@ internal sealed partial class ChatScreen
             case SlashCommand.Session:
                 // The list alone: every pick is refused there, so nothing comes back to restore.
                 await _sessionsMenu.ShowAsync(cancellationToken, midTurn: true).ConfigureAwait(false);
-                break;
-            case SlashCommand.Forget:
-                await ForgetAsync(cancellationToken).ConfigureAwait(false);
                 break;
             case SlashCommand.EmptyTrash:
                 await EmptyTrashAsync(cancellationToken).ConfigureAwait(false);

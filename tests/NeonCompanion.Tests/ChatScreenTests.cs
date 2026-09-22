@@ -3265,7 +3265,7 @@ public partial class ChatScreenTests : IDisposable
     [Fact]
     public async Task Remember_ThenForget_MidConversation_RefreshTheOpeningMemoryResult_NoSecondPair()
     {
-        // The seeded list is kept current the cwd way (2026-09-17): what /remember adds and /forget
+        // The seeded list is kept current the cwd way (2026-09-17): what /remember adds and /memory forget
         // wipes is in the next request's recall_memory result, in place, and nothing is seeded again.
         _settings.Update(d => d.TtsOutput = false);
         _chat.EnqueueText("Hello.").EnqueueText("Chris.").EnqueueText("Nobody.");
@@ -3283,7 +3283,7 @@ public partial class ChatScreenTests : IDisposable
         PushLine("hi");
         PushLine("/remember Their name is Chris.");
         PushLine("who am I?");
-        PushLine("/forget");
+        PushLine("/memory forget");
         PickYes();
         PushLine("who am I now?");
         PushLine("/exit");
@@ -3341,7 +3341,7 @@ public partial class ChatScreenTests : IDisposable
     {
         _memory.Add("a");
         _memory.Add("b");
-        PushLine("/forget");
+        PushLine("/memory forget");
         PickYes();
         PushLine("/exit");
 
@@ -3358,7 +3358,7 @@ public partial class ChatScreenTests : IDisposable
     public async Task Forget_OneMemory_Yes_IsSingular()
     {
         _memory.Add("a");
-        PushLine("/forget");
+        PushLine("/memory forget");
         PickYes();
         PushLine("/exit");
 
@@ -3375,8 +3375,8 @@ public partial class ChatScreenTests : IDisposable
         _geometry = new ScreenGeometry(() => null);
         _memory.Add("a");
         _memory.Add("b");
-        // /forget at the idle line; the pane then reads a key per wait: y (the cursor to Yes), Enter (the act).
-        StepsWhenIdle(Line("/forget"), Key(Keys.Char('y')), Key(Keys.Enter), Line("/exit"));
+        // /memory forget at the idle line; the pane then reads a key per wait: y (the cursor to Yes), Enter (the act).
+        StepsWhenIdle(Line("/memory forget"), Key(Keys.Char('y')), Key(Keys.Enter), Line("/exit"));
 
         string output = await RunAsync();
 
@@ -3392,7 +3392,7 @@ public partial class ChatScreenTests : IDisposable
     public async Task Forget_Enter_Keeps()
     {
         _memory.Add("a");
-        PushLine("/forget");
+        PushLine("/memory forget");
         _console.Input.PushKey(Keys.Enter);   // No is on the cursor
         PushLine("/exit");
 
@@ -3407,7 +3407,7 @@ public partial class ChatScreenTests : IDisposable
     public async Task Forget_Escape_Keeps()
     {
         _memory.Add("a");
-        PushLine("/forget");
+        PushLine("/memory forget");
         _console.Input.PushKey(Keys.Escape);
         PushLine("/exit");
 
@@ -3420,7 +3420,7 @@ public partial class ChatScreenTests : IDisposable
     [Fact]
     public async Task Forget_WithNothingStored_AsksNothing()
     {
-        PushLine("/forget");
+        PushLine("/memory forget");
         PushLine("/exit");
 
         string output = await RunAsync();
@@ -5468,14 +5468,47 @@ public partial class ChatScreenTests : IDisposable
         Assert.DoesNotContain(SettingsMenu.PromptTitle(MemoryMenu.Title, MemoryMenu.Keys), output);
     }
 
+    /// <summary>The /memory grammar (2026-09-22) and its completion: nothing, forget (any case), anything else invalid.</summary>
+    [Fact]
+    public void ParseMemoryArgs_IsPinned_AndTheForgetWordCompletes()
+    {
+        Assert.Equal(MemoryAction.List, ChatScreen.ParseMemoryArgs(""));
+        Assert.Equal(MemoryAction.List, ChatScreen.ParseMemoryArgs("  "));
+        Assert.Equal(MemoryAction.Forget, ChatScreen.ParseMemoryArgs("forget"));
+        Assert.Equal(MemoryAction.Forget, ChatScreen.ParseMemoryArgs(" Forget "));
+        Assert.Equal(MemoryAction.Invalid, ChatScreen.ParseMemoryArgs("list"));
+        Assert.Equal(MemoryAction.Invalid, ChatScreen.ParseMemoryArgs("forget all"));
+        Assert.Equal("forget", ChatScreen.MemoryForgetWord);
+        Assert.Equal("/memory lists the memories; /memory forget forgets them all.", ChatScreen.MemoryUsageError);
+        Assert.Equal([new CompletionItem("forget", ChatScreen.MemoryForgetNote)], ChatScreen.ArgumentItems("/memory", "", Sources()));
+        Assert.Equal([new CompletionItem("forget", ChatScreen.MemoryForgetNote)], ChatScreen.ArgumentItems("/memory", "fo", Sources()));
+        Assert.Empty(ChatScreen.ArgumentItems("/memory", "x", Sources()));
+    }
+
+    /// <summary>/memory with a word it does not know (2026-09-22): the usage error, never the takes-nothing one — the command reads an argument now.</summary>
+    [Fact]
+    public async Task Memory_WithAnUnknownWord_IsTheUsageError()
+    {
+        PushLine("/memory scrub");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains("  ✗ " + ChatScreen.MemoryUsageError, output);
+        Assert.DoesNotContain(ChatScreen.NoArgumentError("/memory"), output);
+        Assert.DoesNotContain(SettingsMenu.PromptTitle(MemoryMenu.Title, MemoryMenu.Keys), output);
+        Assert.Empty(_chat.Requests);
+    }
+
     [Fact]
     public void MemoryLabels_ArePinned()
     {
         Assert.Equal("/remember takes the text to keep: /remember <text>", ChatScreen.RememberUsageError);
         Assert.Equal("Memory is off; turn it on in /settings (the Memory row).", ChatScreen.MemoryOffNotice);
-        Assert.Equal("Memory is full (200 entries); /forget clears it.", ChatScreen.MemoryFullError);
+        Assert.Equal("Memory is full (200 entries); /memory forget clears it.", ChatScreen.MemoryFullError);
         Assert.Equal("Could not save the memory; the log has the reason.", ChatScreen.MemoryFailedError);
         Assert.Equal("(nothing to forget)", ChatScreen.NothingToForgetNotice);
+        Assert.Equal("forget every memory", ChatScreen.MemoryForgetNote);
         Assert.Equal("(kept)", ChatScreen.KeptNotice);
         Assert.Equal("(remembered: x)", ChatScreen.RememberedNotice("x"));
         Assert.Equal("(already remembered: x)", ChatScreen.AlreadyRememberedNotice("x"));
@@ -8338,11 +8371,12 @@ public partial class ChatScreenTests : IDisposable
         }
 
         Assert.Equal(lines.Length, line);
-        Assert.Equal(54, lines.Length);   // 46 commands + 8 blank rows: /cmdlist under /cmdcopy later on 2026-09-21; /cmdcopy under /memcopy 2026-09-21; /loop under /draft 2026-09-21; /git under /emptytrash 2026-09-21; /mcp under /tools 2026-09-20; /splash under /new later still on 2026-09-19; /draft under /copy since 2026-09-19; nine groups since later on 2026-09-19 (/skills + /learn under /sessions, /window under /view, /timer under /help); 39 + 10 with /tools under /settings that morning (38 + 10 since the three tool switches went, 2026-09-18)
+        Assert.Equal(53, lines.Length);   // 45 commands + 8 blank rows: /forget went 2026-09-22, its wipe now /memory forget; /cmdlist under /cmdcopy later on 2026-09-21; /cmdcopy under /memcopy 2026-09-21; /loop under /draft 2026-09-21; /git under /emptytrash 2026-09-21; /mcp under /tools 2026-09-20; /splash under /new later still on 2026-09-19; /draft under /copy since 2026-09-19; nine groups since later on 2026-09-19 (/skills + /learn under /sessions, /window under /view, /timer under /help); 39 + 10 with /tools under /settings that morning (38 + 10 since the three tool switches went, 2026-09-18)
         Assert.StartsWith(HelpRow("/settings, //", "edit and save settings"), lines[0]);
-        Assert.StartsWith(HelpRow("/tools", "switch the model's tools on or off and edit the Options, Ask, Files and Web settings on a pane"), lines[1]);   // 2026-09-19; the alias /// came and went on 2026-09-21
-        Assert.StartsWith(HelpRow("/mcp", "connect external MCP servers and switch their tools on or off on a pane"), lines[2]);   // 2026-09-20
-        Assert.StartsWith(HelpRow("/sessions", "list, restore and purge sessions: /sessions [<id> | purge <id> | purge older <age> | purge all | title <text>]"), lines[4]);   // under /profile since later on 2026-09-18
+        Assert.StartsWith(HelpRow("/profile", "switch profiles, or /profile <name> | add <name> | delete <name> | rename <name> <new-name> | reset [name] | edit | reload"), lines[1]);   // the user's order since 2026-09-22: the profile and its sessions ahead of the tool panes
+        Assert.StartsWith(HelpRow("/sessions", "list, restore and purge sessions: /sessions [<id> | purge <id> | purge older <age> | purge all | title <text>]"), lines[2]);   // under /profile since later on 2026-09-18
+        Assert.StartsWith(HelpRow("/tools", "switch the model's tools on or off and edit the Options, Ask, Files and Web settings on a pane"), lines[3]);   // 2026-09-19; the alias /// came and went on 2026-09-21
+        Assert.StartsWith(HelpRow("/mcp", "connect external MCP servers and switch their tools on or off on a pane"), lines[4]);   // 2026-09-20
         Assert.StartsWith(HelpRow("/skills", "list the skills, edit the skill settings and the project file on a pane, or /skills edit <name> to open its SKILL.md"), lines[5]);   // edit 2026-09-21 (the alias //// came and went that day);   // under /sessions since later on 2026-09-19 (/ask /files /web ahead of it until 2026-09-18)
         Assert.StartsWith(HelpRow("/learn", "write or improve a skill from the last turn or the stored sessions, in the background: /learn [what to keep] | sessions [N | what to search]"), lines[6]);   // 2026-09-17; the sessions form 2026-09-19
         Assert.True(string.IsNullOrWhiteSpace(lines[7]));
@@ -8360,27 +8394,26 @@ public partial class ChatScreenTests : IDisposable
         Assert.True(string.IsNullOrWhiteSpace(lines[22]));
         Assert.StartsWith(HelpRow("/interrupt", "toggle the speech input wake word interrupt, or /interrupt on|off"), lines[26]);
         Assert.True(string.IsNullOrWhiteSpace(lines[27]));
-        Assert.StartsWith(HelpRow("/memory", "list and prune memory items"), lines[28]);
+        Assert.StartsWith(HelpRow("/memory", "list and prune memory items, or /memory forget to forget them all"), lines[28]);
         Assert.StartsWith(HelpRow("/remember", "add a memory: /remember <text>"), lines[29]);
-        Assert.StartsWith(HelpRow("/forget", "forget all memory"), lines[30]);
-        Assert.StartsWith(HelpRow("/memcopy", "copy this profile's memory into another: /memcopy <profile> [overwrite]"), lines[31]);   // 2026-09-17
-        Assert.StartsWith(HelpRow("/cmdcopy", "copy this profile's allowed shell commands into another: /cmdcopy <profile> [overwrite]"), lines[32]);   // 2026-09-21
-        Assert.StartsWith(HelpRow("/cmdlist", "list this profile's allowed shell commands on a pane, Enter removes one"), lines[33]);   // later on 2026-09-21
-        Assert.StartsWith(HelpRow("/tree", "print a tree of the working directory's folders and files, or /tree <path>"), lines[36]);
-        Assert.StartsWith(HelpRow("/emptytrash", "empty the working directory's .trash for good (asks first)"), lines[38]);
-        Assert.StartsWith(HelpRow("/git", "write the Git native email and Git native name settings into the working directory's repository: /git user [force]"), lines[39]);   // 2026-09-21
-        Assert.True(string.IsNullOrWhiteSpace(lines[40]));
+        Assert.StartsWith(HelpRow("/memcopy", "copy this profile's memory into another: /memcopy <profile> [overwrite]"), lines[30]);   // 2026-09-17
+        Assert.StartsWith(HelpRow("/cmdcopy", "copy this profile's allowed shell commands into another: /cmdcopy <profile> [overwrite]"), lines[31]);   // 2026-09-21
+        Assert.StartsWith(HelpRow("/cmdlist", "list this profile's allowed shell commands on a pane, Enter removes one"), lines[32]);   // later on 2026-09-21
+        Assert.StartsWith(HelpRow("/tree", "print a tree of the working directory's folders and files, or /tree <path>"), lines[35]);
+        Assert.StartsWith(HelpRow("/emptytrash", "empty the working directory's .trash for good (asks first)"), lines[37]);
+        Assert.StartsWith(HelpRow("/git", "write the Git native email and Git native name settings into the working directory's repository: /git user [force]"), lines[38]);   // 2026-09-21
+        Assert.True(string.IsNullOrWhiteSpace(lines[39]));
         // /speak and /view: a group of their own (the user's call, 2026-09-17); /window (/windowsize until then) under /view since later on 2026-09-19.
-        Assert.StartsWith(HelpRow("/speak", "read a text file from the working directory aloud, as a reply: /speak <file> [n], or /speak to resume, or /speak <n> from sentence n"), lines[41]);
-        Assert.StartsWith(HelpRow("/echo", "print a line as a reply and read it aloud when speech is on: /echo <text>"), lines[42]);
-        Assert.StartsWith(HelpRow("/view", "show an image from the working directory in the transcript, as large as the window allows: /view <image>"), lines[43]);
-        Assert.StartsWith(HelpRow("/window", "show the terminal window's width and height"), lines[44]);
-        Assert.True(string.IsNullOrWhiteSpace(lines[45]));
-        Assert.StartsWith(HelpRow("/persona", "export and manage persona.md (the personality) in your editor, or /persona reset to go back to the default, or /persona copy <profile> [force] to copy it into another profile"), lines[46]);   // copy 2026-09-21
-        Assert.True(string.IsNullOrWhiteSpace(lines[49]));
-        Assert.StartsWith(HelpRow("/timer", "list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all"), lines[50]);   // the bottom group's first row since later still on 2026-09-19 (under /help from earlier that day)
-        Assert.StartsWith(HelpRow("/help", "show help"), lines[51]);   // the bottom group since 2026-09-16, above /about; under /timer since later still on 2026-09-19
-        Assert.StartsWith(HelpRow("/about", "show general information about the app and profile"), lines[52]);
+        Assert.StartsWith(HelpRow("/speak", "read a text file from the working directory aloud, as a reply: /speak <file> [n], or /speak to resume, or /speak <n> from sentence n"), lines[40]);
+        Assert.StartsWith(HelpRow("/echo", "print a line as a reply and read it aloud when speech is on: /echo <text>"), lines[41]);
+        Assert.StartsWith(HelpRow("/view", "show an image from the working directory in the transcript, as large as the window allows: /view <image>"), lines[42]);
+        Assert.StartsWith(HelpRow("/window", "show the terminal window's width and height"), lines[43]);
+        Assert.True(string.IsNullOrWhiteSpace(lines[44]));
+        Assert.StartsWith(HelpRow("/persona", "export and manage persona.md (the personality) in your editor, or /persona reset to go back to the default, or /persona copy <profile> [force] to copy it into another profile"), lines[45]);   // copy 2026-09-21
+        Assert.True(string.IsNullOrWhiteSpace(lines[48]));
+        Assert.StartsWith(HelpRow("/timer", "list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all"), lines[49]);   // the bottom group's first row since later still on 2026-09-19 (under /help from earlier that day)
+        Assert.StartsWith(HelpRow("/help", "show help"), lines[50]);   // the bottom group since 2026-09-16, above /about; under /timer since later still on 2026-09-19
+        Assert.StartsWith(HelpRow("/about", "show general information about the app and profile"), lines[51]);
         Assert.StartsWith(HelpRow("/exit", "exit/quit the application"), lines[^1]);   // the very last row since 2026-09-16
         Assert.DoesNotContain("/windowsize", Output);
         Assert.DoesNotContain("(also", Output);
@@ -9463,9 +9496,9 @@ public partial class ChatScreenTests : IDisposable
     [InlineData(SlashCommand.CmdList, false, MidTurnClass.Pane)]   // later on 2026-09-21: the allowed-commands row, which /tools edits under a reply too
     [InlineData(SlashCommand.Sys, false, MidTurnClass.Pane)]
     [InlineData(SlashCommand.Memory, false, MidTurnClass.Pane)]
+    [InlineData(SlashCommand.Memory, true, MidTurnClass.Pane)]   // 2026-09-22: /memory forget's confirmation is a pane as the list is, so the word never changes the class
     [InlineData(SlashCommand.Usage, false, MidTurnClass.Pane)]
     [InlineData(SlashCommand.About, false, MidTurnClass.Pane)]
-    [InlineData(SlashCommand.Forget, false, MidTurnClass.Pane)]
     [InlineData(SlashCommand.EmptyTrash, false, MidTurnClass.Pane)]
     [InlineData(SlashCommand.Git, true, MidTurnClass.Refused)]
     [InlineData(SlashCommand.Queue, false, MidTurnClass.Pane)]
@@ -10413,7 +10446,7 @@ public partial class ChatScreenTests : IDisposable
         {
             if (i == 1)
             {
-                PushLine("/forget");
+                PushLine("/memory forget");
             }
             else if (i == 2)
             {
