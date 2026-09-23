@@ -546,112 +546,18 @@ Every connected MCP server is a group of its own, its tools offered as `<server>
 ## Screenshots
 [↑ Back to top](#neon-companion)
 
-Explore the UI and features of Neon Companion by expanding the categories below.
+Explore the UI and features of Neon Companion by expanding the panel below.
 
 <details>
 <summary><b>✨ Core Interface & Usage</b></summary><br>
 <table>
   <tr>
-    <td><img src="./assets/screenshots/screenshot_markdown.png" alt="Markdown rendering"><br><center><b>Markdown rendering</b></center></td>
-    <td><img src="./assets/screenshots/screenshot_vision.png" alt="Vision support"><br><center><b>Vision support</b></center></td>
+    <td><img src="./assets/screenshots/screen_markdown.png" alt="Markdown rendering"><br><center><b>Markdown rendering</b></center></td>
+    <td><img src="./assets/screenshots/screen_vision.png" alt="Vision support"><br><center><b>Vision support</b></center></td>
   </tr>
   <tr>
-    <td><img src="./assets/screenshots/screenshot_dynamic_autocomplete.png" alt="Dynamic auto-complete"><br><center><b>Dynamic auto-complete</b></center></td>
-    <td><img src="./assets/screenshots/screenshot_at_mention.png" alt="@-mention for files/folders"><br><center><b>@-mention for files/folders</b></center></td>
-  </tr>
-  <tr>
-    <td><img src="./assets/screenshots/screenshot_queue.png" alt="Message queue"><br><center><b>Message queue</b></center></td>
-    <td><img src="./assets/screenshots/screenshot_ask.png" alt="Answer picker"><br><center><b>Answer picker</b></center></td>
-  </tr>
-  <tr>
-    <td><img src="./assets/screenshots/screenshot_folder_browser.png" alt="Folder browser"><br><center><b>Folder browser</b></center></td>
-    <td><img src="./assets/screenshots/screenshot_splash.png" alt="Welcome splash screen"><br><center><b>Welcome splash screen</b></center></td>
-  </tr>
-</table>
-</details>
-
-<details>
-<summary><b>🎛️ Session & Model Pickers</b></summary><br>
-<table>
-  <tr>
-    <td><img src="./assets/screenshots/screenshot_profile_picker.png" alt="Profile picker"><br><center><b>Profile picker</b></center></td>
-    <td><img src="./assets/screenshots/screenshot_server_picker.png" alt="Server picker"><br><center><b>Server picker</b></center></td>
-  </tr>
-  <tr>
-    <td><img src="./assets/screenshots/screenshot_model_picker.png" alt="Model picker"><br><center><b>Model picker</b></center></td>
-    <td><img src="./assets/screenshots/screenshot_reasoning_picker.png" alt="Reasoning picker"><br><center><b>Reasoning picker</b></center></td>
-  </tr>
-</table>
-</details>
-
-<details>
-<summary><b>🧠 Agent Context & System</b></summary><br>
-<table>
-  <tr>
-    <td><img src="./assets/screenshots/screenshot_reflection.png" alt="Automatic reflection"><br><center><b>Automatic reflection</b></center></td>
-    <td><img src="./assets/screenshots/screenshot_memory.png" alt="Memory management"><br><center><b>Memory management</b></center></td>
-  </tr>
-  <tr>
-    <td><img src="./assets/screenshots/screenshot_system_prompt.png" alt="System prompt audit"><br><center><b>System prompt audit</b></center></td>
-    <td><img src="./assets/screenshots/screenshot_system_prompt_tools.png" alt="System prompt tool audit"><br><center><b>System prompt tool audit</b></center></td>
-  </tr>
-  <tr>
-    <td><img src="./assets/screenshots/screenshot_session_recall.png" alt="Session recall"><br><center><b>Session recall</b></center></td>
-    <td><img src="./assets/screenshots/screenshot_custom_profile_persona.png" alt="Custom persona"><br><center><b>Custom persona</b></center></td>
-  </tr>
-  <tr>
-    <td><img src="./assets/screenshots/screenshot_voice.png" alt="Voice/Speech features"><br><center><b>Voice/Speech features</b></center></td>
-    <td><img src="./assets/screenshots/screenshot_help.png" alt="Help system"><br><center><b>Help system</b></center></td>
-  </tr>
-</table>
-</details>
-
-<details>
-<summary><b>🎓 Skills Management</b></summary><br>
-<table>
-  <tr>
-    <td><img src="./assets/screenshots/screenshot_skills.png" alt="Skill management"><br><center><b>Skill management</b></center></td>
-    <td><img src="./assets/screenshots/screenshot_skill_options.png" alt="Skill options"><br><center><b>Skill options</b></center></td>
-  </tr>
-  <tr>
-    <td><img src="./assets/screenshots/screenshot_reflection_settings.png" alt="Reflection management"><br><center><b>Reflection management</b></center></td>
-    <td><img src="./assets/screenshots/screenshot_skills_project.png" alt="Project files"><br><center><b>Project files</b></center></td>
-  </tr>
-</table>
-</details>
-
-<details>
-<summary><b>⚙️ Settings Panes</b></summary><br>
-<table>
-  <tr>
-    <td><img src="./assets/screenshots/screenshot_general_settings.png" alt="General settings"><br><center><b>General settings</b></center></td>
-    <td><img src="./assets/screenshots/screenshot_session_settings.png" alt="Session settings"><br><center><b>Session settings</b></center></td>
-  </tr>
-  <tr>
-    <td><img src="./assets/screenshots/screenshot_llm_settings.png" alt="LLM settings"><br><center><b>LLM settings</b></center></td>
-    <td><img src="./assets/screenshots/screenshot_mcp.png" alt="MCP settings"><br><center><b>MCP settings</b></center></td>
-  </tr>
-  <tr>
-    <td><img src="./assets/screenshots/screenshot_tts.png" alt="TTS settings"><br><center><b>TTS settings</b></center></td>
-    <td><img src="./assets/screenshots/screenshot_stt.png" alt="STT settings"><br><center><b>STT settings</b></center></td>
-  </tr>
-</table>
-</details>
-
-<details>
-<summary><b>🛠️ Tools Configuration</b></summary><br>
-<table>
-  <tr>
-    <td><img src="./assets/screenshots/screenshot_tools.png" alt="Tools offered"><br><center><b>Tools offered</b></center></td>
-    <td><img src="./assets/screenshots/screenshot_shell_settings.png" alt="Shell settings"><br><center><b>Shell settings</b></center></td>
-  </tr>
-  <tr>
-    <td><img src="./assets/screenshots/screenshot_file_settings.png" alt="File settings"><br><center><b>File settings</b></center></td>
-    <td><img src="./assets/screenshots/screenshot_browser_settings.png" alt="Browser settings"><br><center><b>Browser settings</b></center></td>
-  </tr>
-  <tr>
-    <td><img src="./assets/screenshots/screenshot_git_settings.png" alt="Git (native) settings"><br><center><b>Git (native) settings</b></center></td>
-    <td><img src="./assets/screenshots/screenshot_ask_settings.png" alt="Ask (questions) settings"><br><center><b>Ask (questions) settings</b></center></td>
+    <td><img src="./assets/screenshots/screen_code.png" alt="Tool calls and code blocks"><br><center><b>Tool calls and code blocks</b></center></td>
+    <td><img src="./assets/screenshots/screen_splash.png" alt="Welcome splash screen"><br><center><b>Welcome splash screen</b></center></td>
   </tr>
 </table>
 </details>
