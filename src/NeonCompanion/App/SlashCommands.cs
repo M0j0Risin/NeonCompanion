@@ -49,6 +49,9 @@ public enum SlashCommand
     /// <summary><c>/cmdlist</c>: this profile's allowed shell commands (the <c>Shell allowed commands</c> prefixes) on a pane, Enter removing one — the Tools pane's row opened straight, ESC closing the pane (2026-09-21, the user's ask: the toolbar's lock glyph's word, typed). No argument.</summary>
     CmdList,
 
+    /// <summary><c>/police</c> (2026-09-22, the user's ask): the <c>Shell police outside paths</c> on/off page on a pane — the Tools pane's row opened straight, ESC closing the pane, as <see cref="CmdList"/> opens the allowed list; the toolbar officer's word. No argument.</summary>
+    Police,
+
     /// <summary><c>/persona</c>: open <c>persona.md</c> in the editor Windows associates with it, <c>/persona reset</c> to remove it (2026-09-16), or <c>/persona copy &lt;profile&gt; [force]</c> to copy it into another profile (2026-09-21).</summary>
     Persona,
 
@@ -210,6 +213,7 @@ public static class SlashCommands
             new("/remember", "add a memory: /remember <text>"),
             new("/cmdcopy", "copy this profile's allowed shell commands into another: /cmdcopy <profile> [overwrite]"),
             new("/cmdlist", "list this profile's allowed shell commands on a pane, Enter removes one"),
+            new("/police", "switch Shell police outside paths on or off on a pane: whether a shell command may name paths outside the working directory"),
         ],
         [
             new("/cwd", "show or change the working directory, or /cwd <path> | ~ | browse"),
@@ -322,7 +326,7 @@ public static class SlashCommands
     }
 
     /// <summary>Every command word, for help and completion.</summary>
-    public static readonly string[] Words = { "/help", "/clear", "/new", "/splash", "/queue", "/sessions", "/compact", "/server", "/model", "/reasoning", "/settings", "//", "/tools", "/mcp", "/tts", "/stt", "/wake", "/interrupt", "/speak", "/remember", "/memory", "/cmdcopy", "/cmdlist", "/persona", "/operata", "/vocalia", "/sys", "/usage", "/profile", "/timer", "/cwd", "/tree", "/vault", "/explore", "/view", "/echo", "/emptytrash", "/git", "/copy", "/draft", "/loop", "/expand", "/collapse", "/window", "/skills", "/learn", "/about", "/exit" };
+    public static readonly string[] Words = { "/help", "/clear", "/new", "/splash", "/queue", "/sessions", "/compact", "/server", "/model", "/reasoning", "/settings", "//", "/tools", "/mcp", "/tts", "/stt", "/wake", "/interrupt", "/speak", "/remember", "/memory", "/cmdcopy", "/cmdlist", "/police", "/persona", "/operata", "/vocalia", "/sys", "/usage", "/profile", "/timer", "/cwd", "/tree", "/vault", "/explore", "/view", "/echo", "/emptytrash", "/git", "/copy", "/draft", "/loop", "/expand", "/collapse", "/window", "/skills", "/learn", "/about", "/exit" };
 
     /// <summary>The <c>/queue</c> word: what a double-click on the hint row's queued part sends through the mid-turn line hook, so the pane opens exactly as the typed command's does (2026-09-18). Pinned.</summary>
     public const string QueueWord = "/queue";
@@ -338,6 +342,7 @@ public static class SlashCommands
     public const string SysWord = "/sys";
     public const string SessionsWord = "/sessions";   // later on 2026-09-21, the sixth glyph
     public const string CmdListWord = "/cmdlist";     // later still on 2026-09-21, the seventh: the lock, whichever way the policy turns it
+    public const string PoliceWord = "/police";       // 2026-09-22, the officer last of all, while Shell police outside paths is on
     public const string MemoryWord = "/memory";       // 2026-09-22, the disk between the balloon and the lock, while Memory is on
 
     /// <summary>The words the hint row's model name and reasoning mark send through the screen's dispatch at idle (later on 2026-09-21, so a double-click off the pane they open can switch panes); the name is <c>/server</c> since 2026-09-22 (the user's call: the click walks server, model, then reasoning, as the typed command does). Pinned.</summary>
@@ -384,6 +389,7 @@ public static class SlashCommands
             "/memory" => SlashCommand.Memory,
             "/cmdcopy" => SlashCommand.CmdCopy,
             "/cmdlist" => SlashCommand.CmdList,
+            "/police" => SlashCommand.Police,
             "/persona" => SlashCommand.Persona,
             "/operata" => SlashCommand.Operata,
             "/vocalia" => SlashCommand.Vocalia,

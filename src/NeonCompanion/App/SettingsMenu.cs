@@ -2698,6 +2698,14 @@ internal sealed class SettingsMenu
     /// (<see cref="ChatScreen.InterruptNeedsWakeNotice"/>), and the wake word going off takes the
     /// interrupt with it (<see cref="ChatScreen.InterruptOffWithWakeNotice"/>).
     /// </summary>
+    /// <summary>
+    /// A toggle's on/off page opened straight, over the saved values (2026-09-22, for <see cref="ToolsMenu.ShowPoliceAsync"/>:
+    /// <c>/police</c>, the toolbar's officer) — the page its row's Enter opens, under whatever <see cref="Root"/> the caller set.
+    /// True when the value changed.
+    /// </summary>
+    internal Task<bool> EditToggleAsync(SettingsField field, CancellationToken cancellationToken) =>
+        PickToggleAsync(field, _settings.Current, cancellationToken);
+
     private async Task<bool> PickToggleAsync(SettingsField field, AppSettingsData saved, CancellationToken cancellationToken)
     {
         // The interrupt is the wake phrase during a reply: it needs the wake word on, and goes off with it.

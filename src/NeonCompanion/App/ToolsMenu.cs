@@ -23,7 +23,8 @@ namespace NeonCompanion.App;
 /// Without the pane the tabs print as plain lines. <c>/tools</c> takes no argument: <c>/tools expand</c> and
 /// <c>/tools collapse</c> (2026-09-22) became the root <c>/expand</c> and <c>/collapse</c> later that day, the user's ask.
 /// The Shell tab's allowed-commands row has a door of its own since later on 2026-09-21:
-/// <see cref="ShowAllowedCommandsAsync"/> (<c>/cmdlist</c>, the toolbar's lock glyph).
+/// <see cref="ShowAllowedCommandsAsync"/> (<c>/cmdlist</c>, the toolbar's lock glyph); its <c>Shell police outside paths</c>
+/// row since 2026-09-22: <see cref="ShowPoliceAsync"/> (<c>/police</c>, the toolbar's officer).
 /// </summary>
 internal sealed class ToolsMenu
 {
@@ -219,6 +220,42 @@ internal sealed class ToolsMenu
         try
         {
             await _menu.EditAllowedCommandsAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _menu.Root = SettingsMenu.Title;
+            _pane.Close();
+        }
+    }
+
+    /// <summary>What <c>/police</c> prints without the pane: the row's name and its value, <c>Shell police outside paths: on</c>. Pinned.</summary>
+    public static string PoliceLine(AppSettingsData saved)
+    {
+        ArgumentNullException.ThrowIfNull(saved);
+        return SettingsMenu.FieldName(SettingsField.ShellPoliceOutsidePaths) + ": " + (saved.ShellPoliceOutsidePaths ? "on" : "off");
+    }
+
+    /// <summary>
+    /// <c>/police</c> and the toolbar's officer (2026-09-22, the user's ask): the Shell tab's
+    /// <c>Shell police outside paths</c> row opened straight — its on/off page under the crumb
+    /// <c>Tools › Shell police outside paths</c> — with nothing of the Tools pane around it, so ESC
+    /// closes the pane, as <see cref="ShowAllowedCommandsAsync"/> does for the lock. Picking off takes
+    /// the officer off the toolbar as the pane closes (the strip follows the switch at each draw).
+    /// Without the pane the value prints (<see cref="PoliceLine"/>). Mid-turn as at idle: the row is
+    /// never refused under a reply.
+    /// </summary>
+    public async Task ShowPoliceAsync(CancellationToken cancellationToken)
+    {
+        if (!_pane.Enabled)
+        {
+            _transcript.Notice(PoliceLine(_settings.Current));
+            return;
+        }
+
+        _menu.Root = ToolsText.Label;
+        try
+        {
+            await _menu.EditToggleAsync(SettingsField.ShellPoliceOutsidePaths, cancellationToken).ConfigureAwait(false);
         }
         finally
         {

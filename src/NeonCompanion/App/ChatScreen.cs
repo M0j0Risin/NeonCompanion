@@ -922,9 +922,9 @@ internal sealed partial class ChatScreen
     /// Two more come and go the same way (2026-09-22, the user's ask): the disk between the balloon
     /// and the lock while <c>Memory</c> is on — its pane's title already wore it — whose double-click
     /// is <c>/memory</c>, the list Enter prunes; and the officer last of all while <c>Shell police
-    /// outside paths</c> is on, the glyph the transcript's refusal line wears, with no click of its
-    /// own yet (the strip does not name it, so a pair is nothing at idle and the close alone under
-    /// a pane — the user's call). Both follow their switch at each draw, so a flip on its pane shows
+    /// outside paths</c> is on, the glyph the transcript's refusal line wears, whose double-click is
+    /// <c>/police</c> (later on 2026-09-22, the user's ask: no click of its own until then), that row's
+    /// on/off page opened straight. Both follow their switch at each draw, so a flip on its pane shows
     /// as the pane closes; the columns after the balloon move with the disk, which the hit-test walk
     /// and the column-keyed pairing take as they come.
     /// </summary>
@@ -1010,7 +1010,7 @@ internal sealed partial class ChatScreen
         _ => null,
     };
 
-    /// <summary>The command a double-click on a toolbar glyph runs (2026-09-21), as the typed word; null for anything else — the officer included (2026-09-22: no click of its own yet). Pinned.</summary>
+    /// <summary>The command a double-click on a toolbar glyph runs (2026-09-21), as the typed word; null for anything else. The officer's is <c>/police</c> since later on 2026-09-22 (nothing until then). Pinned.</summary>
     public static string? ToolbarWord(string glyph) => glyph switch
     {
         SettingsToolGlyph => SlashCommands.SettingsWord,
@@ -1021,6 +1021,7 @@ internal sealed partial class ChatScreen
         SessionsToolGlyph => SlashCommands.SessionsWord,
         MemoryToolGlyph => SlashCommands.MemoryWord,
         CmdAskToolGlyph or CmdYoloToolGlyph => SlashCommands.CmdListWord,
+        PoliceToolGlyph => SlashCommands.PoliceWord,
         _ => null,
     };
 
@@ -5311,7 +5312,7 @@ internal sealed partial class ChatScreen
                         // path's /cwd browse, or the blanks' /settings (later that day, as the hint
                         // row's blanks), through the dispatch as the typed line — without the
                         // transcript row or the history, the draft back after, as the hint row's.
-                        // A glyph the strip does not name (the officer, 2026-09-22) is nothing.
+                        // A glyph the strip does not name is nothing (the officer was, until /police later on 2026-09-22).
                         _timers.Acknowledge();
                         DisarmExit();
                         await _speech.StopAsync().ConfigureAwait(false);
@@ -6626,6 +6627,11 @@ internal sealed partial class ChatScreen
             case SlashCommand.CmdList:
                 // The Shell allowed commands list straight (2026-09-21): the Tools pane's row without the pane around it, the toolbar lock's word.
                 await _toolsMenu.ShowAllowedCommandsAsync(cancellationToken).ConfigureAwait(false);
+                return false;
+
+            case SlashCommand.Police:
+                // The Shell police outside paths page straight (2026-09-22): the Tools pane's row without the pane around it, the toolbar officer's word.
+                await _toolsMenu.ShowPoliceAsync(cancellationToken).ConfigureAwait(false);
                 return false;
 
             case SlashCommand.Mcp:

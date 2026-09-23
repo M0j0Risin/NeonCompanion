@@ -891,7 +891,7 @@ public sealed class AppSettingsData
     /// under the working directory. It is a lexical guard — the text the model sends, not what runs: a
     /// script that computes a path is not seen. Off, any path goes — and nothing tells the model it
     /// may leave (neither wording says a command can reach outside), so it does not try unless asked.
-    /// The toolbar wears 👮 while it is on (later that day), with no click of its own yet.
+    /// The toolbar wears 👮 while it is on (later that day); its double-click is <c>/police</c>, this row's on/off page (later still that day).
     /// Read at each call and at each turn's prompt, no reconnect. No variable.
     /// </summary>
     public bool ShellPoliceOutsidePaths { get; set; } = true;
