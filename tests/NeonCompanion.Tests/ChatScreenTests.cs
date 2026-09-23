@@ -10967,6 +10967,35 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(MidTurnClass.Refused, ChatScreen.MidTurnPolicy(SlashCommand.Vault, hasArgs: false));   // as /tree: the turn owns the transcript
     }
 
+    /// <summary>vault_delete (later on 2026-09-22): not offered, nor its sentence in the rules, until Obsidian allow delete is on — then both ride the next turn.</summary>
+    [Fact]
+    public async Task Turn_VaultDelete_RidesOnlyUnderObsidianAllowDelete_WithItsRuleSentence()
+    {
+        string vault = Path.Combine(_dir, "Vault");
+        Directory.CreateDirectory(Path.Combine(vault, ".obsidian"));
+        _settings.Update(d => { d.TtsOutput = false; d.ObsidianVault = vault; });
+        Assert.False(_settings.Current.ObsidianAllowDelete);
+        _chat.EnqueueText("One.");
+        _chat.EnqueueText("Two.");
+        PushLine("hi");
+        PushLine("/exit");
+        await RunAsync();
+
+        _settings.Update(d => d.ObsidianAllowDelete = true);
+        PushLine("again");
+        PushLine("/exit");
+        await RunAsync();
+
+        var first = _chat.Options[0]!.Tools!.Cast<AIFunction>().Select(t => t.Name).ToArray();
+        var second = _chat.Options[1]!.Tools!.Cast<AIFunction>().Select(t => t.Name).ToArray();
+        Assert.Contains(VaultMoveTool.ToolName, first);
+        Assert.DoesNotContain(VaultDeleteTool.ToolName, first);
+        Assert.DoesNotContain(Assistant.ObsidianDeleteRule, _chat.Requests[0][0].Text!, StringComparison.Ordinal);
+        Assert.Contains(Assistant.ObsidianRule, _chat.Requests[0][0].Text!, StringComparison.Ordinal);
+        Assert.Contains(VaultDeleteTool.ToolName, second);
+        Assert.Contains(Assistant.ObsidianRule + " " + Assistant.ObsidianDeleteRule, _chat.Requests[1][0].Text!, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task Vault_PrintsTheVaultAsATree_WithoutTheDotFolders_HonouringTheTreeSettings()
     {

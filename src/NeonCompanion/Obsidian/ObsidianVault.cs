@@ -782,18 +782,126 @@ public sealed class ObsidianVault
     /// <summary>A copy of the note in the vault's <c>.trash</c> (<c>Plan.md</c>, then <c>Plan 1.md</c>, …); its vault path.</summary>
     private static string KeepCopy(string root, string full, string relative)
     {
-        string trash = Path.Combine(root, TrashFolderName);
-        Directory.CreateDirectory(trash);
-        string name = Path.GetFileNameWithoutExtension(full);
-        string candidate = Path.Combine(trash, name + VaultPaths.NoteExtension);
-        for (int n = 1; File.Exists(candidate); n++)
-        {
-            candidate = Path.Combine(trash, name + " " + n.ToString(CultureInfo.InvariantCulture) + VaultPaths.NoteExtension);
-        }
-
+        string candidate = TrashTarget(root, full, VaultPaths.NoteExtension);
         File.Copy(full, candidate);
         DiagnosticLog.Debug(Category, $"Kept {relative} as {candidate}");
         return TrashFolderName + "/" + Path.GetFileName(candidate);
+    }
+
+    /// <summary>
+    /// A free name in the vault's <c>.trash</c> for the file at <paramref name="full"/>, the folder made when missing:
+    /// its own name, then <c>Plan 1.md</c>, <c>Plan 2.md</c>, … with <paramref name="extension"/> (2026-09-22, shared by
+    /// the kept copies and <see cref="Delete"/>, which keeps an attachment's own). Nothing there is ever overwritten.
+    /// </summary>
+    private static string TrashTarget(string root, string full, string extension)
+    {
+        string trash = Path.Combine(root, TrashFolderName);
+        Directory.CreateDirectory(trash);
+        string name = Path.GetFileNameWithoutExtension(full);
+        string candidate = Path.Combine(trash, name + extension);
+        for (int n = 1; File.Exists(candidate) || Directory.Exists(candidate); n++)
+        {
+            candidate = Path.Combine(trash, name + " " + n.ToString(CultureInfo.InvariantCulture) + extension);
+        }
+
+        return candidate;
+    }
+
+    /// <summary>
+    /// <c>vault_delete</c> (2026-09-22, the user's ask, behind the setting <c>Obsidian allow delete</c>, off by default):
+    /// one note — named as Obsidian names it — or one attachment by its path, moved into the vault's <c>.trash</c>
+    /// under a free name (Obsidian's "Move to Obsidian trash"), never destroyed. A folder, a file under a dot-folder
+    /// or a name nothing matches is refused. The links that still point at it are left alone (a deletion is no
+    /// rename) and named in the result, so the model can tell the user what now reads as unresolved.
+    /// </summary>
+    public string Delete(string target)
+    {
+        lock (_gate)
+        {
+            if (!Open(out string root, out string error))
+            {
+                return error;
+            }
+
+            string reference = Reference(target, out _);
+            string normalized = VaultPaths.Normalize(reference);
+            if (normalized.Length == 0)
+            {
+                return ObsidianText.Required("note");
+            }
+
+            if (VaultPaths.IsHidden(normalized))
+            {
+                return ObsidianText.HiddenPath(normalized);
+            }
+
+            string asPath;
+            try
+            {
+                asPath = Path.GetFullPath(Path.Combine(root, normalized.Replace('/', Path.DirectorySeparatorChar)));
+            }
+            catch (Exception ex) when (ex is ArgumentException or PathTooLongException or NotSupportedException)
+            {
+                return ObsidianText.OutsideVault(normalized);
+            }
+
+            if (!WorkingDirectory.IsInside(root, asPath) || string.Equals(asPath, root, StringComparison.OrdinalIgnoreCase))
+            {
+                return ObsidianText.OutsideVault(normalized);
+            }
+
+            if (Directory.Exists(asPath))
+            {
+                return ObsidianText.IsAFolder(Path.GetRelativePath(root, asPath).Replace('\\', '/'));
+            }
+
+            var found = _index.Resolve(reference);
+            if (found.Relative is not { } relative)
+            {
+                string name = VaultPaths.NameOf(normalized);
+                var near = _index.Notes.Where(n => n.Name.Contains(name, StringComparison.OrdinalIgnoreCase) || n.Aliases.Any(a => a.Contains(name, StringComparison.OrdinalIgnoreCase)))
+                    .Take(5).Select(n => n.Relative).ToList();
+                return ObsidianText.NotFound(reference, near);
+            }
+
+            string full = Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar));
+            string also = found.Note is { } named ? ObsidianText.AlsoNamed(named.Name, found.Others) : "";
+
+            // The notes whose links still reach it, read before the move: once it is gone they resolve to nothing.
+            var linkedFrom = new List<string>();
+            foreach (var source in _index.Notes)
+            {
+                if (ReferenceEquals(source, found.Note))
+                {
+                    continue;
+                }
+
+                bool links = source.Scan.Links.Any(link =>
+                {
+                    var hit = _index.ResolveLink(source, link);
+                    return found.Note is not null
+                        ? ReferenceEquals(hit.Note, found.Note)
+                        : hit.Note is null && string.Equals(hit.Attachment, relative, StringComparison.OrdinalIgnoreCase);
+                });
+                if (links)
+                {
+                    linkedFrom.Add(source.Relative);
+                }
+            }
+
+            linkedFrom.Sort(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                string destination = TrashTarget(root, full, Path.GetExtension(full));
+                File.Move(full, destination);
+                DiagnosticLog.Info(Category, $"Deleted {relative} into {destination}");
+                return ObsidianText.WithAlso(ObsidianText.Deleted(relative, TrashFolderName + "/" + Path.GetFileName(destination), linkedFrom, MaxLinesShown), also);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return ObsidianText.Failed("delete", relative, ex.Message);
+            }
+        }
     }
 
     /// <summary>

@@ -66,7 +66,7 @@ public sealed class ObsidianToolsTests : IDisposable
     public void Names_Schemas_AndDescriptions_ArePinned()
     {
         Assert.Equal(ObsidianToolNames.All, _tools.Select(t => t.Name));
-        Assert.Equal(["vault_search", "vault_list", "vault_read", "vault_links", "vault_daily", "vault_write", "vault_properties", "vault_move"], ObsidianToolNames.All);
+        Assert.Equal(["vault_search", "vault_list", "vault_read", "vault_links", "vault_daily", "vault_write", "vault_properties", "vault_move", "vault_delete"], ObsidianToolNames.All);   // vault_delete the ninth, later on 2026-09-22
         Assert.All(_tools, t => Assert.Contains("Obsidian vault", t.Description, StringComparison.Ordinal));
         Assert.All(_tools, t => Assert.Equal("object", t.JsonSchema.GetProperty("type").GetString()));
         Assert.True(ObsidianToolNames.All.All(App.ChatScreen.ObsidianToolNames.Contains));
@@ -86,6 +86,83 @@ public sealed class ObsidianToolsTests : IDisposable
         Assert.Equal(["note", "set", "remove"], Props(Tool<VaultPropertiesTool>()));
         Assert.Equal(["note", "to"], Props(Tool<VaultMoveTool>()));
         Assert.Equal(["note", "to"], Required(Tool<VaultMoveTool>()));
+        Assert.Equal(["note"], Props(Tool<VaultDeleteTool>()));
+        Assert.Equal(["note"], Required(Tool<VaultDeleteTool>()));
+    }
+
+    // ---- vault_delete (later on 2026-09-22) ----
+
+    [Fact]
+    public void AllowDelete_IsOffByDefault_AndTheOfferDropsTheToolUntilItIsOn()
+    {
+        Assert.False(new AppSettingsData().ObsidianAllowDelete);
+        Assert.Equal(ObsidianToolNames.WithoutDelete, App.ChatScreen.ObsidianToolsFor(_tools, _settings).Select(t => t.Name));
+        _settings.ObsidianAllowDelete = true;
+        Assert.Same(_tools, App.ChatScreen.ObsidianToolsFor(_tools, _settings));
+    }
+
+    [Fact]
+    public async Task Delete_WithTheSettingOff_IsRefused_AndNothingMoves()
+    {
+        Put("Plan.md", "# Plan");
+
+        Assert.Equal(ObsidianText.DeleteOff, await Invoke<VaultDeleteTool>(("note", "Plan")));
+        Assert.True(File.Exists(Path.Combine(_root, "Plan.md")));
+        Assert.False(Directory.Exists(Path.Combine(_root, ".trash")));
+    }
+
+    [Fact]
+    public async Task Delete_MovesTheNoteIntoTheTrash_AndNamesTheNotesStillLinkingToIt()
+    {
+        _settings.ObsidianAllowDelete = true;
+        Put("Projects/Plan.md", "# Plan");
+        Put("Home.md", "See [[Plan]].");
+        Put("Log.md", "Also [the plan](Projects/Plan.md).");
+        Put("Other.md", "Nothing here.");
+
+        string result = await Invoke<VaultDeleteTool>(("note", "[[Plan]]"));
+
+        Assert.Equal("deleted Projects/Plan.md (moved to .trash/Plan.md); 2 notes still link to it:\nHome.md\nLog.md", result);
+        Assert.False(File.Exists(Path.Combine(_root, "Projects", "Plan.md")));
+        Assert.Equal("# Plan", Get(".trash/Plan.md"));
+        Assert.Equal("See [[Plan]].", Get("Home.md"));   // the links are left as they are
+
+        // A second note of the same name takes the next free trash name; Home's [[Plan]] now resolves to it.
+        Put("Plan.md", "# Again");
+        Assert.Equal("deleted Plan.md (moved to .trash/Plan 1.md); 1 note still links to it:\nHome.md", await Invoke<VaultDeleteTool>(("note", "Plan.md")));
+        Assert.Equal("# Again", Get(".trash/Plan 1.md"));
+        Assert.Equal("deleted Plan.md (moved to .trash/Plan 1.md); nothing links to it", ObsidianText.Note(ObsidianText.Deleted("Plan.md", ".trash/Plan 1.md", [])));
+    }
+
+    [Fact]
+    public async Task Delete_TakesAnAttachmentByItsPath_KeepingItsExtension()
+    {
+        _settings.ObsidianAllowDelete = true;
+        Put("assets/diagram.png", "png");
+        Put("Home.md", "![[diagram.png]]");
+
+        string result = await Invoke<VaultDeleteTool>(("note", "assets/diagram.png"));
+
+        Assert.Equal("deleted assets/diagram.png (moved to .trash/diagram.png); 1 note still links to it:\nHome.md", result);
+        Assert.Equal("png", Get(".trash/diagram.png"));
+        Assert.False(File.Exists(Path.Combine(_root, "assets", "diagram.png")));
+    }
+
+    [Fact]
+    public async Task Delete_RefusesAFolder_ADotFolder_OutsideTheVault_AndANameNothingMatches()
+    {
+        _settings.ObsidianAllowDelete = true;
+        Put("Projects/Plan.md", "# Plan");
+        Put(".obsidian/app.json", "{}");
+
+        Assert.Equal(ObsidianText.IsAFolder("Projects"), await Invoke<VaultDeleteTool>(("note", "Projects")));
+        Assert.Equal(ObsidianText.HiddenPath(".obsidian/app.json"), await Invoke<VaultDeleteTool>(("note", ".obsidian/app.json")));
+        Assert.Equal(ObsidianText.OutsideVault("../outside.md"), await Invoke<VaultDeleteTool>(("note", "../outside.md")));
+        Assert.StartsWith("Error: no note matches \"Nope\"", await Invoke<VaultDeleteTool>(("note", "Nope")), StringComparison.Ordinal);
+        Assert.Equal(ObsidianText.Required("note"), await Invoke<VaultDeleteTool>(("note", "")));
+        Assert.True(File.Exists(Path.Combine(_root, "Projects", "Plan.md")));
+        Assert.Equal("Error: Projects is a folder; vault_delete takes one note or attachment at a time.", ObsidianText.IsAFolder("Projects"));
+        Assert.Equal("Error: deleting is off (Obsidian allow delete, on the Obsidian tab of /tools).", ObsidianText.DeleteOff);
     }
 
     [Fact]

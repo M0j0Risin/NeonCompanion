@@ -2090,7 +2090,8 @@ internal sealed partial class ChatScreen
             effective.ShellToolBridge,
             effective.ShellPoliceOutsidePaths,
             ObsidianOffered(effective),
-            Without(_vaultTools, disabled).Count);
+            Without(ObsidianToolsFor(_vaultTools, effective), disabled).Count,
+            effective.ObsidianAllowDelete);
     }
 
     /// <summary>
@@ -2137,7 +2138,7 @@ internal sealed partial class ChatScreen
         var disabled = ToolsText.DisabledSet(effective.ToolsDisabled);
         var fileTools = FileToolsFor(_fileTools, effective.FileSafeEdits);   // restore only with File safe edits on (later still on 2026-09-20)
         bool files = effective.FileTools && Without(fileTools, disabled).Count > 0;
-        var groups = SystemPromptSummary.ToolGroups(_clockTools, _timerTools, fileTools, _memoryTools, effective.Memory, effective.LlmOfferTools, WebToolsFor(_webTools, files), effective.WebTools, effective.FileTools, _askTools, effective.AskUser, _pane.Enabled, _skillTools, effective.AgentSkills, _sessionTools, effective.SessionTool, disabled, skillInstalled: Catalog(effective).Count > 0, mcp: _mcp.ServerTools, mcpEnabled: effective.McpServers, git: _gitTools, gitEnabled: effective.GitNativeTools, shell: _shellTools, shellEnabled: ShellOffered(effective), codeAvailable: CodeAvailable(), obsidian: _vaultTools, obsidianEnabled: ObsidianOffered(effective));
+        var groups = SystemPromptSummary.ToolGroups(_clockTools, _timerTools, fileTools, _memoryTools, effective.Memory, effective.LlmOfferTools, WebToolsFor(_webTools, files), effective.WebTools, effective.FileTools, _askTools, effective.AskUser, _pane.Enabled, _skillTools, effective.AgentSkills, _sessionTools, effective.SessionTool, disabled, skillInstalled: Catalog(effective).Count > 0, mcp: _mcp.ServerTools, mcpEnabled: effective.McpServers, git: _gitTools, gitEnabled: effective.GitNativeTools, shell: _shellTools, shellEnabled: ShellOffered(effective), codeAvailable: CodeAvailable(), obsidian: ObsidianToolsFor(_vaultTools, effective), obsidianEnabled: ObsidianOffered(effective));
         return groups.SelectMany(g => g.Tools.Where(t => g.Offers(t.Name)).Select(t => new CompletionItem(t.Name, t.Description))).ToList();
     }
 
@@ -2618,7 +2619,7 @@ internal sealed partial class ChatScreen
         var disabled = ToolsText.DisabledSet(effective.ToolsDisabled);
         var fileTools = FileToolsFor(_fileTools, effective.FileSafeEdits);   // restore only with File safe edits on (later still on 2026-09-20): /sys shows the list cut, Files (14)
         bool files = effective.FileTools && Without(fileTools, disabled).Count > 0;   // the turn's rule (PrepareTurn): an emptied file group is the switch off
-        return SystemPromptSummary.ToolGroups(_clockTools, _timerTools, fileTools, _memoryTools, effective.Memory, effective.LlmOfferTools, WebToolsFor(_webTools, files), effective.WebTools, effective.FileTools, _askTools, effective.AskUser, _pane.Enabled, _skillTools, effective.AgentSkills, _sessionTools, effective.SessionTool, disabled, mcp: _mcp.ServerTools, mcpEnabled: effective.McpServers, git: _gitTools, gitEnabled: effective.GitNativeTools, shell: _shellTools, shellEnabled: ShellOffered(effective), codeAvailable: CodeAvailable(), obsidian: ObsidianOffered(effective) ? _vaultTools : null);   // the vault group only with a vault (2026-09-22): /sys stays as it was for a profile that never names one
+        return SystemPromptSummary.ToolGroups(_clockTools, _timerTools, fileTools, _memoryTools, effective.Memory, effective.LlmOfferTools, WebToolsFor(_webTools, files), effective.WebTools, effective.FileTools, _askTools, effective.AskUser, _pane.Enabled, _skillTools, effective.AgentSkills, _sessionTools, effective.SessionTool, disabled, mcp: _mcp.ServerTools, mcpEnabled: effective.McpServers, git: _gitTools, gitEnabled: effective.GitNativeTools, shell: _shellTools, shellEnabled: ShellOffered(effective), codeAvailable: CodeAvailable(), obsidian: ObsidianOffered(effective) ? ObsidianToolsFor(_vaultTools, effective) : null);   // the vault group only with a vault (2026-09-22): /sys stays as it was for a profile that never names one
     }
 
     /// <summary>Whether <c>execute_code</c> has a language to run (2026-09-21): the setting's languages, one of them installed.</summary>
@@ -2646,7 +2647,7 @@ internal sealed partial class ChatScreen
         var disabled = ToolsText.DisabledSet(effective.ToolsDisabled);
         // The whole file list, restore noted under File safe edits off (later still on 2026-09-20): the row stays, dim, with its reason — the download_file shape.
         _interpreters.Refresh();
-        var groups = SystemPromptSummary.ToolGroups(_clockTools, _timerTools, _fileTools, _memoryTools, effective.Memory, effective.LlmOfferTools, _webTools, effective.WebTools, effective.FileTools, _askTools, effective.AskUser, _pane.Enabled, _skillTools, effective.AgentSkills, _sessionTools, effective.SessionTool, disabled, skillInstalled: Catalog(effective).Count > 0, git: _gitTools, gitEnabled: effective.GitNativeTools, safeEdits: effective.FileSafeEdits, shell: _shellTools, shellEnabled: ShellOffered(effective), codeAvailable: CodeAvailable(), obsidian: _vaultTools, obsidianEnabled: ObsidianOffered(effective));
+        var groups = SystemPromptSummary.ToolGroups(_clockTools, _timerTools, _fileTools, _memoryTools, effective.Memory, effective.LlmOfferTools, _webTools, effective.WebTools, effective.FileTools, _askTools, effective.AskUser, _pane.Enabled, _skillTools, effective.AgentSkills, _sessionTools, effective.SessionTool, disabled, skillInstalled: Catalog(effective).Count > 0, git: _gitTools, gitEnabled: effective.GitNativeTools, safeEdits: effective.FileSafeEdits, shell: _shellTools, shellEnabled: ShellOffered(effective), codeAvailable: CodeAvailable(), obsidian: ObsidianToolsFor(_vaultTools, effective), obsidianEnabled: ObsidianOffered(effective));
         return new ToolsFacts(groups, effective.LlmOfferTools, disabled);
     }
 
@@ -2871,7 +2872,7 @@ internal sealed partial class ChatScreen
     };
 
     /// <summary>
-    /// The eight vault tools (2026-09-22), offered on every turn while <see cref="ObsidianOffered"/> says so (headless
+    /// The nine vault tools (2026-09-22; vault_delete the ninth later that day, offered only under Obsidian allow delete — <see cref="ObsidianToolsFor"/>), offered on every turn while <see cref="ObsidianOffered"/> says so (headless
     /// too): the reads first, then the writes, the move last. Each reads the settings in force at the call.
     /// </summary>
     public static IReadOnlyList<AIFunction> ObsidianTools(ObsidianVault vault, Func<AppSettingsData> effective) => new AIFunction[]
@@ -2884,7 +2885,20 @@ internal sealed partial class ChatScreen
         new VaultWriteTool(vault, effective),
         new VaultPropertiesTool(vault, effective),
         new VaultMoveTool(vault, effective),
+        new VaultDeleteTool(vault, effective),
     };
+
+    /// <summary>
+    /// <paramref name="tools"/> less <c>vault_delete</c> while the setting <c>Obsidian allow delete</c> is off (2026-09-22,
+    /// the user's ask: off by default; the <see cref="ShellToolsFor"/> shape), so the tool shows nowhere — not the turn,
+    /// <c>/tools</c>' Offered tab, <c>/sys</c> or the <c>$</c>-mentions — until it is on. Pure.
+    /// </summary>
+    public static IReadOnlyList<AIFunction> ObsidianToolsFor(IReadOnlyList<AIFunction> tools, AppSettingsData effective)
+    {
+        ArgumentNullException.ThrowIfNull(tools);
+        ArgumentNullException.ThrowIfNull(effective);
+        return effective.ObsidianAllowDelete ? tools : tools.Where(t => t is not VaultDeleteTool).ToList();
+    }
 
     /// <summary>The vault tools' names: their result's first line is the transcript's note (<see cref="ObsidianText.Note"/>).</summary>
     public static readonly IReadOnlySet<string> ObsidianToolNames = new HashSet<string>(StringComparer.Ordinal)
@@ -2897,6 +2911,7 @@ internal sealed partial class ChatScreen
         VaultWriteTool.ToolName,
         VaultPropertiesTool.ToolName,
         VaultMoveTool.ToolName,
+        VaultDeleteTool.ToolName,
     };
 
     /// <summary>Whether the vault group is offered (2026-09-22): the setting <c>Obsidian tools</c> on and <c>Obsidian vault</c> naming a folder with <c>.obsidian</c> — a vault gone since it was set reads as none.</summary>
@@ -3139,6 +3154,8 @@ internal sealed partial class ChatScreen
         // The vault tools after the shell tools (2026-09-22): the setting Obsidian tools and a vault set are the group's switch.
         bool obsidian = obsidianEnabled && obsidianTools is { Count: > 0 };
         offered = obsidian ? [.. offered, .. obsidianTools!] : offered;
+        // The vault rule's delete sentence rides only while vault_delete is offered (later on 2026-09-22): Obsidian allow delete on, the tool not switched off.
+        bool obsidianDelete = obsidian && obsidianTools!.Any(t => t is VaultDeleteTool);
         // The shell rule's execute_code sentence promises neon_tools only while the setting Shell tool bridge is on (later on 2026-09-21).
         bool bridge = shell && shellBridge;
         // … and its head says the shell stays under the working directory only while the setting Shell police outside paths is on (2026-09-22); off, it says a command starts there and no more.
@@ -3193,7 +3210,7 @@ internal sealed partial class ChatScreen
         assistant.OpeningCalls = opening;
         // The notified exits since the last turn ride in as seeded polls (2026-09-21), on every turn, while process is offered.
         assistant.PendingCalls = processes is null ? [] : PendingProcessPolls(processes, assistant.Tools);
-        assistant.History.SystemPrompt = Assistant.SystemPrompt(speechOutput, memoryEnabled ? memory.Snapshot() : null, persona.Read(), operata.Read(), vocalia.Read(), web: web, files: files, ask: ask, project: project, skills: catalog, markdown: markdown, sessions: sessions, download: download, recall: recall is not null, delete: delete, mcp: mcp, safeEdits: safeEdits, timers: timers, git: git, shell: shell, bridge: bridge, police: police, obsidian: obsidian);
+        assistant.History.SystemPrompt = Assistant.SystemPrompt(speechOutput, memoryEnabled ? memory.Snapshot() : null, persona.Read(), operata.Read(), vocalia.Read(), web: web, files: files, ask: ask, project: project, skills: catalog, markdown: markdown, sessions: sessions, download: download, recall: recall is not null, delete: delete, mcp: mcp, safeEdits: safeEdits, timers: timers, git: git, shell: shell, bridge: bridge, police: police, obsidian: obsidian, obsidianDelete: obsidianDelete);
     }
 
     /// <summary>
@@ -7721,7 +7738,7 @@ internal sealed partial class ChatScreen
         bool styled = StyledReply(effective.TranscriptMarkdown, _pane.Enabled);
         // The shells found are probed afresh per turn (2026-09-21): an install during the session shows without a restart, and the schema and the run agree.
         _interpreters.Refresh();
-        PrepareTurn(assistant, _memory, _memoryTools, [.. _clockTools, .. _timerTools], _persona, _operata, _vocalia, effective.Memory, speaker is not null, effective.LlmMaxToolIterations, effective.LlmOfferTools, _webTools, effective.WebTools, ContextGuardFor(effective, _session.ContextLength), _fileTools, effective.FileTools, _pane.Enabled && effective.AskUser ? _askTools : null, SkillsFor(effective), markdown, _sessionTools, effective.SessionTool, ToolsText.DisabledSet(effective.ToolsDisabled), _mcp.Tools, effective.McpServers, effective.FileSafeEdits, _gitTools, effective.GitNativeTools, _shellTools, ShellOffered(effective), _processes, effective.ShellToolBridge, effective.ShellPoliceOutsidePaths, _vaultTools, ObsidianOffered(effective));
+        PrepareTurn(assistant, _memory, _memoryTools, [.. _clockTools, .. _timerTools], _persona, _operata, _vocalia, effective.Memory, speaker is not null, effective.LlmMaxToolIterations, effective.LlmOfferTools, _webTools, effective.WebTools, ContextGuardFor(effective, _session.ContextLength), _fileTools, effective.FileTools, _pane.Enabled && effective.AskUser ? _askTools : null, SkillsFor(effective), markdown, _sessionTools, effective.SessionTool, ToolsText.DisabledSet(effective.ToolsDisabled), _mcp.Tools, effective.McpServers, effective.FileSafeEdits, _gitTools, effective.GitNativeTools, _shellTools, ShellOffered(effective), _processes, effective.ShellToolBridge, effective.ShellPoliceOutsidePaths, ObsidianToolsFor(_vaultTools, effective), ObsidianOffered(effective));
         bool armed = false;
         EchoProbe? probe = null;
         if (speaker is not null && _voice.InterruptReady)

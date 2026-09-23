@@ -657,6 +657,7 @@ public sealed class AppSettings : IDisposable
         GitNativeEmail = source.GitNativeEmail,
         GitNativeName = source.GitNativeName,
         ObsidianTools = source.ObsidianTools,
+        ObsidianAllowDelete = source.ObsidianAllowDelete,
         ObsidianVault = source.ObsidianVault,
         ShellCodeLanguages = [.. source.ShellCodeLanguages],
         ShellCodeMaxToolCalls = source.ShellCodeMaxToolCalls,

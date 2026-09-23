@@ -132,6 +132,35 @@ public static class ObsidianText
         (created ? "created " : (append ? "appended to " : "prepended to ")) + relative
         + (heading.Length > 0 ? " under \"" + heading + "\"" : "") + " (" + Counts(text).TrimStart(',', ' ') + ")";
 
+    /// <summary><c>vault_delete</c> named a folder (2026-09-22): only a note or an attachment goes. Pinned.</summary>
+    public static string IsAFolder(string path) => $"Error: {path} is a folder; vault_delete takes one note or attachment at a time.";
+
+    /// <summary><c>vault_delete</c> called while the setting <c>Obsidian allow delete</c> is off (2026-09-22): the guard behind the offer. Pinned.</summary>
+    public const string DeleteOff = "Error: deleting is off (Obsidian allow delete, on the Obsidian tab of /tools).";
+
+    /// <summary>
+    /// <c>vault_delete</c>'s result (2026-09-22): where the file went, then the notes whose links still point at it —
+    /// left as they are, so Obsidian now shows them unresolved. <paramref name="linkedFrom"/> is the whole list;
+    /// past <paramref name="max"/> the rest is counted. Pinned.
+    /// </summary>
+    public static string Deleted(string relative, string trashPath, IReadOnlyList<string> linkedFrom, int max = int.MaxValue)
+    {
+        ArgumentNullException.ThrowIfNull(linkedFrom);
+        string head = $"deleted {relative} (moved to {trashPath})";
+        if (linkedFrom.Count == 0)
+        {
+            return head + "; nothing links to it";
+        }
+
+        string list = string.Join("\n", linkedFrom.Take(max));
+        if (linkedFrom.Count > max)
+        {
+            list += "\n… " + Count(linkedFrom.Count - max, "more");
+        }
+
+        return head + "; " + Count(linkedFrom.Count, "note") + " still " + (linkedFrom.Count == 1 ? "links" : "link") + " to it:\n" + list;
+    }
+
     /// <summary>What an overwrite with <c>File safe edits</c> on adds: where the previous version went.</summary>
     public static string KeptIn(string trashPath) => $"; the previous version is in {trashPath}";
 

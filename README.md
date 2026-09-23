@@ -278,6 +278,7 @@ Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Obsidian, Web
 |---|---|---|
 | Obsidian tools | Offers the vault tools (search, list, read, links, daily, write, properties, move) over the vault below. On, but nothing is offered until a vault is set. | on |
 | Obsidian vault | The Obsidian vault's folder — the one holding `.obsidian` (a folder Obsidian has opened); editing the row opens the `/cwd browse` folder picker on the vault set (on the working directory while none is). Separate from the working directory: the vault is where the notes live. `NEONCOMPANION_OBSIDIAN_VAULT` outranks it. | (not set) |
+| Obsidian allow delete | Offers `vault_delete`, which moves a note or attachment into the vault's `.trash` (never deleted for good). Off by default — a profile saved before it existed reads as off too. | off |
 
 #### Options
 
@@ -474,6 +475,7 @@ The notes of an Obsidian vault (the *Obsidian vault* setting), read and written 
 | `vault_write` | `note, content, mode?, heading?` | `create` (a bare name goes where Obsidian puts new notes), `overwrite`, `append` or `prepend` — at the note's end or top, or within one heading's section. |
 | `vault_properties` | `note, set?, remove?` | Lists the note's properties, or sets and removes them in one write; only the named keys' lines change. |
 | `vault_move` | `note, to` | Renames it (a bare name), moves it into a folder (`Archive/`), or to a new path, and rewrites every link that pointed at it. |
+| `vault_delete` | `note` | Offered only while *Obsidian allow delete* is on (off by default). Moves one note (named as Obsidian names it) or one attachment (by its path) into the vault's `.trash`, where Obsidian can restore it, and lists the notes whose links still point at it; never a folder or anything under a dot-folder. |
 
 </details>
 

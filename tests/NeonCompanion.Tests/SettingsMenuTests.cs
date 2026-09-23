@@ -750,7 +750,7 @@ public class SettingsMenuTests : IDisposable
                 SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellCodeMaxToolCalls,
                 SettingsField.LlmCompactShowSummary, SettingsField.GitNativeEmail, SettingsField.GitNativeName, SettingsField.ShellToolBridge, SettingsField.FileBrowserMode, SettingsField.ShowToolbar, SettingsField.ShellPoliceOutsidePaths,
                 SettingsField.ToolCollapseCount, SettingsField.CodeCollapseCount,
-                SettingsField.ObsidianTools, SettingsField.ObsidianVault,
+                SettingsField.ObsidianTools, SettingsField.ObsidianVault, SettingsField.ObsidianAllowDelete,
             },
             Enum.GetValues<SettingsField>());
         // The compact rows: on the LLM tab after the context length but no reconnect; the type a picker, the two others typed.
@@ -3798,6 +3798,8 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("the banner alone at startup", SettingsMenu.ToggleDescribe(SettingsField.WelcomeSplash, false));
         Assert.Equal("show the working directory in the header", SettingsMenu.ToggleDescribe(SettingsField.ShowWorkingDirectory, true));   // the user's words, 2026-09-21
         Assert.Equal("hide the working directory in the header", SettingsMenu.ToggleDescribe(SettingsField.ShowWorkingDirectory, false));
+        Assert.Equal("vault_delete may move a note or attachment to the vault's .trash", SettingsMenu.ToggleDescribe(SettingsField.ObsidianAllowDelete, true));   // later on 2026-09-22
+        Assert.Equal("no vault tool deletes anything", SettingsMenu.ToggleDescribe(SettingsField.ObsidianAllowDelete, false));
         Assert.Equal("show the toolbar", SettingsMenu.ToggleDescribe(SettingsField.ShowToolbar, true));
         Assert.Equal("hide the toolbar", SettingsMenu.ToggleDescribe(SettingsField.ShowToolbar, false));
         Assert.Equal("a message sent while a reply runs is queued and sent when the reply ends", SettingsMenu.ToggleDescribe(SettingsField.QueueMessages, true));

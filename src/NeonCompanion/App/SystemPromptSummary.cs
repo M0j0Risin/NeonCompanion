@@ -46,6 +46,7 @@ namespace NeonCompanion.App;
 /// <param name="ShellPolice">The setting <c>Shell police outside paths</c> (2026-09-22): off, the shell rule is an <c>…Unpoliced</c> variant, which says a command starts in the working directory and no more.</param>
 /// <param name="ObsidianEnabled">Whether the vault tools may be offered (2026-09-22): the setting <c>Obsidian tools</c> on and <c>Obsidian vault</c> naming a folder with <c>.obsidian</c> — the group's switch (<see cref="ChatScreen.ObsidianOffered"/>).</param>
 /// <param name="ObsidianTools">How many vault tools the next turn offers (the ones switched off on <c>/tools</c> left out); the rules carry <see cref="Assistant.ObsidianRule"/> while any is.</param>
+/// <param name="ObsidianAllowDelete">The setting <c>Obsidian allow delete</c> (later on 2026-09-22, off by default): on, and <c>vault_delete</c> not switched off, the vault rule gains <see cref="Assistant.ObsidianDeleteRule"/>.</param>
 public sealed record SystemPromptFacts(
     string? Persona,
     string? OperatingRules,
@@ -78,7 +79,8 @@ public sealed record SystemPromptFacts(
     bool ShellBridge = false,
     bool ShellPolice = true,
     bool ObsidianEnabled = false,
-    int ObsidianTools = 0)
+    int ObsidianTools = 0,
+    bool ObsidianAllowDelete = false)
 {
     /// <summary>Whether the rules carry <see cref="Assistant.McpRule"/>: tools on, the MCP switch on and at least one MCP tool offered.</summary>
     public bool Mcp => ToolsEnabled && McpEnabled && McpTools > 0;
@@ -97,6 +99,9 @@ public sealed record SystemPromptFacts(
 
     /// <summary>Whether the rules carry <see cref="Assistant.ObsidianRule"/>: tools on, a vault set with its switch on, and at least one vault tool offered (2026-09-22).</summary>
     public bool Obsidian => ToolsEnabled && ObsidianEnabled && ObsidianTools > 0;
+
+    /// <summary>Whether that rule is followed by <see cref="Assistant.ObsidianDeleteRule"/>: <c>vault_delete</c> offered — the setting <c>Obsidian allow delete</c> on and the tool not switched off (later on 2026-09-22).</summary>
+    public bool ObsidianDelete => Obsidian && ObsidianAllowDelete && !Off(NeonCompanion.Llm.Tools.VaultDeleteTool.ToolName);
 
     /// <summary>The next turn's reply is styled Markdown and asked for as such (<see cref="ChatScreen.MarkdownTurn"/>): the setting, the pane, and the turn not spoken.</summary>
     public bool Markdown => ChatScreen.MarkdownTurn(TranscriptMarkdown, PaneOn, TtsOutput && SpeechReady);
@@ -268,7 +273,7 @@ public static class SystemPromptSummary
 
         bool customRules = !string.IsNullOrWhiteSpace(facts.OperatingRules);
         string defaultLabel = !facts.ToolsEnabled ? $"default ({ToolsOffSuffix})" : !facts.FilesEnabled ? $"default ({FilesOffSuffix})" : "default";
-        string rules = customRules ? facts.OperatingRules!.Trim() : Assistant.DefaultRules(facts.Markdown, facts.ToolsEnabled, facts.FilesEnabled, delete: !facts.Off(DeleteTool.ToolName), mcp: facts.Mcp, safeEdits: facts.FileSafeEdits, timers: facts.Timers, git: facts.Git, shell: facts.Shell, bridge: facts.Bridge, police: facts.Police, obsidian: facts.Obsidian);
+        string rules = customRules ? facts.OperatingRules!.Trim() : Assistant.DefaultRules(facts.Markdown, facts.ToolsEnabled, facts.FilesEnabled, delete: !facts.Off(DeleteTool.ToolName), mcp: facts.Mcp, safeEdits: facts.FileSafeEdits, timers: facts.Timers, git: facts.Git, shell: facts.Shell, bridge: facts.Bridge, police: facts.Police, obsidian: facts.Obsidian, obsidianDelete: facts.ObsidianDelete);
         sections.Add(new(
             customRules ? $"Operating rules — {OperataFile.FileName} ({rules.Length.ToString(CultureInfo.InvariantCulture)} chars)" : $"Operating rules — {defaultLabel}",
             rules,
@@ -498,7 +503,8 @@ public static class SystemPromptSummary
             shell: facts.Shell,
             bridge: facts.Bridge,
             police: facts.Police,
-            obsidian: facts.Obsidian);
+            obsidian: facts.Obsidian,
+            obsidianDelete: facts.ObsidianDelete);
     }
 
     /// <summary>The Prompt tab: every section's heading and, when it has one, its text.</summary>

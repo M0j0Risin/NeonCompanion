@@ -316,6 +316,9 @@ public enum SettingsField
 
     /// <summary>The Obsidian vault's folder (<see cref="Settings.AppSettingsData.ObsidianVault"/>): the <c>/cwd browse</c> folder picker, or a typed full path; it must hold <c>.obsidian</c>, and empty clears it. The Obsidian tab's second row (2026-09-22); no reconnect (read at each call). Last in the enum, as every newcomer.</summary>
     ObsidianVault,
+
+    /// <summary>A toggle: whether a turn offers <c>vault_delete</c> (<see cref="Settings.AppSettingsData.ObsidianAllowDelete"/>), off by default. The Obsidian tab's third row (2026-09-22); no reconnect (read at each turn and call). Last in the enum, as every newcomer.</summary>
+    ObsidianAllowDelete,
 }
 
 /// <summary>The tabs of <c>/settings</c> on the pane, in strip order (Sessions right after General — the user's order, 2026-09-18; STT last since 2026-09-19, when the Ask, Files and Web tabs moved to <c>/tools</c> — <see cref="SettingsMenu.ToolsTabFields"/> — and, later that day, the Skills tab to <c>/skills</c> as its Options tab — <see cref="SettingsMenu.SkillsTabFields"/>); the value is the index into <see cref="SettingsMenu.TabTitles"/> and <see cref="SettingsMenu.TabFields"/>.</summary>
@@ -573,7 +576,7 @@ internal sealed class SettingsMenu
         [SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellPoliceOutsidePaths, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellToolBridge, SettingsField.ShellCodeMaxToolCalls],
         [SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices],
         [SettingsField.GitNativeTools, SettingsField.GitNativeDiffMaxLines, SettingsField.GitNativeLogMaxCommits, SettingsField.GitNativeEmail, SettingsField.GitNativeName],
-        [SettingsField.ObsidianTools, SettingsField.ObsidianVault],
+        [SettingsField.ObsidianTools, SettingsField.ObsidianVault, SettingsField.ObsidianAllowDelete],
         [SettingsField.ToolsDollarMention, SettingsField.ToolCollapseCount, SettingsField.CodeCollapseCount],
     ];
 
@@ -812,7 +815,7 @@ internal sealed class SettingsMenu
             or SettingsField.QueueMessages or SettingsField.AllowSkillDelete or SettingsField.SessionLogging or SettingsField.SessionTool
             or SettingsField.ToolsDollarMention or SettingsField.ReflectionIncludesSessions or SettingsField.McpServers or SettingsField.GitNativeTools
             or SettingsField.LlmCompactShowSummary or SettingsField.ShellToolBridge or SettingsField.ShellPoliceOutsidePaths
-            or SettingsField.ObsidianTools;
+            or SettingsField.ObsidianTools or SettingsField.ObsidianAllowDelete;
 
     public static string FieldName(SettingsField field) => field switch
     {
@@ -880,6 +883,7 @@ internal sealed class SettingsMenu
         SettingsField.GitNativeName => "Git native name",
         SettingsField.ObsidianTools => "Obsidian tools",
         SettingsField.ObsidianVault => "Obsidian vault",
+        SettingsField.ObsidianAllowDelete => "Obsidian allow delete",
         SettingsField.WebBrowserMode => "Web browser mode",
         SettingsField.WebBrowserPath => "Web browser path",
         SettingsField.WebBrowserNetworkMode => "Web browser network mode",
@@ -1011,6 +1015,7 @@ internal sealed class SettingsMenu
             SettingsField.GitNativeEmail => string.IsNullOrWhiteSpace(data.GitNativeEmail) ? NoGitIdentityLabel : data.GitNativeEmail,
             SettingsField.GitNativeName => string.IsNullOrWhiteSpace(data.GitNativeName) ? NoGitIdentityLabel : data.GitNativeName,
             SettingsField.ObsidianTools => OnOff(data.ObsidianTools),
+            SettingsField.ObsidianAllowDelete => OnOff(data.ObsidianAllowDelete),
             SettingsField.ObsidianVault => string.IsNullOrWhiteSpace(data.ObsidianVault) ? NoObsidianVaultLabel : data.ObsidianVault,
             SettingsField.WebBrowserMode => data.WebBrowserMode,
             SettingsField.WebBrowserPath => string.IsNullOrWhiteSpace(data.WebBrowserPath) ? AutoBrowserLabel(locatedBrowser) : data.WebBrowserPath,
@@ -2760,6 +2765,7 @@ internal sealed class SettingsMenu
             SettingsField.WebTools => data.WebTools,
             SettingsField.GitNativeTools => data.GitNativeTools,
             SettingsField.ObsidianTools => data.ObsidianTools,
+            SettingsField.ObsidianAllowDelete => data.ObsidianAllowDelete,
             SettingsField.LlmCompactShowSummary => data.LlmCompactShowSummary,
             SettingsField.TtsVoicePreview => data.TtsVoicePreview,
             SettingsField.FileTools => data.FileTools,
@@ -2806,6 +2812,7 @@ internal sealed class SettingsMenu
             case SettingsField.WebTools: data.WebTools = on; break;
             case SettingsField.GitNativeTools: data.GitNativeTools = on; break;
             case SettingsField.ObsidianTools: data.ObsidianTools = on; break;
+            case SettingsField.ObsidianAllowDelete: data.ObsidianAllowDelete = on; break;
             case SettingsField.LlmCompactShowSummary: data.LlmCompactShowSummary = on; break;
             case SettingsField.TtsVoicePreview: data.TtsVoicePreview = on; break;
             case SettingsField.FileTools: data.FileTools = on; break;
@@ -2861,6 +2868,7 @@ internal sealed class SettingsMenu
         SettingsField.WebTools => on ? "the model may search and fetch the web" : "no web tools",
         SettingsField.GitNativeTools => on ? "the model reads and changes the git repository in the working directory" : "no git native tools",
         SettingsField.ObsidianTools => on ? "the model reads and edits the notes of the Obsidian vault" : "no vault tools",
+        SettingsField.ObsidianAllowDelete => on ? "vault_delete may move a note or attachment to the vault's .trash" : "no vault tool deletes anything",
         SettingsField.LlmCompactShowSummary => on ? "the summary's lines or the pruned results, then the protected counts" : "the one compact notice alone",
         SettingsField.AgentSkills => on ? "the skills catalog, load_skill and skill_editor are offered" : "no skills, no project notes",
         SettingsField.ExternalSkills => on ? "%USERPROFILE%\\.agents\\skills is read too" : "profile and global skills only",

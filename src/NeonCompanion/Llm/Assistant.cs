@@ -198,6 +198,14 @@ public sealed class Assistant
         NeonCompanion.Llm.Tools.VaultMoveTool.ToolName + " renames or moves one with its links kept; the vault's .obsidian folder is the app's own.";
 
     /// <summary>
+    /// The sentence <see cref="ObsidianRule"/> gains while <c>vault_delete</c> is offered (later on 2026-09-22: the setting
+    /// <c>Obsidian allow delete</c> on, off by default, and the tool not switched off): what the delete does and that it
+    /// waits for the user's word. Appended right after the vault sentence by <see cref="DefaultRules"/>. Pinned.
+    /// </summary>
+    public const string ObsidianDeleteRule =
+        NeonCompanion.Llm.Tools.VaultDeleteTool.ToolName + " moves a note or attachment into the vault's .trash, where Obsidian can restore it; use it only when the user asks for a deletion.";
+
+    /// <summary>
     /// The sentence the default rules gain while the shell tools are offered (the setting <c>Shell command
     /// policy</c> not <c>off</c>, 2026-09-21): appended after <see cref="GitRule"/> by <see cref="DefaultRules"/>. It
     /// says what the tool is for, that the sandbox is only where a command starts, that the user stands between
@@ -343,11 +351,12 @@ public sealed class Assistant
     /// <paramref name="shell"/> (the shell tools offered: <c>Shell command policy</c> not off, 2026-09-21), as
     /// <see cref="ShellRuleWithoutBridge"/> unless <paramref name="bridge"/> (the setting <c>Shell tool bridge</c>, off by
     /// default, later that day), and as the <c>…Unpoliced</c> variant with <paramref name="police"/> false (the setting <c>Shell police
-    /// outside paths</c> off, 2026-09-22; <see cref="ShellRuleFor"/>). With <paramref name="markdown"/> false it is <see cref="OperatingRules"/> and its variants byte for byte.
+    /// outside paths</c> off, 2026-09-22; <see cref="ShellRuleFor"/>). <see cref="ObsidianDeleteRule"/> follows <see cref="ObsidianRule"/>
+    /// with <paramref name="obsidianDelete"/> (<c>vault_delete</c> offered, later on 2026-09-22). With <paramref name="markdown"/> false it is <see cref="OperatingRules"/> and its variants byte for byte.
     /// </summary>
-    public static string DefaultRules(bool markdown, bool tools, bool files = true, bool web = false, AskLimits? ask = null, bool sessions = false, bool download = true, bool delete = true, bool mcp = false, bool safeEdits = true, bool timers = true, bool git = false, bool shell = false, bool bridge = false, bool police = true, bool obsidian = false) =>
+    public static string DefaultRules(bool markdown, bool tools, bool files = true, bool web = false, AskLimits? ask = null, bool sessions = false, bool download = true, bool delete = true, bool mcp = false, bool safeEdits = true, bool timers = true, bool git = false, bool shell = false, bool bridge = false, bool police = true, bool obsidian = false, bool obsidianDelete = false) =>
         tools
-            ? TextRule(markdown) + " " + (timers ? ToolRules : ToolRulesWithoutTimers) + (files ? " " + (delete ? (safeEdits ? FileRule : FileRuleDeleteInPlace) : FileRuleWithoutDelete) : "") + (web ? " " + WebRule : "") + (web && files && download ? " " + DownloadRule : "") + (git ? " " + GitRule : "") + (shell ? " " + ShellRuleFor(bridge, police) : "") + (obsidian ? " " + ObsidianRule : "") + (ask is { } limits ? " " + AskRule(limits) : "") + (sessions ? " " + SessionRule : "") + (mcp ? " " + McpRule : "")
+            ? TextRule(markdown) + " " + (timers ? ToolRules : ToolRulesWithoutTimers) + (files ? " " + (delete ? (safeEdits ? FileRule : FileRuleDeleteInPlace) : FileRuleWithoutDelete) : "") + (web ? " " + WebRule : "") + (web && files && download ? " " + DownloadRule : "") + (git ? " " + GitRule : "") + (shell ? " " + ShellRuleFor(bridge, police) : "") + (obsidian ? " " + ObsidianRule + (obsidianDelete ? " " + ObsidianDeleteRule : "") : "") + (ask is { } limits ? " " + AskRule(limits) : "") + (sessions ? " " + SessionRule : "") + (mcp ? " " + McpRule : "")
             : TextRule(markdown);
 
     /// <summary>
@@ -387,11 +396,11 @@ public sealed class Assistant
     /// the third (2026-09-20) is a whole group: <paramref name="timers"/> false (no timer tool offered — headless, or the
     /// three switched off) drops <see cref="TimerRule"/>.
     /// </summary>
-    public static string SystemPrompt(bool speechOutput, IReadOnlyList<string>? memories, string? persona = null, string? operatingRules = null, string? voiceDirective = null, bool tools = true, bool web = false, bool files = true, AskLimits? ask = null, ProjectNotes? project = null, IReadOnlyList<Skills.Skill>? skills = null, bool markdown = false, bool sessions = false, bool download = true, bool recall = true, bool delete = true, bool mcp = false, bool safeEdits = true, bool timers = true, bool git = false, bool shell = false, bool bridge = false, bool police = true, bool obsidian = false)
+    public static string SystemPrompt(bool speechOutput, IReadOnlyList<string>? memories, string? persona = null, string? operatingRules = null, string? voiceDirective = null, bool tools = true, bool web = false, bool files = true, AskLimits? ask = null, ProjectNotes? project = null, IReadOnlyList<Skills.Skill>? skills = null, bool markdown = false, bool sessions = false, bool download = true, bool recall = true, bool delete = true, bool mcp = false, bool safeEdits = true, bool timers = true, bool git = false, bool shell = false, bool bridge = false, bool police = true, bool obsidian = false, bool obsidianDelete = false)
     {
         bool customPersona = !string.IsNullOrWhiteSpace(persona);
         bool customRules = !string.IsNullOrWhiteSpace(operatingRules);
-        string defaultRules = DefaultRules(markdown, tools, files, web, ask, sessions, download, delete, mcp, safeEdits, timers, git, shell, bridge, police, obsidian);
+        string defaultRules = DefaultRules(markdown, tools, files, web, ask, sessions, download, delete, mcp, safeEdits, timers, git, shell, bridge, police, obsidian, obsidianDelete);
         var sb = new StringBuilder(!customPersona && !customRules
             ? DefaultPersona + " " + defaultRules
             : (customPersona ? persona!.Trim() : DefaultPersona) + "\n\n" + (customRules ? operatingRules!.Trim() : defaultRules));

@@ -141,7 +141,7 @@ public class ToolsMenuTests : IDisposable
         Assert.Equal([SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellPoliceOutsidePaths, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellToolBridge, SettingsField.ShellCodeMaxToolCalls], SettingsMenu.ToolsTabFields[2]);   // the policy (the switch) first, then the list, the shell, the caps, then execute_code's four (2026-09-21; the bridge switch later that day; the police toggle third, 2026-09-22)
         Assert.Equal([SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices], SettingsMenu.ToolsTabFields[3]);
         Assert.Equal([SettingsField.GitNativeTools, SettingsField.GitNativeDiffMaxLines, SettingsField.GitNativeLogMaxCommits, SettingsField.GitNativeEmail, SettingsField.GitNativeName], SettingsMenu.ToolsTabFields[4]);   // the switch first, then the limits, then the identity pair (2026-09-21); the Git native labels later that day
-        Assert.Equal([SettingsField.ObsidianTools, SettingsField.ObsidianVault], SettingsMenu.ToolsTabFields[5]);   // the switch, then the vault (2026-09-22)
+        Assert.Equal([SettingsField.ObsidianTools, SettingsField.ObsidianVault, SettingsField.ObsidianAllowDelete], SettingsMenu.ToolsTabFields[5]);   // the switch, then the vault (2026-09-22), then the delete switch (later that day)
         Assert.Equal(Enum.GetValues<SettingsField>().Order(), SettingsMenu.TabFields.Concat(SettingsMenu.SkillsTabFields).Concat(SettingsMenu.ToolsTabFields).Concat(SettingsMenu.McpTabFields).SelectMany(t => t).Order());
         Assert.Equal(21, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[6]));   // "Tool collapse count" (2026-09-22; "$-mention enabled", 19, before)
         Assert.Equal(26, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[0]));   // "Web browser network mode" (the Web-prefixed labels, later still on 2026-09-19; "Web search max results", 24, before)
@@ -149,7 +149,7 @@ public class ToolsMenuTests : IDisposable
         Assert.Equal(29, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[2]));   // "Shell tool bridge max calls" (the Shell tab, 2026-09-21; the row was "Shell code max tool calls", 27, until later that day)
         Assert.Equal(30, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[3]));   // "Ask max choices per question"
         Assert.Equal(28, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[4]));   // "Git native log max commits" (later on 2026-09-21; "Git log max commits", 21, from 2026-09-20)
-        Assert.Equal(16, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[5]));   // "Obsidian tools" (2026-09-22)
+        Assert.Equal(23, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[5]));   // "Obsidian allow delete" (later on 2026-09-22; "Obsidian tools" that morning)
         Assert.All(SettingsMenu.ToolsTabFields.SelectMany(t => t), f => Assert.False(SettingsMenu.RefusedMidTurn(f)));
         Assert.Equal("⚙️ Settings", SettingsMenu.Title);
         Assert.Equal(SettingsMenu.Title + " › Web browser mode", SettingsMenu.Breadcrumb("Web browser mode"));
@@ -323,7 +323,7 @@ public class ToolsMenuTests : IDisposable
 
         Assert.Equal(vault, _settings.Current.ObsidianVault);
         Assert.Contains("Obsidian vault " + SettingsMenu.ObsidianVaultError[..40], _console.Output);   // the status line, cut at the pane's width
-        Assert.Contains("\n" + Titled(Strip) + "\n \n▸ Obsidian tools  on\n  Obsidian vault  (not set)\n", _console.Output);
+        Assert.Contains("\n" + Titled(Strip) + "\n \n▸ Obsidian tools         on\n  Obsidian vault         (not set)\n  Obsidian allow delete  off\n", _console.Output);
     }
 
     /// <summary>The vault row's folder picker opens on the vault saved (later on 2026-09-22, the user's report: it opened on the working directory every time): empty the first time, the picked vault the next; nothing picked keeps it.</summary>
@@ -683,7 +683,7 @@ public class ToolsMenuTests : IDisposable
         Assert.Contains("  · Web\n  ·   Web tools: on\n  ·   Web browser mode: default\n  ·   Web browser path: (auto: msedge.exe)\n", _console.Output);
         Assert.Contains("  ·   Web search max results: 20 results\n  · Files\n  ·   File tools: on\n  ·   File safe edits: off\n", _console.Output);
         Assert.Contains("  · Shell\n  ·   Shell command policy: ask\n", _console.Output);
-        Assert.Contains("  · Ask\n  ·   Ask user: on\n  ·   Ask max questions: 10 questions\n  ·   Ask max choices per question: 10 choices\n  · Git (native)\n  ·   Git native tools: on\n  ·   Git native diff max lines: 500 lines\n  ·   Git native log max commits: 20 commits\n  ·   Git native email: (not set)\n  ·   Git native name: (not set)\n  · Obsidian\n  ·   Obsidian tools: on\n  ·   Obsidian vault: (not set)\n  · Options\n  ·   $-mention enabled: on\n  ·   Tool collapse count: 2 lines\n  ·   Code collapse count: 20 lines\n", _console.Output);
+        Assert.Contains("  · Ask\n  ·   Ask user: on\n  ·   Ask max questions: 10 questions\n  ·   Ask max choices per question: 10 choices\n  · Git (native)\n  ·   Git native tools: on\n  ·   Git native diff max lines: 500 lines\n  ·   Git native log max commits: 20 commits\n  ·   Git native email: (not set)\n  ·   Git native name: (not set)\n  · Obsidian\n  ·   Obsidian tools: on\n  ·   Obsidian vault: (not set)\n  ·   Obsidian allow delete: off\n  · Options\n  ·   $-mention enabled: on\n  ·   Tool collapse count: 2 lines\n  ·   Code collapse count: 20 lines\n", _console.Output);
         Assert.False(pane.OverlayOpen);
         pane.Dispose();
     }
