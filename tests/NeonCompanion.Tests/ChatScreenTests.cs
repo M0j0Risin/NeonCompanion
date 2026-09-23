@@ -4068,25 +4068,26 @@ public partial class ChatScreenTests : IDisposable
     }
 
     [Fact]
-    public async Task WithGeometry_BareTools_OpensTheToolsMenu_OnSevenTabs()
+    public async Task WithGeometry_BareTools_OpensTheToolsMenu_OnEightTabs()
     {
         _settings.Update(d => d.TtsOutput = false);
         _console.Profile.Height = 80;
         _geometry = new ScreenGeometry(() => null);
         PushLine("/tools");
         _console.Input.PushKey(Keys.Enter);     // get_current_time off
-        _console.Input.PushKey(Keys.Right);     // Options
         _console.Input.PushKey(Keys.Right);     // Web
         _console.Input.PushKey(Keys.Right);     // Files
         _console.Input.PushKey(Keys.Right);     // Shell (2026-09-21)
         _console.Input.PushKey(Keys.Right);     // Ask
-        _console.Input.PushKey(Keys.Right);     // Git (native) (2026-09-20; last, and so named, since later on 2026-09-21 — the user's order)
+        _console.Input.PushKey(Keys.Right);     // Git (native) (2026-09-20; so named since later on 2026-09-21 — the user's order)
+        _console.Input.PushKey(Keys.Right);     // Obsidian (2026-09-22)
+        _console.Input.PushKey(Keys.Right);     // Options (second until later on 2026-09-22, last since — the user's ask)
         _console.Input.PushKey(Keys.Escape);
         PushLine("/exit");
 
         string output = await RunAsync();
 
-        Assert.Contains(ToolsText.Label + "   Offered    Options    Web    Files    Shell    Ask    Git (native) ", output);
+        Assert.Contains(ToolsText.Label + "   Offered    Web    Files    Shell    Ask    Git (native)    Obsidian    Options ", output);
         Assert.Contains("\n  Clock (3)\n▸ get_current_time      on   ", output);
         Assert.Contains("\n  · get_current_time: off\n  Clock (2 of 3)\n▸ get_current_time      off  ", output);
         Assert.Equal(["get_current_time"], _settings.Current.ToolsDisabled);
@@ -4329,7 +4330,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains(ToolsText.Label + "   Offered    Options    Web    Files    Shell    Ask    Git (native) ", output);
+        Assert.Contains(ToolsText.Label + "   Offered    Web    Files    Shell    Ask    Git (native)    Obsidian    Options ", output);
         Assert.Contains("  · get_current_time: off", output);
         Assert.Equal(["get_current_time"], _settings.Current.ToolsDisabled);
         Assert.DoesNotContain(ChatScreen.MidTurnRefusedNotice("/tools"), output);
@@ -7031,7 +7032,7 @@ public partial class ChatScreenTests : IDisposable
             input => { input.PushClick(18, 103); input.PushClick(18, 103); },    // under off: the blanks, so /settings
             Key(Keys.Escape),
             Line("/tools"),
-            input => input.Push(Keys.Right, Keys.Right, Keys.Right, Keys.Right, Keys.Enter, Keys.Down, Keys.Down, Keys.Enter, Keys.Escape),   // the Shell tab, the policy picker on off, yolo picked, the pane closed: the row redrawn with the open lock
+            input => input.Push(Keys.Right, Keys.Right, Keys.Right, Keys.Enter, Keys.Down, Keys.Down, Keys.Enter, Keys.Escape),   // the Shell tab, the policy picker on off, yolo picked, the pane closed: the row redrawn with the open lock
             input => { input.PushClick(18, 103); input.PushClick(18, 103); },    // 🔓: the list
             Key(Keys.Escape),
             Line("/exit"));
@@ -7079,7 +7080,7 @@ public partial class ChatScreenTests : IDisposable
             input => { input.PushClick(18, 103); input.PushClick(18, 103); },    // 🔒 back at 18: the list
             Key(Keys.Escape),
             Line("/tools"),
-            input => input.Push(Keys.Right, Keys.Right, Keys.Right, Keys.Right, Keys.Down, Keys.Down, Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape),   // the Shell tab's third row, Shell police outside paths: its page on "on", off picked; the pane closed: the officer gone
+            input => input.Push(Keys.Right, Keys.Right, Keys.Right, Keys.Down, Keys.Down, Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape),   // the Shell tab's third row, Shell police outside paths: its page on "on", off picked; the pane closed: the officer gone
             input => { input.PushClick(21, 103); input.PushClick(21, 103); },    // the blanks now: /settings
             Key(Keys.Escape),
             Line("/exit"));
@@ -7094,7 +7095,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.False(_settings.Current.ShellPoliceOutsidePaths);
         string memory = "\n" + Titled(MemoryMenu.Title) + "\n";
         string settings = "\n" + Titled(SettingsMenu.Title + "   General    Sessions    LLM    TTS    STT ") + "\n";
-        string tools = "\n" + Titled(ToolsText.Label + "   Offered    Options    Web    Files    Shell    Ask    Git (native)    Obsidian ") + "\n";
+        string tools = "\n" + Titled(ToolsText.Label + "   Offered    Web    Files    Shell    Ask    Git (native)    Obsidian    Options ") + "\n";
         string allowed = "\n" + Titled(AllowedCommandsTitle) + "\n";
         Assert.Equal(1, output.Split(memory).Length - 1);
         Assert.Equal(1, output.Split(allowed).Length - 1);
@@ -8113,9 +8114,9 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains("\n" + ScreenPane.ToolbarRow(ChatScreen.ToolbarStripFor(true, CommandPolicyMode.Ask, true), cwd, 239), output);
         Assert.DoesNotContain("\n" + ScreenPane.ToolbarRow(ChatScreen.ToolbarStrip, cwd, 239), output);   // never the six alone: memory, the policy and the police are on
         int settings = output.IndexOf("\n" + Titled(SettingsMenu.Title + "   General    Sessions    LLM    TTS    STT ") + "\n", StringComparison.Ordinal);
-        int tools = output.IndexOf(ToolsText.Label + "   Offered    Options    Web    Files    Shell    Ask    Git (native) ", StringComparison.Ordinal);
+        int tools = output.IndexOf(ToolsText.Label + "   Offered    Web    Files    Shell    Ask    Git (native)    Obsidian    Options ", StringComparison.Ordinal);
         int mcp = output.IndexOf(McpText.Label + "   Servers    Tools    Options ", StringComparison.Ordinal);
-        int skills = output.IndexOf(SkillsText.Label + "   Offered    Options    Reflection    Project ", StringComparison.Ordinal);
+        int skills = output.IndexOf(SkillsText.Label + "   Offered    Reflection    Project    Options ", StringComparison.Ordinal);
         int sys = output.IndexOf("\n" + Titled(SystemPromptSummary.Label + "   Prompt    Tools ") + "\n", StringComparison.Ordinal);
         int sessions = output.IndexOf("\n" + Titled(SessionsMenu.Title) + "\n", StringComparison.Ordinal);
         int memory = output.IndexOf("\n" + Titled(MemoryMenu.Title) + "\n", StringComparison.Ordinal);
@@ -8203,11 +8204,11 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         string settings = "\n" + Titled(SettingsMenu.Title + "   General    Sessions    LLM    TTS    STT ") + "\n";
-        string tools = "\n" + Titled(ToolsText.Label + "   Offered    Options    Web    Files    Shell    Ask    Git (native)    Obsidian ") + "\n";
+        string tools = "\n" + Titled(ToolsText.Label + "   Offered    Web    Files    Shell    Ask    Git (native)    Obsidian    Options ") + "\n";
         string help = "\n" + Titled(InfoPane.Title + "   Commands    Keys ") + "\n";
         string sys = "\n" + Titled(SystemPromptSummary.Label + "   Prompt    Tools ") + "\n";
         string sessions = "\n" + Titled(SessionsMenu.Title) + "\n";
-        string skills = "\n" + Titled(SkillsText.Label + "   Offered    Options    Reflection    Project ") + "\n";
+        string skills = "\n" + Titled(SkillsText.Label + "   Offered    Reflection    Project    Options ") + "\n";
         string memory = "\n" + Titled(MemoryMenu.Title) + "\n";
         string allowed = "\n" + Titled(AllowedCommandsTitle) + "\n";
         int[] at = [output.IndexOf(tools, StringComparison.Ordinal), output.IndexOf(settings, StringComparison.Ordinal)];
@@ -8320,7 +8321,8 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal("⚙️ 🛠️ 🔌 🎓 🎭 💬 💾", ChatScreen.ToolbarStripFor(true, CommandPolicyMode.Off, false));
         Assert.Equal("⚙️ 🛠️ 🔌 🎓 🎭 💬 🔒", ChatScreen.ToolbarStripFor(false, CommandPolicyMode.Ask, false));
         Assert.Equal("⚙️ 🛠️ 🔌 🎓 🎭 💬 🔓", ChatScreen.ToolbarStripFor(false, CommandPolicyMode.Yolo, false));
-        Assert.Equal("⚙️ 🛠️ 🔌 🎓 🎭 💬 👮", ChatScreen.ToolbarStripFor(false, CommandPolicyMode.Off, true));
+        Assert.Equal("⚙️ 🛠️ 🔌 🎓 🎭 💬", ChatScreen.ToolbarStripFor(false, CommandPolicyMode.Off, true));   // no officer while the shell is off (later on 2026-09-22, the user's ask)
+        Assert.Equal("⚙️ 🛠️ 🔌 🎓 🎭 💬 💾", ChatScreen.ToolbarStripFor(true, CommandPolicyMode.Off, true));
         Assert.Equal("⚙️ 🛠️ 🔌 🎓 🎭 💬 💾 🔒 👮", ChatScreen.ToolbarStripFor(true, CommandPolicyMode.Ask, true));   // the defaults
         Assert.Equal("⚙️ 🛠️ 🔌 🎓 🎭 💬 🔓 👮", ChatScreen.ToolbarStripFor(false, CommandPolicyMode.Yolo, true));
         Assert.Equal("⚙️ 🛠️ 🔌 🎓 🎭 💬 💾 🔓", ChatScreen.ToolbarStripFor(true, CommandPolicyMode.Yolo, false));
@@ -8384,10 +8386,9 @@ public partial class ChatScreenTests : IDisposable
             Assert.Equal(ScreenPane.ToolbarZone.Row, ScreenPane.ToolbarHitAt(noDisk, -1, 0, 24).Zone);
         }
 
-        string noLock = ChatScreen.ToolbarStripFor(true, CommandPolicyMode.Off, true);   // policy off: the officer right after the disk
+        string noLock = ChatScreen.ToolbarStripFor(true, CommandPolicyMode.Off, true);   // policy off: neither the lock nor the officer (later on 2026-09-22), the disk last
         Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, ChatScreen.MemoryToolGlyph, 18), ScreenPane.ToolbarHitAt(noLock, -1, 0, 18));
-        Assert.Equal(new ScreenPane.ToolbarHit(ScreenPane.ToolbarZone.Glyph, ChatScreen.PoliceToolGlyph, 21), ScreenPane.ToolbarHitAt(noLock, -1, 0, 21));
-        Assert.Equal(ScreenPane.ToolbarZone.Row, ScreenPane.ToolbarHitAt(noLock, -1, 0, 24).Zone);
+        Assert.Equal(ScreenPane.ToolbarZone.Row, ScreenPane.ToolbarHitAt(noLock, -1, 0, 21).Zone);
     }
 
     /// <summary>A double-click on the scroll's hint at the idle line (later on 2026-09-18) is Ctrl+End — the bottom again, the draft kept, no settings pane.</summary>
@@ -9909,7 +9910,7 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         output = string.Join("\n", output.Split('\n').Select(l => l.TrimEnd()));
-        string tools = "\n" + Titled(ToolsText.Label + "   Offered    Options    Web    Files    Shell    Ask    Git (native)    Obsidian ") + "\n";
+        string tools = "\n" + Titled(ToolsText.Label + "   Offered    Web    Files    Shell    Ask    Git (native)    Obsidian    Options ") + "\n";
         string sys = "\n" + Titled(SystemPromptSummary.Label + "   Prompt    Tools ") + "\n";
         string sessions = "\n" + Titled(SessionsMenu.Title) + "\n";
         string settings = "\n" + Titled(SettingsMenu.Title + "   General    Sessions    LLM    TTS    STT ") + "\n";
@@ -12879,7 +12880,8 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("  · Offered\n  ·   haiku  profile  Writes haiku. Use when asked for one.\n  · Options\n  ·   Agent skills: on\n  ·   Use external skills (.agents\\skills): off\n", output);   // the Options section between Offered and Project (2026-09-19)
+        Assert.Contains("  · Offered\n  ·   haiku  profile  Writes haiku. Use when asked for one.\n  · Reflection\n", output);   // Reflection right after Offered since 2026-09-22
+        Assert.Contains("  · Options\n  ·   Agent skills: on\n  ·   Use external skills (.agents\\skills): off\n", output);   // the Options section last (2026-09-22; between Offered and Reflection from 2026-09-19)
         Assert.Contains("  · Reflection\n  ·   Reflection (auto-learn): off\n  ·   Reflection reasoning: none\n  ·   Reflection window: 3 turns\n  ·   Reflection min tool calls: 4 tool calls\n  ·   Reflection max requests: 4 requests\n  ·   Reflection cooldown (minutes): off\n  ·   Reflection cooldown mode: last-written-skill\n  ·   Reflection includes sessions: off\n  · Project\n", output);   // the fixture turns the auto-learn off, the verbose lines on, the cooldown and the sessions evidence off
         Assert.Contains("  · Project\n  ·   Project file  on   NEON.md (6 characters)\n", output);   // the toggle row alone since later on 2026-09-19 (the working directory over it, and a Roots section after, until then)
         Assert.DoesNotContain("Roots", output);
@@ -12896,16 +12898,16 @@ public partial class ChatScreenTests : IDisposable
         _console.Profile.Height = 80;
         _geometry = new ScreenGeometry(() => null);
         PushLine("/skills");
-        _console.Input.PushKey(Keys.Right);   // Options (the settings rows, 2026-09-19)
-        _console.Input.PushKey(Keys.Right);   // Reflection (the reflection's rows, later that day)
+        _console.Input.PushKey(Keys.Right);   // Reflection (the reflection's rows, 2026-09-19)
         _console.Input.PushKey(Keys.Right);   // Project
         _console.Input.PushKey(Keys.Enter);   // the toggle: off
+        _console.Input.PushKey(Keys.Right);   // Options (the settings rows, 2026-09-19; last since 2026-09-22)
         _console.Input.PushKey(Keys.Escape);
         PushLine("/exit");
 
         string output = await RunAsync();
 
-        Assert.Contains(SkillsText.Label + "   Offered    Options    Reflection    Project ", output);
+        Assert.Contains(SkillsText.Label + "   Offered    Reflection    Project    Options ", output);
         Assert.DoesNotContain("Roots", output);
         Assert.False(_settings.Current.ProjectFile);
         Assert.Contains("\n▸ Reflection (auto-learn)        off\n  Reflection reasoning           none\n", output);   // the Reflection tab, padded to its own column (the fixture turns the auto-learn off)
@@ -14240,7 +14242,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains(SkillsText.Label + "   Offered    Options    Reflection    Project ", output);   // no Roots tab since later on 2026-09-19
+        Assert.Contains(SkillsText.Label + "   Offered    Reflection    Project    Options ", output);   // no Roots tab since later on 2026-09-19
         Assert.Contains("▸ haiku  profile  Writes haiku. Use when asked for one.", output);
         Assert.DoesNotContain(ChatScreen.MidTurnRefusedNotice("/skills"), output);
         Assert.DoesNotContain(ChatScreen.CancelledNotice, output);

@@ -28,7 +28,7 @@ public static class ToolsText
     /// <summary>The first tab: <c>Offered</c> (the same word heads the Skills pane's catalog since 2026-09-19, the user's call).</summary>
     public const string OfferedTabTitle = "Offered";
 
-    /// <summary>The second tab (later on 2026-09-19, the user's ask): the pane's own settings — the <c>$</c>-mention switch — in the <c>/skills</c> Options tab's shape (<see cref="SettingsMenu.ToolsTabFields"/>' first list).</summary>
+    /// <summary>The last tab (second from later on 2026-09-19, the user's ask, until 2026-09-22, the user's ask again): the pane's own settings — the <c>$</c>-mention switch and the two folds — in the <c>/skills</c> Options tab's shape (<see cref="SettingsMenu.ToolsTabFields"/>' last list).</summary>
     public const string OptionsTabTitle = "Options";
     public const string AskTabTitle = "Ask";
     public const string FilesTabTitle = "Files";
@@ -37,11 +37,11 @@ public static class ToolsText
     public const string ShellTabTitle = "Shell";
     public const string WebTabTitle = "Web";
 
-    /// <summary>The vault tools' tab and group (2026-09-22), last in the strip.</summary>
+    /// <summary>The vault tools' tab and group (2026-09-22), the last but one in the strip, before Options.</summary>
     public const string ObsidianTabTitle = "Obsidian";
 
-    /// <summary>The eight tabs in strip order: Offered, Options, Web, Files, Shell, Ask, Git (native), Obsidian (2026-09-22) — the user's order since later on 2026-09-21 (alphabetical after Options before: Ask, Files, Git, Shell, Web); the last seven index <see cref="SettingsMenu.ToolsTabFields"/> one down.</summary>
-    public static readonly IReadOnlyList<string> TabTitles = [OfferedTabTitle, OptionsTabTitle, WebTabTitle, FilesTabTitle, ShellTabTitle, AskTabTitle, GitTabTitle, ObsidianTabTitle];
+    /// <summary>The eight tabs in strip order: Offered, Web, Files, Shell, Ask, Git (native), Obsidian, Options — Options last since later on 2026-09-22 (the user's ask; second, after Offered, before), Obsidian added that day; the user's order of the rest since later on 2026-09-21 (alphabetical before: Ask, Files, Git, Shell, Web); the last seven index <see cref="SettingsMenu.ToolsTabFields"/> one down.</summary>
+    public static readonly IReadOnlyList<string> TabTitles = [OfferedTabTitle, WebTabTitle, FilesTabTitle, ShellTabTitle, AskTabTitle, GitTabTitle, ObsidianTabTitle, OptionsTabTitle];
 
     /// <summary>The Offered tab's hint row. Pinned.</summary>
     public const string OfferedKeys = "Enter / Space = on or off · ←/→ tabs · ESC = close";

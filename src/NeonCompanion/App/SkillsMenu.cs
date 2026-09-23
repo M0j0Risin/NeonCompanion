@@ -191,19 +191,22 @@ internal sealed class SkillsMenu
     /// <summary>The folder went between the scan and the act (or a hand-built record points elsewhere): the list is read again.</summary>
     public static string MissingError(string name) => $"Could not find skill '{name}' on disk any more; the list was read again";
 
-    /// <summary>The Options tab's index in the strip: the skill settings, second after Offered (2026-09-19).</summary>
-    public const int OptionsTab = 1;
+    /// <summary>The Reflection tab's index in the strip: the reflection's rows, second after Offered (third, after Options, from later on 2026-09-19 until 2026-09-22).</summary>
+    public const int ReflectionTab = 1;
 
-    /// <summary>The Reflection tab's index in the strip: the reflection's rows, third, between Options and Project (later on 2026-09-19, the user's ask).</summary>
-    public const int ReflectionTab = 2;
+    /// <summary>The Project tab's index in the strip: the <c>Project file</c> toggle, third (last until 2026-09-22).</summary>
+    public const int ProjectTab = 2;
 
-    /// <summary>The Project tab's index in the strip: the <c>Project file</c> toggle, fourth and last (the Roots tab after it until later on 2026-09-19).</summary>
-    public const int ProjectTab = 3;
+    /// <summary>The Options tab's index in the strip: the skill settings, last since 2026-09-22 (the user's ask; second, after Offered, from 2026-09-19).</summary>
+    public const int OptionsTab = 3;
 
-    /// <summary>The settings tabs' titles in strip order, indexed like <see cref="SettingsMenu.SkillsTabFields"/> (the tab one down).</summary>
+    /// <summary>The settings tabs' titles, indexed like <see cref="SettingsMenu.SkillsTabFields"/> (Options, then Reflection; the strip puts Options last).</summary>
     public static readonly IReadOnlyList<string> SettingsTabTitles = [SkillsText.OptionsTabTitle, SkillsText.ReflectionTabTitle];
 
-    /// <summary>The tabbed page: the Offered rows first, the Options and Reflection rows (<see cref="SettingsMenu.FieldsTab"/> under <see cref="SettingsMenu.TabKeys"/>) second and third, the Project tab last with its cursor on the toggle (past the off line), Space a flip there (<see cref="MenuPage.SpaceToggles"/> — page-wide, so the host ignores it elsewhere).</summary>
+    /// <summary>The <see cref="SettingsMenu.SkillsTabFields"/> list a settings tab shows: Options' first, Reflection's second.</summary>
+    private static IReadOnlyList<SettingsField> SettingsFields(int tab) => SettingsMenu.SkillsTabFields[tab == OptionsTab ? 0 : 1];
+
+    /// <summary>The tabbed page: the Offered rows first, the Reflection rows (<see cref="SettingsMenu.FieldsTab"/> under <see cref="SettingsMenu.TabKeys"/>) second, the Project tab third with its cursor on the toggle (past the off line), the Options rows last (2026-09-22), Space a flip there (<see cref="MenuPage.SpaceToggles"/> — page-wide, so the host ignores it elsewhere).</summary>
     public static MenuPage Page(SkillsFacts facts, IReadOnlyList<(string Markup, Skill? Skill)> loaded, AppSettingsData saved, SettingsMenu menu, int tab)
     {
         ArgumentNullException.ThrowIfNull(facts);
@@ -213,14 +216,14 @@ internal sealed class SkillsMenu
         var tabs = new MenuTab[]
         {
             new(SkillsText.OfferedTabTitle, loaded.Select(r => r.Markup).ToList()) { Hint = LoadedKeys },
-            menu.FieldsTab(SkillsText.OptionsTabTitle, SettingsMenu.SkillsTabFields[OptionsTab - 1], saved) with { Hint = SettingsMenu.TabKeys },
-            menu.FieldsTab(SkillsText.ReflectionTabTitle, SettingsMenu.SkillsTabFields[ReflectionTab - 1], saved) with { Hint = SettingsMenu.TabKeys },
+            menu.FieldsTab(SkillsText.ReflectionTabTitle, SettingsFields(ReflectionTab), saved) with { Hint = SettingsMenu.TabKeys },
             new(SkillsText.ProjectTabTitle, SkillsText.ProjectRowsMarkup(facts)) { Hint = SkillsText.ProjectKeys },
+            menu.FieldsTab(SkillsText.OptionsTabTitle, SettingsFields(OptionsTab), saved) with { Hint = SettingsMenu.TabKeys },
         };
-        return MenuPage.Tabbed(SkillsText.Label, tabs, tab, OtherKeys) with { SpaceToggles = true, TabCursors = [0, 0, 0, SkillsText.ProjectRowIndex(facts)] };
+        return MenuPage.Tabbed(SkillsText.Label, tabs, tab, OtherKeys) with { SpaceToggles = true, TabCursors = [0, 0, SkillsText.ProjectRowIndex(facts), 0] };
     }
 
-    /// <summary>The four tabs as plain lines, for a console without the pane: <see cref="SkillsText.Lines"/> with the Options and Reflection rows (<see cref="SettingsMenu.PlainRow"/>) headed and indented after the Offered section.</summary>
+    /// <summary>The four tabs as plain lines, for a console without the pane, in the strip's order: <see cref="SkillsText.Lines"/> with the Reflection rows (<see cref="SettingsMenu.PlainRow"/>) headed and indented ahead of the Project section and the Options rows after it.</summary>
     public static IEnumerable<string> Lines(SkillsFacts facts, AppSettingsData saved, SettingsMenu menu)
     {
         ArgumentNullException.ThrowIfNull(facts);
@@ -230,18 +233,22 @@ internal sealed class SkillsMenu
         {
             if (line == SkillsText.ProjectTabTitle)
             {
-                for (int t = 0; t < SettingsTabTitles.Count; t++)
+                foreach (var row in Section(ReflectionTab, SkillsText.ReflectionTabTitle))
                 {
-                    yield return SettingsTabTitles[t];
-                    foreach (var field in SettingsMenu.SkillsTabFields[t])
-                    {
-                        yield return "  " + menu.PlainRow(field, saved);
-                    }
+                    yield return row;
                 }
             }
 
             yield return line;
         }
+
+        foreach (var row in Section(OptionsTab, SkillsText.OptionsTabTitle))
+        {
+            yield return row;
+        }
+
+        IEnumerable<string> Section(int tab, string title) =>
+            new[] { title }.Concat(SettingsFields(tab).Select(field => "  " + menu.PlainRow(field, saved)));
     }
 
     // ── Screen ──────────────────────────────────────────────────────────────
@@ -299,7 +306,7 @@ internal sealed class SkillsMenu
 
                 if (tab is OptionsTab or ReflectionTab)
                 {
-                    var fields = SettingsMenu.SkillsTabFields[tab - 1];
+                    var fields = SettingsFields(tab);
                     if (cursor >= fields.Count)
                     {
                         continue;

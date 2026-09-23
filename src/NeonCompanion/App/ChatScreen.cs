@@ -826,7 +826,7 @@ internal sealed partial class ChatScreen
         _flow = new FlowSink(this);
         _queueMenu = new QueueMenu(_queue, _flow, _menuPane);
         _queuedClicks = new DoubleClick(_pane.Time);
-        _menu = new SettingsMenu(new ConsoleWithInput(_pane, keys), settings, overriddenBy, _input, _transcript, speech, _menuPane, _web.Browser.Locate, () => _interpreters.AvailableShells().Select(ShellKinds.Name).ToHashSet(StringComparer.Ordinal), () => _interpreters.AvailableLanguages([CodeLanguage.PowerShell, CodeLanguage.Python, CodeLanguage.Node]).Select(CodeLanguages.Name).ToHashSet(StringComparer.Ordinal), BrowseWorkingDirectoryAsync)
+        _menu = new SettingsMenu(new ConsoleWithInput(_pane, keys), settings, overriddenBy, _input, _transcript, speech, _menuPane, _web.Browser.Locate, () => _interpreters.AvailableShells().Select(ShellKinds.Name).ToHashSet(StringComparer.Ordinal), () => _interpreters.AvailableLanguages([CodeLanguage.PowerShell, CodeLanguage.Python, CodeLanguage.Node]).Select(CodeLanguages.Name).ToHashSet(StringComparer.Ordinal), BrowseWorkingDirectoryAsync, BrowseVaultAsync)
         {
             // A picker opened mid-turn closes on the watcher task: its saved line waits for the turn task.
             Flow = _flow,
@@ -937,7 +937,8 @@ internal sealed partial class ChatScreen
     /// <summary>
     /// The strip drawn for the switches, in the strip's order: <see cref="ToolbarStrip"/>, the disk
     /// while <paramref name="memory"/> is on, the closed lock under <c>ask</c> or the open one under
-    /// <c>yolo</c> (neither under <c>off</c>), the officer while <paramref name="police"/> is on.
+    /// <c>yolo</c> (neither under <c>off</c>), the officer while <paramref name="police"/> is on and the policy is not <c>off</c>
+    /// (later on 2026-09-22, the user's ask: with no shell tool offered there is nothing to police).
     /// The six alone with everything off. Pinned.
     /// </summary>
     public static string ToolbarStripFor(bool memory, Shell.CommandPolicyMode policy, bool police)
@@ -958,7 +959,7 @@ internal sealed partial class ChatScreen
                 break;
         }
 
-        if (police)
+        if (police && policy != Shell.CommandPolicyMode.Off)
         {
             strip.Append(GlyphSeparator).Append(PoliceToolGlyph);
         }
@@ -4199,6 +4200,23 @@ internal sealed partial class ChatScreen
     /// </summary>
     private async Task<string?> BrowseWorkingDirectoryAsync(CancellationToken cancellationToken)
     {
+        string? picked = await BrowseFolderAsync(WorkingDirectory.Resolve(_effective().WorkingDirectory, _settings.ProfileDirectory), cancellationToken).ConfigureAwait(false);
+        string profileFiles = WorkingDirectory.Resolve("", _settings.ProfileDirectory);
+        return picked is null ? null
+            : string.Equals(picked, profileFiles, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal) ? "" : picked;
+    }
+
+    /// <summary>
+    /// The folder picker behind the <c>Obsidian vault</c> row (later on 2026-09-22, the user's report: it opened on the
+    /// working directory, never on the vault just chosen): opened on <paramref name="openOn"/> — the vault in force, or the
+    /// working directory while none is set — and returning the full path picked, or null for nothing chosen.
+    /// </summary>
+    private Task<string?> BrowseVaultAsync(string openOn, CancellationToken cancellationToken) =>
+        BrowseFolderAsync(string.IsNullOrWhiteSpace(openOn) ? WorkingDirectory.Resolve(_effective().WorkingDirectory, _settings.ProfileDirectory) : openOn, cancellationToken);
+
+    /// <summary>The tree both pickers show (the drives <c>File browser roots</c> allows, the profile's <c>files</c> folder a shortcut above them), opened on <paramref name="openOn"/>; the full path picked, or null.</summary>
+    private async Task<string?> BrowseFolderAsync(string openOn, CancellationToken cancellationToken)
+    {
         var effective = _effective();
         string profileFiles = WorkingDirectory.Resolve("", _settings.ProfileDirectory);
         try
@@ -4211,10 +4229,8 @@ internal sealed partial class ChatScreen
         }
 
         var tree = new FolderTree(new FileSystemFolders(FileBrowserMode.Resolve(effective)), [new FolderShortcut(FolderText.ProfileLabel, profileFiles)]);
-        int cursor = tree.ExpandTo(WorkingDirectory.Resolve(effective.WorkingDirectory, _settings.ProfileDirectory));
-        string? picked = await _folderPane.PickAsync(tree, cursor, cancellationToken).ConfigureAwait(false);
-        return picked is null ? null
-            : string.Equals(picked, profileFiles, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal) ? "" : picked;
+        int cursor = tree.ExpandTo(openOn);
+        return await _folderPane.PickAsync(tree, cursor, cancellationToken).ConfigureAwait(false);
     }
 
     // ── /tree ───────────────────────────────────────────────────────────────

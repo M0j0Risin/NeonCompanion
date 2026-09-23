@@ -906,7 +906,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("protected   [#9A8BB8]loaded skills survive a prune and the mid-turn guard[/]", SettingsMenu.SkillCompactModeLabel("protected"));
         Assert.Equal("unprotected [#9A8BB8]loaded skills prune like any tool result[/]", SettingsMenu.SkillCompactModeLabel("unprotected"));
         Assert.Equal(5, SettingsMenu.TabFields.Count);   // 9 until 2026-09-19, when Ask, Files and Web moved to /tools (ToolsTabFields) and, later that day, Skills to /skills (SkillsTabFields)
-        Assert.Equal(7, SettingsMenu.ToolsTabFields.Count);   // Obsidian last since 2026-09-22; Options first since later on 2026-09-19; Git between Files and Web since 2026-09-20; Shell between Git and Web since 2026-09-21
+        Assert.Equal(7, SettingsMenu.ToolsTabFields.Count);   // Obsidian since 2026-09-22 and Options last later that day (first since later on 2026-09-19); Git between Files and Web since 2026-09-20; Shell between Git and Web since 2026-09-21
         Assert.Equal(2, SettingsMenu.SkillsTabFields.Count);   // Options and Reflection, since later on 2026-09-19 (one list of 11, then 14, before)
         Assert.Equal(13, SettingsMenu.SkillsTabFields.Sum(t => t.Count));   // 14 until Reflection verbose went later still on 2026-09-19
         Assert.Equal(new[] { SettingsField.Profile, SettingsField.NewProfileMode, SettingsField.WorkingDirectory, SettingsField.QueueMessages, SettingsField.QueueCancelMode, SettingsField.Memory, SettingsField.CopyUserPrompt, SettingsField.ShowImageThumbnails, SettingsField.ImageThumbnailSize, SettingsField.TranscriptMarkdown, SettingsField.PastePreviewLines, SettingsField.HideExitAutocomplete, SettingsField.CommandTypoIntercept, SettingsField.WelcomeSplash, SettingsField.ShowWorkingDirectory, SettingsField.ShowToolbar, SettingsField.DraftEditor }, SettingsMenu.TabFields[(int)SettingsTab.General]);
@@ -988,7 +988,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("folder-remain " + Theme.DimMarkup("insert @folder/ and keep listing inside it"), SettingsMenu.MentionFolderModeLabel("folder-remain"));
         // The Files tab (2026-09-15; /tools' second since 2026-09-19): the file-tools switch first, then the Safe edits switch (2026-09-17, on by default until 2026-09-19; the stale-number guard beside it until later that day, when edit_lines went),
         // then the two /tree rows that were General's last two, then the @-mention folder mode (General's until 2026-09-17); none a reconnect, none refused mid-turn (read at each tool call).
-        Assert.Equal(new[] { SettingsField.FileTools, SettingsField.FileSafeEdits, SettingsField.FileTreeMaxLength, SettingsField.FileTreeShowSizes, SettingsField.FileMentionFolderMode, SettingsField.FileBrowserMode, SettingsField.FileViewImageMaxPerCall }, SettingsMenu.ToolsTabFields[2]);   // the view_image cap last, 2026-09-19; the browser mode under the folder mode, 2026-09-21
+        Assert.Equal(new[] { SettingsField.FileTools, SettingsField.FileSafeEdits, SettingsField.FileTreeMaxLength, SettingsField.FileTreeShowSizes, SettingsField.FileMentionFolderMode, SettingsField.FileBrowserMode, SettingsField.FileViewImageMaxPerCall }, SettingsMenu.ToolsTabFields[1]);   // the view_image cap last, 2026-09-19; the browser mode under the folder mode, 2026-09-21
         Assert.True(SettingsMenu.IsToggle(SettingsField.FileTools));
         Assert.False(SettingsMenu.RefusedMidTurn(SettingsField.FileTools));
         Assert.Equal("File tools", SettingsMenu.FieldName(SettingsField.FileTools));
@@ -1004,12 +1004,12 @@ public class SettingsMenuTests : IDisposable
         }
 
         Assert.Equal("on", SettingsMenu.FieldValue(SettingsField.FileSafeEdits, new AppSettingsData { FileSafeEdits = true }, _settings.ProfileDirectory));
-        Assert.Equal(SettingsMenu.ToolsTabFields[2].Max(f => SettingsMenu.FieldName(f).Length) + 2, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[2]));
+        Assert.Equal(SettingsMenu.ToolsTabFields[1].Max(f => SettingsMenu.FieldName(f).Length) + 2, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[1]));
         // The web rows (2026-09-15): the Web tab (titled Browser until later that day; /tools' last from 2026-09-19, third since later on 2026-09-21), in this order, none a reconnect — one toggle, three pickers (the network mode in the LAN switch's slot since 2026-09-18; the search method above the URL it governs), two typed rows that may be empty, a typed count.
-        Assert.Equal(new[] { SettingsField.WebTools, SettingsField.WebBrowserMode, SettingsField.WebBrowserPath, SettingsField.WebBrowserNetworkMode, SettingsField.WebSearchMethod, SettingsField.WebSearxngUrl, SettingsField.WebSearchMaxResults }, SettingsMenu.ToolsTabFields[1]);
+        Assert.Equal(new[] { SettingsField.WebTools, SettingsField.WebBrowserMode, SettingsField.WebBrowserPath, SettingsField.WebBrowserNetworkMode, SettingsField.WebSearchMethod, SettingsField.WebSearxngUrl, SettingsField.WebSearchMaxResults }, SettingsMenu.ToolsTabFields[0]);
         // The shell rows (2026-09-21): the Shell tab (between Git and Web that day, between Files and Ask since later on) — the policy (the group's switch, a picker), the allowed list, the default shell (a picker), then the three typed caps,
         // the languages, their timeout, the tool bridge (the tab's one toggle, later that day) above the tool-call cap it governs; none a reconnect. The outside-paths police (2026-09-22) sits third, under the list it guards beside.
-        Assert.Equal(new[] { SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellPoliceOutsidePaths, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellToolBridge, SettingsField.ShellCodeMaxToolCalls }, SettingsMenu.ToolsTabFields[3]);
+        Assert.Equal(new[] { SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellPoliceOutsidePaths, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellToolBridge, SettingsField.ShellCodeMaxToolCalls }, SettingsMenu.ToolsTabFields[2]);
         Assert.Equal("Shell tool bridge", SettingsMenu.FieldName(SettingsField.ShellToolBridge));
         Assert.True(SettingsMenu.IsToggle(SettingsField.ShellToolBridge));
         Assert.False(SettingsMenu.IsLlmField(SettingsField.ShellToolBridge));
@@ -1045,8 +1045,8 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("Shell timeout (s)", SettingsMenu.FieldName(SettingsField.ShellTimeoutSeconds));
         Assert.Equal("Shell foreground cap (s)", SettingsMenu.FieldName(SettingsField.ShellForegroundCapSeconds));
         Assert.Equal("Shell output max chars", SettingsMenu.FieldName(SettingsField.ShellOutputMaxChars));
-        Assert.Equal([SettingsField.ShellPoliceOutsidePaths, SettingsField.ShellToolBridge], SettingsMenu.ToolsTabFields[3].Where(SettingsMenu.IsToggle));
-        Assert.All(SettingsMenu.ToolsTabFields[3], f => Assert.False(SettingsMenu.RefusedMidTurn(f)));
+        Assert.Equal([SettingsField.ShellPoliceOutsidePaths, SettingsField.ShellToolBridge], SettingsMenu.ToolsTabFields[2].Where(SettingsMenu.IsToggle));
+        Assert.All(SettingsMenu.ToolsTabFields[2], f => Assert.False(SettingsMenu.RefusedMidTurn(f)));
         Assert.Equal("ask", SettingsMenu.FieldValue(SettingsField.ShellCommandPolicy, data, _settings.ProfileDirectory));
         Assert.Equal("none", SettingsMenu.FieldValue(SettingsField.ShellCommandAllowed, data, _settings.ProfileDirectory));
         Assert.Equal("1 prefix", SettingsMenu.FieldValue(SettingsField.ShellCommandAllowed, new AppSettingsData { ShellCommandAllowed = ["git push"] }, _settings.ProfileDirectory));
@@ -1070,7 +1070,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("Enter = remove · ESC = back", SettingsMenu.RemoveKeys);
         Assert.Equal("Shell allowed commands: git push removed", SettingsMenu.PrefixRemovedNotice("git push"));
         // The git rows (2026-09-20): the Git tab (Git (native), the last, since later on 2026-09-21) — the switch, then the two caps alphabetically; typed, none a reconnect.
-        Assert.Equal(new[] { SettingsField.GitNativeTools, SettingsField.GitNativeDiffMaxLines, SettingsField.GitNativeLogMaxCommits, SettingsField.GitNativeEmail, SettingsField.GitNativeName }, SettingsMenu.ToolsTabFields[5]);
+        Assert.Equal(new[] { SettingsField.GitNativeTools, SettingsField.GitNativeDiffMaxLines, SettingsField.GitNativeLogMaxCommits, SettingsField.GitNativeEmail, SettingsField.GitNativeName }, SettingsMenu.ToolsTabFields[4]);
         // The identity pair (2026-09-21): typed, empty allowed and shown as (not set), no validation.
         Assert.Equal("Git native email", SettingsMenu.FieldName(SettingsField.GitNativeEmail));   // the Git native labels, later on 2026-09-21
         Assert.Equal("Git native name", SettingsMenu.FieldName(SettingsField.GitNativeName));
@@ -1105,7 +1105,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("searxng", SettingsMenu.FieldValue(SettingsField.WebSearchMethod, new AppSettingsData { WebSearchMethod = "searxng" }, _settings.ProfileDirectory));
         Assert.Equal("duckduckgo [#9A8BB8]the built-in DuckDuckGo scrape, no setup[/]", SettingsMenu.SearchMethodLabel("duckduckgo"));
         Assert.Equal("searxng    [#9A8BB8]the instance named in Web SearXNG URL; DuckDuckGo until one is set[/]", SettingsMenu.SearchMethodLabel("searxng"));
-        foreach (var f in SettingsMenu.ToolsTabFields[5])
+        foreach (var f in SettingsMenu.ToolsTabFields[4])
         {
             Assert.False(SettingsMenu.IsLlmField(f) || SettingsMenu.IsTtsField(f) || SettingsMenu.IsVoiceField(f));
         }
@@ -1305,11 +1305,11 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("unprotected", SettingsMenu.FieldValue(SettingsField.SkillCompactMode, new AppSettingsData { SkillCompactMode = "unprotected" }, _settings.ProfileDirectory));
         Assert.Equal("protected   [#9A8BB8]loaded skills survive a prune and the mid-turn guard[/]", SettingsMenu.SkillCompactModeLabel("protected"));
         Assert.Equal("unprotected [#9A8BB8]loaded skills prune like any tool result[/]", SettingsMenu.SkillCompactModeLabel("unprotected"));
-        Assert.Equal([SettingsField.ToolsDollarMention, SettingsField.ToolCollapseCount, SettingsField.CodeCollapseCount], SettingsMenu.ToolsTabFields[0]);   // the Options tab, later on 2026-09-19; the fold's count under the switch 2026-09-22, the code fold's under it later that day
-        Assert.Equal([SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices], SettingsMenu.ToolsTabFields[4]);   // the Ask tab: second after Options until later on 2026-09-21, between Shell and Git (native) since
+        Assert.Equal([SettingsField.ToolsDollarMention, SettingsField.ToolCollapseCount, SettingsField.CodeCollapseCount], SettingsMenu.ToolsTabFields[6]);   // the Options tab, later on 2026-09-19; the fold's count under the switch 2026-09-22, the code fold's under it later that day
+        Assert.Equal([SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices], SettingsMenu.ToolsTabFields[3]);   // the Ask tab: second after Options until later on 2026-09-21, between Shell and Git (native) since
         Assert.True(SettingsMenu.IsToggle(SettingsField.AskUser));
         Assert.False(SettingsMenu.IsToggle(SettingsField.AskMaxQuestions) || SettingsMenu.IsToggle(SettingsField.AskMaxChoices));
-        Assert.All(SettingsMenu.ToolsTabFields[4], f => Assert.False(SettingsMenu.IsLlmField(f) || SettingsMenu.IsTtsField(f) || SettingsMenu.IsVoiceField(f) || SettingsMenu.RefusedMidTurn(f)));
+        Assert.All(SettingsMenu.ToolsTabFields[3], f => Assert.False(SettingsMenu.IsLlmField(f) || SettingsMenu.IsTtsField(f) || SettingsMenu.IsVoiceField(f) || SettingsMenu.RefusedMidTurn(f)));
         Assert.Equal("Ask user", SettingsMenu.FieldName(SettingsField.AskUser));
         Assert.Equal("Ask max questions", SettingsMenu.FieldName(SettingsField.AskMaxQuestions));
         Assert.Equal("Ask max choices per question", SettingsMenu.FieldName(SettingsField.AskMaxChoices));
@@ -1329,12 +1329,12 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal(26, SettingsMenu.TabLabelWidth(SettingsTab.Llm));       // "LLM compact show summary" (2026-09-21; "LLM request timeout (s)", 23, before)
         Assert.Equal(19, SettingsMenu.TabLabelWidth(SettingsTab.Tts));       // "TTS voice preview"
         Assert.Equal(26, SettingsMenu.TabLabelWidth(SettingsTab.Stt));       // "STT interrupt echo guard"
-        Assert.Equal(21, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[0]));   // "Tool collapse count" (2026-09-22; "$-mention enabled", 19, the Options tab's one row from later on 2026-09-19)
-        Assert.Equal(26, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[1]));   // "Web browser network mode" (the Web-prefixed labels, later still on 2026-09-19; "Web search max results", 24, before)
-        Assert.Equal(32, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[2]));   // "File view image max (per call)" (the File-prefixed labels, later still on 2026-09-19; "Stale line number guard", 25, that morning; "Always return line numbers", 28, from 2026-09-17 until it went; "Tree max length", 17, before)
-        Assert.Equal(29, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[3]));   // "Shell tool bridge max calls" (the Shell tab, 2026-09-21; the row was "Shell code max tool calls", 27, until later that day)
-        Assert.Equal(30, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[4]));   // "Ask max choices per question"
-        Assert.Equal(28, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[5]));   // "Git native log max commits" (later on 2026-09-21; "Git log max commits", 21, from 2026-09-20)
+        Assert.Equal(21, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[6]));   // "Tool collapse count" (2026-09-22; "$-mention enabled", 19, the Options tab's one row from later on 2026-09-19)
+        Assert.Equal(26, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[0]));   // "Web browser network mode" (the Web-prefixed labels, later still on 2026-09-19; "Web search max results", 24, before)
+        Assert.Equal(32, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[1]));   // "File view image max (per call)" (the File-prefixed labels, later still on 2026-09-19; "Stale line number guard", 25, that morning; "Always return line numbers", 28, from 2026-09-17 until it went; "Tree max length", 17, before)
+        Assert.Equal(29, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[2]));   // "Shell tool bridge max calls" (the Shell tab, 2026-09-21; the row was "Shell code max tool calls", 27, until later that day)
+        Assert.Equal(30, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[3]));   // "Ask max choices per question"
+        Assert.Equal(28, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[4]));   // "Git native log max commits" (later on 2026-09-21; "Git log max commits", 21, from 2026-09-20)
         Assert.Equal(38, SettingsMenu.LabelWidthOf(SettingsMenu.SkillsTabFields[0]));   // "Use external skills (.agents\\skills)"
         Assert.Equal(31, SettingsMenu.LabelWidthOf(SettingsMenu.SkillsTabFields[1]));   // "Reflection cooldown (minutes)" (the Reflection tab, later on 2026-09-19)
         Assert.Equal("TTS speed          [#EFE6FF]1.2[/]", SettingsMenu.FieldLabel(SettingsField.TtsSpeed, data, _settings.ProfileDirectory, null, SettingsMenu.TabLabelWidth(SettingsTab.Tts)));   // 1.0 until 2026-09-18

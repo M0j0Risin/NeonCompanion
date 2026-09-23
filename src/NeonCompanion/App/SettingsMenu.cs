@@ -553,7 +553,7 @@ internal sealed class SettingsMenu
 
     /// <summary>
     /// The rows of <c>/tools</c>' four settings tabs (2026-09-19, the Ask, Files and Web rows moved off <c>/settings</c> the user's call), indexed by
-    /// <see cref="ToolsText.TabTitles"/> one down (Options, Web, Files, Shell, Ask, Git (native) — the user's order since 2026-09-21; alphabetical before): Options (later on 2026-09-19) is the <c>$</c>-mention switch, and under it the tool-run fold (<c>Tool collapse count</c>, 2026-09-22, the user's place);
+    /// <see cref="ToolsText.TabTitles"/> one down (Web, Files, Shell, Ask, Git (native), Obsidian, Options — the user's order since 2026-09-21, Obsidian and Options last since 2026-09-22; alphabetical before): Options (later on 2026-09-19) is the <c>$</c>-mention switch, and under it the tool-run fold (<c>Tool collapse count</c>, 2026-09-22, the user's place);
     /// Ask (2026-09-15) is the question tool's switch and its two caps;
     /// Files (2026-09-15) is the file-tools switch, the Safe edits switch (2026-09-17; Stale line number guard beside it until 2026-09-19, Always return
     /// line numbers between them until 2026-09-19), the two <c>/tree</c> rows (once General's last two), the @-mention folder mode
@@ -568,13 +568,13 @@ internal sealed class SettingsMenu
     /// </summary>
     public static readonly IReadOnlyList<IReadOnlyList<SettingsField>> ToolsTabFields =
     [
-        [SettingsField.ToolsDollarMention, SettingsField.ToolCollapseCount, SettingsField.CodeCollapseCount],
         [SettingsField.WebTools, SettingsField.WebBrowserMode, SettingsField.WebBrowserPath, SettingsField.WebBrowserNetworkMode, SettingsField.WebSearchMethod, SettingsField.WebSearxngUrl, SettingsField.WebSearchMaxResults],
         [SettingsField.FileTools, SettingsField.FileSafeEdits, SettingsField.FileTreeMaxLength, SettingsField.FileTreeShowSizes, SettingsField.FileMentionFolderMode, SettingsField.FileBrowserMode, SettingsField.FileViewImageMaxPerCall],
         [SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellPoliceOutsidePaths, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellToolBridge, SettingsField.ShellCodeMaxToolCalls],
         [SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices],
         [SettingsField.GitNativeTools, SettingsField.GitNativeDiffMaxLines, SettingsField.GitNativeLogMaxCommits, SettingsField.GitNativeEmail, SettingsField.GitNativeName],
         [SettingsField.ObsidianTools, SettingsField.ObsidianVault],
+        [SettingsField.ToolsDollarMention, SettingsField.ToolCollapseCount, SettingsField.CodeCollapseCount],
     ];
 
     /// <summary>
@@ -596,6 +596,7 @@ internal sealed class SettingsMenu
     private readonly SpeechSession _speech;
     private readonly MenuPane _pane;
     private readonly Func<CancellationToken, Task<string?>>? _browseFolder;
+    private readonly Func<string, CancellationToken, Task<string?>>? _browseVault;
     private readonly Func<string, string?> _locateBrowser;
     private readonly Func<IReadOnlySet<string>> _installedShells;
     private readonly Func<IReadOnlySet<string>> _installedLanguages;
@@ -617,9 +618,10 @@ internal sealed class SettingsMenu
     /// <param name="installedShells">The shells the <c>Shell default</c> picker marks as found (their <see cref="Shell.ShellKinds.Names"/> words; the screen's <see cref="Shell.Interpreters"/>, 2026-09-21); null = all three marked found.</param>
     /// <param name="installedLanguages">The languages the <c>Shell code languages</c> list marks as found (their <see cref="Shell.CodeLanguages.Names"/> words); null = all three marked found.</param>
     /// <param name="browseFolder">The folder picker the <c>Working directory (cwd)</c> row opens (2026-09-22, the user's ask): the screen's <c>/cwd browse</c> tree, returning what to save — <c>""</c> for the profile's folder, a full path, or null for nothing chosen. Null (and a console with no pane) falls back to the typed path the row asked for until then.</param>
-    public SettingsMenu(IAnsiConsole console, AppSettings settings, Func<SettingsField, string?> overriddenBy, InputLine input, TranscriptRenderer transcript, SpeechSession speech, MenuPane pane, Func<string, string?>? locateBrowser = null, Func<IReadOnlySet<string>>? installedShells = null, Func<IReadOnlySet<string>>? installedLanguages = null, Func<CancellationToken, Task<string?>>? browseFolder = null)
+    public SettingsMenu(IAnsiConsole console, AppSettings settings, Func<SettingsField, string?> overriddenBy, InputLine input, TranscriptRenderer transcript, SpeechSession speech, MenuPane pane, Func<string, string?>? locateBrowser = null, Func<IReadOnlySet<string>>? installedShells = null, Func<IReadOnlySet<string>>? installedLanguages = null, Func<CancellationToken, Task<string?>>? browseFolder = null, Func<string, CancellationToken, Task<string?>>? browseVault = null)
     {
         _browseFolder = browseFolder;
+        _browseVault = browseVault;
         _locateBrowser = locateBrowser ?? new Web.HeadlessBrowser().Locate;
         _installedShells = installedShells ?? (() => new HashSet<string>(Shell.ShellKinds.Names, StringComparer.Ordinal));
         _installedLanguages = installedLanguages ?? (() => new HashSet<string>(Shell.CodeLanguages.Names, StringComparer.Ordinal));
@@ -1929,10 +1931,10 @@ internal sealed class SettingsMenu
             return await PickWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        if (field == SettingsField.ObsidianVault && _browseFolder is not null && _pane.Enabled)
+        if (field == SettingsField.ObsidianVault && _browseVault is not null && _pane.Enabled)
         {
-            // The same folder picker (2026-09-22): a vault is a folder, and its path is long to type.
-            string? picked = await _browseFolder(cancellationToken).ConfigureAwait(false);
+            // The folder picker (2026-09-22): a vault is a folder, and its path is long to type; it opens on the vault saved (later that day).
+            string? picked = await _browseVault(saved.ObsidianVault, cancellationToken).ConfigureAwait(false);
             return picked is not null ? TrySaveObsidianVault(picked) : Unchanged();
         }
 
