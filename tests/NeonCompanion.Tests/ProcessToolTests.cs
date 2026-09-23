@@ -121,11 +121,14 @@ public sealed class ProcessToolTests : IDisposable
     [Fact]
     public async Task Wait_Kill_Write_AndSubmit_OverARunningChild()
     {
-        var session = Start("set /p name=&& call echo hello %name%");
+        // A write and a submit split one line, so the child must read a whole line (2026-09-22, the v0.3.2 release run): cmd's set /p takes
+        // whatever one ReadFile returns, and on the runner it was already blocked when "wor" was flushed and echoed "hello wor".
+        const string ReadLine = "powershell -NoProfile -Command \"'hello ' + [Console]::In.ReadLine()\"";
+        var session = Start(ReadLine);
         Assert.Equal("sent 3 chars to " + session.Id, await Invoke(("action", "write"), ("session_id", session.Id), ("data", "wor")));
         Assert.Equal("sent a line to " + session.Id, await Invoke(("action", "submit"), ("session_id", session.Id), ("data", "ld")));
         string waited = await Invoke(("action", "wait"), ("session_id", session.Id), ("timeout", 30));
-        Assert.Equal(session.Id + " exited 0 after 0.0 s (cmd): set /p name=&& call echo hello %name% — 1 new line\nhello world", waited);
+        Assert.Equal(session.Id + " exited 0 after 0.0 s (cmd): " + ReadLine + " — 1 new line\nhello world", waited);
         Assert.Equal("Error: " + session.Id + " has exited; kill needs a running process", await Invoke(("action", "kill"), ("session_id", session.Id)));
         Assert.Equal("Error: " + session.Id + " has exited; write needs a running process", await Invoke(("action", "write"), ("session_id", session.Id), ("data", "x")));
 
