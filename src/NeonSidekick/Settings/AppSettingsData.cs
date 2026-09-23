@@ -495,16 +495,6 @@ public sealed class AppSettingsData
     public bool AgentSkills { get; set; } = true;
 
     /// <summary>
-    /// Whether the <c>/skills</c> pane's scope picker offers <c>delete</c> (2026-09-18, the
-    /// user's call): a skill's folder removed with everything in it, after a confirmation, under the
-    /// profile and global roots alone — the model's tool never deletes. On by default since later on
-    /// 2026-09-21 (the user's call; off out of the box until then: moving a skill between the two roots
-    /// is the safe act, and stays offered either way). Read when the picker opens, no reconnect; the
-    /// Options tab of <c>/skills</c>, fifth row, labelled <c>Allow skill delete</c>. No variable.
-    /// </summary>
-    public bool AllowSkillDelete { get; set; } = true;
-
-    /// <summary>
     /// Whether the cross-client folder <c>%USERPROFILE%\.agents\skills</c> is scanned too
     /// (2026-09-16); read only while <see cref="AgentSkills"/> is on. Off by default: another
     /// client's skills were written for its tools. Read only, never written. No variable.

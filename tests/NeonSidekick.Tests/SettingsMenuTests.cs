@@ -741,7 +741,7 @@ public class SettingsMenuTests : IDisposable
                 SettingsField.FileSafeEdits, SettingsField.SkillHashMention,
                 SettingsField.ReflectionAutoLearn, SettingsField.ReflectionReasoning, SettingsField.ReflectionWindow, SettingsField.ReflectionMinToolCalls, SettingsField.ReflectionMaxRequests,
                 SettingsField.HideExitAutocomplete, SettingsField.CommandTypoIntercept, SettingsField.WelcomeSplash, SettingsField.ShowWorkingDirectory,
-                SettingsField.QueueMessages, SettingsField.QueueCancelMode, SettingsField.AllowSkillDelete,
+                SettingsField.QueueMessages, SettingsField.QueueCancelMode,
                 SettingsField.SessionLogging, SettingsField.SessionRetentionDays, SettingsField.SessionNamingMode, SettingsField.SessionShowName, SettingsField.SessionTool, SettingsField.SessionSearchMaxResults,
                 SettingsField.ToolsDollarMention, SettingsField.ReflectionCooldownMinutes, SettingsField.ReflectionIncludesSessions, SettingsField.ReflectionCooldownMode,
                 SettingsField.DraftEditor, SettingsField.FileViewImageMaxPerCall,
@@ -821,7 +821,7 @@ public class SettingsMenuTests : IDisposable
         // The pane's tabs (five since 2026-09-19: Ask, Files and Web are /tools' tabs, Skills is /skills' Options tab): General, Sessions, LLM in their own order, TTS / STT the enum order of their session's fields; every field on exactly one tab of the three panes.
         Assert.Equal(["General", "Sessions", "LLM", "TTS", "STT"], SettingsMenu.TabTitles);   // Sessions right after General (2026-09-18); Web last until 2026-09-19, Skills third until later that day
         // The Options tab of /skills (2026-09-19; the Skills tab of /settings from 2026-09-16 until then): the skills switch, the external-folder switch and the compact-mode picker, then (2026-09-17) the #-mention switch, the delete switch, then the auto-learn switch and the reflection rows; none a reconnect.
-        Assert.Equal([SettingsField.AgentSkills, SettingsField.ExternalSkills, SettingsField.SkillCompactMode, SettingsField.SkillHashMention, SettingsField.AllowSkillDelete], SettingsMenu.SkillsTabFields[0]);   // the Options tab; the reflection rows on their own tab since later on 2026-09-19
+        Assert.Equal([SettingsField.AgentSkills, SettingsField.ExternalSkills, SettingsField.SkillCompactMode, SettingsField.SkillHashMention], SettingsMenu.SkillsTabFields[0]);   // the Options tab; the reflection rows on their own tab since later on 2026-09-19
         Assert.Equal([SettingsField.ReflectionAutoLearn, SettingsField.ReflectionReasoning, SettingsField.ReflectionWindow, SettingsField.ReflectionMinToolCalls, SettingsField.ReflectionMaxRequests, SettingsField.ReflectionCooldownMinutes, SettingsField.ReflectionCooldownMode, SettingsField.ReflectionIncludesSessions], SettingsMenu.SkillsTabFields[1]);   // the Reflection tab: the cooldown, its mode and the sessions switch (last, the user's place) since 2026-09-19
         // Reflection min tool calls (2026-09-17): the tab's last row and the enum's last member, typed 3–20; the error door stays one recovered error.
         Assert.False(SettingsMenu.IsToggle(SettingsField.ReflectionMinToolCalls));
@@ -880,14 +880,6 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("xhigh   [#9A8BB8]maximum thinking, slowest[/]", SettingsMenu.ReflectionReasoningLabel("xhigh"));
         Assert.Equal("enough tool calls, or an error it recovered from, teaches a skill", SettingsMenu.ToggleDescribe(SettingsField.ReflectionAutoLearn, true));
         Assert.Equal("nothing is learned unasked; /learn and skill_editor still work", SettingsMenu.ToggleDescribe(SettingsField.ReflectionAutoLearn, false));
-        // Allow skill delete (2026-09-18): the /skill scope picker's delete row, the Skills tab's sixth row, the enum's last member, on by default (since later on 2026-09-21; off until then), no reconnect.
-        Assert.True(SettingsMenu.IsToggle(SettingsField.AllowSkillDelete));
-        Assert.Equal("Allow skill delete", SettingsMenu.FieldName(SettingsField.AllowSkillDelete));
-        Assert.Equal("on", SettingsMenu.FieldValue(SettingsField.AllowSkillDelete, data, _settings.ProfileDirectory));
-        Assert.Equal("off", SettingsMenu.FieldValue(SettingsField.AllowSkillDelete, new AppSettingsData { AllowSkillDelete = false }, _settings.ProfileDirectory));
-        Assert.Equal("the scope picker in /skills offers delete, after a confirmation", SettingsMenu.ToggleDescribe(SettingsField.AllowSkillDelete, true));
-        Assert.Equal("a skill is moved between the profile and global roots only", SettingsMenu.ToggleDescribe(SettingsField.AllowSkillDelete, false));
-        Assert.False(SettingsMenu.RefusedMidTurn(SettingsField.AllowSkillDelete) || SettingsMenu.IsLlmField(SettingsField.AllowSkillDelete) || SettingsMenu.IsTtsField(SettingsField.AllowSkillDelete) || SettingsMenu.IsVoiceField(SettingsField.AllowSkillDelete));
         Assert.Equal(2, (int)SettingsTab.Llm);   // third since 2026-09-19 (Skills sat between from 2026-09-18 until then; the Options tab of /skills now)
         Assert.True(SettingsMenu.IsToggle(SettingsField.AgentSkills) && SettingsMenu.IsToggle(SettingsField.ExternalSkills));
         Assert.True(SettingsMenu.IsToggle(SettingsField.SkillHashMention));
@@ -909,7 +901,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal(5, SettingsMenu.TabFields.Count);   // 9 until 2026-09-19, when Ask, Files and Web moved to /tools (ToolsTabFields) and, later that day, Skills to /skills (SkillsTabFields)
         Assert.Equal(8, SettingsMenu.ToolsTabFields.Count);   // SQL since 2026-09-23; Obsidian since 2026-09-22 and Options last later that day (first since later on 2026-09-19); Git between Files and Web since 2026-09-20; Shell between Git and Web since 2026-09-21
         Assert.Equal(2, SettingsMenu.SkillsTabFields.Count);   // Options and Reflection, since later on 2026-09-19 (one list of 11, then 14, before)
-        Assert.Equal(13, SettingsMenu.SkillsTabFields.Sum(t => t.Count));   // 14 until Reflection verbose went later still on 2026-09-19
+        Assert.Equal(12, SettingsMenu.SkillsTabFields.Sum(t => t.Count));   // 13 until Allow skill delete went on 2026-09-23; 14 until Reflection verbose went later still on 2026-09-19
         Assert.Equal(new[] { SettingsField.Profile, SettingsField.NewProfileMode, SettingsField.WorkingDirectory, SettingsField.QueueMessages, SettingsField.QueueCancelMode, SettingsField.Memory, SettingsField.CopyUserPrompt, SettingsField.ShowImageThumbnails, SettingsField.ImageThumbnailSize, SettingsField.TranscriptMarkdown, SettingsField.PastePreviewLines, SettingsField.HideExitAutocomplete, SettingsField.CommandTypoIntercept, SettingsField.WelcomeSplash, SettingsField.ShowWorkingDirectory, SettingsField.ShowToolbar, SettingsField.DraftEditor }, SettingsMenu.TabFields[(int)SettingsTab.General]);
         // Draft editor (2026-09-19): typed, the General tab's last row, blank = the shell's default for .txt, no reconnect (read at each /draft).
         Assert.False(SettingsMenu.IsToggle(SettingsField.DraftEditor));
@@ -1244,7 +1236,7 @@ public class SettingsMenuTests : IDisposable
         // The Ask tab (2026-09-15; /tools' first settings tab since 2026-09-19): the question tool's switch and its two caps, none a reconnect.
         Assert.Equal(["General", "Sessions", "LLM", "TTS", "STT"], SettingsMenu.TabTitles);   // five since 2026-09-19
         // The Options tab of /skills (2026-09-19; the Skills tab of /settings from 2026-09-16 until then): the skills switch, the external-folder switch and the compact-mode picker, then (2026-09-17) the #-mention switch, the delete switch, then the auto-learn switch and the reflection rows; none a reconnect.
-        Assert.Equal([SettingsField.AgentSkills, SettingsField.ExternalSkills, SettingsField.SkillCompactMode, SettingsField.SkillHashMention, SettingsField.AllowSkillDelete], SettingsMenu.SkillsTabFields[0]);   // the Options tab; the reflection rows on their own tab since later on 2026-09-19
+        Assert.Equal([SettingsField.AgentSkills, SettingsField.ExternalSkills, SettingsField.SkillCompactMode, SettingsField.SkillHashMention], SettingsMenu.SkillsTabFields[0]);   // the Options tab; the reflection rows on their own tab since later on 2026-09-19
         Assert.Equal([SettingsField.ReflectionAutoLearn, SettingsField.ReflectionReasoning, SettingsField.ReflectionWindow, SettingsField.ReflectionMinToolCalls, SettingsField.ReflectionMaxRequests, SettingsField.ReflectionCooldownMinutes, SettingsField.ReflectionCooldownMode, SettingsField.ReflectionIncludesSessions], SettingsMenu.SkillsTabFields[1]);   // the Reflection tab: the cooldown, its mode and the sessions switch (last, the user's place) since 2026-09-19
         // Reflection min tool calls (2026-09-17): the tab's last row and the enum's last member, typed 3–20; the error door stays one recovered error.
         Assert.False(SettingsMenu.IsToggle(SettingsField.ReflectionMinToolCalls));
@@ -1280,14 +1272,6 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("xhigh   [#9A8BB8]maximum thinking, slowest[/]", SettingsMenu.ReflectionReasoningLabel("xhigh"));
         Assert.Equal("enough tool calls, or an error it recovered from, teaches a skill", SettingsMenu.ToggleDescribe(SettingsField.ReflectionAutoLearn, true));
         Assert.Equal("nothing is learned unasked; /learn and skill_editor still work", SettingsMenu.ToggleDescribe(SettingsField.ReflectionAutoLearn, false));
-        // Allow skill delete (2026-09-18): the /skill scope picker's delete row, the Skills tab's sixth row, the enum's last member, on by default (since later on 2026-09-21; off until then), no reconnect.
-        Assert.True(SettingsMenu.IsToggle(SettingsField.AllowSkillDelete));
-        Assert.Equal("Allow skill delete", SettingsMenu.FieldName(SettingsField.AllowSkillDelete));
-        Assert.Equal("on", SettingsMenu.FieldValue(SettingsField.AllowSkillDelete, data, _settings.ProfileDirectory));
-        Assert.Equal("off", SettingsMenu.FieldValue(SettingsField.AllowSkillDelete, new AppSettingsData { AllowSkillDelete = false }, _settings.ProfileDirectory));
-        Assert.Equal("the scope picker in /skills offers delete, after a confirmation", SettingsMenu.ToggleDescribe(SettingsField.AllowSkillDelete, true));
-        Assert.Equal("a skill is moved between the profile and global roots only", SettingsMenu.ToggleDescribe(SettingsField.AllowSkillDelete, false));
-        Assert.False(SettingsMenu.RefusedMidTurn(SettingsField.AllowSkillDelete) || SettingsMenu.IsLlmField(SettingsField.AllowSkillDelete) || SettingsMenu.IsTtsField(SettingsField.AllowSkillDelete) || SettingsMenu.IsVoiceField(SettingsField.AllowSkillDelete));
         Assert.Equal(2, (int)SettingsTab.Llm);   // third since 2026-09-19 (Skills sat between from 2026-09-18 until then; the Options tab of /skills now)
         Assert.True(SettingsMenu.IsToggle(SettingsField.AgentSkills) && SettingsMenu.IsToggle(SettingsField.ExternalSkills));
         Assert.True(SettingsMenu.IsToggle(SettingsField.SkillHashMention));
@@ -3567,10 +3551,10 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task Toggle_DollarMention_IsRow79_TheLast_OnByDefault_NoReconnect()
+    public async Task Toggle_DollarMention_IsRow78_TheLast_OnByDefault_NoReconnect()
     {
         // The $-mention switch (2026-09-19): the enum's last member, /tools' Options tab on the pane.
-        Down(78);
+        Down(77);   // one row up since Allow skill delete went, 2026-09-23
         Push(Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape);
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -3586,11 +3570,11 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task DraftEditor_IsRow83_TheLast_Typed_AnyTextIsKept_AndEmptyMeansTheShellsDefault()
+    public async Task DraftEditor_IsRow82_TheLast_Typed_AnyTextIsKept_AndEmptyMeansTheShellsDefault()
     {
         // 2026-09-19: the enum's last member, the General tab's last row on the pane; a command line, not a path, so nothing is checked here.
         _console.Profile.Width = 240;
-        Down(82);
+        Down(81);   // one row up since Allow skill delete went, 2026-09-23
         Push(Keys.Enter);                           // Draft editor: empty
         _console.Input.PushText("code --wait");
         Push(Keys.Enter);                           // saved
@@ -3868,11 +3852,11 @@ public class SettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public async Task Toggle_ShowToolbar_IsRow104_OnByDefault_PersistsAndNeedsNoReconnect()
+    public async Task Toggle_ShowToolbar_IsRow103_OnByDefault_PersistsAndNeedsNoReconnect()
     {
         // 2026-09-21: the enum's last member (the General tab's row after Show working directory); the pane reads it at its next draw.
         Assert.True(_settings.Current.ShowToolbar);
-        Down(103);
+        Down(102);   // one row up since Allow skill delete went, 2026-09-23
         Push(Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape);
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
@@ -3918,23 +3902,6 @@ public class SettingsMenuTests : IDisposable
         Assert.Contains("a cancelled reply sends the next queued message at once", _console.Output);
         Assert.Contains("a cancelled reply drops every queued message", _console.Output);
         Assert.Equal(0, _synth.ListCalls);
-    }
-
-    [Fact]
-    public async Task Toggle_AllowSkillDelete_IsRow72_OnByDefault_NoReconnect()
-    {
-        // Flat row 72 since Mouse in menus went on 2026-09-21 (73 before; 74 from Reflection verbose going later still on 2026-09-19 until the stale line number guard went with edit_lines; 75 on 2026-09-18, 77 until Always return line numbers went that morning), the enum's last member; the Skills tab's sixth row; on out of the box since later on 2026-09-21 (the user's call; off until then), the cursor on the on row, so Down picks off.
-        Assert.True(_settings.Current.AllowSkillDelete);
-        Down(71);
-        Push(Keys.Enter, Keys.Down, Keys.Enter, Keys.Escape);
-
-        Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
-
-        Assert.False(_settings.Current.AllowSkillDelete);
-        Assert.Contains("  · Allow skill delete: off", _console.Output);
-        Assert.Contains("a skill is moved between the profile and global roots only", _console.Output);
-        Assert.Equal(0, _synth.ListCalls);
-        Assert.False(SettingsMenu.RefusedMidTurn(SettingsField.AllowSkillDelete));
     }
 
     [Fact]

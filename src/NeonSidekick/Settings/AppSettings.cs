@@ -624,7 +624,6 @@ public sealed class AppSettings : IDisposable
         SttWakePhrase = source.SttWakePhrase,
         SttWhisperModel = source.SttWhisperModel,
         AgentSkills = source.AgentSkills,
-        AllowSkillDelete = source.AllowSkillDelete,
         ExternalSkills = source.ExternalSkills,
         ProjectFile = source.ProjectFile,
         ReflectionAutoLearn = source.ReflectionAutoLearn,

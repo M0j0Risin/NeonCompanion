@@ -21,7 +21,6 @@ public class SkillsMenuTests : IDisposable
     private readonly SpeechSession _speech;
     private bool _enabled = true;
     private bool _external = true;
-    private Func<bool> _allowDelete = () => false;
     private Func<string, string?>? _usage;
     /// <summary>Every file the edit row opened (2026-09-23), and what opening one does: record it, or throw for the failure path.</summary>
     private readonly List<string> _opened = new();
@@ -97,7 +96,7 @@ public class SkillsMenuTests : IDisposable
         var keys = new KeySource(_console.Input, TimeSpan.FromMilliseconds(1));
         var menuPane = new MenuPane(pane, keys);
         var settings = Settings(pane, keys, menuPane);
-        var menu = new SkillsMenu(Facts, () => _allowDelete(), _settings, settings, new TranscriptRenderer(pane), menuPane, new InputLine(pane, keys), OpenFile, _usage);
+        var menu = new SkillsMenu(Facts, _settings, settings, new TranscriptRenderer(pane), menuPane, new InputLine(pane, keys), OpenFile, _usage);
         pane.Show();
         return (menu, pane, settings);
     }
@@ -109,7 +108,7 @@ public class SkillsMenuTests : IDisposable
         var input = new ScriptedInput();
         var keys = new KeySource(input, TimeSpan.FromMilliseconds(1));
         var menuPane = new MenuPane(pane, keys);
-        var menu = new SkillsMenu(Facts, () => _allowDelete(), _settings, Settings(pane, keys, menuPane), new TranscriptRenderer(pane), menuPane, new InputLine(pane, keys), OpenFile);
+        var menu = new SkillsMenu(Facts, _settings, Settings(pane, keys, menuPane), new TranscriptRenderer(pane), menuPane, new InputLine(pane, keys), OpenFile);
         pane.Show();
         return (menu, pane, input);
     }
@@ -121,8 +120,8 @@ public class SkillsMenuTests : IDisposable
 
     private const string Strip = SkillsText.Label + "   Offered    Reflection    Project    Options ";   // Options last since 2026-09-22 (the user's ask); Loaded until 2026-09-19; Options (the settings rows, /settings' Skills tab until then) since later that day; Reflection (the reflection's rows out of Options) later still; the Roots tab after Project until later still that day
 
-    /// <summary>The Options tab's five rows at their defaults, padded to the tab's own column (38: the external-skills label), as the pane prints them. Pinned.</summary>
-    private const string OptionsRows = "▸ Agent skills                          on\n  Use external skills (.agents\\skills)  off\n  Skill compact mode                    protected\n  #-mention enabled                     on\n  Allow skill delete                    on\n";   // on by default since later on 2026-09-21
+    /// <summary>The Options tab's four rows at their defaults, padded to the tab's own column (38: the external-skills label), as the pane prints them. Pinned.</summary>
+    private const string OptionsRows = "▸ Agent skills                          on\n  Use external skills (.agents\\skills)  off\n  Skill compact mode                    protected\n  #-mention enabled                     on\n";   // Allow skill delete, the fifth, went on 2026-09-23 (delete always offered)
 
     /// <summary>The Reflection tab's nine rows at their defaults (later on 2026-09-19), padded to its own column (31: the cooldown minutes label). Pinned.</summary>
     private const string ReflectionRows = "▸ Reflection (auto-learn)        on\n  Reflection reasoning           none\n  Reflection window              3 turns\n  Reflection min tool calls      4 tool calls\n  Reflection max requests        4 requests\n  Reflection cooldown (minutes)  5 minutes\n  Reflection cooldown mode       last-written-skill\n  Reflection includes sessions   on\n";
@@ -245,8 +244,7 @@ public class SkillsMenuTests : IDisposable
 
         await menu.ShowAsync(CancellationToken.None);
 
-        Assert.Contains("\n" + Titled(SkillsMenu.ScopeTitle("haiku")) + "\n \n" + Fitted("▸ profile  " + _roots.Profile) + "\n" + Fitted("  global   " + _roots.Global) + "\n  rename   give it a new name (letters, digits and hyphens)\n  edit     open its SKILL.md in your editor\n" + Rule(100) + "\n" + SkillsMenu.ScopeKeys + "\n", _console.Output);
-        Assert.DoesNotContain("\n  delete   ", _console.Output);   // the switch off
+        Assert.Contains("\n" + Titled(SkillsMenu.ScopeTitle("haiku")) + "\n \n" + Fitted("▸ profile  " + _roots.Profile) + "\n" + Fitted("  global   " + _roots.Global) + "\n  rename   give it a new name (letters, digits and hyphens)\n  edit     open its SKILL.md in your editor\n  delete   remove the folder and everything in it\n" + Rule(100) + "\n" + SkillsMenu.ScopeKeys + "\n", _console.Output);   // delete always offered since 2026-09-23
         Assert.Contains("\n" + Titled(SkillsMenu.MovePrompt("haiku", SkillScope.Profile, SkillScope.Global)) + "\n \n▸ No\n  Yes\n" + Rule(100) + "\n" + SettingsMenu.ConfirmKeys + "\n", _console.Output);
         Assert.Contains("\n" + Titled(Strip) + "\n  · " + SkillsMenu.MovedNotice("haiku", SkillScope.Global) + "\n▸ haiku  global   Writes haiku.\n", _console.Output);
         Assert.False(Exists(SkillScope.Profile, "haiku"));
@@ -310,14 +308,13 @@ public class SkillsMenuTests : IDisposable
         pane.Dispose();
     }
 
-    /// <summary>The delete row shows only with Allow skill delete on; Yes removes the folder, the list read again (empty here: the none line).</summary>
+    /// <summary>The delete row is always there (2026-09-23; behind Allow skill delete until then); Yes removes the folder, the list read again (empty here: the none line).</summary>
     [Fact]
-    public async Task Delete_OnlyWithTheSwitch_Confirmed_RemovesTheFolder()
+    public async Task Delete_IsAlwaysOffered_Confirmed_RemovesTheFolder()
     {
         Put(SkillScope.Global, "haiku", "Writes haiku.");
         Directory.CreateDirectory(Path.Combine(_roots.Global, "haiku", "scripts"));
         File.WriteAllText(Path.Combine(_roots.Global, "haiku", "scripts", "run.py"), "p");
-        _allowDelete = () => true;
         var (menu, pane) = PaneMenu();
         Push(Keys.Enter);                                       // the scope page on global
         Push(Keys.Down, Keys.Down, Keys.Down, Keys.Enter);      // delete (past rename, 2026-09-21, and edit, 2026-09-23)
@@ -350,7 +347,7 @@ public class SkillsMenuTests : IDisposable
 
         string path = Path.Combine(_roots.Profile, "haiku", SkillCatalog.FileName);
         Assert.Equal([path], _opened);
-        Assert.Contains("\n  edit     open its SKILL.md in your editor\n", _console.Output);   // no delete row: Allow skill delete is off here
+        Assert.Contains("\n  edit     open its SKILL.md in your editor\n  delete   remove the folder and everything in it\n", _console.Output);   // the delete row after it, always (2026-09-23)
         Assert.Contains("\n  · " + SkillsMenu.EditOpenedNotice("haiku", "")[..^1], _console.Output);   // the path fitted to the width after it
         Assert.Contains("\n▸ haiku  profile  Writes haiku.\n", _console.Output);
         Assert.True(Exists(SkillScope.Profile, "haiku"));
@@ -414,7 +411,7 @@ public class SkillsMenuTests : IDisposable
 
         await menu.ShowAsync(CancellationToken.None);
 
-        Assert.Contains("\n▸ rename   give it a new name (letters, digits and hyphens)\n  edit     open its SKILL.md in your editor\n› \n" + Rule(100) + "\n" + SettingsMenu.EditKeys, _console.Output);
+        Assert.Contains("\n▸ rename   give it a new name (letters, digits and hyphens)\n  edit     open its SKILL.md in your editor\n  delete   remove the folder and everything in it\n› \n" + Rule(100) + "\n" + SettingsMenu.EditKeys, _console.Output);
         Assert.Contains("\n" + Titled(Strip) + "\n  · " + SkillsMenu.RenamedNotice("haiku", "my-haiku") + "\n▸ my-haiku  profile  Writes haiku.\n", _console.Output);
         Assert.False(Directory.Exists(Path.Combine(_roots.Profile, "haiku")));
         Assert.True(Exists(SkillScope.Profile, "my-haiku"));
@@ -461,8 +458,8 @@ public class SkillsMenuTests : IDisposable
     public async Task AFolderThatWent_IsTheMissingLine_AndTheListReReads()
     {
         Put(SkillScope.Profile, "haiku", "Writes haiku.");
-        // The folder goes as the scope page opens (the switch is read then): after the scan, before the act.
-        _allowDelete = () => { Directory.Delete(Path.Combine(_roots.Profile, "haiku"), recursive: true); return false; };
+        // The folder goes as the scope page opens (its caption is read then; the Allow skill delete switch was, until it went on 2026-09-23): after the scan, before the act.
+        _usage = _ => { Directory.Delete(Path.Combine(_roots.Profile, "haiku"), recursive: true); return null; };
         var (menu, pane) = PaneMenu();
         Push(Keys.Enter, Keys.Down, Keys.Enter);     // global
         Push(Keys.Down, Keys.Enter);                 // Yes — but the folder is gone by then
@@ -532,12 +529,12 @@ public class SkillsMenuTests : IDisposable
         var keys = new KeySource(_console.Input, TimeSpan.FromMilliseconds(1));
         var menuPane = new MenuPane(pane, keys);
         var settings = new SettingsMenu(_console, _settings, _ => null, new InputLine(_console, keys), new TranscriptRenderer(_console), _speech, menuPane, _ => null);
-        var menu = new SkillsMenu(Facts, () => _allowDelete(), _settings, settings, new TranscriptRenderer(_console), menuPane, new InputLine(_console, keys), OpenFile);
+        var menu = new SkillsMenu(Facts, _settings, settings, new TranscriptRenderer(_console), menuPane, new InputLine(_console, keys), OpenFile);
 
         await menu.ShowAsync(CancellationToken.None);
 
         // In the strip's order: Offered, Reflection, Project, Options last (2026-09-22; Options second from 2026-09-19, Reflection later that day), every row as `label: value`; the Project section the toggle row, no Roots section.
-        Assert.Contains("  · Offered\n  ·   haiku  profile  Writes haiku.\n  · Reflection\n  ·   Reflection (auto-learn): on\n  ·   Reflection reasoning: none\n  ·   Reflection window: 3 turns\n  ·   Reflection min tool calls: 4 tool calls\n  ·   Reflection max requests: 4 requests\n  ·   Reflection cooldown (minutes): 5 minutes\n  ·   Reflection cooldown mode: last-written-skill\n  ·   Reflection includes sessions: on\n  · Project\n  ·   Project file  on   " + SkillsText.NoNotesLine + "\n  · Options\n  ·   Agent skills: on\n  ·   Use external skills (.agents\\skills): off\n  ·   Skill compact mode: protected\n  ·   #-mention enabled: on\n  ·   Allow skill delete: on\n", _console.Output);
+        Assert.Contains("  · Offered\n  ·   haiku  profile  Writes haiku.\n  · Reflection\n  ·   Reflection (auto-learn): on\n  ·   Reflection reasoning: none\n  ·   Reflection window: 3 turns\n  ·   Reflection min tool calls: 4 tool calls\n  ·   Reflection max requests: 4 requests\n  ·   Reflection cooldown (minutes): 5 minutes\n  ·   Reflection cooldown mode: last-written-skill\n  ·   Reflection includes sessions: on\n  · Project\n  ·   Project file  on   " + SkillsText.NoNotesLine + "\n  · Options\n  ·   Agent skills: on\n  ·   Use external skills (.agents\\skills): off\n  ·   Skill compact mode: protected\n  ·   #-mention enabled: on\n", _console.Output);
         Assert.DoesNotContain("Roots", _console.Output);
     }
 
@@ -600,15 +597,15 @@ public class SkillsMenuTests : IDisposable
         Put(SkillScope.Profile, "haiku", "Writes haiku.");
         var (menu, pane) = PaneMenu();
         Push(Keys.Enter);                                       // haiku: the scope page refused
-        Push(Keys.Left, Keys.Down, Keys.Down, Keys.Down, Keys.Down, Keys.Enter, Keys.Down, Keys.Enter);    // Options (the strip wrapped), Allow skill delete: the page (the cursor on the saved on row, the default since later on 2026-09-21), off picked
+        Push(Keys.Left, Keys.Down, Keys.Down, Keys.Down, Keys.Enter, Keys.Down, Keys.Enter);    // Options (the strip wrapped), #-mention enabled: the page (the cursor on the saved on row, the default), off picked — Allow skill delete, the row this used until it went on 2026-09-23
         Push(Keys.Escape);
 
         await menu.ShowAsync(CancellationToken.None, midTurn: true);
 
-        Assert.False(_settings.Current.AllowSkillDelete);
+        Assert.False(_settings.Current.SkillHashMention);
         Assert.Contains("  · " + SettingsMenu.NotWhileReplyRunsNotice + "\n", _console.Output);
         Assert.DoesNotContain(SkillsMenu.ScopeTitle("haiku"), _console.Output);
-        Assert.Contains("\n" + Titled(SkillsText.Label + " › Allow skill delete") + "\n", _console.Output);
+        Assert.Contains("\n" + Titled(SkillsText.Label + " › #-mention enabled") + "\n", _console.Output);
         pane.Dispose();
     }
 }

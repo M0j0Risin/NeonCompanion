@@ -845,7 +845,7 @@ internal sealed partial class ChatScreen
             Flow = _flow,
         };
         // Built once: the roots ride the facts, so a profile switch needs no rebind; the Options rows through the settings menu (2026-09-19).
-        _skillsMenu = new SkillsMenu(SkillsFacts, () => _effective().AllowSkillDelete, settings, _menu, _flow, _menuPane, _input, _openFile, name => SkillsMenu.UsageCaption(_sessions, name, _effective().SessionLogging, _time.LocalTimeZone));
+        _skillsMenu = new SkillsMenu(SkillsFacts, settings, _menu, _flow, _menuPane, _input, _openFile, name => SkillsMenu.UsageCaption(_sessions, name, _effective().SessionLogging, _time.LocalTimeZone));
         // The /tools pane (2026-09-19): the tool list over the live facts, the Ask / Files / Web rows through the settings menu.
         _toolsMenu = new ToolsMenu(ToolsFacts, settings, _menu, _flow, _menuPane);
         // The /mcp pane (2026-09-20): the servers and their tools over the session's snapshot, the Options rows through the settings menu.

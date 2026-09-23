@@ -94,7 +94,6 @@ public class AppSettingsTests : IDisposable
         WebSearchMethod = "searxng",
         WebTools = false,
         AgentSkills = false,
-        AllowSkillDelete = true,
         ExternalSkills = true,
         ProjectFile = false,
         ReflectionAutoLearn = false,
@@ -196,7 +195,6 @@ public class AppSettingsTests : IDisposable
         Assert.Equal(expected.WebSearchMethod, actual.WebSearchMethod);
         Assert.Equal(expected.WebTools, actual.WebTools);
         Assert.Equal(expected.AgentSkills, actual.AgentSkills);
-        Assert.Equal(expected.AllowSkillDelete, actual.AllowSkillDelete);
         Assert.Equal(expected.ExternalSkills, actual.ExternalSkills);
         Assert.Equal(expected.ProjectFile, actual.ProjectFile);
         Assert.Equal(expected.ReflectionAutoLearn, actual.ReflectionAutoLearn);
@@ -307,7 +305,6 @@ public class AppSettingsTests : IDisposable
             d.WebSearchMethod = full.WebSearchMethod;
             d.WebTools = full.WebTools;
             d.AgentSkills = full.AgentSkills;
-            d.AllowSkillDelete = full.AllowSkillDelete;
             d.ExternalSkills = full.ExternalSkills;
             d.ProjectFile = full.ProjectFile;
             d.ReflectionAutoLearn = full.ReflectionAutoLearn;
@@ -415,7 +412,6 @@ public class AppSettingsTests : IDisposable
                 d.WebSearchMethod = full.WebSearchMethod;
                 d.WebTools = full.WebTools;
                 d.AgentSkills = full.AgentSkills;
-                d.AllowSkillDelete = full.AllowSkillDelete;
                 d.ExternalSkills = full.ExternalSkills;
                 d.ProjectFile = full.ProjectFile;
                 d.ReflectionAutoLearn = full.ReflectionAutoLearn;
@@ -974,7 +970,6 @@ public class AppSettingsTests : IDisposable
         Assert.Equal("vosk-model-small-en-us-0.15", s.SttVoskModel);
         Assert.Equal("folder-remain", s.FileMentionFolderMode);
         Assert.True(s.AgentSkills);
-        Assert.True(s.AllowSkillDelete);   // on since later on 2026-09-21 (the user's call; opt-in from 2026-09-18 until then)
         Assert.False(s.ExternalSkills);
         Assert.True(s.ProjectFile);   // later on 2026-09-19: the notes read unless the Project tab's toggle says not
         Assert.Equal("protected", s.SkillCompactMode);

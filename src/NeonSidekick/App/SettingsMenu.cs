@@ -203,9 +203,6 @@ public enum SettingsField
     /// <summary>A picker: what a cancelled reply does to the queue — <c>hold</c> / <c>drain</c> / <c>empty</c> (<see cref="Settings.AppSettingsData.QueueCancelMode"/>). The General tab's row after Queue messages (2026-09-18); no reconnect (read when a turn ends).</summary>
     QueueCancelMode,
 
-    /// <summary>A toggle: whether the <c>/skills</c> scope picker offers <c>delete</c> (<see cref="Settings.AppSettingsData.AllowSkillDelete"/>). The Options tab of <c>/skills</c>' fifth row, after #-mention enabled and before the reflection rows (2026-09-18); no reconnect (read when the picker opens).</summary>
-    AllowSkillDelete,
-
     /// <summary>A toggle: whether every completed turn is written to the profile's <c>sessions.db</c> (<see cref="Settings.AppSettingsData.SessionLogging"/>). The Sessions tab's first row (2026-09-18); no reconnect (read at each turn's end).</summary>
     SessionLogging,
 
@@ -577,7 +574,7 @@ internal sealed class SettingsMenu
     /// </summary>
     public static readonly IReadOnlyList<IReadOnlyList<SettingsField>> SkillsTabFields =
     [
-        [SettingsField.AgentSkills, SettingsField.ExternalSkills, SettingsField.SkillCompactMode, SettingsField.SkillHashMention, SettingsField.AllowSkillDelete],
+        [SettingsField.AgentSkills, SettingsField.ExternalSkills, SettingsField.SkillCompactMode, SettingsField.SkillHashMention],
         [SettingsField.ReflectionAutoLearn, SettingsField.ReflectionReasoning, SettingsField.ReflectionWindow, SettingsField.ReflectionMinToolCalls, SettingsField.ReflectionMaxRequests, SettingsField.ReflectionCooldownMinutes, SettingsField.ReflectionCooldownMode, SettingsField.ReflectionIncludesSessions],
     ];
 
@@ -843,7 +840,7 @@ internal sealed class SettingsMenu
             or SettingsField.FileSafeEdits
             or SettingsField.SkillHashMention or SettingsField.ReflectionAutoLearn
             or SettingsField.HideExitAutocomplete or SettingsField.CommandTypoIntercept or SettingsField.WelcomeSplash or SettingsField.ShowWorkingDirectory or SettingsField.ShowToolbar
-            or SettingsField.QueueMessages or SettingsField.AllowSkillDelete or SettingsField.SessionLogging or SettingsField.SessionTool
+            or SettingsField.QueueMessages or SettingsField.SessionLogging or SettingsField.SessionTool
             or SettingsField.ToolsDollarMention or SettingsField.ReflectionIncludesSessions or SettingsField.McpServers or SettingsField.GitNativeTools
             or SettingsField.LlmCompactShowSummary or SettingsField.ShellToolBridge or SettingsField.ShellPoliceOutsidePaths
             or SettingsField.ObsidianTools or SettingsField.ObsidianAllowDelete or SettingsField.SqlTools or SettingsField.SqlPercentMention;
@@ -962,7 +959,6 @@ internal sealed class SettingsMenu
         SettingsField.ShowToolbar => "Show toolbar",
         SettingsField.QueueMessages => "Queue messages",
         SettingsField.QueueCancelMode => "Queue cancel mode",
-        SettingsField.AllowSkillDelete => "Allow skill delete",
         SettingsField.SessionLogging => "Session logging",
         SettingsField.SessionNamingMode => "Session naming mode",
         SettingsField.SessionShowName => "Session show name",
@@ -1114,7 +1110,6 @@ internal sealed class SettingsMenu
             SettingsField.ShowToolbar => OnOff(data.ShowToolbar),
             SettingsField.QueueMessages => OnOff(data.QueueMessages),
             SettingsField.QueueCancelMode => data.QueueCancelMode,
-            SettingsField.AllowSkillDelete => OnOff(data.AllowSkillDelete),
             _ => "",
         };
     }
@@ -2951,7 +2946,6 @@ internal sealed class SettingsMenu
             SettingsField.ShowWorkingDirectory => data.ShowWorkingDirectory,
             SettingsField.ShowToolbar => data.ShowToolbar,
             SettingsField.QueueMessages => data.QueueMessages,
-            SettingsField.AllowSkillDelete => data.AllowSkillDelete,
             SettingsField.SessionLogging => data.SessionLogging,
             SettingsField.SessionTool => data.SessionTool,
             SettingsField.ShellToolBridge => data.ShellToolBridge,
@@ -3000,7 +2994,6 @@ internal sealed class SettingsMenu
             case SettingsField.ShowWorkingDirectory: data.ShowWorkingDirectory = on; break;
             case SettingsField.ShowToolbar: data.ShowToolbar = on; break;
             case SettingsField.QueueMessages: data.QueueMessages = on; break;
-            case SettingsField.AllowSkillDelete: data.AllowSkillDelete = on; break;
             case SettingsField.SessionLogging: data.SessionLogging = on; break;
             case SettingsField.SessionTool: data.SessionTool = on; break;
             case SettingsField.ShellToolBridge: data.ShellToolBridge = on; break;
@@ -3053,7 +3046,6 @@ internal sealed class SettingsMenu
         SettingsField.ShowWorkingDirectory => on ? "show the working directory in the header" : "hide the working directory in the header",
         SettingsField.ShowToolbar => on ? "show the toolbar" : "hide the toolbar",
         SettingsField.QueueMessages => on ? "a message sent while a reply runs is queued and sent when the reply ends" : "a message sent during a reply stays type-ahead; /queue leaves the / list",
-        SettingsField.AllowSkillDelete => on ? "the scope picker in /skills offers delete, after a confirmation" : "a skill is moved between the profile and global roots only",
         SettingsField.SessionLogging => on ? "every completed turn is written to this profile's session store" : "nothing is written; what is stored still lists, restores and purges",
         SettingsField.SessionTool => on ? "the model can search, list and read this profile's earlier sessions" : "the model never sees an earlier session",
         SettingsField.ShellToolBridge => on ? "a script may call this app's other tools through its neon_tools module" : "a script does everything itself: no neon_tools module, no tool calls",

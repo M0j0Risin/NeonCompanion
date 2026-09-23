@@ -1,9 +1,9 @@
 # Neon Sidekick
 
-Neon Sidekick is a streamlined agentic TUI harness for local LLMs, built on .NET 10. I built this to combine and expand on my favorite features from Claude Code, Hermes Agent, and Cline—with a focus on local execution.
+**Neon Sidekick** is a lightweight, agentic TUI harness for local LLMs powered by .NET 10. Inspired by the workflows of Claude Code, Hermes Agent, and Cline, Neon Companion brings my favorite features together—alongside my own expanded toolsets—in a privacy-first, locally executed environment. 
 
-Current State: A foundational shell for continued tool development (Windows-first).
-On the Roadmap: Expanded coding capabilities and official macOS/Linux support.
+**Current Status:** A stable, Windows-first foundation for agentic tool development. 
+**Roadmap:** Expanding core coding capabilities and delivering official macOS/Linux support.
 
 ## Contents
 
@@ -178,7 +178,7 @@ Neon Sidekick is released under the GPLv3 license.
 
 #### Offered
 
-The loaded skills, one row each with its scope (`profile`, `global` or `external`) and description, then any shadowed duplicates and any folders that were skipped and why. Enter on a skill opens its scope page: move it between the profile and global roots, rename it (what you type is forced to a skill name — lower case, hyphens between the words — and a name another skill already has is refused), edit it (its `SKILL.md` opens in your editor; the change shows the next time the skill loads), or delete it when *Allow skill delete* is on.
+The loaded skills, one row each with its scope (`profile`, `global` or `external`) and description, then any shadowed duplicates and any folders that were skipped and why. Enter on a skill opens its scope page: move it between the profile and global roots, rename it (what you type is forced to a skill name — lower case, hyphens between the words — and a name another skill already has is refused), edit it (its `SKILL.md` opens in your editor; the change shows the next time the skill loads), or delete it (after a confirmation).
 
 #### Reflection
 
@@ -205,7 +205,6 @@ One row, **Project file**: whether `NEON.md` (or `AGENTS.md`) in the working dir
 | Use external skills (.agents\skills) | Also reads `%USERPROFILE%\.agents\skills`, read-only. | off |
 | Skill compact mode | `protected` keeps a loaded skill's instructions through a prune; `unprotected` prunes them like any tool result. | `protected` |
 | #-mention enabled | `#` and part of a name on the input line lists the loaded skills; a pick writes `#name` as text. | on |
-| Allow skill delete | The scope page offers `delete` (after a confirmation) as well as the move. | on |
 
 </details>
 

@@ -23,8 +23,8 @@ namespace NeonSidekick.App;
 /// a skill's row (a loaded one, or a shadowed one — the duplicate is the thing to clean up) opens the
 /// scope page under the list: <c>profile</c>, <c>global</c>, <c>rename</c> (2026-09-21, the user's ask), <c>edit</c>
 /// (2026-09-23, the user's ask: it opens the skill's <c>SKILL.md</c> in the editor, the status line saying so, and took
-/// over from <c>/skills edit &lt;name&gt;</c>, which went) and, while <c>Allow skill delete</c> is on, <c>delete</c>, the
-/// cursor on the scope it is in. Picking the other root moves the folder
+/// over from <c>/skills edit &lt;name&gt;</c>, which went) and <c>delete</c> (always, since 2026-09-23, the user's call;
+/// behind the <c>Allow skill delete</c> setting from 2026-09-18 until then, which went), the cursor on the scope it is in. Picking the other root moves the folder
 /// (<see cref="SkillEditor.Move"/>) after a yes/no confirmation kept under the list; picking
 /// <c>delete</c> removes it (<see cref="SkillEditor.Delete"/>) after one; the scope it is in already
 /// is <see cref="SettingsMenu.UnchangedNotice"/>. Picking <c>rename</c> opens the typed slot under the
@@ -49,7 +49,7 @@ internal sealed class SkillsMenu
     public const string OtherKeys = "←/→ tabs · ESC = close";
     public const string ScopeKeys = SettingsMenu.PickKeys;
 
-    /// <summary>The scope page's last row while <c>Allow skill delete</c> is on. Pinned.</summary>
+    /// <summary>The scope page's last row, always offered since 2026-09-23 (behind <c>Allow skill delete</c> until then). Pinned.</summary>
     public const string DeleteWord = "delete";
 
     /// <summary>The scope page's row after the two roots (2026-09-21). Pinned.</summary>
@@ -63,11 +63,10 @@ internal sealed class SkillsMenu
 
     public const string ExternalReadOnlyNotice = "(" + NoticeGlyphs.Skill + "external skills are read only here; move the folder by hand)";
 
-    /// <summary>The scope page's two root rows, in the roots' precedence order; <see cref="DeleteWord"/> after them when offered.</summary>
+    /// <summary>The scope page's two root rows, in the roots' precedence order; rename, edit and <see cref="DeleteWord"/> after them.</summary>
     public static readonly IReadOnlyList<SkillScope> ScopeRows = [SkillScope.Profile, SkillScope.Global];
 
     private readonly Func<SkillsFacts> _facts;
-    private readonly Func<bool> _allowDelete;
     private readonly AppSettings _settings;
     private readonly SettingsMenu _menu;
     private readonly INoticeSink _transcript;
@@ -77,7 +76,6 @@ internal sealed class SkillsMenu
     private readonly Func<string, string?> _usage;
 
     /// <param name="facts">The catalog as of a fresh scan and the rest the tabs show; read when the list opens and again after every change.</param>
-    /// <param name="allowDelete">The <c>Allow skill delete</c> setting, read when the scope page opens.</param>
     /// <param name="settings">The store the Options tab's rows show and save to.</param>
     /// <param name="menu">The settings menu whose rows the Options tab is.</param>
     /// <param name="transcript">Where the lines outside the pane go: the screen's deferring sink, since the list may open while a reply runs.</param>
@@ -85,10 +83,9 @@ internal sealed class SkillsMenu
     /// <param name="input">The line the rename's new name is typed on, under the page (2026-09-21).</param>
     /// <param name="openFile">Opens a file in the user's editor: the <c>edit</c> row's <c>SKILL.md</c> (2026-09-23; the screen's <c>/profile edit</c> seam).</param>
     /// <param name="usage">The scope page's caption for a skill by name (<see cref="UsageCaption"/>; the session store's usage line, 2026-09-19), null for none — read when the page opens; tests pass nothing.</param>
-    public SkillsMenu(Func<SkillsFacts> facts, Func<bool> allowDelete, AppSettings settings, SettingsMenu menu, INoticeSink transcript, MenuPane pane, InputLine input, Action<string> openFile, Func<string, string?>? usage = null)
+    public SkillsMenu(Func<SkillsFacts> facts, AppSettings settings, SettingsMenu menu, INoticeSink transcript, MenuPane pane, InputLine input, Action<string> openFile, Func<string, string?>? usage = null)
     {
         _facts = facts ?? throw new ArgumentNullException(nameof(facts));
-        _allowDelete = allowDelete ?? throw new ArgumentNullException(nameof(allowDelete));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _menu = menu ?? throw new ArgumentNullException(nameof(menu));
         _transcript = transcript ?? throw new ArgumentNullException(nameof(transcript));
@@ -377,18 +374,14 @@ internal sealed class SkillsMenu
         }
     }
 
-    /// <summary>The scope page under the list — the two roots, rename, edit, delete when allowed —, the confirmation or the typed slot under that, then the act; true when the folder changed (the facts are stale).</summary>
+    /// <summary>The scope page under the list — the two roots, rename, edit, delete —, the confirmation or the typed slot under that, then the act; true when the folder changed (the facts are stale).</summary>
     private async Task<bool> PickScopeAsync(Skill skill, SkillsFacts facts, CancellationToken cancellationToken)
     {
         var roots = facts.Roots;
-        bool delete = _allowDelete();
         var rows = ScopeRows.Select(scope => ScopeRow(scope, roots)).ToList();
         rows.Add(RenameRow);
         rows.Add(EditRow);
-        if (delete)
-        {
-            rows.Add(DeleteRow);
-        }
+        rows.Add(DeleteRow);
 
         var page = new MenuPage(ScopeTitle(skill.Name), rows, ScopeKeys) { Caption = _usage(skill.Name) };
         var picked = await _pane.PickAsync(page, IndexOf(ScopeRows, skill.Scope), cancellationToken).ConfigureAwait(false);

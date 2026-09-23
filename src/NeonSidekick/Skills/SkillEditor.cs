@@ -260,8 +260,8 @@ public static class SkillEditor
     }
 
     /// <summary>
-    /// The <c>/skill</c> pane's delete (2026-09-18, behind <c>Allow skill delete</c> and a
-    /// confirmation): <paramref name="skill"/>'s folder and everything in it. Refused for the external
+    /// The <c>/skill</c> pane's delete (2026-09-18, behind a confirmation; behind <c>Allow skill
+    /// delete</c> too until that setting went on 2026-09-23, the user's call):<paramref name="skill"/>'s folder and everything in it. Refused for the external
     /// root (<see cref="SkillEditOutcome.ExternalReadOnly"/>) and for a folder that is not right under
     /// its root or has no <c>SKILL.md</c> any more (<see cref="SkillEditOutcome.Missing"/>) — the
     /// guard a recursive delete owes. A file failure is <see cref="SkillEditOutcome.Failed"/>.
