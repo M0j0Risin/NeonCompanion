@@ -542,7 +542,7 @@ public sealed class MenuPane : INoticeSink
     /// <paramref name="initial"/>, one ESC cancels (the caller keeps the saved value), nothing it
     /// submits reaches the transcript. The pane stays open with the slot emptied.
     /// </summary>
-    public async Task<InputResult> EditAsync(MenuPage page, int highlighted, InputLine input, string initial, bool allowEmpty, CancellationToken cancellationToken)
+    public async Task<InputResult> EditAsync(MenuPage page, int highlighted, InputLine input, string initial, bool allowEmpty, CancellationToken cancellationToken, bool mask = false)
     {
         ArgumentNullException.ThrowIfNull(page);
         ArgumentNullException.ThrowIfNull(input);
@@ -556,7 +556,7 @@ public sealed class MenuPane : INoticeSink
         Show();
         try
         {
-            return await input.ReadAsync(initial, remember: false, allowEmpty: allowEmpty, cancellationToken: cancellationToken, escapeCancels: true).ConfigureAwait(false);
+            return await input.ReadAsync(initial, remember: false, allowEmpty: allowEmpty, cancellationToken: cancellationToken, escapeCancels: true, mask: mask).ConfigureAwait(false);
         }
         finally
         {

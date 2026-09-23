@@ -141,8 +141,12 @@ public sealed class InputLine
     private readonly Func<string, string, ArgumentList>? _arguments;
     private readonly Func<IReadOnlyList<CompletionItem>>? _skills;
     private readonly Func<IReadOnlyList<CompletionItem>>? _tools;
+    private readonly Func<IReadOnlyList<CompletionItem>>? _connections;
     private readonly INoticeSink? _notices;
     private readonly Func<string, bool>? _copy;
+
+    /// <summary>What a masked read draws for each character (one cell). Pinned.</summary>
+    public const char MaskGlyph = '•';
     private readonly DoubleClick _hintClicks;
     private readonly List<string> _history = new();
     private readonly PasteBlocks _pastes = new();
@@ -180,11 +184,14 @@ public sealed class InputLine
     /// the tools the next turn offers with their descriptions, empty while the setting is off), read
     /// when a <c>$</c>word is under the cursor and narrowed here; a pick writes <c>$name</c> and a
     /// space — text, nothing seeded; null = that list never opens.
+    /// <paramref name="connections"/> is the <c>%</c>-mention list's source (later on 2026-09-23; <c>ChatScreen.PercentChoices</c>:
+    /// the SQL connections of <c>sql.json</c> with their server, database and description, empty while the setting or the
+    /// SQL tools are off), the <c>$</c> shape: a pick writes <c>%name</c> and a space; null = that list never opens.
     /// <paramref name="copyToClipboard"/> is what Ctrl+C over a selection writes the selected text
     /// with (2026-09-17; <see cref="WindowsClipboard.TrySetText"/> in the app, the same writer as
     /// <c>/copy</c>'s; tests record the text), true on success; null = every copy fails and says so.
     /// </summary>
-    public InputLine(ScreenPane pane, KeySource keys, Func<string?>? clipboard = null, INoticeSink? notices = null, Func<byte[]?>? clipboardImage = null, Func<string, MentionResult>? mentions = null, Func<IReadOnlyList<CompletionItem>>? commands = null, Func<string, string, ArgumentList>? arguments = null, Func<IReadOnlyList<CompletionItem>>? skills = null, Func<IReadOnlyList<CompletionItem>>? tools = null, Func<string, bool>? copyToClipboard = null)
+    public InputLine(ScreenPane pane, KeySource keys, Func<string?>? clipboard = null, INoticeSink? notices = null, Func<byte[]?>? clipboardImage = null, Func<string, MentionResult>? mentions = null, Func<IReadOnlyList<CompletionItem>>? commands = null, Func<string, string, ArgumentList>? arguments = null, Func<IReadOnlyList<CompletionItem>>? skills = null, Func<IReadOnlyList<CompletionItem>>? tools = null, Func<string, bool>? copyToClipboard = null, Func<IReadOnlyList<CompletionItem>>? connections = null)
     {
         _pane = pane ?? throw new ArgumentNullException(nameof(pane));
         _keys = keys ?? throw new ArgumentNullException(nameof(keys));
@@ -195,6 +202,7 @@ public sealed class InputLine
         _arguments = arguments;
         _skills = skills;
         _tools = tools;
+        _connections = connections;
         _notices = notices;
         _copy = copyToClipboard;
         _hintClicks = new DoubleClick(pane.Time);
@@ -363,9 +371,12 @@ public sealed class InputLine
     /// for Left and +1 for Right: true means the key was spent (the screen turns the welcome splash
     /// to the previous or next picture; the pane's own draw puts the row back) and the read goes on;
     /// false or null is the key as ever, which on an empty draft is nothing. A settings field never passes it.
+    /// <paramref name="mask"/> (later on 2026-09-23, the SQL tab's <c>SQL set password</c>) draws every character as
+    /// <see cref="MaskGlyph"/> — the cursor, the selection and the editing keys as ever — never remembers the line, and
+    /// never copies a selection of it (Ctrl+C over one is the copy-failed notice, not the secret on the clipboard).
     /// Throws <see cref="OperationCanceledException"/> when <paramref name="cancellationToken"/> fires.
     /// </summary>
-    public async Task<InputResult> ReadAsync(string initialText = "", bool remember = true, bool allowEmpty = false, ConsoleKey? pushToTalk = null, CancellationToken cancellationToken = default, CancellationToken wake = default, CancellationToken alert = default, bool escapeCancels = false, bool multiline = false, MentionFolderAction? mentions = null, int pastePreview = 0, Func<bool>? softEscape = null, Func<bool>? interrupt = null, Func<string, CancellationToken, Task<string?>>? intercept = null, Action? beforeCommit = null, IReadOnlyList<InputEvent>? replay = null, Func<int, bool>? emptyArrow = null)
+    public async Task<InputResult> ReadAsync(string initialText = "", bool remember = true, bool allowEmpty = false, ConsoleKey? pushToTalk = null, CancellationToken cancellationToken = default, CancellationToken wake = default, CancellationToken alert = default, bool escapeCancels = false, bool multiline = false, MentionFolderAction? mentions = null, int pastePreview = 0, Func<bool>? softEscape = null, Func<bool>? interrupt = null, Func<string, CancellationToken, Task<string?>>? intercept = null, Action? beforeCommit = null, IReadOnlyList<InputEvent>? replay = null, Func<int, bool>? emptyArrow = null, bool mask = false)
     {
         ArgumentNullException.ThrowIfNull(initialText);
 
@@ -390,6 +401,7 @@ public sealed class InputLine
         bool arguing = onPane && _arguments is not null;
         bool hashing = onPane && _skills is not null;
         bool dollaring = onPane && _tools is not null;
+        bool percenting = onPane && _connections is not null;
         MentionList? list = null;
         (int Start, string Query)? dismissed = null;
 
@@ -691,8 +703,9 @@ public sealed class InputLine
                         // The row becomes a normal markup line: it may wrap now, and it is what
                         // the transcript keeps — with the start of each collapsed paste under it.
                         beforeCommit?.Invoke();
-                        _pane.CommitInput(_pastes.Display(draftText), PreviewText(_pastes.Previews(draftText, pastePreview)));
-                        if (remember && (_history.Count == 0 || !string.Equals(_history[^1], draftText, StringComparison.Ordinal)))
+                        // A masked line is committed as its glyphs (later on 2026-09-23): the flow keeps the row, never the secret.
+                        _pane.CommitInput(mask ? new string(MaskGlyph, draftText.Length) : _pastes.Display(draftText), mask ? "" : PreviewText(_pastes.Previews(draftText, pastePreview)));
+                        if (remember && !mask && (_history.Count == 0 || !string.Equals(_history[^1], draftText, StringComparison.Ordinal)))
                         {
                             _history.Add(draftText);
                         }
@@ -866,7 +879,7 @@ public sealed class InputLine
                         {
                             int start = Math.Min(Math.Min(anchor, cursor), text.Length);
                             int end = Math.Min(Math.Max(anchor, cursor), text.Length);
-                            if (_copy is null || !_copy(_pastes.Expand(text.ToString(start, end - start))))
+                            if (mask || _copy is null || !_copy(_pastes.Expand(text.ToString(start, end - start))))
                             {
                                 _notices?.Notice(CopyFailedNotice);
                             }
@@ -1086,6 +1099,13 @@ public sealed class InputLine
         void Redraw()
         {
             string draft = text.ToString();
+            if (mask)
+            {
+                // A secret (later on 2026-09-23): one glyph per character, so the cursor and the selection keep their columns.
+                _pane.ShowInput(new string(MaskGlyph, draft.Length), cursor, anchor);
+                return;
+            }
+
             _pane.ShowInput(_pastes.Display(draft, unbreakable: true), _pastes.ToDisplayIndex(draft, cursor), anchor < 0 ? -1 : _pastes.ToDisplayIndex(draft, anchor), _pastes.LabelRanges(draft));
             RefreshList();
         }
@@ -1095,7 +1115,7 @@ public sealed class InputLine
         // when there is none (or nothing matches, or ESC dismissed this very word).
         void RefreshList()
         {
-            if (!completing && !commanding && !arguing && !hashing && !dollaring)
+            if (!completing && !commanding && !arguing && !hashing && !dollaring && !percenting)
             {
                 return;
             }
@@ -1132,6 +1152,13 @@ public sealed class InputLine
                 string typed = query;
                 prefix = "$";
                 words = () => MentionCompleter.Matches(_tools!(), typed);
+            }
+            else if (percenting && MentionCompleter.TryFind(draft, cursor, '%', out start, out end, out query))
+            {
+                // A %connection mention (later on 2026-09-23): the $tool shape over the SQL connections of sql.json.
+                string typed = query;
+                prefix = "%";
+                words = () => MentionCompleter.Matches(_connections!(), typed);
             }
             else if (!completing || !MentionCompleter.TryFind(draft, cursor, out start, out end, out query))
             {

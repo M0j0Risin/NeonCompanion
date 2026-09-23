@@ -103,6 +103,33 @@ public sealed class SqlToolsTests
     }
 
     [Fact]
+    public async Task ARunAsConnection_SignsInUnderItsToken_AndAMissingPassword_NamesTheFix()
+    {
+        string target = "NeonCompanion.Tests/" + Guid.NewGuid().ToString("N");
+        string pipe = @"np:\\.\pipe\neoncompanion-test-" + Guid.NewGuid().ToString("N") + @"\sql\query";
+        var runas = new SqlConnectionConfig { Server = pipe, Auth = "runas", User = @"NEONCOMPANION-TEST\nobody", PasswordStore = "credman", Credential = target, ConnectTimeoutSeconds = 1, Encrypt = "optional" };
+        _catalog = new SqlCatalog([new SqlNamedConnection("prod", runas, "test")], []);
+        try
+        {
+            Assert.Equal(SqlText.ConnectFailed("prod", SqlText.NoCredential(target)), await Invoke<SqlQueryTool>(("sql", "SELECT SUSER_SNAME()")));
+
+            // With the password there, the netonly token is made and the open runs under it: the pipe nobody serves answers as it would for anyone.
+            WindowsCredentials.WriteGeneric(target, runas.User!, "x");
+            string failed = await Invoke<SqlQueryTool>(("sql", "SELECT SUSER_SNAME()"));
+            Assert.StartsWith("Error: could not connect to prod: ", failed);
+            Assert.Contains("Named Pipes Provider", failed);
+            Assert.Contains("- prod (default): " + pipe + " / (the login's default database), windows sign-in as NEONCOMPANION-TEST\\nobody (runas)", await Invoke<SqlConnectionsTool>());
+        }
+        finally
+        {
+            WindowsCredentials.DeleteGeneric(target);
+        }
+
+        _catalog = new SqlCatalog([new SqlNamedConnection("bare", new SqlConnectionConfig { Server = pipe, User = "sa" }, "test")], []);
+        Assert.Equal(SqlText.ConnectFailed("bare", SqlText.NoPassword("bare")), await Invoke<SqlQueryTool>(("sql", "SELECT 1")));
+    }
+
+    [Fact]
     public async Task TheQueryTool_RefusesWhatTheGateRefuses_AndBadArguments_BeforeAnyConnect()
     {
         _catalog = new SqlCatalog([Unreachable("down")], []);
@@ -142,6 +169,24 @@ public sealed class SqlToolsTests
         Assert.Equal(System.Data.SqlDbType.Float, SqlAccess.Bind(new("f", 1e40)).SqlDbType);
         Assert.Equal(DBNull.Value, SqlAccess.Bind(new("n", null)).Value);
         Assert.Equal(System.Data.SqlDbType.Int, SqlAccess.Bind(new("i", 7)).SqlDbType);
+    }
+
+    [Fact]
+    public void ThePercentMention_ListsEachConnection_WithWhereItPoints()
+    {
+        var catalog = new SqlCatalog(
+            [
+                new SqlNamedConnection("aw", new SqlConnectionConfig { Server = "127.0.0.1,1433", Database = "AdventureWorks2022", User = "sa", Description = "the sample" }, "test"),
+                new SqlNamedConnection("corp", new SqlConnectionConfig { Server = "corp\\inst", Auth = "windows" }, "test"),
+            ],
+            []);
+
+        var items = ChatScreen.SqlChoices(catalog);
+
+        Assert.Equal(["aw", "corp"], items.Select(i => i.Text));
+        Assert.Equal(["127.0.0.1,1433 / AdventureWorks2022 — the sample", "corp\\inst"], items.Select(i => i.Note));
+        Assert.Empty(ChatScreen.SqlChoices(SqlCatalog.Empty));
+        Assert.True(new AppSettingsData().SqlPercentMention);
     }
 
     [Fact]

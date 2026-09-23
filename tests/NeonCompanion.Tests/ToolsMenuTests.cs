@@ -147,7 +147,7 @@ public class ToolsMenuTests : IDisposable
         Assert.Equal([SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices], SettingsMenu.ToolsTabFields[3]);
         Assert.Equal([SettingsField.GitNativeTools, SettingsField.GitNativeDiffMaxLines, SettingsField.GitNativeLogMaxCommits, SettingsField.GitNativeEmail, SettingsField.GitNativeName], SettingsMenu.ToolsTabFields[4]);   // the switch first, then the limits, then the identity pair (2026-09-21); the Git native labels later that day
         Assert.Equal([SettingsField.ObsidianTools, SettingsField.ObsidianVault, SettingsField.ObsidianAllowDelete], SettingsMenu.ToolsTabFields[5]);   // the switch, then the vault (2026-09-22), then the delete switch (later that day)
-        Assert.Equal([SettingsField.SqlTools, SettingsField.SqlDefaultConnection, SettingsField.SqlQueryMaxRows, SettingsField.SqlQueryTimeoutSeconds, SettingsField.SqlConnectionsProfile, SettingsField.SqlConnectionsGlobal], SettingsMenu.ToolsTabFields[6]);   // the switch, the default, the two caps, the two edit rows (2026-09-23)
+        Assert.Equal([SettingsField.SqlTools, SettingsField.SqlDefaultConnection, SettingsField.SqlSetPassword, SettingsField.SqlPercentMention, SettingsField.SqlQueryMaxRows, SettingsField.SqlQueryTimeoutSeconds, SettingsField.SqlConnectionsProfile, SettingsField.SqlConnectionsGlobal], SettingsMenu.ToolsTabFields[6]);   // the switch, the default, the password prompt and the %-mention switch (later that day), the two caps, the two edit rows (2026-09-23)
         Assert.Equal(Enum.GetValues<SettingsField>().Order(), SettingsMenu.TabFields.Concat(SettingsMenu.SkillsTabFields).Concat(SettingsMenu.ToolsTabFields).Concat(SettingsMenu.McpTabFields).SelectMany(t => t).Order());
         Assert.Equal(21, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[7]));   // "Tool collapse count" (2026-09-22; "$-mention enabled", 19, before)
         Assert.Equal(26, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[0]));   // "Web browser network mode" (the Web-prefixed labels, later still on 2026-09-19; "Web search max results", 24, before)
@@ -331,6 +331,34 @@ public class ToolsMenuTests : IDisposable
         Assert.Equal(vault, _settings.Current.ObsidianVault);
         Assert.Contains("Obsidian vault " + SettingsMenu.ObsidianVaultError[..40], _console.Output);   // the status line, cut at the pane's width
         Assert.Contains("\n" + Titled(Strip) + "\n \n▸ Obsidian tools                  on\n  Obsidian vault                  (not set)\n  Obsidian allow delete (.trash)  on\n", _console.Output);
+    }
+
+    /// <summary>
+    /// <c>SQL set password</c> (later on 2026-09-23): the connections that take a password with their store, then a masked
+    /// slot under the picked one; the password lands encrypted in the connection's <c>sql.json</c> and never on screen.
+    /// </summary>
+    [Fact]
+    public async Task OnThePane_TheSqlTab_SetsAPassword_Masked_IntoTheConnectionsStore()
+    {
+        string path = NeonCompanion.Sql.SqlConfigFile.ProfilePath(_settings.ProfileDirectory);
+        Directory.CreateDirectory(_settings.ProfileDirectory);
+        File.WriteAllText(path, """{ "connections": { "prod": { "server": "x", "auth": "runas", "user": "CONTOSO\\svc-test" }, "mine": { "server": "y", "auth": "windows" } } }""");
+        var (menu, _, _) = PaneMenu();
+        Push(Keys.Left, Keys.Left, Keys.Down, Keys.Down, Keys.Enter);   // Offered → Options → SQL, the set-password row: the pick
+        Push(Keys.Enter);                                               // prod, the one connection that takes a password
+        Push([.. "s3cret".Select(Keys.Char), Keys.Enter]);
+        Push(Keys.Escape);
+
+        await menu.ShowAsync(CancellationToken.None);
+
+        var loaded = NeonCompanion.Sql.SqlConfigFile.Load(path);
+        Assert.StartsWith(NeonCompanion.Sql.WindowsCredentials.ProtectedPrefix, loaded.Connections[0].Config.Password);
+        Assert.Equal("s3cret", NeonCompanion.Sql.SqlSecrets.Resolve(loaded.Connections[0]).Value);
+        Assert.Contains("▸ " + SettingsMenu.SqlPasswordRow(loaded.Connections[0]), _console.Output);
+        Assert.Contains("••••••", _console.Output);
+        Assert.DoesNotContain("s3cret", _console.Output);
+        Assert.Contains("Saved the password of 'prod', encrypted, in ", _console.Output);
+        Assert.Equal("prod  (runas CONTOSO\\svc-test · encrypted in sql.json)", SettingsMenu.SqlPasswordRow(loaded.Connections[0]));
     }
 
     /// <summary>The vault row's folder picker opens on the vault saved (later on 2026-09-22, the user's report: it opened on the working directory every time): empty the first time, the picked vault the next; nothing picked keeps it.</summary>
@@ -690,7 +718,7 @@ public class ToolsMenuTests : IDisposable
         Assert.Contains("  · Web\n  ·   Web tools: on\n  ·   Web browser mode: default\n  ·   Web browser path: (auto: msedge.exe)\n", _console.Output);
         Assert.Contains("  ·   Web search max results: 20 results\n  · Files\n  ·   File tools: on\n  ·   File safe edits: off\n", _console.Output);
         Assert.Contains("  · Shell\n  ·   Shell command policy: ask\n", _console.Output);
-        Assert.Contains("  · Ask\n  ·   Ask user: on\n  ·   Ask max questions: 10 questions\n  ·   Ask max choices per question: 10 choices\n  · Git (native)\n  ·   Git native tools: on\n  ·   Git native diff max lines: 500 lines\n  ·   Git native log max commits: 20 commits\n  ·   Git native email: (not set)\n  ·   Git native name: (not set)\n  · Obsidian\n  ·   Obsidian tools: on\n  ·   Obsidian vault: (not set)\n  ·   Obsidian allow delete (.trash): on\n  · SQL\n  ·   SQL tools: on\n  ·   SQL default connection: (the first connection)\n  ·   SQL max rows: 100 rows\n  ·   SQL query timeout (s): 30\n  ·   SQL connections (profile): (none) · Enter edits sql.json\n  ·   SQL connections (global): (none) · Enter edits sql.json\n  · Options\n  ·   $-mention enabled: on\n  ·   Tool collapse count: 2 lines\n  ·   Code collapse count: 20 lines\n", _console.Output);
+        Assert.Contains("  · Ask\n  ·   Ask user: on\n  ·   Ask max questions: 10 questions\n  ·   Ask max choices per question: 10 choices\n  · Git (native)\n  ·   Git native tools: on\n  ·   Git native diff max lines: 500 lines\n  ·   Git native log max commits: 20 commits\n  ·   Git native email: (not set)\n  ·   Git native name: (not set)\n  · Obsidian\n  ·   Obsidian tools: on\n  ·   Obsidian vault: (not set)\n  ·   Obsidian allow delete (.trash): on\n  · SQL\n  ·   SQL tools: on\n  ·   SQL default connection: (the first connection)\n  ·   SQL set password: Enter asks for a connection's password (masked)\n  ·   SQL %-mention enabled: on\n  ·   SQL max rows: 100 rows\n  ·   SQL query timeout (s): 30\n  ·   SQL connections (profile): (none) · Enter edits sql.json\n  ·   SQL connections (global): (none) · Enter edits sql.json\n  · Options\n  ·   $-mention enabled: on\n  ·   Tool collapse count: 2 lines\n  ·   Code collapse count: 20 lines\n", _console.Output);
         Assert.False(pane.OverlayOpen);
         pane.Dispose();
     }

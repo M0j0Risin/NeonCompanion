@@ -751,7 +751,7 @@ public class SettingsMenuTests : IDisposable
                 SettingsField.LlmCompactShowSummary, SettingsField.GitNativeEmail, SettingsField.GitNativeName, SettingsField.ShellToolBridge, SettingsField.FileBrowserMode, SettingsField.ShowToolbar, SettingsField.ShellPoliceOutsidePaths,
                 SettingsField.ToolCollapseCount, SettingsField.CodeCollapseCount,
                 SettingsField.ObsidianTools, SettingsField.ObsidianVault, SettingsField.ObsidianAllowDelete,
-                SettingsField.SqlTools, SettingsField.SqlDefaultConnection, SettingsField.SqlQueryMaxRows, SettingsField.SqlQueryTimeoutSeconds, SettingsField.SqlConnectionsProfile, SettingsField.SqlConnectionsGlobal,
+                SettingsField.SqlTools, SettingsField.SqlDefaultConnection, SettingsField.SqlQueryMaxRows, SettingsField.SqlQueryTimeoutSeconds, SettingsField.SqlConnectionsProfile, SettingsField.SqlConnectionsGlobal, SettingsField.SqlSetPassword, SettingsField.SqlPercentMention,
             },
             Enum.GetValues<SettingsField>());
         // The compact rows: on the LLM tab after the context length but no reconnect; the type a picker, the two others typed.

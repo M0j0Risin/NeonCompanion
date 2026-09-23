@@ -890,6 +890,16 @@ public sealed class AppSettingsData
     public string SqlDefaultConnection { get; set; } = "";
 
     /// <summary>
+    /// Whether <c>%</c> and part of a name on the chat line lists the SQL connections of <c>sql.json</c> (later on
+    /// 2026-09-23, the user's ask: "similar to the @-, #- and $-mention … to recall configured SQL database connection
+    /// names"), as <c>$</c> lists the tools: each name with its server, database and description, a pick writes
+    /// <c>%name</c> into the draft — text the model reads (and passes as <c>connection</c>), nothing seeded. Offered only
+    /// while <see cref="SqlTools"/> is on, since the names mean nothing to a turn without the tools. Off = <c>%</c> is
+    /// ordinary text. Read at each keystroke, no reconnect; the SQL tab of <c>/tools</c>. No variable.
+    /// </summary>
+    public bool SqlPercentMention { get; set; } = true;
+
+    /// <summary>
     /// The most rows one <c>sql_query</c> returns (2026-09-23): <see cref="MinSqlQueryMaxRows"/> to
     /// <see cref="MaxSqlQueryMaxRows"/>; the argument <c>max_rows</c> overrides it up to the same cap. Past it the
     /// header says more exist and the server stops (the reader never drains the rest).

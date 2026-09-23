@@ -19,6 +19,9 @@ internal static class LiveSql
     public const string Variable = "NEONCOMPANION_TEST_SQL_CONNECTION";
 
     public static readonly SqlConnectionConfig? Config;
+
+    /// <summary>The password as the variable gives it; <see cref="Config"/> holds it DPAPI-encrypted, the way sql.json keeps it (later on 2026-09-23), so every live call decrypts it.</summary>
+    public static readonly string Password = "";
     public static readonly string Unavailable = "";
 
     static LiveSql()
@@ -39,12 +42,13 @@ internal static class LiveSql
                 Database = builder.InitialCatalog,
                 Auth = builder.IntegratedSecurity ? SqlConnectionConfig.WindowsAuth : SqlConnectionConfig.SqlAuth,
                 User = builder.UserID,
-                Password = builder.Password,
+                Password = WindowsCredentials.Protect(builder.Password).Value ?? builder.Password,
                 TrustServerCertificate = builder.TrustServerCertificate,
                 Encrypt = builder.Encrypt == SqlConnectionEncryptOption.Optional ? "optional" : builder.Encrypt == SqlConnectionEncryptOption.Strict ? "strict" : "mandatory",
                 ConnectTimeoutSeconds = 5,
             };
-            using var connection = new SqlConnection(config.Builder().ConnectionString);
+            using var connection = new SqlConnection(config.Builder(password: builder.Password).ConnectionString);
+            Password = builder.Password;
             connection.Open();
             Config = config;
         }
@@ -92,7 +96,8 @@ public sealed class LiveSqlTests
     {
         string connections = await Invoke<SqlConnectionsTool>();
         Assert.StartsWith("1 SQL connection (", connections);
-        Assert.DoesNotContain(LiveSql.Config!.Password!, connections);
+        Assert.DoesNotContain(LiveSql.Password, connections);
+        Assert.StartsWith(WindowsCredentials.ProtectedPrefix, LiveSql.Config!.Password);
 
         string databases = await Invoke<SqlDatabasesTool>();
         Assert.Matches(@"^\d+ databases in aw/AdventureWorks2022\n", databases);

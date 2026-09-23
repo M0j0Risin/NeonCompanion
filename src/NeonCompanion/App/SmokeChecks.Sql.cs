@@ -54,6 +54,62 @@ public static partial class SmokeChecks
     }
 
     /// <summary>
+    /// <c>sql:credentials</c> (later on 2026-09-23): the SQL tools' three Win32 doors on the published binary
+    /// (<see cref="WindowsCredentials"/>, <c>LibraryImport</c> over typed pointers — the first place their marshalling
+    /// runs for real). A DPAPI round trip; a Generic credential written, read back and deleted under a throwaway target;
+    /// and a <c>NEW_CREDENTIALS</c> logon for an account that does not exist (Windows checks nothing at that logon —
+    /// the server would, at the sign-in) with the process's own name unchanged inside the impersonation, which is what
+    /// <c>runas /netonly</c> promises: the local identity stays, only network sign-ins change.
+    /// </summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    public static SmokeCheck ProbeCredentials()
+    {
+        const string name = "sql:credentials";
+        const string secret = "smoke-päss-🔑";
+        var encrypted = WindowsCredentials.Protect(secret);
+        if (encrypted.Value is not { } value || WindowsCredentials.Unprotect(value).Value != secret)
+        {
+            return new SmokeCheck(name, false, "DPAPI round trip failed: " + (encrypted.Error ?? WindowsCredentials.Unprotect(encrypted.Value ?? "").Error));
+        }
+
+        string target = "NeonCompanion.smoke/" + Guid.NewGuid().ToString("N");
+        try
+        {
+            if (WindowsCredentials.WriteGeneric(target, @"SMOKE\nobody", secret).Error is { } writeError)
+            {
+                return new SmokeCheck(name, false, "Credential Manager write failed: " + writeError);
+            }
+
+            var read = WindowsCredentials.ReadGeneric(target);
+            if (read.Value != secret)
+            {
+                return new SmokeCheck(name, false, "Credential Manager read gave back something else: " + read.Error);
+            }
+        }
+        finally
+        {
+            WindowsCredentials.DeleteGeneric(target);
+        }
+
+        if (!WindowsCredentials.ReadGeneric(target).NotFound)
+        {
+            return new SmokeCheck(name, false, "Credential Manager delete left the entry");
+        }
+
+        using var token = WindowsCredentials.LogonNetOnly(@"NEONCOMPANION-SMOKE\nobody", secret, out string? logonError);
+        if (token is null)
+        {
+            return new SmokeCheck(name, false, "NEW_CREDENTIALS logon failed: " + logonError);
+        }
+
+        string outside = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
+        string inside = System.Security.Principal.WindowsIdentity.RunImpersonated(token, () => System.Security.Principal.WindowsIdentity.GetCurrent().Name);
+        return inside == outside
+            ? new SmokeCheck(name, true, $"DPAPI, Credential Manager and a netonly logon ok; still {outside} locally")
+            : new SmokeCheck(name, false, $"the netonly token changed the local identity: {outside} became {inside}");
+    }
+
+    /// <summary>
     /// <c>culture:invariant</c> (2026-09-23): <see cref="CulturePin"/> held — the current culture is the invariant one,
     /// and a number and a date print as they did under <c>InvariantGlobalization</c>. The flag is off since SqlClient
     /// refuses it; this is the line that says the process still formats the way it always did.

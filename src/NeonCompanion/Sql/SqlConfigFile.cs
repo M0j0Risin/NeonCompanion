@@ -1,3 +1,5 @@
+using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using NeonCompanion.Diagnostics;
 
@@ -57,7 +59,9 @@ public sealed class SqlConfigFile
         "  // \"adventureworks\": { \"server\": \"127.0.0.1,1433\", \"database\": \"AdventureWorks2022\",\n" +
         "  //   \"auth\": \"sql\", \"user\": \"reader\", \"password\": \"...\", \"encrypt\": \"mandatory\",\n" +
         "  //   \"trustServerCertificate\": true, \"description\": \"the sample sales database\" }\n" +
-        "  // auth: sql (user + password) or windows; encrypt: strict, mandatory or optional.\n" +
+        "  // auth: sql (user + password), windows (as you) or runas (user DOMAIN\\name + password: Windows sign-in as that account).\n" +
+        "  // passwordStore: file (the default; a password typed here is encrypted at the next read) or credman (Windows Credential Manager);\n" +
+        "  // set either with SQL set password on the SQL tab of /tools. encrypt: strict, mandatory or optional.\n" +
         "  // The tools only read, but a read-only login is the real guard.\n" +
         "  \"connections\": {}\n" +
         "}\n";
@@ -118,10 +122,135 @@ public sealed class SqlConfigFile
                 continue;
             }
 
+            EncryptInPlace(path, name.Trim(), config!);
             connections.Add(new SqlNamedConnection(name.Trim(), config!, path));
         }
 
         return new SqlCatalog(connections, problems);
+    }
+
+    /// <summary>
+    /// The safety net under the SQL tab's masked prompt (later on 2026-09-23, the user's call): a plain-text
+    /// <c>password</c> under the <c>file</c> store is DPAPI-encrypted and written back over that one value
+    /// (<see cref="WritePassword"/>) at the first read that sees it, the file's comments and layout kept. A file that
+    /// cannot be written keeps working with the plain value, and says so once per read in the log.
+    /// </summary>
+    private static void EncryptInPlace(string path, string name, SqlConnectionConfig config)
+    {
+        if (!config.NeedsPassword || config.InCredentialManager || string.IsNullOrEmpty(config.Password)
+            || WindowsCredentials.IsProtected(config.Password) || !OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var encrypted = WindowsCredentials.Protect(config.Password);
+        string? error = encrypted.Error ?? WritePassword(path, name, encrypted.Value!);
+        if (error is null)
+        {
+            config.Password = encrypted.Value;
+            DiagnosticLog.Info(Category, SqlText.EncryptedLogLine(name, path));
+        }
+        else
+        {
+            DiagnosticLog.Warn(Category, SqlText.EncryptFailedLogLine(name, path, error));
+        }
+    }
+
+    /// <summary>
+    /// Writes <paramref name="value"/> as the <c>password</c> of connection <paramref name="name"/> in <paramref name="path"/>,
+    /// touching nothing else: the string token found with a comment-tolerant <see cref="Utf8JsonReader"/> and its bytes
+    /// replaced, or — for a connection with no <c>password</c> yet — the key inserted after its <c>user</c> value (after
+    /// the object's brace without one). Written to a temp file and moved over the original. Null on success, else why not.
+    /// </summary>
+    public static string? WritePassword(string path, string name, string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(value);
+        try
+        {
+            byte[] bytes = File.ReadAllBytes(path);
+            int bom = bytes.AsSpan().StartsWith((ReadOnlySpan<byte>)[0xEF, 0xBB, 0xBF]) ? 3 : 0;
+            if (Locate(bytes.AsSpan(bom), name) is not { } spot)
+            {
+                return SqlText.ConnectionNotInFile(name);
+            }
+
+            string quoted = "\"" + JsonEncodedText.Encode(value, JavaScriptEncoder.UnsafeRelaxedJsonEscaping) + "\"";
+            byte[] insert = Encoding.UTF8.GetBytes(spot.Replace ? quoted : spot.Prefix + "\"password\": " + quoted + spot.Suffix);
+            int start = bom + spot.Start;
+            int end = bom + spot.End;
+            var rewritten = new byte[bytes.Length - (end - start) + insert.Length];
+            bytes.AsSpan(0, start).CopyTo(rewritten);
+            insert.CopyTo(rewritten.AsSpan(start));
+            bytes.AsSpan(end).CopyTo(rewritten.AsSpan(start + insert.Length));
+
+            string temp = path + ".tmp";
+            File.WriteAllBytes(temp, rewritten);
+            File.Move(temp, path, overwrite: true);
+            return null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return LogText.Excerpt(ex.Message);
+        }
+    }
+
+    /// <summary>Where <see cref="WritePassword"/> writes: the byte range to replace (empty for an insert) and, for an insert, what goes either side of the new key.</summary>
+    private readonly record struct PasswordSpot(int Start, int End, bool Replace, string Prefix, string Suffix);
+
+    /// <summary>
+    /// The <c>password</c> string token of <c>connections.&lt;name&gt;</c> in <paramref name="json"/>, or where one goes.
+    /// Keys match as the deserializer matches them (case-insensitive); the name matches trimmed, ordinally.
+    /// </summary>
+    private static PasswordSpot? Locate(ReadOnlySpan<byte> json, string name)
+    {
+        var reader = new Utf8JsonReader(json, new JsonReaderOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
+        bool inConnections = false;
+        bool inTarget = false;
+        int objectStart = -1;
+        int userEnd = -1;
+        while (reader.Read())
+        {
+            switch (reader.TokenType)
+            {
+                case JsonTokenType.PropertyName when reader.CurrentDepth == 1:
+                    inConnections = reader.GetString()!.Equals("connections", StringComparison.OrdinalIgnoreCase);
+                    break;
+                case JsonTokenType.PropertyName when reader.CurrentDepth == 2 && inConnections:
+                    inTarget = string.Equals(reader.GetString()!.Trim(), name, StringComparison.Ordinal);
+                    break;
+                case JsonTokenType.StartObject when reader.CurrentDepth == 2 && inTarget:
+                    objectStart = (int)reader.TokenStartIndex;
+                    break;
+                case JsonTokenType.PropertyName when reader.CurrentDepth == 3 && inTarget:
+                    string key = reader.GetString()!;
+                    reader.Read();
+                    if (key.Equals("password", StringComparison.OrdinalIgnoreCase) && reader.TokenType is JsonTokenType.String or JsonTokenType.Null)
+                    {
+                        int start = (int)reader.TokenStartIndex;
+                        int length = reader.TokenType == JsonTokenType.Null ? 4 : reader.ValueSpan.Length + 2;
+                        return new PasswordSpot(start, start + length, true, "", "");
+                    }
+
+                    if (key.Equals("user", StringComparison.OrdinalIgnoreCase) && reader.TokenType == JsonTokenType.String)
+                    {
+                        userEnd = (int)reader.TokenStartIndex + reader.ValueSpan.Length + 2;
+                    }
+
+                    if (reader.TokenType is JsonTokenType.StartObject or JsonTokenType.StartArray)
+                    {
+                        reader.Skip();
+                    }
+
+                    break;
+                case JsonTokenType.EndObject when reader.CurrentDepth == 2 && inTarget:
+                    return userEnd >= 0 ? new PasswordSpot(userEnd, userEnd, false, ", ", "")
+                        : objectStart >= 0 ? new PasswordSpot(objectStart + 1, objectStart + 1, false, " ", ",") : null;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>The profile's file over the home's (<paramref name="home"/> null = the profile's alone): a name in both is the profile's.</summary>

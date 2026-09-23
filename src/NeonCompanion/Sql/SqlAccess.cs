@@ -167,12 +167,33 @@ public sealed class SqlAccess
             return refused!;
         }
 
-        var builder = target.Config.Builder(database);
+        var secret = SqlSecrets.Resolve(target);
+        if (secret.Error is { } missing)
+        {
+            return SqlRun.Refused(SqlOutcome.ConnectFailed, missing, target.Name);
+        }
+
+        var builder = target.Config.Builder(database, secret.Value);
         string catalogName = builder.InitialCatalog;
         await using var connection = new SqlConnection(builder.ConnectionString);
         try
         {
-            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            if (target.Config.IsRunAs)
+            {
+                if (!OperatingSystem.IsWindows())
+                {
+                    return SqlRun.Refused(SqlOutcome.ConnectFailed, WindowsCredentials.NotWindows, target.Name);
+                }
+
+                if (await OpenAsAsync(connection, target, secret.Value!, cancellationToken).ConfigureAwait(false) is { } refusedLogon)
+                {
+                    return refusedLogon;
+                }
+            }
+            else
+            {
+                await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            }
         }
         catch (SqlException ex) when (!cancellationToken.IsCancellationRequested)
         {
@@ -241,6 +262,29 @@ public sealed class SqlAccess
         }
 
         return new SqlRun(SqlOutcome.Ok, "", target.Name, databaseName, grids, watch.Elapsed);
+    }
+
+    /// <summary>
+    /// Opens <paramref name="connection"/> signed in as the <c>runas</c> account (later on 2026-09-23): a
+    /// <c>NEW_CREDENTIALS</c> token (<see cref="WindowsCredentials.LogonNetOnly"/>), and the <b>synchronous</b> open run
+    /// impersonated on a worker thread — the sign-in's SSPI handshake takes the calling thread's token, and a sync open
+    /// keeps the whole handshake on the one thread that holds it (the async open's continuations may land on others).
+    /// The connect timeout bounds it, and ESC waits it out: abandoning the open would dispose the token and the connection under the thread still using them. Only the sign-in is impersonated: once open, the
+    /// batch runs as every other. Null when open; else the refusal.
+    /// </summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static async Task<SqlRun?> OpenAsAsync(SqlConnection connection, SqlNamedConnection target, string password, CancellationToken cancellationToken)
+    {
+        using var token = WindowsCredentials.LogonNetOnly(target.Config.User!, password, out string? error);
+        if (token is null)
+        {
+            return SqlRun.Refused(SqlOutcome.ConnectFailed, error!, target.Name);
+        }
+
+        DiagnosticLog.Info(SqlConfigFile.Category, SqlText.RunAsLogLine(target.Name, target.Config.User!.Trim()));
+        await Task.Run(() => System.Security.Principal.WindowsIdentity.RunImpersonated(token, connection.Open), CancellationToken.None).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        return null;
     }
 
     /// <summary>Rolls back what is left of the transaction; a connection the server already dropped has nothing to roll back.</summary>

@@ -24,7 +24,25 @@ public static class SqlText
     public const string NoServer = "no \"server\" is given";
     public const string NoUser = "a sql login needs a \"user\" (or \"auth\": \"windows\")";
     public const string BlankName = "a connection has a blank name";
-    public static string BadAuth(string word) => $"\"auth\" is '{word}'; it must be sql or windows";
+    public static string BadAuth(string word) => $"\"auth\" is '{word}'; it must be sql, windows or runas";
+    public static string BadPasswordStore(string word) => $"\"passwordStore\" is '{word}'; it must be file or credman";
+    public const string CredmanWithWindows = "\"passwordStore\": \"credman\" needs a password to keep; windows sign-in has none (use runas to sign in as another account)";
+    public static string RunAsNeedsDomain(string account) => $"runas needs the Windows account as DOMAIN\\name or name@domain in \"user\" (got '{account}')";
+
+    // ─── passwords (later on 2026-09-23) ───────────────────────────────────────
+
+    public const string NotProtected = "the value is not one the app encrypted (dpapi:…)";
+    public static string CannotDecrypt(string detail) => $"the password cannot be decrypted — it was saved by another Windows user or on another machine ({detail}); set it again on the SQL tab of /tools";
+    public static string NoCredential(string target) => $"no password in Windows Credential Manager for {target}; set it on the SQL tab of /tools, or: cmdkey /generic:{target} /user:<account> /pass";
+    public static string NoPassword(string name) => $"'{name}' has no password; set it on the SQL tab of /tools (SQL set password)";
+    public static string EncryptedLogLine(string name, string path) => $"encrypted the password of '{name}' in {path}";
+    public static string EncryptFailedLogLine(string name, string path, string detail) => $"could not encrypt the password of '{name}' in {path}, so it stays plain text there: {detail}";
+    public static string RunAsLogLine(string name, string account) => $"{name} signs in as {account} (runas)";
+    public static string PasswordSavedToFile(string name, string path) => $"Saved the password of '{name}', encrypted, in {path}.";
+    public static string PasswordSavedToCredman(string name, string target) => $"Saved the password of '{name}' to Windows Credential Manager as {target}.";
+    public static string PasswordSaveFailed(string name, string detail) => $"Could not save the password of '{name}': {detail}.";
+    public static string ConnectionNotInFile(string name) => $"no connection '{name}' was found in the file to write to";
+    public const string NoPasswordConnections = "No connection in sql.json takes a password (sql or runas); add one first.";
     public static string BadEncrypt(string word) => $"\"encrypt\" is '{word}'; it must be strict, mandatory or optional";
     public static string BadConnectTimeout(int seconds, int max) => $"\"connectTimeoutSeconds\" is {Invariant(seconds)}; it must be 1 to {Invariant(max)}";
     public static string UnreadableFile(string detail) => $"the file cannot be read ({detail})";
@@ -37,9 +55,18 @@ public static class SqlText
         ArgumentNullException.ThrowIfNull(connection);
         var config = connection.Config;
         string database = string.IsNullOrWhiteSpace(config.Database) ? "(the login's default database)" : config.Database.Trim();
-        string login = config.IsWindows ? "windows sign-in" : $"sql login {config.User?.Trim()}";
+        string login = config.IsWindows ? "windows sign-in" : config.IsRunAs ? $"windows sign-in as {config.User?.Trim()} (runas)" : $"sql login {config.User?.Trim()}";
         string line = $"- {connection.Name}{(isDefault ? " (default)" : "")}: {config.Server?.Trim()} / {database}, {login}";
         return string.IsNullOrWhiteSpace(config.Description) ? line : line + " — " + config.Description.Trim();
+    }
+
+    /// <summary>A connection's note on the <c>%</c>-mention list (later on 2026-09-23): where it points, then its description. Pinned.</summary>
+    public static string MentionNote(SqlNamedConnection connection)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        var config = connection.Config;
+        string where = config.Server?.Trim() + (string.IsNullOrWhiteSpace(config.Database) ? "" : " / " + config.Database.Trim());
+        return string.IsNullOrWhiteSpace(config.Description) ? where : where + " — " + config.Description.Trim();
     }
 
     /// <summary><c>sql_connections</c>' whole answer: a count, then one line each, then the problems that kept any out.</summary>

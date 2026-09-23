@@ -337,6 +337,12 @@ public enum SettingsField
 
     /// <summary>The same for the home's <c>sql.json</c>, every profile's connections. The SQL tab's last row (2026-09-23).</summary>
     SqlConnectionsGlobal,
+
+    /// <summary>An action row, no setting behind it (later on 2026-09-23): Enter picks a connection that takes a password (<c>sql</c> or <c>runas</c>) and asks for it in a masked slot, saved to the connection's store — DPAPI-encrypted into its <c>sql.json</c>, or Windows Credential Manager (<see cref="Sql.SqlSecrets.Save"/>). The SQL tab's third row.</summary>
+    SqlSetPassword,
+
+    /// <summary>A toggle: whether <c>%</c> and part of a name lists the SQL connections on the chat line (<see cref="Settings.AppSettingsData.SqlPercentMention"/>). The SQL tab's fourth row (later on 2026-09-23); no reconnect (read at each keystroke). Last in the enum, as every newcomer.</summary>
+    SqlPercentMention,
 }
 
 /// <summary>The tabs of <c>/settings</c> on the pane, in strip order (Sessions right after General — the user's order, 2026-09-18; STT last since 2026-09-19, when the Ask, Files and Web tabs moved to <c>/tools</c> — <see cref="SettingsMenu.ToolsTabFields"/> — and, later that day, the Skills tab to <c>/skills</c> as its Options tab — <see cref="SettingsMenu.SkillsTabFields"/>); the value is the index into <see cref="SettingsMenu.TabTitles"/> and <see cref="SettingsMenu.TabFields"/>.</summary>
@@ -595,7 +601,7 @@ internal sealed class SettingsMenu
         [SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices],
         [SettingsField.GitNativeTools, SettingsField.GitNativeDiffMaxLines, SettingsField.GitNativeLogMaxCommits, SettingsField.GitNativeEmail, SettingsField.GitNativeName],
         [SettingsField.ObsidianTools, SettingsField.ObsidianVault, SettingsField.ObsidianAllowDelete],
-        [SettingsField.SqlTools, SettingsField.SqlDefaultConnection, SettingsField.SqlQueryMaxRows, SettingsField.SqlQueryTimeoutSeconds, SettingsField.SqlConnectionsProfile, SettingsField.SqlConnectionsGlobal],
+        [SettingsField.SqlTools, SettingsField.SqlDefaultConnection, SettingsField.SqlSetPassword, SettingsField.SqlPercentMention, SettingsField.SqlQueryMaxRows, SettingsField.SqlQueryTimeoutSeconds, SettingsField.SqlConnectionsProfile, SettingsField.SqlConnectionsGlobal],
         [SettingsField.ToolsDollarMention, SettingsField.ToolCollapseCount, SettingsField.CodeCollapseCount],
     ];
 
@@ -837,7 +843,7 @@ internal sealed class SettingsMenu
             or SettingsField.QueueMessages or SettingsField.AllowSkillDelete or SettingsField.SessionLogging or SettingsField.SessionTool
             or SettingsField.ToolsDollarMention or SettingsField.ReflectionIncludesSessions or SettingsField.McpServers or SettingsField.GitNativeTools
             or SettingsField.LlmCompactShowSummary or SettingsField.ShellToolBridge or SettingsField.ShellPoliceOutsidePaths
-            or SettingsField.ObsidianTools or SettingsField.ObsidianAllowDelete or SettingsField.SqlTools;
+            or SettingsField.ObsidianTools or SettingsField.ObsidianAllowDelete or SettingsField.SqlTools or SettingsField.SqlPercentMention;
 
     public static string FieldName(SettingsField field) => field switch
     {
@@ -907,6 +913,8 @@ internal sealed class SettingsMenu
         SettingsField.ObsidianVault => "Obsidian vault",
         SettingsField.SqlTools => "SQL tools",
         SettingsField.SqlDefaultConnection => "SQL default connection",
+        SettingsField.SqlSetPassword => "SQL set password",
+        SettingsField.SqlPercentMention => "SQL %-mention enabled",
         SettingsField.SqlQueryMaxRows => "SQL max rows",
         SettingsField.SqlQueryTimeoutSeconds => "SQL query timeout (s)",
         SettingsField.SqlConnectionsProfile => "SQL connections (profile)",
@@ -1046,6 +1054,8 @@ internal sealed class SettingsMenu
             SettingsField.ObsidianAllowDelete => OnOff(data.ObsidianAllowDelete),
             SettingsField.SqlTools => OnOff(data.SqlTools),
             SettingsField.SqlDefaultConnection => string.IsNullOrWhiteSpace(data.SqlDefaultConnection) ? FirstSqlConnectionLabel : data.SqlDefaultConnection,
+            SettingsField.SqlSetPassword => SqlSetPasswordLabel,
+            SettingsField.SqlPercentMention => OnOff(data.SqlPercentMention),
             SettingsField.SqlQueryMaxRows => SqlRows(data.SqlQueryMaxRows),
             SettingsField.SqlQueryTimeoutSeconds => Seconds(data.SqlQueryTimeoutSeconds),
             SettingsField.SqlConnectionsProfile => SqlConnectionsLabel(Sql.SqlConfigFile.ProfilePath(profileDirectory)),
@@ -1135,6 +1145,18 @@ internal sealed class SettingsMenu
         var loaded = Sql.SqlConfigFile.Load(path);
         string count = loaded.Connections.Count == 0 ? "(none)" : Sql.SqlText.Count(loaded.Connections.Count, "connection");
         return (loaded.Problems.Count == 0 ? count : count + ", " + Sql.SqlText.Count(loaded.Problems.Count, "problem")) + " · Enter edits sql.json";
+    }
+
+    /// <summary>The value column of the <c>SQL set password</c> action row (later on 2026-09-23). Pinned.</summary>
+    public const string SqlSetPasswordLabel = "Enter asks for a connection's password (masked)";
+
+    /// <summary>A connection on the <c>SQL set password</c> pick: its name and where its password goes. Pinned.</summary>
+    public static string SqlPasswordRow(Sql.SqlNamedConnection connection)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        string store = connection.Config.InCredentialManager ? "Windows Credential Manager" : "encrypted in sql.json";
+        string login = connection.Config.IsRunAs ? "runas " + connection.Config.User?.Trim() : "sql login " + connection.Config.User?.Trim();
+        return $"{connection.Name}  ({login} · {store})";
     }
 
     /// <summary>How the menu shows <see cref="AppSettingsData.SqlQueryMaxRows"/>.</summary>
@@ -2015,6 +2037,11 @@ internal sealed class SettingsMenu
             return await PickSqlConnectionAsync(saved, cancellationToken).ConfigureAwait(false);
         }
 
+        if (field == SettingsField.SqlSetPassword)
+        {
+            return await SetSqlPasswordAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         if (field is SettingsField.SqlConnectionsProfile or SettingsField.SqlConnectionsGlobal)
         {
             // An edit row (2026-09-23): the file in the editor, made with its commented shape first; nothing saved here.
@@ -2868,6 +2895,7 @@ internal sealed class SettingsMenu
             SettingsField.ObsidianTools => data.ObsidianTools,
             SettingsField.ObsidianAllowDelete => data.ObsidianAllowDelete,
             SettingsField.SqlTools => data.SqlTools,
+            SettingsField.SqlPercentMention => data.SqlPercentMention,
             SettingsField.LlmCompactShowSummary => data.LlmCompactShowSummary,
             SettingsField.TtsVoicePreview => data.TtsVoicePreview,
             SettingsField.FileTools => data.FileTools,
@@ -2916,6 +2944,7 @@ internal sealed class SettingsMenu
             case SettingsField.ObsidianTools: data.ObsidianTools = on; break;
             case SettingsField.ObsidianAllowDelete: data.ObsidianAllowDelete = on; break;
             case SettingsField.SqlTools: data.SqlTools = on; break;
+            case SettingsField.SqlPercentMention: data.SqlPercentMention = on; break;
             case SettingsField.LlmCompactShowSummary: data.LlmCompactShowSummary = on; break;
             case SettingsField.TtsVoicePreview: data.TtsVoicePreview = on; break;
             case SettingsField.FileTools: data.FileTools = on; break;
@@ -2973,6 +3002,7 @@ internal sealed class SettingsMenu
         SettingsField.ObsidianTools => on ? "the model reads and edits the notes of the Obsidian vault" : "no vault tools",
         SettingsField.ObsidianAllowDelete => on ? "vault_delete may move a note or attachment to the vault's .trash" : "no vault tool deletes anything",
         SettingsField.SqlTools => on ? "the model reads the SQL Server connections of sql.json" : "no SQL tools",
+        SettingsField.SqlPercentMention => on ? "% and part of a name lists the SQL connections on the line" : "% is ordinary text",
         SettingsField.LlmCompactShowSummary => on ? "the summary's lines or the pruned results, then the protected counts" : "the one compact notice alone",
         SettingsField.AgentSkills => on ? "the skills catalog, load_skill and skill_editor are offered" : "no skills, no project notes",
         SettingsField.ExternalSkills => on ? "%USERPROFILE%\\.agents\\skills is read too" : "profile and global skills only",
@@ -3091,6 +3121,58 @@ internal sealed class SettingsMenu
         string name = index == 0 ? "" : names[index - 1];
         Apply(SettingsField.SqlDefaultConnection, d => d.SqlDefaultConnection = name);
         return true;
+    }
+
+    /// <summary>
+    /// <c>SQL set password</c> (later on 2026-09-23, the user's call: a masked prompt, with auto-encryption as the net
+    /// under a password typed into the file): the connections that take a password, each with its store; then a masked
+    /// slot (<see cref="UI.InputLine"/>'s <c>mask</c>) under the picked one; then <see cref="Sql.SqlSecrets.Save"/> —
+    /// nothing in the settings changes, so the answer is false either way and the status line says what happened.
+    /// ESC or an empty Enter saves nothing.
+    /// </summary>
+    private async Task<bool> SetSqlPasswordAsync(CancellationToken cancellationToken)
+    {
+        var connections = Sql.SqlConfigFile.LoadCatalog(_settings.ProfileDirectory, _settings.StorageDirectory).Connections.Where(c => c.Config.NeedsPassword).ToList();
+        if (connections.Count == 0)
+        {
+            Sink.Error(Sql.SqlText.NoPasswordConnections);
+            return false;
+        }
+
+        var page = new MenuPage(Crumb(FieldName(SettingsField.SqlSetPassword)), connections.Select(c => Markup.Escape(SqlPasswordRow(c))).ToList(), PickKeys);
+        if (await PickAsync(page, 0, cancellationToken).ConfigureAwait(false) is not { } index)
+        {
+            return Unchanged();
+        }
+
+        var connection = connections[index];
+        InputResult result;
+        if (_pane.Enabled)
+        {
+            result = await _pane.EditAsync(page with { Hint = EditKeys }, index, _input, "", allowEmpty: false, cancellationToken, mask: true).ConfigureAwait(false);
+        }
+        else
+        {
+            Flow.Notice(PromptTitle(FieldName(SettingsField.SqlSetPassword) + " · " + connection.Name, EditKeys));
+            result = await _input.ReadAsync("", remember: false, allowEmpty: false, cancellationToken: cancellationToken, escapeCancels: true, mask: true).ConfigureAwait(false);
+        }
+
+        if (result is not InputResult.Submitted { Text.Length: > 0 } submitted)
+        {
+            return Unchanged();
+        }
+
+        var (saved, notice) = Sql.SqlSecrets.Save(connection, submitted.Text);
+        if (saved)
+        {
+            Sink.Notice(notice);
+        }
+        else
+        {
+            Sink.Error(notice);
+        }
+
+        return false;
     }
 
     /// <summary>Opens one <c>sql.json</c> in the editor, made first when missing; without an opener (tests, headless) or on an IO failure, the status line says so.</summary>

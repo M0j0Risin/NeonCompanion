@@ -814,7 +814,7 @@ internal sealed partial class ChatScreen
         // The @-mention list asks the sandbox as it stands at the keystroke (the root is a live read too);
         // the command and #-mention lists the catalog and the two Skills-tab switches (2026-09-17);
         // Ctrl+C over a selection writes the clipboard with /copy's writer.
-        _input = new InputLine(_pane, keys, clipboard, _transcript, clipboardImage, query => _files.Complete(query), CommandChoices, ArgumentChoices, HashChoices, DollarChoices, _copy);
+        _input = new InputLine(_pane, keys, clipboard, _transcript, clipboardImage, query => _files.Complete(query), CommandChoices, ArgumentChoices, HashChoices, DollarChoices, _copy, PercentChoices);
         _mouse = mouse;
         _holdWheel = holdWheel;
         // The screen holds the mouse and the wheel from its start (RunAsync; the user's call,
@@ -2156,6 +2156,23 @@ internal sealed partial class ChatScreen
     /// reconnect. A pick is text (<c>$name</c>), nothing is seeded.
     /// </summary>
     private IReadOnlyList<CompletionItem> DollarChoices() => _effective().ToolsDollarMention ? ToolChoices() : [];
+
+    /// <summary>
+    /// The input line's <c>%</c>-mention list (later on 2026-09-23): <see cref="SqlChoices"/> while the setting
+    /// <c>SQL %-mention enabled</c> and <c>SQL tools</c> are both on, else nothing — <c>%</c> is ordinary text then.
+    /// </summary>
+    private IReadOnlyList<CompletionItem> PercentChoices()
+    {
+        var effective = _effective();
+        return effective.SqlPercentMention && effective.SqlTools ? SqlChoices(_sql.Catalog()) : [];
+    }
+
+    /// <summary>The SQL connections as mention items (later on 2026-09-23): each name with <see cref="SqlText.MentionNote"/>, in the catalog's order (the profile's first). Pure.</summary>
+    public static IReadOnlyList<CompletionItem> SqlChoices(SqlCatalog catalog)
+    {
+        ArgumentNullException.ThrowIfNull(catalog);
+        return catalog.Connections.Select(c => new CompletionItem(c.Name, SqlText.MentionNote(c))).ToList();
+    }
 
     /// <summary>
     /// The input line's command list (2026-09-17): the base commands — less <c>/exit</c> under

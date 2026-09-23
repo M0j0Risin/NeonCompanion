@@ -125,6 +125,75 @@ public sealed class SqlConfigFileTests : IDisposable
     }
 
     [Fact]
+    public void RunAs_AndThePasswordStores_AreChecked()
+    {
+        Assert.Null(new SqlConnectionConfig { Server = "x", Auth = "runas", User = @"CONTOSO\svc" }.Problem);
+        Assert.Null(new SqlConnectionConfig { Server = "x", Auth = "RunAs", User = "svc@contoso.com", PasswordStore = "credman" }.Problem);
+        Assert.Equal(SqlText.RunAsNeedsDomain("svc"), new SqlConnectionConfig { Server = "x", Auth = "runas", User = "svc" }.Problem);
+        Assert.Equal(SqlText.RunAsNeedsDomain(""), new SqlConnectionConfig { Server = "x", Auth = "runas" }.Problem);
+        Assert.Equal(SqlText.BadPasswordStore("vault"), new SqlConnectionConfig { Server = "x", User = "u", PasswordStore = "vault" }.Problem);
+        Assert.Equal(SqlText.CredmanWithWindows, new SqlConnectionConfig { Server = "x", Auth = "windows", PasswordStore = "credman" }.Problem);
+        Assert.Equal(SqlText.BadAuth("entra"), new SqlConnectionConfig { Server = "x", Auth = "entra", User = "u" }.Problem);
+
+        var runas = new SqlConnectionConfig { Server = "sqlhost01,1453", Database = "db", Auth = "runas", User = @"CONTOSO\svc", Password = "never used" }.Builder(password: "p");
+        Assert.True(runas.IntegratedSecurity);
+        Assert.False(runas.Pooling);   // an integrated pool is keyed by the process's SID, which the netonly token keeps
+        Assert.Equal("NeonCompanion (runas)", runas.ApplicationName);
+        Assert.Equal("", runas.UserID);
+        Assert.Equal("", runas.Password);
+        Assert.Equal("p", new SqlConnectionConfig { Server = "x", User = "u", Password = "dpapi:…" }.Builder(password: "p").Password);   // the resolved password, never the stored value
+    }
+
+    [Fact]
+    public void APlainPassword_IsEncryptedInPlace_TheRestOfTheFileUntouched()
+    {
+        string text = """
+            {
+              // the dev box — keep this comment
+              "connections": {
+                "a": { "server": "x", "user": "sa", "password": "hunter2" },   // trailing note
+                "b": { "server": "y", "auth": "windows" },
+                "c": { "server": "z", "user": "u", "passwordStore": "credman", "password": "left alone" },
+              }
+            }
+            """;
+        Profile(text);
+        string path = SqlConfigFile.ProfilePath(_profile);
+
+        var loaded = SqlConfigFile.Load(path);
+
+        string after = File.ReadAllText(path);
+        Assert.DoesNotContain("hunter2", after);
+        Assert.Contains("// the dev box — keep this comment", after);
+        Assert.Contains("},   // trailing note", after);
+        Assert.Contains("\"password\": \"left alone\"", after);   // the credman store's password is not the file's to keep
+        int start = after.IndexOf("\"password\": \"dpapi:", StringComparison.Ordinal);
+        Assert.True(start > 0);
+        Assert.Equal(text[..text.IndexOf("\"password\"", StringComparison.Ordinal)], after[..start]);   // everything before the value byte for byte
+        Assert.Equal("hunter2", SqlSecrets.Resolve(loaded.Connections[0]).Value);
+        Assert.StartsWith("dpapi:", loaded.Connections[0].Config.Password);
+
+        string again = File.ReadAllText(path);
+        SqlConfigFile.Load(path);
+        Assert.Equal(again, File.ReadAllText(path));   // once: an encrypted value is left as it is
+    }
+
+    [Fact]
+    public void WritePassword_ReplacesTheValue_OrInsertsTheKey()
+    {
+        Profile("""{ "connections": { "a": { "server": "x", "user": "u", "password": null }, "b": { "server": "y", "user": "v" }, "c": { "server": "z" } } }""");
+        string path = SqlConfigFile.ProfilePath(_profile);
+
+        Assert.Null(SqlConfigFile.WritePassword(path, "a", "dpapi:AAA+/="));
+        Assert.Null(SqlConfigFile.WritePassword(path, "b", "dpapi:BBB"));
+        Assert.Null(SqlConfigFile.WritePassword(path, "c", "dpapi:CCC"));
+        Assert.Equal(
+            """{ "connections": { "a": { "server": "x", "user": "u", "password": "dpapi:AAA+/=" }, "b": { "server": "y", "user": "v", "password": "dpapi:BBB" }, "c": { "password": "dpapi:CCC", "server": "z" } } }""",
+            File.ReadAllText(path));
+        Assert.Equal(SqlText.ConnectionNotInFile("nope"), SqlConfigFile.WritePassword(path, "nope", "dpapi:x"));
+    }
+
+    [Fact]
     public void TheListing_NamesEveryConnection_TheDefaultMarked_AndNeverThePassword()
     {
         Profile("""{ "connections": { "aw": { "server": "127.0.0.1,1433", "database": "AdventureWorks2022", "user": "sa", "password": "hunter2", "description": "the sample sales database" }, "corp": { "server": "corp\\inst", "auth": "windows" }, "bad": { "server": "x" } } }""");

@@ -288,6 +288,8 @@ Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Obsidian, SQL
 |---|---|---|
 | SQL tools | Offers the SQL tools (connections, databases, tables, columns, describe, relationships, indexes, query) over the connections in `sql.json`. On, but nothing is offered until a connection is defined. | on |
 | SQL default connection | The connection a SQL tool uses when the call names none: a pick of the names in `sql.json`, or the first. | (the first connection) |
+| SQL set password | Enter picks a connection that takes a password (`sql` or `runas`) and asks for it masked, then saves it to that connection's store: encrypted in its `sql.json`, or Windows Credential Manager. | — |
+| SQL %-mention enabled | `%` and part of a name on the input line lists the SQL connections of `sql.json` (with their server, database and description); a pick writes `%name` as text. Lists nothing while *SQL tools* is off. | on |
 | SQL max rows | How many rows `sql_query` returns unless the call says otherwise (1–1000); past it the header says more exist and the server stops. | 100 |
 | SQL query timeout (s) | How long one SQL tool's batch may run on the server before it is stopped (1–600). | 30 |
 | SQL connections (profile) | Enter opens the profile's `sql.json` in the editor (made with a commented example first); the value counts its connections. | (none) |
@@ -515,7 +517,24 @@ Read-only queries on SQL Server over named connections, in-process (Microsoft.Da
 }
 ```
 
-`server` is `host`, `host,port` or `host\instance`; `auth` is `sql` (with `user` and `password`) or `windows` (integrated, as the app's own Windows identity); `encrypt` is `strict`, `mandatory` (the default) or `optional`, and `trustServerCertificate` accepts a self-signed certificate (a dev container's); `connectTimeoutSeconds` (1–120) defaults to 15. The model sees each connection's name, server, database, login name and `description` — never the password, which sits in the file as plain text the way the LLM API key sits in `profile.json`.
+`server` is `host`, `host,port` or `host\instance`; `auth` is `sql` (a SQL login: `user` and a password), `windows` (integrated, as the app's own Windows identity) or `runas` (integrated, as **another** Windows account: `user` is `DOMAIN\name` or `name@domain`, plus that account's password); `encrypt` is `strict`, `mandatory` (the default) or `optional`, and `trustServerCertificate` accepts a self-signed certificate (a dev container's); `connectTimeoutSeconds` (1–120) defaults to 15. The model sees each connection's name, server, database, login name and `description` — never a password.
+
+**Passwords.** Each `sql` or `runas` connection keeps its password where its `passwordStore` says:
+
+- `file` (the default): in `password`, encrypted with Windows DPAPI (`dpapi:…`) — readable only by your Windows account on this machine. Type a password there in plain text if you like: the next time the app reads the file it replaces just that value with the encrypted one, comments and layout kept.
+- `credman`: in Windows Credential Manager, as the Generic credential `credential` (default `NeonCompanion/sql/<connection name>`); nothing about the password is in the file.
+
+Either way, **SQL set password** on the SQL tab of `/tools` asks for it in a masked field and saves it to the connection's store. Without the pane (headless), write the `file` password in plain text and let the app encrypt it, or make the Credential Manager entry yourself: `cmdkey /generic:NeonCompanion/sql/prod /user:CONTOSO\svc-reader /pass`.
+
+```json
+"prod": {
+  "server": "sqlhost01.example.com,1453", "database": "Reports",
+  "auth": "runas", "user": "CONTOSO\\svc-reader", "passwordStore": "credman",
+  "encrypt": "mandatory", "trustServerCertificate": true
+}
+```
+
+**`runas`** signs in the way `runas /netonly` does, for that connection alone: while it connects, the app presents the other account's credentials to the server, and everything else — the app, its files, its other connections — stays you. The limits are `/netonly`'s: it reaches a **remote** server (a local one over shared memory or named pipes still sees you); Windows does not check the password when the logon is made, so a wrong one shows as the server's login failure; and such a connection is not pooled.
 
 `sql_query` takes one statement: a `SELECT`, or a `WITH …` CTE that ends in one. The text is parsed by the T-SQL parser SQL Server's own tools use (ScriptDom), not matched by pattern, so a second statement with no `;` between (`SELECT 1 DELETE FROM t`), `SELECT … INTO`, `EXEC`, DDL, `OPENROWSET` / `OPENQUERY` / `OPENDATASOURCE`, a linked server's four-part name and `NEXT VALUE FOR` are refused before anything is sent. What passes runs in a transaction that is always rolled back, with read-only intent and the *SQL query timeout (s)*; ESC cancels it on the server. Values go in as `@name` parameters, never spliced into the text. The results are a Markdown table under a header that says when the row cap or the text cap cut them; a `decimal` keeps every digit, and a CLR type (`geography`, `hierarchyid`) is shown as a hint to select it with `.ToString()`. **The parser and the rollback are guards, not permissions: point a connection at a login that may only read.**
 
