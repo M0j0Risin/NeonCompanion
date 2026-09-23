@@ -12,9 +12,26 @@ public sealed record SqlConfigProblem(string Source, string Reason);
 /// What <see cref="SqlConfigFile.LoadCatalog"/> found: the usable connections (the profile's first, then the
 /// home's the profile does not shadow, each in file order) and the problems, never a throw.
 /// </summary>
-public sealed record SqlCatalog(IReadOnlyList<SqlNamedConnection> Connections, IReadOnlyList<SqlConfigProblem> Problems)
+public sealed record SqlCatalog(IReadOnlyList<SqlNamedConnection> Connections, IReadOnlyList<SqlConfigProblem> Problems, int Hidden = 0)
 {
     public static readonly SqlCatalog Empty = new([], []);
+
+    /// <summary>
+    /// The catalog narrowed to the connections a profile offers (later on 2026-09-23, <c>SQL connections offered</c>):
+    /// <paramref name="names"/> null = all of them as they are; else only those whose name is in it (case-insensitive),
+    /// in file order, <see cref="Hidden"/> counting the rest. The problems are kept. Pure.
+    /// </summary>
+    public SqlCatalog Offered(IReadOnlyList<string>? names)
+    {
+        if (names is null)
+        {
+            return this;
+        }
+
+        var wanted = new HashSet<string>(names.Select(n => n.Trim()), StringComparer.OrdinalIgnoreCase);
+        var kept = Connections.Where(c => wanted.Contains(c.Name)).ToList();
+        return this with { Connections = kept, Hidden = Hidden + Connections.Count - kept.Count };
+    }
 
     /// <summary>
     /// The connection a call means: <paramref name="name"/> when given (case-insensitive), else

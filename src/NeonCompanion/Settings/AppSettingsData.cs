@@ -885,9 +885,23 @@ public sealed class AppSettingsData
 
     /// <summary>
     /// The connection a SQL tool uses when the call names none (2026-09-23): a name in <c>sql.json</c>; empty, or a
-    /// name no longer there, = the first connection. The SQL tab of <c>/tools</c>, second row. No variable.
+    /// name no longer there (or no longer offered, <see cref="SqlConnectionsOffered"/>), = the first offered connection.
+    /// A default, never a limit: a call that names another offered connection gets that one. The SQL tab of
+    /// <c>/tools</c>. No variable.
     /// </summary>
     public string SqlDefaultConnection { get; set; } = "";
+
+    /// <summary>
+    /// Which connections of <c>sql.json</c> this profile offers the model (later on 2026-09-23, the user's ask: a way
+    /// to limit what it can reach, not only choose its default). Null = not narrowed: every connection, a new one
+    /// included — every profile's start, so a setup from before keeps working. A list = exactly those names
+    /// (case-insensitive), so a connection added to <c>sql.json</c> afterwards stays hidden until ticked (the user's
+    /// call); an empty list offers none; a name no longer in the files is ignored. A hidden connection is out of
+    /// every tool, the rules, the <c>%</c>-mention and the default; <c>sql_connections</c> says how many are hidden,
+    /// never which. Still encrypted at startup and settable with <c>SQL set password</c>. The SQL tab of <c>/tools</c>,
+    /// second row. No variable.
+    /// </summary>
+    public List<string>? SqlConnectionsOffered { get; set; }
 
     /// <summary>
     /// Whether <c>%</c> and part of a name on the chat line lists the SQL connections of <c>sql.json</c> (later on

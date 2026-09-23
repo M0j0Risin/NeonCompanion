@@ -748,7 +748,8 @@ internal sealed partial class ChatScreen
         _vault = new ObsidianVault(() => _effective().ObsidianVault, time);
         _vaultTools = ObsidianTools(_vault, _effective);
         // The SQL tools (2026-09-23): the loaded profile's sql.json over the home's, read at every call, so a profile switch or an edit needs no rebuild.
-        _sql = new SqlAccess(() => SqlConfigFile.LoadCatalog(_settings.ProfileDirectory, _settings.StorageDirectory));
+        // Narrowed to the connections the profile offers (later that day): every tool, the rules and the %-mention see only those.
+        _sql = new SqlAccess(() => SqlConfigFile.LoadCatalog(_settings.ProfileDirectory, _settings.StorageDirectory).Offered(_effective().SqlConnectionsOffered));
         _sqlTools = SqlTools(_sql, _effective);
         // The shell tools (2026-09-21): the runner is the one process-start site of the group; the allow
         // list lives for the process (a /clear or a profile switch keeps the session's allows, the permanent

@@ -661,6 +661,7 @@ public sealed class AppSettings : IDisposable
         ObsidianVault = source.ObsidianVault,
         SqlTools = source.SqlTools,
         SqlDefaultConnection = source.SqlDefaultConnection,
+        SqlConnectionsOffered = source.SqlConnectionsOffered is null ? null : [.. source.SqlConnectionsOffered],
         SqlPercentMention = source.SqlPercentMention,
         SqlQueryMaxRows = source.SqlQueryMaxRows,
         SqlQueryTimeoutSeconds = source.SqlQueryTimeoutSeconds,

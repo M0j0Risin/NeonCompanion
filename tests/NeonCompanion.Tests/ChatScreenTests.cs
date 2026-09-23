@@ -4143,7 +4143,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains("\n▸ Git native tools            on\n  Git native diff max lines   500 lines\n  Git native log max commits  20 commits\n  Git native email            (not set)\n  Git native name             (not set)\n", output);
         Assert.Contains("\n▸ Shell command policy         ask\n  Shell allowed commands       none\n  Shell police outside paths   on\n  Shell default                powershell\n  Shell timeout (s)            180\n  Shell foreground cap (s)     600\n  Shell output max chars       30,000 chars\n  Shell code languages         powershell, python, node\n  Shell code timeout (s)       300\n  Shell tool bridge            off\n  Shell tool bridge max calls  50 tool calls\n", output);
         Assert.Contains("\n▸ Web tools                 on\n", output);
-        Assert.Contains("\n▸ SQL tools                  on\n  SQL default connection     (the first connection)\n  SQL set password           Enter asks for a connection's password (masked)\n  SQL %-mention enabled      on\n  SQL max rows               100 rows\n  SQL query timeout (s)      30\n  SQL connections (profile)  (none) · Enter edits sql.json\n", output);   // 2026-09-23
+        Assert.Contains("\n▸ SQL tools                  on\n  SQL connections offered    all (not narrowed)\n  SQL default connection     (the first connection)\n  SQL set password           Enter asks for a connection's password (masked)\n  SQL %-mention enabled      on\n  SQL max rows               100 rows\n  SQL query timeout (s)      30\n  SQL connections (profile)  (none) · Enter edits sql.json\n", output);   // 2026-09-23
         Assert.Contains("\n" + SettingsMenu.TabKeys, output);
         Assert.Empty(_chat.Requests);
     }

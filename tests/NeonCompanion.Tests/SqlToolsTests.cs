@@ -190,6 +190,34 @@ public sealed class SqlToolsTests
     }
 
     [Fact]
+    public async Task OnlyTheOfferedConnections_AreReachable_AndTheModelIsToldHowManyAreHidden()
+    {
+        var all = new SqlCatalog([Unreachable("aw"), Unreachable("prod"), Unreachable("secret")], []);
+        Assert.Same(all, all.Offered(null));
+        var narrowed = all.Offered([" PROD ", "gone"]);
+        Assert.Equal(["prod"], narrowed.Connections.Select(c => c.Name));
+        Assert.Equal(2, narrowed.Hidden);
+        Assert.Empty(all.Offered([]).Connections);
+        Assert.Equal(3, all.Offered([]).Hidden);
+
+        _catalog = narrowed;
+        string listing = await Invoke<SqlConnectionsTool>();
+        Assert.StartsWith("1 SQL connection (", listing);
+        Assert.EndsWith("\n" + SqlText.HiddenConnections(2), listing);
+        Assert.DoesNotContain("secret", listing);
+        Assert.Equal("2 more connections in sql.json are switched off for this profile (the SQL tab of /tools).", SqlText.HiddenConnections(2));
+        Assert.Equal("1 more connection in sql.json is switched off for this profile (the SQL tab of /tools).", SqlText.HiddenConnections(1));
+
+        Assert.Equal(SqlText.UnknownConnection("secret", "prod"), await Invoke<SqlQueryTool>(("sql", "SELECT 1"), ("connection", "secret")));
+        _settings.SqlDefaultConnection = "secret";   // a hidden default falls to the first offered
+        Assert.StartsWith("Error: could not connect to prod: ", await Invoke<SqlQueryTool>(("sql", "SELECT 1")));
+        Assert.Equal(["prod"], ChatScreen.SqlChoices(narrowed).Select(i => i.Text));
+
+        var access = new SqlAccess(() => all.Offered([]));
+        Assert.False(ChatScreen.SqlOffered(_settings, access));   // nothing offered: no SQL group at all
+    }
+
+    [Fact]
     public void TheCaps_ComeFromTheSettings_Clamped()
     {
         Assert.Equal(100, SqlQueryTool.DefaultRows(new AppSettingsData()));

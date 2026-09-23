@@ -445,6 +445,25 @@ public class AppSettingsTests : IDisposable
         Assert.Equal(Profiles.Directory(_dir, Profiles.DefaultName), reloaded.ProfileDirectory);
     }
 
+    /// <summary><c>SQL connections offered</c> (later on 2026-09-23): not narrowed (null), none ([]) and a list each survive a save and a reload as themselves.</summary>
+    [Fact]
+    public async Task SqlConnectionsOffered_KeepsNullEmptyAndAList_ApartAcrossAReload()
+    {
+        foreach (var offered in new List<string>?[] { null, [], ["aw", "prod"] })
+        {
+            using (var settings = new AppSettings(_dir))
+            {
+                settings.Update(d => d.SqlConnectionsOffered = offered is null ? null : [.. offered]);
+                await settings.FlushAsync();
+            }
+
+            using var reloaded = new AppSettings(_dir);
+            Assert.Equal(offered, reloaded.Current.SqlConnectionsOffered);
+        }
+
+        Assert.Null(new AppSettingsData().SqlConnectionsOffered);   // every profile starts not narrowed
+    }
+
     [Fact]
     public void Current_IsASnapshot_NotTheLiveObject()
     {

@@ -343,6 +343,9 @@ public enum SettingsField
 
     /// <summary>A toggle: whether <c>%</c> and part of a name lists the SQL connections on the chat line (<see cref="Settings.AppSettingsData.SqlPercentMention"/>). The SQL tab's fourth row (later on 2026-09-23); no reconnect (read at each keystroke). Last in the enum, as every newcomer.</summary>
     SqlPercentMention,
+
+    /// <summary>A checklist: which connections of <c>sql.json</c> this profile offers (<see cref="Settings.AppSettingsData.SqlConnectionsOffered"/>). The SQL tab's second row (later on 2026-09-23); no reconnect (read at each call). Last in the enum, as every newcomer.</summary>
+    SqlConnectionsOffered,
 }
 
 /// <summary>The tabs of <c>/settings</c> on the pane, in strip order (Sessions right after General — the user's order, 2026-09-18; STT last since 2026-09-19, when the Ask, Files and Web tabs moved to <c>/tools</c> — <see cref="SettingsMenu.ToolsTabFields"/> — and, later that day, the Skills tab to <c>/skills</c> as its Options tab — <see cref="SettingsMenu.SkillsTabFields"/>); the value is the index into <see cref="SettingsMenu.TabTitles"/> and <see cref="SettingsMenu.TabFields"/>.</summary>
@@ -601,7 +604,7 @@ internal sealed class SettingsMenu
         [SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices],
         [SettingsField.GitNativeTools, SettingsField.GitNativeDiffMaxLines, SettingsField.GitNativeLogMaxCommits, SettingsField.GitNativeEmail, SettingsField.GitNativeName],
         [SettingsField.ObsidianTools, SettingsField.ObsidianVault, SettingsField.ObsidianAllowDelete],
-        [SettingsField.SqlTools, SettingsField.SqlDefaultConnection, SettingsField.SqlSetPassword, SettingsField.SqlPercentMention, SettingsField.SqlQueryMaxRows, SettingsField.SqlQueryTimeoutSeconds, SettingsField.SqlConnectionsProfile, SettingsField.SqlConnectionsGlobal],
+        [SettingsField.SqlTools, SettingsField.SqlConnectionsOffered, SettingsField.SqlDefaultConnection, SettingsField.SqlSetPassword, SettingsField.SqlPercentMention, SettingsField.SqlQueryMaxRows, SettingsField.SqlQueryTimeoutSeconds, SettingsField.SqlConnectionsProfile, SettingsField.SqlConnectionsGlobal],
         [SettingsField.ToolsDollarMention, SettingsField.ToolCollapseCount, SettingsField.CodeCollapseCount],
     ];
 
@@ -913,6 +916,7 @@ internal sealed class SettingsMenu
         SettingsField.ObsidianVault => "Obsidian vault",
         SettingsField.SqlTools => "SQL tools",
         SettingsField.SqlDefaultConnection => "SQL default connection",
+        SettingsField.SqlConnectionsOffered => "SQL connections offered",
         SettingsField.SqlSetPassword => "SQL set password",
         SettingsField.SqlPercentMention => "SQL %-mention enabled",
         SettingsField.SqlQueryMaxRows => "SQL max rows",
@@ -1055,6 +1059,7 @@ internal sealed class SettingsMenu
             SettingsField.SqlTools => OnOff(data.SqlTools),
             SettingsField.SqlDefaultConnection => string.IsNullOrWhiteSpace(data.SqlDefaultConnection) ? FirstSqlConnectionLabel : data.SqlDefaultConnection,
             SettingsField.SqlSetPassword => SqlSetPasswordLabel,
+            SettingsField.SqlConnectionsOffered => SqlOfferedValue(data.SqlConnectionsOffered, Sql.SqlConfigFile.LoadCatalog(profileDirectory, Profiles.HomeOf(profileDirectory))),
             SettingsField.SqlPercentMention => OnOff(data.SqlPercentMention),
             SettingsField.SqlQueryMaxRows => SqlRows(data.SqlQueryMaxRows),
             SettingsField.SqlQueryTimeoutSeconds => Seconds(data.SqlQueryTimeoutSeconds),
@@ -1145,6 +1150,32 @@ internal sealed class SettingsMenu
         var loaded = Sql.SqlConfigFile.Load(path);
         string count = loaded.Connections.Count == 0 ? "(none)" : Sql.SqlText.Count(loaded.Connections.Count, "connection");
         return (loaded.Problems.Count == 0 ? count : count + ", " + Sql.SqlText.Count(loaded.Problems.Count, "problem")) + " · Enter edits sql.json";
+    }
+
+    /// <summary>
+    /// The value of <c>SQL connections offered</c> (later on 2026-09-23): <see cref="SqlNotNarrowedLabel"/> while the
+    /// profile never narrowed it, else how many of the loaded connections it offers. Pinned.
+    /// </summary>
+    public static string SqlOfferedValue(IReadOnlyList<string>? offered, Sql.SqlCatalog loaded)
+    {
+        ArgumentNullException.ThrowIfNull(loaded);
+        if (offered is null)
+        {
+            return SqlNotNarrowedLabel;
+        }
+
+        int kept = loaded.Offered(offered).Connections.Count;
+        return (kept == 0 ? "none" : kept.ToString(CultureInfo.InvariantCulture)) + " of " + loaded.Connections.Count.ToString(CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>The <c>SQL connections offered</c> value before the profile narrows it: every connection, a new one too. Pinned.</summary>
+    public const string SqlNotNarrowedLabel = "all (not narrowed)";
+
+    /// <summary>One row of the <c>SQL connections offered</c> checklist: the mark, the name, where it points. Pinned.</summary>
+    public static string SqlOfferedRow(Sql.SqlNamedConnection connection, bool offered, int width)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        return Markup.Escape((offered ? "[x] " : "[ ] ") + connection.Name.PadRight(width)) + Theme.DimMarkup(Sql.SqlText.MentionNote(connection));
     }
 
     /// <summary>The value column of the <c>SQL set password</c> action row (later on 2026-09-23). Pinned.</summary>
@@ -2035,6 +2066,11 @@ internal sealed class SettingsMenu
         if (field == SettingsField.SqlDefaultConnection)
         {
             return await PickSqlConnectionAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.SqlConnectionsOffered)
+        {
+            return await EditSqlOfferedAsync(cancellationToken).ConfigureAwait(false);
         }
 
         if (field == SettingsField.SqlSetPassword)
@@ -3107,7 +3143,7 @@ internal sealed class SettingsMenu
     /// </summary>
     private async Task<bool> PickSqlConnectionAsync(AppSettingsData saved, CancellationToken cancellationToken)
     {
-        var names = Sql.SqlConfigFile.LoadCatalog(_settings.ProfileDirectory, _settings.StorageDirectory).Connections.Select(c => c.Name).ToList();
+        var names = Sql.SqlConfigFile.LoadCatalog(_settings.ProfileDirectory, _settings.StorageDirectory).Offered(saved.SqlConnectionsOffered).Connections.Select(c => c.Name).ToList();
         var rows = new List<string> { Markup.Escape(FirstSqlConnectionLabel) };
         rows.AddRange(names.Select(Markup.Escape));
         int current = names.FindIndex(n => string.Equals(n, saved.SqlDefaultConnection, StringComparison.OrdinalIgnoreCase));
@@ -3121,6 +3157,54 @@ internal sealed class SettingsMenu
         string name = index == 0 ? "" : names[index - 1];
         Apply(SettingsField.SqlDefaultConnection, d => d.SqlDefaultConnection = name);
         return true;
+    }
+
+    /// <summary>
+    /// <c>SQL connections offered</c> (later on 2026-09-23): every connection the two files hold, ticked or not, Enter or
+    /// Space flipping one and the list shown again until ESC (the <see cref="EditCodeLanguagesAsync"/> shape). The first
+    /// flip of a profile that never narrowed it saves every name but the flipped one — from then on the list is exact,
+    /// and a connection added later stays hidden until ticked (the user's call). True when anything changed.
+    /// </summary>
+    private async Task<bool> EditSqlOfferedAsync(CancellationToken cancellationToken)
+    {
+        bool changed = false;
+        int cursor = 0;
+        while (true)
+        {
+            var loaded = Sql.SqlConfigFile.LoadCatalog(_settings.ProfileDirectory, _settings.StorageDirectory);
+            if (loaded.Connections.Count == 0)
+            {
+                Sink.Error(Sql.SqlText.NoConnections);
+                return changed;
+            }
+
+            var offered = _settings.Current.SqlConnectionsOffered;
+            var on = loaded.Offered(offered).Connections.Select(c => c.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            int width = loaded.Connections.Max(c => c.Name.Length) + 2;
+            var page = new MenuPage(Crumb(FieldName(SettingsField.SqlConnectionsOffered)), loaded.Connections.Select(c => SqlOfferedRow(c, on.Contains(c.Name), width)).ToList(), ToggleKeys) { SpaceToggles = true };
+            int? picked = await PickAsync(page, Math.Min(cursor, loaded.Connections.Count - 1), cancellationToken).ConfigureAwait(false);
+            if (picked is not { } index)
+            {
+                if (!changed)
+                {
+                    Sink.Notice(UnchangedNotice);
+                }
+
+                return changed;
+            }
+
+            cursor = index;
+            string name = loaded.Connections[index].Name;
+            var next = loaded.Connections.Select(c => c.Name).Where(n => on.Contains(n) != string.Equals(n, name, StringComparison.OrdinalIgnoreCase)).ToList();
+            // A name ticked before but no longer in the files stays in the list: it counts again if the connection comes back.
+            if (offered is not null)
+            {
+                next.AddRange(offered.Where(n => !loaded.Connections.Any(c => string.Equals(c.Name, n.Trim(), StringComparison.OrdinalIgnoreCase))));
+            }
+
+            Apply(SettingsField.SqlConnectionsOffered, d => d.SqlConnectionsOffered = next);
+            changed = true;
+        }
     }
 
     /// <summary>

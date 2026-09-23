@@ -438,7 +438,7 @@ public sealed class CompanionApp
         var git = new Git.GitAccess(files, _time);
         var gitTools = ChatScreen.GitTools(git, () => EffectiveSettings);
         var vaultTools = ChatScreen.ObsidianTools(new Obsidian.ObsidianVault(() => EffectiveSettings.ObsidianVault, _time), () => EffectiveSettings);
-        var sql = new Sql.SqlAccess(() => Sql.SqlConfigFile.LoadCatalog(_settings.ProfileDirectory, _settings.StorageDirectory));
+        var sql = new Sql.SqlAccess(() => Sql.SqlConfigFile.LoadCatalog(_settings.ProfileDirectory, _settings.StorageDirectory).Offered(EffectiveSettings.SqlConnectionsOffered));
         var sqlTools = ChatScreen.SqlTools(sql, () => EffectiveSettings);
         // The shell tools (2026-09-21): headless has no pane to ask on, so the gate has no asker — under ask the
         // allow list alone decides, and NEONCOMPANION_COMMAND_POLICY=yolo is how a scripted run says yes.

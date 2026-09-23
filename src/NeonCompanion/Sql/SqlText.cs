@@ -61,6 +61,12 @@ public static class SqlText
         return string.IsNullOrWhiteSpace(config.Description) ? line : line + " — " + config.Description.Trim();
     }
 
+    /// <summary>The closing line of <c>sql_connections</c> while the profile hides some (later on 2026-09-23): how many, never which. Pinned.</summary>
+    public static string HiddenConnections(int count) =>
+        count == 1
+            ? "1 more connection in sql.json is switched off for this profile (the SQL tab of /tools)."
+            : $"{Invariant(count)} more connections in sql.json are switched off for this profile (the SQL tab of /tools).";
+
     /// <summary>A connection's note on the <c>%</c>-mention list (later on 2026-09-23): where it points, then its description. Pinned.</summary>
     public static string MentionNote(SqlNamedConnection connection)
     {
@@ -92,6 +98,11 @@ public static class SqlText
         foreach (var problem in catalog.Problems)
         {
             sb.Append("\nSkipped ").Append(problem.Source).Append(": ").Append(problem.Reason);
+        }
+
+        if (catalog.Hidden > 0)
+        {
+            sb.Append('\n').Append(HiddenConnections(catalog.Hidden));
         }
 
         return sb.ToString();

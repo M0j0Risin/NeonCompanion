@@ -287,7 +287,8 @@ Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Obsidian, SQL
 | Setting | What it does | Default |
 |---|---|---|
 | SQL tools | Offers the SQL tools (connections, databases, tables, columns, describe, relationships, indexes, query) over the connections in `sql.json`. On, but nothing is offered until a connection is defined. | on |
-| SQL default connection | The connection a SQL tool uses when the call names none: a pick of the names in `sql.json`, or the first. | (the first connection) |
+| SQL connections offered | Which connections of `sql.json` this profile offers the model: a checklist of every connection in the two files. Until you first use it every connection is offered, new ones too; once narrowed, only the ticked ones are, and a connection added to `sql.json` later stays hidden until you tick it. A hidden connection is out of every SQL tool, the rules, the `%`-mention and the default; `sql_connections` tells the model how many are hidden, never which. | all (not narrowed) |
+| SQL default connection | The connection a SQL tool uses when the call names none: a pick of the offered connections, or the first. A default, not a limit: a call that names another offered connection uses that one, and `database` still opens other databases on the same server under that login. | (the first connection) |
 | SQL set password | Enter picks a connection that takes a password (`sql` or `runas`) and asks for it masked, then saves it to that connection's store: encrypted in its `sql.json`, or Windows Credential Manager. | — |
 | SQL %-mention enabled | `%` and part of a name on the input line lists the SQL connections of `sql.json` (with their server, database and description); a pick writes `%name` as text. Lists nothing while *SQL tools* is off. | on |
 | SQL max rows | How many rows `sql_query` returns unless the call says otherwise (1–1000); past it the header says more exist and the server stops. | 100 |
