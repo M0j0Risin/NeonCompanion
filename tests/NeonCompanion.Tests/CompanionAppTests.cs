@@ -129,6 +129,28 @@ public class CompanionAppTests : IDisposable
         return stdout.ToString();
     }
 
+    /// <summary>
+    /// A plain password in any <c>sql.json</c> — here a profile that is not the loaded one — is encrypted when a session
+    /// starts (later on 2026-09-23), and a diagnostic run (<c>--smoke</c>) leaves the file alone.
+    /// </summary>
+    [Fact]
+    public async Task Startup_EncryptsThePlainSqlPasswords_OfEveryProfile_ButASmokeRunLeavesThem()
+    {
+        string other = Path.Combine(_dir, "profiles", "other");
+        Directory.CreateDirectory(other);
+        string path = NeonCompanion.Sql.SqlConfigFile.ProfilePath(other);
+        File.WriteAllText(path, """{ "connections": { "a": { "server": "x", "user": "u", "password": "hunter2" } } }""");
+
+        Assert.Equal(0, await App(smoke: () => [new SmokeCheck("a", true, "ok")]).RunAsync(CompanionOptions.None with { Smoke = true }, CancellationToken.None));
+        Assert.Contains("hunter2", File.ReadAllText(path));
+
+        // Headless (the smoke run above wrote to the fixture's console, so not through Headless(), which pins it empty).
+        Assert.Equal(0, await App(stdin: new StringReader(""), stdout: new StringWriter()).RunAsync(CompanionOptions.None with { Headless = true }, CancellationToken.None));
+
+        Assert.DoesNotContain("hunter2", File.ReadAllText(path));
+        Assert.Contains("\"password\": \"dpapi:", File.ReadAllText(path));
+    }
+
     [Fact]
     public void RenderBanner_ShowsTitleVersionAndRule_NoKeyHints()
     {

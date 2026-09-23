@@ -237,6 +237,7 @@ public sealed class CompanionApp
             try
             {
                 LogStartup();
+                EncryptSqlPasswords();
                 // The screen wipes and draws the banner itself, inside the alternate buffer its
                 // pane enters (RenderScreen(IAnsiConsole) through the pane), so the shell's screen is untouched.
                 return await RunInteractiveAsync(cancellationToken).ConfigureAwait(false);
@@ -417,6 +418,7 @@ public sealed class CompanionApp
         Action<DiagnosticEvent> forward = OnHeadlessDiagnostic;
         DiagnosticLog.Emitted += forward;
         LogStartup();
+        EncryptSqlPasswords();
         using var session = new LlmSession(_probe, _contextProbe, _chatClientFactory, _time);
         // The MCP servers (2026-09-20): connected after the LLM, their tools offered per turn like the screen's; disposed after the loop.
         await using var mcp = new McpSession(_settings, _mcpTransport, _time);
@@ -810,6 +812,13 @@ public sealed class CompanionApp
     /// (<see cref="AppSettings.NotDefaultLogLine"/>, Debug under <c>Settings</c> — the effective
     /// snapshot, so a flag's or a variable's value shows as the setting it became).
     /// </summary>
+    /// <summary>
+    /// A plain password typed into any <c>sql.json</c> — the home's or any profile's — encrypted before the first
+    /// screen or turn (later on 2026-09-23, the user's ask), whatever the SQL tools' switch says: a secret on disk
+    /// is the thing to fix, not only a secret about to be used. The interactive and headless modes only.
+    /// </summary>
+    private void EncryptSqlPasswords() => Sql.SqlConfigFile.EncryptAll(_settings.StorageDirectory);
+
     private void LogStartup()
     {
         var facts = AboutFacts.Runtime(Version, _settings.StorageDirectory, _settings.ProfileDirectory, ModelsDirectory);

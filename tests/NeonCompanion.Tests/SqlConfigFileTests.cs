@@ -179,6 +179,30 @@ public sealed class SqlConfigFileTests : IDisposable
     }
 
     [Fact]
+    public void EncryptAll_ReadsTheHomesFile_AndEveryProfiles_NotOnlyTheLoadedOnes()
+    {
+        const string plain = """{ "connections": { "a": { "server": "x", "user": "u", "password": "hunter2" } } }""";
+        string work = Path.Combine(_home, "profiles", "work");
+        Directory.CreateDirectory(work);
+        Directory.CreateDirectory(Path.Combine(_home, "profiles", "empty"));   // a profile without a sql.json
+        Global(plain);
+        Profile(plain);
+        File.WriteAllText(SqlConfigFile.ProfilePath(work), plain);
+
+        var read = SqlConfigFile.EncryptAll(_home);
+
+        Assert.Equal([SqlConfigFile.GlobalPath(_home), SqlConfigFile.ProfilePath(_profile), SqlConfigFile.ProfilePath(work)], read);
+        foreach (string path in read)
+        {
+            string text = File.ReadAllText(path);
+            Assert.DoesNotContain("hunter2", text);
+            Assert.Contains("\"password\": \"dpapi:", text);
+        }
+
+        Assert.Empty(SqlConfigFile.EncryptAll(Path.Combine(_home, "nowhere")));   // no home yet: nothing to read
+    }
+
+    [Fact]
     public void WritePassword_ReplacesTheValue_OrInsertsTheKey()
     {
         Profile("""{ "connections": { "a": { "server": "x", "user": "u", "password": null }, "b": { "server": "y", "user": "v" }, "c": { "server": "z" } } }""");

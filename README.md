@@ -521,18 +521,59 @@ Read-only queries on SQL Server over named connections, in-process (Microsoft.Da
 
 **Passwords.** Each `sql` or `runas` connection keeps its password where its `passwordStore` says:
 
-- `file` (the default): in `password`, encrypted with Windows DPAPI (`dpapi:…`) — readable only by your Windows account on this machine. Type a password there in plain text if you like: the next time the app reads the file it replaces just that value with the encrypted one, comments and layout kept.
+- `file` (the default): in `password`, encrypted with Windows DPAPI (`dpapi:…`) — readable only by your Windows account on this machine. Type a password there in plain text if you like: when the app next starts (it checks the home's `sql.json` and every profile's, not only the loaded one), or sooner the next time it reads that file, it replaces just that value with the encrypted one, comments and layout kept.
 - `credman`: in Windows Credential Manager, as the Generic credential `credential` (default `NeonCompanion/sql/<connection name>`); nothing about the password is in the file.
 
-Either way, **SQL set password** on the SQL tab of `/tools` asks for it in a masked field and saves it to the connection's store. Without the pane (headless), write the `file` password in plain text and let the app encrypt it, or make the Credential Manager entry yourself: `cmdkey /generic:NeonCompanion/sql/prod /user:CONTOSO\svc-reader /pass`.
+Either way, **SQL set password** on the SQL tab of `/tools` asks for it in a masked field and saves it to the connection's store. Without the pane (headless), write the `file` password in plain text and let the app encrypt it, or make the Credential Manager entry yourself from a command prompt (it asks for the password):
 
-```json
-"prod": {
-  "server": "sqlhost01.example.com,1453", "database": "Reports",
-  "auth": "runas", "user": "CONTOSO\\svc-reader", "passwordStore": "credman",
-  "encrypt": "mandatory", "trustServerCertificate": true
+```
+cmdkey /generic:NeonCompanion/sql/reports-admin /user:CONTOSO\svc-reader /pass
+```
+
+**Example: integrated auth, as you and as another account.** The file is `%USERPROFILE%\.neoncompanion\profiles\<profile>\sql.json` for one profile or `%USERPROFILE%\.neoncompanion\sql.json` for all of them (the *SQL connections (profile)* and *(global)* rows on the SQL tab open either); comments and trailing commas are allowed. The names below are stand-ins:
+
+```jsonc
+{
+  "connections": {
+    // Integrated auth as you: the Windows account running NeonCompanion. No password.
+    "reports-me": {
+      "server": "sqlhost01.example.com,1453",
+      "database": "Reports",
+      "auth": "windows",
+      "encrypt": "mandatory",
+      "trustServerCertificate": true,          // only for a self-signed certificate
+      "description": "the reporting database, as me"
+    },
+
+    // Integrated auth as another account (the runas /netonly way); the password in Credential Manager
+    // under NeonCompanion/sql/reports-admin (SQL set password, or the cmdkey line above).
+    "reports-admin": {
+      "server": "sqlhost01.example.com,1453",
+      "database": "Reports",
+      "auth": "runas",
+      "user": "CONTOSO\\svc-reader",           // DOMAIN\name, the backslash doubled in JSON; or name@domain
+      "passwordStore": "credman",
+      "encrypt": "mandatory",
+      "trustServerCertificate": true,
+      "description": "the reporting database, as the service account"
+    },
+
+    // The same account with the password kept in this file: typed here once in plain text,
+    // it is replaced with "dpapi:…" when the app next starts (or sooner, the next time it reads the file).
+    "reports-admin-file": {
+      "server": "sqlhost01.example.com,1453",
+      "database": "Reports",
+      "auth": "runas",
+      "user": "svc-reader@contoso.com",
+      "password": "type-it-here-once",
+      "encrypt": "mandatory",
+      "trustServerCertificate": true
+    }
+  }
 }
 ```
+
+To check which account a connection signs in as, ask for `SELECT SUSER_SNAME()` on it (`%reports-admin` on the input line picks it): a `runas` connection answers with the other account, a `windows` one with you.
 
 **`runas`** signs in the way `runas /netonly` does, for that connection alone: while it connects, the app presents the other account's credentials to the server, and everything else — the app, its files, its other connections — stays you. The limits are `/netonly`'s: it reaches a **remote** server (a local one over shared memory or named pipes still sees you); Windows does not check the password when the logon is made, so a wrong one shows as the server's login failure; and such a connection is not pooled.
 

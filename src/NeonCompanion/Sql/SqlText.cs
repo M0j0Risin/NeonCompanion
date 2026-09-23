@@ -35,6 +35,7 @@ public static class SqlText
     public static string CannotDecrypt(string detail) => $"the password cannot be decrypted — it was saved by another Windows user or on another machine ({detail}); set it again on the SQL tab of /tools";
     public static string NoCredential(string target) => $"no password in Windows Credential Manager for {target}; set it on the SQL tab of /tools, or: cmdkey /generic:{target} /user:<account> /pass";
     public static string NoPassword(string name) => $"'{name}' has no password; set it on the SQL tab of /tools (SQL set password)";
+    public static string ProfilesUnlistedLogLine(string root, string detail) => $"could not list the profiles in {root}, so only the home's sql.json was checked for plain passwords: {detail}";
     public static string EncryptedLogLine(string name, string path) => $"encrypted the password of '{name}' in {path}";
     public static string EncryptFailedLogLine(string name, string path, string detail) => $"could not encrypt the password of '{name}' in {path}, so it stays plain text there: {detail}";
     public static string RunAsLogLine(string name, string account) => $"{name} signs in as {account} (runas)";

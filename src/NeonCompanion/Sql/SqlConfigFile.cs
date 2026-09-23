@@ -253,6 +253,37 @@ public sealed class SqlConfigFile
         return null;
     }
 
+    /// <summary>
+    /// Every <c>sql.json</c> under <paramref name="home"/> read once — the home's and each profile's, not only the
+    /// loaded one's (later on 2026-09-23, the user's ask: a password typed into any of them is encrypted when the app
+    /// starts, not at the first read that happens to need that file) — so <see cref="Load"/>'s encryption runs over
+    /// them all. The interactive screen and headless mode call it at startup; the check modes do not (a diagnostic
+    /// run leaves the user's files alone). The files read, in order; a profiles folder that cannot be listed is a
+    /// warning and the home's file alone. Never throws.
+    /// </summary>
+    public static IReadOnlyList<string> EncryptAll(string home)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(home);
+        var paths = new List<string> { GlobalPath(home) };
+        try
+        {
+            paths.AddRange(Settings.Profiles.List(home).Select(name => ProfilePath(Settings.Profiles.Directory(home, name))));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            DiagnosticLog.Warn(Category, SqlText.ProfilesUnlistedLogLine(Settings.Profiles.Root(home), LogText.Excerpt(ex.Message)));
+        }
+
+        var read = new List<string>();
+        foreach (string path in paths.Where(File.Exists))
+        {
+            Load(path);
+            read.Add(path);
+        }
+
+        return read;
+    }
+
     /// <summary>The profile's file over the home's (<paramref name="home"/> null = the profile's alone): a name in both is the profile's.</summary>
     public static SqlCatalog LoadCatalog(string profileDirectory, string? home)
     {
