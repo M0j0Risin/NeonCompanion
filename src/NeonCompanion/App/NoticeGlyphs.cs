@@ -67,6 +67,9 @@ public static class NoticeGlyphs
     /// <summary>Skills (the toolbar's mortarboard).</summary>
     public const string Skill = ChatScreen.SkillsToolGlyph + " ";
 
+    /// <summary>The <c>--log</c> file: <c>/log</c> (2026-09-22).</summary>
+    public const string Log = "📄 ";
+
     /// <summary>The glyph of a prompt file's notices: 🪪 persona.md, 📋 operata.md, 🗣️ vocalia.md; nothing for another name.</summary>
     public static string PromptFile(string fileName) => fileName switch
     {

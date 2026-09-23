@@ -771,7 +771,7 @@ public sealed class CompanionApp
         // on the row and hands it back to the terminal otherwise, so the terminal's own selection
         // and right-click copy work whenever there is nothing to click into.
         var mouse = _input as WindowsConsoleInput;
-        var screen = new ChatScreen(_console, _settings, () => EffectiveSettings, OverriddenBy, session, speech, new KeySource(_input ?? _console.Input), voice, PersonaFile.OpenInEditor, RenderScreen, _time, _geometry, _clipboard, mouse is null ? null : mouse.Capture, _copyToClipboard, clipboardImage: _clipboardImage, web: _web, setTitle: _setTitle, externalSkills: _externalSkills, holdWheel: mouse is null ? null : mouse.HoldWheel, splash: SplashImages.Source, editDraft: PersonaFile.EditAndWaitAsync, mcp: mcp, environment: _environment.System);
+        var screen = new ChatScreen(_console, _settings, () => EffectiveSettings, OverriddenBy, session, speech, new KeySource(_input ?? _console.Input), voice, PersonaFile.OpenInEditor, RenderScreen, _time, _geometry, _clipboard, mouse is null ? null : mouse.Capture, _copyToClipboard, clipboardImage: _clipboardImage, web: _web, setTitle: _setTitle, externalSkills: _externalSkills, holdWheel: mouse is null ? null : mouse.HoldWheel, splash: SplashImages.Source, editDraft: PersonaFile.EditAndWaitAsync, mcp: mcp, environment: _environment.System, logFile: _options.LogPath is { } logPath ? Path.GetFullPath(logPath) : null);
         if (mouse is not null)
         {
             mouse.ModeChanged = screen.FlushConsole;

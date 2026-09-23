@@ -66,6 +66,7 @@ public partial class ChatScreenTests : IDisposable
 
     /// <summary>What /draft opens its temporary file with (2026-09-19): a lambda that writes the file and returns, or waits on the token; null = the screen has no editor.</summary>
     private Func<string, string, CancellationToken, Task>? _editDraft;
+    private string? _logFile;   // /log (2026-09-22): the --log file the screen is handed; null = started without --log
     private Action<bool>? _mouse;
     private Action<bool>? _holdWheel;
     private readonly List<string> _copied = new();
@@ -243,7 +244,7 @@ public partial class ChatScreenTests : IDisposable
     private async Task<string> RunAsync(IAnsiConsoleInput input, CancellationToken cancellationToken = default)
     {
         _keys = new KeySource(input, TimeSpan.FromMilliseconds(1));
-        var screen = new ChatScreen(_console, _settings, () => _settings.Current, _overriddenBy, _session, _speech, _keys, _voice, _openFile ?? _openedFiles.Add, RenderScreen, _time, _geometry, mouse: _mouse, copyToClipboard: CopyToClipboard, random: _random, clipboardImage: _clipboardImage, web: _web, setTitle: _titles.Add, externalSkills: Path.Combine(_dir, "agents-skills"), holdWheel: _holdWheel, splash: _splash, editDraft: _editDraft, mcp: _mcp);
+        var screen = new ChatScreen(_console, _settings, () => _settings.Current, _overriddenBy, _session, _speech, _keys, _voice, _openFile ?? _openedFiles.Add, RenderScreen, _time, _geometry, mouse: _mouse, copyToClipboard: CopyToClipboard, random: _random, clipboardImage: _clipboardImage, web: _web, setTitle: _titles.Add, externalSkills: Path.Combine(_dir, "agents-skills"), holdWheel: _holdWheel, splash: _splash, editDraft: _editDraft, mcp: _mcp, logFile: _logFile);
         int code = await screen.RunAsync(cancellationToken);
         Assert.Equal(0, code);
         return Output;
@@ -8582,7 +8583,7 @@ public partial class ChatScreenTests : IDisposable
         }
 
         Assert.Equal(lines.Length, line);
-        Assert.Equal(54, lines.Length);   // 46 commands + 8 blank rows: /expand and /collapse under /loop later on 2026-09-22; /forget went 2026-09-22, its wipe now /memory forget, and /memcopy later that day, its copy now /memory copy; /cmdlist under /cmdcopy later on 2026-09-21; /cmdcopy under /memcopy 2026-09-21; /loop under /draft 2026-09-21; /git under /emptytrash 2026-09-21; /mcp under /tools 2026-09-20; /splash under /new later still on 2026-09-19; /draft under /copy since 2026-09-19; nine groups since later on 2026-09-19 (/skills + /learn under /sessions, /window under /view, /timer under /help); 39 + 10 with /tools under /settings that morning (38 + 10 since the three tool switches went, 2026-09-18)
+        Assert.Equal(55, lines.Length);   // 47 commands + 8 blank rows: /vault under /tree later still on 2026-09-22; /expand and /collapse under /loop later on 2026-09-22; /forget went 2026-09-22, its wipe now /memory forget, and /memcopy later that day, its copy now /memory copy; /cmdlist under /cmdcopy later on 2026-09-21; /cmdcopy under /memcopy 2026-09-21; /loop under /draft 2026-09-21; /git under /emptytrash 2026-09-21; /mcp under /tools 2026-09-20; /splash under /new later still on 2026-09-19; /draft under /copy since 2026-09-19; nine groups since later on 2026-09-19 (/skills + /learn under /sessions, /window under /view, /timer under /help); 39 + 10 with /tools under /settings that morning (38 + 10 since the three tool switches went, 2026-09-18)
         Assert.StartsWith(HelpRow("/settings, //", "edit and save settings"), lines[0]);
         Assert.StartsWith(HelpRow("/profile", "switch profiles, or /profile <name> | add <name> | delete <name> | rename <name> <new-name> | reset [name] | edit | reload"), lines[1]);   // the user's order since 2026-09-22: the profile and its sessions ahead of the tool panes
         Assert.StartsWith(HelpRow("/sessions", "list, restore and purge sessions: /sessions [<id> | purge <id> | purge older <age> | purge all | title <text>]"), lines[2]);   // under /profile since later on 2026-09-18
@@ -8612,20 +8613,21 @@ public partial class ChatScreenTests : IDisposable
         Assert.StartsWith(HelpRow("/cmdcopy", "copy this profile's allowed shell commands into another: /cmdcopy <profile> [overwrite]"), lines[32]);   // 2026-09-21
         Assert.StartsWith(HelpRow("/cmdlist", "list this profile's allowed shell commands on a pane, Enter removes one"), lines[33]);   // later on 2026-09-21
         Assert.StartsWith(HelpRow("/tree", "print a tree of the working directory's folders and files, or /tree <path>"), lines[36]);
-        Assert.StartsWith(HelpRow("/emptytrash", "empty the working directory's .trash for good (asks first)"), lines[38]);
-        Assert.StartsWith(HelpRow("/git", "write the Git native email and Git native name settings into the working directory's repository: /git user [force]"), lines[39]);   // 2026-09-21
-        Assert.True(string.IsNullOrWhiteSpace(lines[40]));
+        Assert.StartsWith(HelpRow("/vault", "print a tree of the Obsidian vault's folders and notes"), lines[37]);   // under /tree since later still on 2026-09-22
+        Assert.StartsWith(HelpRow("/emptytrash", "empty the working directory's .trash for good (asks first)"), lines[39]);
+        Assert.StartsWith(HelpRow("/git", "write the Git native email and Git native name settings into the working directory's repository: /git user [force]"), lines[40]);   // 2026-09-21
+        Assert.True(string.IsNullOrWhiteSpace(lines[41]));
         // /speak and /view: a group of their own (the user's call, 2026-09-17); /window (/windowsize until then) under /view since later on 2026-09-19.
-        Assert.StartsWith(HelpRow("/speak", "read a text file from the working directory aloud, as a reply: /speak <file> [n], or /speak to resume, or /speak <n> from sentence n"), lines[41]);
-        Assert.StartsWith(HelpRow("/echo", "print a line as a reply and read it aloud when speech is on: /echo <text>"), lines[42]);
-        Assert.StartsWith(HelpRow("/view", "show an image from the working directory in the transcript, as large as the window allows: /view <image>"), lines[43]);
-        Assert.StartsWith(HelpRow("/window", "show the terminal window's width and height"), lines[44]);
-        Assert.True(string.IsNullOrWhiteSpace(lines[45]));
-        Assert.StartsWith(HelpRow("/persona", "export and manage persona.md (the personality) in your editor, or /persona reset to go back to the default, or /persona copy <profile> [force] to copy it into another profile"), lines[46]);   // copy 2026-09-21
-        Assert.True(string.IsNullOrWhiteSpace(lines[49]));
-        Assert.StartsWith(HelpRow("/timer", "list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all"), lines[50]);   // the bottom group's first row since later still on 2026-09-19 (under /help from earlier that day)
-        Assert.StartsWith(HelpRow("/help", "show help"), lines[51]);   // the bottom group since 2026-09-16, above /about; under /timer since later still on 2026-09-19
-        Assert.StartsWith(HelpRow("/about", "show general information about the app and profile"), lines[52]);
+        Assert.StartsWith(HelpRow("/speak", "read a text file from the working directory aloud, as a reply: /speak <file> [n], or /speak to resume, or /speak <n> from sentence n"), lines[42]);
+        Assert.StartsWith(HelpRow("/echo", "print a line as a reply and read it aloud when speech is on: /echo <text>"), lines[43]);
+        Assert.StartsWith(HelpRow("/view", "show an image from the working directory in the transcript, as large as the window allows: /view <image>"), lines[44]);
+        Assert.StartsWith(HelpRow("/window", "show the terminal window's width and height"), lines[45]);
+        Assert.True(string.IsNullOrWhiteSpace(lines[46]));
+        Assert.StartsWith(HelpRow("/persona", "export and manage persona.md (the personality) in your editor, or /persona reset to go back to the default, or /persona copy <profile> [force] to copy it into another profile"), lines[47]);   // copy 2026-09-21
+        Assert.True(string.IsNullOrWhiteSpace(lines[50]));
+        Assert.StartsWith(HelpRow("/timer", "list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all"), lines[51]);   // the bottom group's first row since later still on 2026-09-19 (under /help from earlier that day)
+        Assert.StartsWith(HelpRow("/help", "show help"), lines[52]);   // the bottom group since 2026-09-16, above /about; under /timer since later still on 2026-09-19
+        Assert.StartsWith(HelpRow("/about", "show general information about the app and profile"), lines[53]);
         Assert.StartsWith(HelpRow("/exit", "exit/quit the application"), lines[^1]);   // the very last row since 2026-09-16
         Assert.DoesNotContain("/windowsize", Output);
         Assert.DoesNotContain("(also", Output);
@@ -10890,6 +10892,161 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains("  ✗ " + FileText.IsAFile("notes.txt"), output);
         Assert.Contains("  ✗ " + FileText.OutsideRoot(".."), output);
         Assert.Empty(_chat.Requests);
+    }
+
+    // ── /vault (2026-09-22) ─────────────────────────────────────────────────
+
+    [Fact]
+    public void Vault_Errors_ArePinned()
+    {
+        Assert.Equal("Obsidian tools is off; /vault shows nothing until it is on (the Obsidian tab of /tools).", ChatScreen.VaultToolsOffError);
+        Assert.Equal("No Obsidian vault is set; set Obsidian vault on the Obsidian tab of /tools.", ChatScreen.VaultNotSetError);
+        Assert.Equal(@"The Obsidian vault D:\Notes cannot be reached.", ChatScreen.VaultUnreachableError(@"D:\Notes"));
+        Assert.Equal(@"D:\Notes is not an Obsidian vault (it has no .obsidian folder).", ChatScreen.VaultNotAVaultError(@"D:\Notes"));
+        Assert.Equal(MidTurnClass.Refused, ChatScreen.MidTurnPolicy(SlashCommand.Vault, hasArgs: false));   // as /tree: the turn owns the transcript
+    }
+
+    [Fact]
+    public async Task Vault_PrintsTheVaultAsATree_WithoutTheDotFolders_HonouringTheTreeSettings()
+    {
+        string vault = Path.Combine(_dir, "Vault");
+        Directory.CreateDirectory(Path.Combine(vault, ".obsidian"));
+        File.WriteAllText(Path.Combine(vault, ".obsidian", "app.json"), "{}");
+        Directory.CreateDirectory(Path.Combine(vault, ".trash"));
+        File.WriteAllText(Path.Combine(vault, ".trash", "old.md"), "");
+        Directory.CreateDirectory(Path.Combine(vault, "Projects"));
+        File.WriteAllText(Path.Combine(vault, "Projects", "Plan.md"), "# Plan");
+        File.WriteAllText(Path.Combine(vault, "Home.md"), "hi");
+        _settings.Update(d => { d.ObsidianVault = vault; d.FileTreeShowSizes = false; });
+        PushLine("/vault");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains(
+            "  · " + vault + @"\" + "\n"
+            + "  · ├── Projects\\\n"
+            + "  · │   └── Plan.md\n"
+            + "  · └── Home.md\n",
+            output);
+        Assert.DoesNotContain(".obsidian", output);
+        Assert.DoesNotContain("old.md", output);
+        Assert.Empty(_chat.Requests);
+
+        // The cap is File /tree max length's, as /tree's.
+        _settings.Update(d => d.FileTreeMaxLength = 1);
+        PushLine("/vault");
+        PushLine("/exit");
+        output = await RunAsync();
+        Assert.Contains("  · " + TreeText.CutLine(1), output);
+    }
+
+    [Fact]
+    public async Task Vault_ToolsOff_NoVault_Unreachable_AndNotAVault_AreErrors()
+    {
+        string plain = Path.Combine(_dir, "Plain");
+        Directory.CreateDirectory(plain);
+        string missing = Path.Combine(_dir, "Gone");
+
+        _settings.Update(d => { d.ObsidianTools = false; d.ObsidianVault = plain; });
+        PushLine("/vault");
+        PushLine("/exit");
+        string output = await RunAsync();
+        Assert.Contains("  ✗ " + ChatScreen.VaultToolsOffError, output);   // first, whatever the vault says
+
+        _settings.Update(d => { d.ObsidianTools = true; d.ObsidianVault = "  "; });
+        PushLine("/vault");
+        PushLine("/exit");
+        output = await RunAsync();
+        Assert.Contains("  ✗ " + ChatScreen.VaultNotSetError, output);
+
+        _settings.Update(d => d.ObsidianVault = missing);
+        PushLine("/vault");
+        PushLine("/exit");
+        output = await RunAsync();
+        Assert.Contains("  ✗ " + ChatScreen.VaultUnreachableError(missing), output);
+        Assert.False(Directory.Exists(missing));   // never created
+
+        _settings.Update(d => d.ObsidianVault = plain);
+        PushLine("/vault");
+        PushLine("/exit");
+        output = await RunAsync();
+        Assert.Contains("  ✗ " + ChatScreen.VaultNotAVaultError(plain), output);
+    }
+
+    // ── /log (2026-09-22) ───────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Log_WithoutTheFlag_IsAnUnknownCommand_AndNoListNamesIt()
+    {
+        PushLine("/log");
+        PushLine("/log now");
+        PushLine("/help");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains("  ✗ " + ChatScreen.UnknownCommandError("/log"), output);
+        Assert.DoesNotContain(ChatScreen.NoArgumentError("/log"), output);   // no hint that the command exists
+        Assert.DoesNotContain(SlashCommands.LogEntry.Summary, output);        // /help printed without its row
+        Assert.Empty(_openedFiles);
+        Assert.DoesNotContain(ChatScreen.CommandItems(), i => i.Text == "/log");
+        Assert.DoesNotContain(ChatScreen.CommandItems(hideExit: true), i => i.Text == "/log");
+    }
+
+    [Fact]
+    public async Task Log_WithTheFlag_OpensTheFile_HelpListsIt_AndAMissingFileOrFailedEditorIsTheError()
+    {
+        _logFile = Path.Combine(_dir, "neon.log");
+        File.WriteAllText(_logFile, "--- log opened ---\n");
+        PushLine("/log");
+        PushLine("/log now");
+        PushLine("/help");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Equal([_logFile], _openedFiles);
+        Assert.Contains("  · " + ChatScreen.LogOpenedNotice(_logFile), output);
+        Assert.Contains("  ✗ " + ChatScreen.NoArgumentError("/log"), output);
+        Assert.Contains(SlashCommands.LogEntry.Summary, output);   // /help's printed list has the row
+
+        _openFile = _ => throw new System.ComponentModel.Win32Exception("no editor");
+        PushLine("/log");
+        PushLine("/exit");
+        output = await RunAsync();
+        Assert.Contains("  ✗ " + ChatScreen.LogOpenFailedError("no editor"), output);
+
+        File.Delete(_logFile);
+        _openFile = null;
+        PushLine("/log");
+        PushLine("/exit");
+        output = await RunAsync();
+        Assert.Contains("  ✗ " + ChatScreen.LogMissingError(_logFile), output);
+        Assert.Single(_openedFiles);   // the missing file never reached the editor
+    }
+
+    [Fact]
+    public void Log_IsQuickUnderAReply_AndCommandItemsListIt_OnlyUnderTheFlag()
+    {
+        Assert.Equal(MidTurnClass.Quick, ChatScreen.MidTurnPolicy(SlashCommand.Log, hasArgs: false));
+        Assert.Same(SlashCommands.CompletionsWithLog, ChatScreen.CommandItems(showLog: true));
+        Assert.Same(SlashCommands.CompletionsWithoutExitWithLog, ChatScreen.CommandItems(hideExit: true, showLog: true));
+        Assert.DoesNotContain(ChatScreen.CommandItems(hideQueue: true, showLog: true), i => i.Text == "/queue");
+        Assert.Contains(ChatScreen.CommandItems(hideQueue: true, showLog: true), i => i.Text == "/log");
+    }
+
+    [Fact]
+    public void CommandsTab_UnderTheFlag_HasTheLogRow_DirectlyAboveHelp()
+    {
+        _console.Profile.Width = 240;
+        _console.Write(ChatScreen.CommandsTab(log: true));
+
+        string[] lines = Output.TrimEnd('\n').Split('\n');
+        Assert.Equal(56, lines.Length);   // CommandsTab()'s 55 and the /log row
+        int help = Array.FindIndex(lines, l => l.StartsWith(HelpRow("/help", "show help"), StringComparison.Ordinal));
+        Assert.StartsWith(HelpRow("/log", SlashCommands.LogEntry.Summary), lines[help - 1]);
+        Assert.StartsWith(HelpRow("/timer", "list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all"), lines[help - 2]);
     }
 
     // ── /speak (2026-09-17) ─────────────────────────────────────────────────

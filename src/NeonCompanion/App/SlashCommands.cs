@@ -76,6 +76,9 @@ public enum SlashCommand
     /// <summary><c>/tree</c>: a tree of the working directory's folders and files, or <c>/tree &lt;path&gt;</c> for a folder under it.</summary>
     Tree,
 
+    /// <summary><c>/vault</c> (2026-09-22, the user's ask: "similar to tree"): the <c>Obsidian vault</c>'s folders and notes as <c>/tree</c> prints the working directory's — the dot-folders (<c>.obsidian</c>, <c>.trash</c>, <c>.git</c>) left out, as the vault tools leave them, and the same <c>File /tree max length</c> and <c>File /tree show sizes</c>. An error while <c>Obsidian tools</c> is off, no vault is set, or the folder cannot be reached or is no vault. No argument.</summary>
+    Vault,
+
     /// <summary><c>/explore</c>: open the working directory in the system's file browser (Explorer, Finder, …), or <c>/explore &lt;path&gt;</c> for a folder under it.</summary>
     Explore,
 
@@ -102,6 +105,9 @@ public enum SlashCommand
 
     /// <summary><c>/window</c> (<c>/windowsize</c> until later on 2026-09-19): the terminal window's width and height, for information.</summary>
     Window,
+
+    /// <summary><c>/log</c> (2026-09-22, the user's ask): the <c>--log</c> file opened in the editor Windows associates with it. Only a command when the app was started with <c>--log</c> — without the flag it parses as <see cref="Unknown"/> and neither <c>/help</c> nor the completion list names it (<see cref="SlashCommands.Parse(string, bool)"/>). No argument.</summary>
+    Log,
 
     /// <summary><c>/about</c>: the app's version, runtime, folders, servers, third-party components and licence, in the info pane.</summary>
     About,
@@ -208,6 +214,7 @@ public static class SlashCommands
         [
             new("/cwd", "show or change the working directory, or /cwd <path> | ~ | browse"),
             new("/tree", "print a tree of the working directory's folders and files, or /tree <path>"),
+            new("/vault", "print a tree of the Obsidian vault's folders and notes"),
             new("/explore", "open the working directory in your file browser, or /explore <path>"),
             new("/emptytrash", "empty the working directory's .trash for good (asks first)"),
             new("/git", "write the Git native email and Git native name settings into the working directory's repository: /git user [force]"),
@@ -234,6 +241,24 @@ public static class SlashCommands
     /// <summary>The groups flattened: every command with its summary, in the order <c>/help</c> lists them. Pinned by tests.</summary>
     public static readonly IReadOnlyList<HelpEntry> HelpEntries = HelpGroups.SelectMany(group => group).ToArray();
 
+    /// <summary><c>/log</c>'s row (2026-09-22, the user's ask): listed only when the app was started with <c>--log</c>, directly above <c>/help</c> (<see cref="HelpGroupsWithLog"/>). Pinned.</summary>
+    public static readonly HelpEntry LogEntry = new("/log", "open the diagnostic log file (--log) in your editor");
+
+    /// <summary>
+    /// <see cref="HelpGroups"/> with <see cref="LogEntry"/> in the last group directly above <c>/help</c> — the list under
+    /// <c>--log</c> (2026-09-22, the user's place). Every other group is the same instance. <see cref="HelpGroups"/>,
+    /// <see cref="HelpEntries"/>, <see cref="HelpText"/>, <see cref="Completions"/> and <see cref="Words"/> stay the
+    /// list without the flag. Pinned.
+    /// </summary>
+    public static readonly IReadOnlyList<IReadOnlyList<HelpEntry>> HelpGroupsWithLog =
+    [
+        .. HelpGroups.Take(HelpGroups.Count - 1),
+        HelpGroups[^1].SelectMany(entry => entry.Command == "/help" ? new[] { LogEntry, entry } : [entry]).ToArray(),
+    ];
+
+    /// <summary><see cref="HelpGroupsWithLog"/> when <paramref name="log"/> (the app started with <c>--log</c>), else <see cref="HelpGroups"/>.</summary>
+    public static IReadOnlyList<IReadOnlyList<HelpEntry>> HelpGroupsFor(bool log) => log ? HelpGroupsWithLog : HelpGroups;
+
     /// <summary>
     /// The input line's command list (<see cref="UI.MentionCompleter.TryFindCommand"/>): every base
     /// command with its summary as the note, sorted by name — never an alias (the user's call,
@@ -250,6 +275,14 @@ public static class SlashCommands
     public static readonly IReadOnlyList<UI.CompletionItem> CompletionsWithoutExit =
         Completions.Where(item => item.Text != "/exit").ToArray();
 
+    /// <summary><see cref="Completions"/> with <c>/log</c> in its sorted place: the list under <c>--log</c> (2026-09-22). Pinned.</summary>
+    public static readonly IReadOnlyList<UI.CompletionItem> CompletionsWithLog =
+        Completions.Append(new UI.CompletionItem(LogEntry.Command, LogEntry.Summary)).OrderBy(item => item.Text, StringComparer.Ordinal).ToArray();
+
+    /// <summary><see cref="CompletionsWithLog"/> less <c>/exit</c>, as <see cref="CompletionsWithoutExit"/> is <see cref="Completions"/> less it. Pinned.</summary>
+    public static readonly IReadOnlyList<UI.CompletionItem> CompletionsWithoutExitWithLog =
+        CompletionsWithLog.Where(item => item.Text != "/exit").ToArray();
+
     /// <summary>The blank cells between the label column and the summary, on the pane and in <see cref="HelpText"/> alike.</summary>
     public const int HelpColumnGap = 2;
 
@@ -264,19 +297,22 @@ public static class SlashCommands
     public const string KeysLine = "Keys: Enter = send   ESC = stop the speech / clear the line / cancel the reply   Up/Down = history, or the draft's rows when it wraps   F4 = talk (push-to-talk key)";
 
     /// <summary>Printed by <c>/help</c> when there is no pane to open (a redirected console): the groups with a blank line between them. Pinned by tests.</summary>
-    public static readonly string HelpText = BuildHelpText();
+    public static readonly string HelpText = BuildHelpText(HelpGroups);
 
-    private static string BuildHelpText()
+    /// <summary><see cref="HelpText"/> over <see cref="HelpGroupsWithLog"/>: what <c>/help</c> prints under <c>--log</c> with no pane to open (2026-09-22). Pinned.</summary>
+    public static readonly string HelpTextWithLog = BuildHelpText(HelpGroupsWithLog);
+
+    private static string BuildHelpText(IReadOnlyList<IReadOnlyList<HelpEntry>> groups)
     {
         var text = new System.Text.StringBuilder("Commands:\n");
-        for (var i = 0; i < HelpGroups.Count; i++)
+        for (var i = 0; i < groups.Count; i++)
         {
             if (i > 0)
             {
                 text.Append('\n');
             }
 
-            foreach (var entry in HelpGroups[i])
+            foreach (var entry in groups[i])
             {
                 text.Append("  ").Append(entry.Label.PadRight(LabelWidth + HelpColumnGap)).Append(entry.Summary).Append('\n');
             }
@@ -286,7 +322,7 @@ public static class SlashCommands
     }
 
     /// <summary>Every command word, for help and completion.</summary>
-    public static readonly string[] Words = { "/help", "/clear", "/new", "/splash", "/queue", "/sessions", "/compact", "/server", "/model", "/reasoning", "/settings", "//", "/tools", "/mcp", "/tts", "/stt", "/wake", "/interrupt", "/speak", "/remember", "/memory", "/cmdcopy", "/cmdlist", "/persona", "/operata", "/vocalia", "/sys", "/usage", "/profile", "/timer", "/cwd", "/tree", "/explore", "/view", "/echo", "/emptytrash", "/git", "/copy", "/draft", "/loop", "/expand", "/collapse", "/window", "/skills", "/learn", "/about", "/exit" };
+    public static readonly string[] Words = { "/help", "/clear", "/new", "/splash", "/queue", "/sessions", "/compact", "/server", "/model", "/reasoning", "/settings", "//", "/tools", "/mcp", "/tts", "/stt", "/wake", "/interrupt", "/speak", "/remember", "/memory", "/cmdcopy", "/cmdlist", "/persona", "/operata", "/vocalia", "/sys", "/usage", "/profile", "/timer", "/cwd", "/tree", "/vault", "/explore", "/view", "/echo", "/emptytrash", "/git", "/copy", "/draft", "/loop", "/expand", "/collapse", "/window", "/skills", "/learn", "/about", "/exit" };
 
     /// <summary>The <c>/queue</c> word: what a double-click on the hint row's queued part sends through the mid-turn line hook, so the pane opens exactly as the typed command's does (2026-09-18). Pinned.</summary>
     public const string QueueWord = "/queue";
@@ -308,8 +344,12 @@ public static class SlashCommands
     public const string ServerWord = "/server";
     public const string ReasoningWord = "/reasoning";
 
-    /// <summary>Classifies <paramref name="line"/>; <c>Args</c> is the trimmed remainder — meaningful for the commands <see cref="TakesArgument"/> names, and carried by <see cref="SlashCommand.Overloaded"/> for the error line.</summary>
-    public static (SlashCommand Command, string Args) Parse(string line)
+    /// <summary>
+    /// Classifies <paramref name="line"/>; <c>Args</c> is the trimmed remainder — meaningful for the commands <see cref="TakesArgument"/> names, and carried by <see cref="SlashCommand.Overloaded"/> for the error line.
+    /// <paramref name="log"/> is whether the app was started with <c>--log</c> (2026-09-22): only then is <c>/log</c> <see cref="SlashCommand.Log"/>;
+    /// without it <c>/log</c>, argument or not, is <see cref="SlashCommand.Unknown"/>, so no error hints the command exists.
+    /// </summary>
+    public static (SlashCommand Command, string Args) Parse(string line, bool log = false)
     {
         ArgumentNullException.ThrowIfNull(line);
         string trimmed = line.Trim();
@@ -353,6 +393,7 @@ public static class SlashCommands
             "/timer" => SlashCommand.Timer,
             "/cwd" => SlashCommand.Cwd,
             "/tree" => SlashCommand.Tree,
+            "/vault" => SlashCommand.Vault,
             "/explore" => SlashCommand.Explore,
             "/view" => SlashCommand.View,
             "/echo" => SlashCommand.Echo,
@@ -366,6 +407,7 @@ public static class SlashCommands
             "/emptytrash" => SlashCommand.EmptyTrash,
             "/git" => SlashCommand.Git,
             "/window" => SlashCommand.Window,
+            "/log" => log ? SlashCommand.Log : SlashCommand.Unknown,
             "/about" => SlashCommand.About,
             "/skills" => SlashCommand.Skills,
             "/learn" => SlashCommand.Learn,

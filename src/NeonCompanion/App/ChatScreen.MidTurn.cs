@@ -109,9 +109,9 @@ internal sealed partial class ChatScreen
     /// <c>/forget</c> was a pane too, and <c>/memcopy</c> was refused until the word folded in),
     /// <c>/emptytrash</c>'s confirmation and the <c>/reasoning</c>
     /// picker and <c>/queue</c> (2026-09-18) are <see cref="MidTurnClass.Pane"/> (<c>/expand</c> and <c>/collapse</c>, 2026-09-22 — <c>/tools expand|collapse</c> until later that day — quick like <c>/queue clear</c>), as is <c>/cmdlist</c> (2026-09-21: the <c>Shell allowed commands</c> row, which <c>/tools</c> edits under a reply too); the four speech switches, <c>/reasoning</c>
-    /// with a level, <c>/queue</c> with a word (<c>clear</c>, 2026-09-21: the drop on the turn task, or the usage error), <c>/copy</c>, <c>/remember</c>, <c>/explore</c>, <c>/timer</c> and an unknown
+    /// with a level, <c>/queue</c> with a word (<c>clear</c>, 2026-09-21: the drop on the turn task, or the usage error), <c>/copy</c>, <c>/remember</c>, <c>/explore</c>, <c>/log</c> (2026-09-22: an editor launch like <c>/explore</c>'s), <c>/timer</c> and an unknown
     /// command are <see cref="MidTurnClass.Quick"/>; <c>/clear</c>, <c>/new</c>, <c>/splash</c> (2026-09-19) and <c>/exit</c> cancel; the rest
-    /// (<c>/profile</c>, <c>/server</c>, <c>/model</c>, <c>/compact</c>, <c>/cwd</c>, <c>/tree</c>,
+    /// (<c>/profile</c>, <c>/server</c>, <c>/model</c>, <c>/compact</c>, <c>/cwd</c>, <c>/tree</c>, <c>/vault</c> (2026-09-22, as <c>/tree</c>),
     /// <c>/learn</c>, <c>/window</c>, <c>/cmdcopy</c> (2026-09-21), <c>/git</c> (2026-09-21), <c>/speak</c> — the turn owns the transcript and the speaker —, <c>/draft</c> (2026-09-19: it would send a message the turn cannot take), <c>/loop</c> (2026-09-21, the same reason), the three prompt files) are refused; <c>/skills</c> is a pane (2026-09-16 as <c>/skills</c>, <c>/skill list</c> then the bare <c>/skill</c> on 2026-09-18, the plural again since 2026-09-19; <c>/skill</c> with a name was refused until later on 2026-09-18, when the name form went — an argument was <see cref="SlashCommand.Overloaded"/>, quick like an unknown command, until <c>/skills edit &lt;name&gt;</c> came on 2026-09-21: an editor launch, refused like <c>/profile edit</c>). Pure.
     /// </summary>
     public static MidTurnClass MidTurnPolicy(SlashCommand command, bool hasArgs) => command switch
@@ -123,7 +123,7 @@ internal sealed partial class ChatScreen
         SlashCommand.Skills => hasArgs ? MidTurnClass.Refused : MidTurnClass.Pane,
         SlashCommand.Session => hasArgs ? MidTurnClass.Refused : MidTurnClass.Pane,
         SlashCommand.Tts or SlashCommand.Voice or SlashCommand.Wake or SlashCommand.Interrupt or SlashCommand.Copy
-            or SlashCommand.Remember or SlashCommand.Explore or SlashCommand.Timer or SlashCommand.Expand or SlashCommand.Collapse or SlashCommand.Unknown or SlashCommand.Overloaded => MidTurnClass.Quick,
+            or SlashCommand.Remember or SlashCommand.Explore or SlashCommand.Log or SlashCommand.Timer or SlashCommand.Expand or SlashCommand.Collapse or SlashCommand.Unknown or SlashCommand.Overloaded => MidTurnClass.Quick,
         SlashCommand.Clear or SlashCommand.New or SlashCommand.Splash or SlashCommand.Exit => MidTurnClass.Cancel,
         _ => MidTurnClass.Refused,
     };
@@ -148,7 +148,7 @@ internal sealed partial class ChatScreen
             return QueueLine(line);
         }
 
-        var (command, args) = SlashCommands.Parse(text);
+        var (command, args) = ParseLine(text);
         var policy = MidTurnPolicy(command, args.Length > 0);
         if (policy != MidTurnClass.Message)
         {
@@ -217,7 +217,7 @@ internal sealed partial class ChatScreen
                 return;
             }
 
-            var (nextCommand, nextArgs) = SlashCommands.Parse(next);
+            var (nextCommand, nextArgs) = ParseLine(next);
             if (nextCommand == command || MidTurnPolicy(nextCommand, nextArgs.Length > 0) != MidTurnClass.Pane)
             {
                 return;
@@ -320,6 +320,9 @@ internal sealed partial class ChatScreen
                 break;
             case SlashCommand.Explore:
                 HandleExplore(args);
+                break;
+            case SlashCommand.Log:
+                HandleLog();
                 break;
             case SlashCommand.Timer:
                 HandleTimer(args);

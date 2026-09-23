@@ -437,6 +437,9 @@ internal sealed partial class ChatScreen
     private readonly McpSession _mcp;
     private readonly bool _ownsMcp;
     private readonly Action<string> _openFile;
+
+    /// <summary>The <c>--log</c> file, full path (2026-09-22): <c>/log</c> opens it, and only while it is set is <c>/log</c> a command, in <c>/help</c> and in the completion list. Null = started without <c>--log</c>.</summary>
+    private readonly string? _logFile;
     private readonly Func<string, string, CancellationToken, Task>? _editDraft;
     private readonly Random _random;
     private readonly SplashSource? _splash;
@@ -678,6 +681,7 @@ internal sealed partial class ChatScreen
     /// <param name="editDraft">Opens <c>/draft</c>'s temporary file (the path, the <c>Draft editor</c> command line — blank for the shell's default — and a token) and completes when the editor is done with it (<see cref="PersonaFile.EditAndWaitAsync"/> in the app; tests a lambda that writes the file, or waits on the token); null = <c>/draft</c> answers <see cref="DraftUnavailableError"/>.</param>
     /// <param name="mcp">The MCP servers' session (2026-09-20; <see cref="CompanionApp"/> builds one beside the LLM session and disposes it after the screen); null = the screen builds its own over the real transports and disposes it when it closes (the tests', with nothing configured in their temp home).</param>
     /// <param name="environment">Reads a system variable for the shell probe (<c>PATH</c>, <c>PATHEXT</c>; <see cref="EnvironmentOverrides.System"/> in the app, 2026-09-21); null = no PATH at all, which still finds <c>cmd.exe</c> and Windows PowerShell under the system folder (the tests' deterministic pair).</param>
+    /// <param name="logFile">The <c>--log</c> file, full path (2026-09-22): <c>/log</c> opens it with <paramref name="openFile"/>, and only while it is given is <c>/log</c> a command, in <c>/help</c> and in the completion list; null = started without <c>--log</c> (and the tests).</param>
     public ChatScreen(
         IAnsiConsole console,
         AppSettings settings,
@@ -703,8 +707,10 @@ internal sealed partial class ChatScreen
         SplashSource? splash = null,
         Func<string, string, CancellationToken, Task>? editDraft = null,
         McpSession? mcp = null,
-        Func<string, string?>? environment = null)
+        Func<string, string?>? environment = null,
+        string? logFile = null)
     {
+        _logFile = logFile;
         ArgumentNullException.ThrowIfNull(time);
         _time = time;
         _random = random ?? Random.Shared;
@@ -1189,18 +1195,20 @@ internal sealed partial class ChatScreen
     /// <summary>The tabs <c>/help</c> opens; each builds its content when shown, from the live state.</summary>
     private IReadOnlyList<InfoTab> HelpTabs() =>
     [
-        new("Commands", CommandsTab),
+        new("Commands", () => CommandsTab(log: _logFile is not null)),
         new("Keys", KeysTab),
     ];
 
     /// <summary>
-    /// The Commands tab: <see cref="SlashCommands.HelpGroups"/> as two columns, a blank row between the groups.
+    /// The Commands tab: <see cref="SlashCommands.HelpGroups"/> as two columns, a blank row between the groups
+    /// (<see cref="SlashCommands.HelpGroupsWithLog"/> under <paramref name="log"/>, the app started with <c>--log</c>, 2026-09-22).
     /// One grid for every group, so the label column is measured once across them all.
     /// </summary>
-    public static IRenderable CommandsTab()
+    public static IRenderable CommandsTab(bool log = false)
     {
+        var groups = SlashCommands.HelpGroupsFor(log);
         var grid = TwoColumns();
-        for (var i = 0; i < SlashCommands.HelpGroups.Count; i++)
+        for (var i = 0; i < groups.Count; i++)
         {
             if (i > 0)
             {
@@ -1208,7 +1216,7 @@ internal sealed partial class ChatScreen
                 grid.AddRow(new Text(" "), Text.Empty);
             }
 
-            foreach (var entry in SlashCommands.HelpGroups[i])
+            foreach (var entry in groups[i])
             {
                 grid.AddRow(new Text(entry.Label, Theme.AccentCyan), new Text(entry.Summary, Theme.Body));
             }
@@ -2149,17 +2157,24 @@ internal sealed partial class ChatScreen
     private IReadOnlyList<CompletionItem> CommandChoices()
     {
         var effective = _effective();
-        return CommandItems(effective.HideExitAutocomplete, hideQueue: !effective.QueueMessages);
+        return CommandItems(effective.HideExitAutocomplete, hideQueue: !effective.QueueMessages, showLog: _logFile is not null);
     }
 
     /// <summary>
     /// <see cref="SlashCommands.Completions"/> (or <see cref="SlashCommands.CompletionsWithoutExit"/>
     /// under <paramref name="hideExit"/>; less <see cref="SlashCommands.QueueWord"/> under
-    /// <paramref name="hideQueue"/>). With neither flag the base list itself comes back. Pure; pinned.
+    /// <paramref name="hideQueue"/>; the <c>…WithLog</c> lists, <c>/log</c> in them, under
+    /// <paramref name="showLog"/> — the app started with <c>--log</c>, 2026-09-22). With no flag the base list itself comes back. Pure; pinned.
     /// </summary>
-    public static IReadOnlyList<CompletionItem> CommandItems(bool hideExit = false, bool hideQueue = false)
+    public static IReadOnlyList<CompletionItem> CommandItems(bool hideExit = false, bool hideQueue = false, bool showLog = false)
     {
-        var baseList = hideExit ? SlashCommands.CompletionsWithoutExit : SlashCommands.Completions;
+        var baseList = (hideExit, showLog) switch
+        {
+            (false, false) => SlashCommands.Completions,
+            (true, false) => SlashCommands.CompletionsWithoutExit,
+            (false, true) => SlashCommands.CompletionsWithLog,
+            (true, true) => SlashCommands.CompletionsWithoutExitWithLog,
+        };
         if (hideQueue)
         {
             baseList = baseList.Where(item => item.Text != SlashCommands.QueueWord).ToArray();
@@ -2691,6 +2706,45 @@ internal sealed partial class ChatScreen
     private void ApplyWindowTitle() => _setTitle?.Invoke(WindowTitle(_settings.ProfileName));
 
     public static string UnknownCommandError(string token) => $"Unknown command {token}. /help lists them.";
+
+    /// <summary><c>/log</c>'s notice once the <c>--log</c> file is handed to the editor (2026-09-22). Pinned.</summary>
+    public static string LogOpenedNotice(string path) => $"({NoticeGlyphs.Log}opened the log {path} in your editor)";
+
+    /// <summary><c>/log</c> when the <c>--log</c> file is not there — it could not be opened at startup, or was deleted since. Pinned.</summary>
+    public static string LogMissingError(string path) => $"The log file {path} does not exist; --log could not open it.";
+
+    /// <summary><c>/log</c> when the editor launch fails. Pinned.</summary>
+    public static string LogOpenFailedError(string detail) => $"Could not open the log file: {detail}";
+
+    /// <summary>
+    /// <c>/log</c> (2026-09-22, the user's ask): the <c>--log</c> file in the editor Windows associates with it,
+    /// through the same opener as <c>/persona</c> — no wait, the file keeps growing while it is read (the sink
+    /// shares it for reading and flushes per line). Only reached under <c>--log</c>: without it <c>/log</c> parses as unknown.
+    /// Quick under a reply, as <c>/explore</c> is.
+    /// </summary>
+    private void HandleLog()
+    {
+        if (_logFile is not { } path)
+        {
+            return;
+        }
+
+        if (!File.Exists(path))
+        {
+            _transcript.Error(LogMissingError(path));
+            return;
+        }
+
+        try
+        {
+            _openFile(path);
+            _transcript.Notice(LogOpenedNotice(path));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            _transcript.Error(LogOpenFailedError(ex.Message));
+        }
+    }
 
     /// <summary>A command we know, given an argument it does not take (<c>/about me</c>, 2026-09-17): the command is named, not called unknown.</summary>
     public static string NoArgumentError(string token) => $"{token} takes no argument; /help shows each command's form.";
@@ -4246,6 +4300,80 @@ internal sealed partial class ChatScreen
         var effective = _effective();
         int cap = Math.Clamp(effective.FileTreeMaxLength, WorkingDirectory.MinTreeLength, WorkingDirectory.MaxTreeLength);
         var result = _files.FileTree(args, cap);
+        if (result.Outcome != FileOutcome.Ok)
+        {
+            _transcript.Error(TreeText.Error(result));
+            return;
+        }
+
+        foreach (var line in TreeText.Lines(result, effective.FileTreeShowSizes, cap))
+        {
+            _transcript.Notice(line);
+        }
+    }
+
+    // ── /vault (2026-09-22) ─────────────────────────────────────────────────
+
+    /// <summary><c>/vault</c> while the setting <c>Obsidian tools</c> is off. Pinned.</summary>
+    public const string VaultToolsOffError = "Obsidian tools is off; /vault shows nothing until it is on (the Obsidian tab of /tools).";
+
+    /// <summary><c>/vault</c> with the setting <c>Obsidian vault</c> empty. Pinned.</summary>
+    public const string VaultNotSetError = "No Obsidian vault is set; set Obsidian vault on the Obsidian tab of /tools.";
+
+    /// <summary><c>/vault</c> when the vault's folder is not there — a drive unplugged, a share offline, a path mistyped. Pinned.</summary>
+    public static string VaultUnreachableError(string root) => $"The Obsidian vault {root} cannot be reached.";
+
+    /// <summary><c>/vault</c> when the folder is there but holds no <c>.obsidian</c> folder. Pinned.</summary>
+    public static string VaultNotAVaultError(string root) => $"{root} is not an Obsidian vault (it has no .obsidian folder).";
+
+    /// <summary>
+    /// <c>/vault</c> (2026-09-22, the user's ask: "similar to tree"): the vault's folders and notes as
+    /// notice lines, <see cref="TreeText"/>'s picture over a <see cref="WorkingDirectory"/> rooted at the vault,
+    /// every dot-entry left out (<c>.obsidian</c>, <c>.trash</c>, <c>.git</c> — Obsidian's own, which the vault
+    /// tools never list either). The walk is <c>/tree</c>'s, capped by <c>File /tree max length</c>, sizes under
+    /// <c>File /tree show sizes</c>. <c>Obsidian tools</c> off, no <c>Obsidian vault</c>, a folder that cannot be
+    /// reached or holds no <c>.obsidian</c> is an error, checked in that order; the folder is never created.
+    /// </summary>
+    private void HandleVault()
+    {
+        var effective = _effective();
+        if (!effective.ObsidianTools)
+        {
+            _transcript.Error(VaultToolsOffError);
+            return;
+        }
+
+        string root = effective.ObsidianVault.Trim();
+        if (root.Length == 0)
+        {
+            _transcript.Error(VaultNotSetError);
+            return;
+        }
+
+        bool reachable;
+        try
+        {
+            reachable = Directory.Exists(root);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            reachable = false;
+        }
+
+        if (!reachable)
+        {
+            _transcript.Error(VaultUnreachableError(root));
+            return;
+        }
+
+        if (!ObsidianVault.IsVault(root))
+        {
+            _transcript.Error(VaultNotAVaultError(root));
+            return;
+        }
+
+        int cap = Math.Clamp(effective.FileTreeMaxLength, WorkingDirectory.MinTreeLength, WorkingDirectory.MaxTreeLength);
+        var result = new WorkingDirectory(() => root, _time).FileTree("", cap, hideDotEntries: true);
         if (result.Outcome != FileOutcome.Ok)
         {
             _transcript.Error(TreeText.Error(result));
@@ -6259,6 +6387,9 @@ internal sealed partial class ChatScreen
         }
     }
 
+    /// <summary>A typed line classified, <c>/log</c> a command only under <c>--log</c> (<see cref="_logFile"/>, 2026-09-22).</summary>
+    private (SlashCommand Command, string Args) ParseLine(string text) => SlashCommands.Parse(text, _logFile is not null);
+
     /// <summary>
     /// Dispatches one submitted line (<see cref="HandleOnceAsync"/>), then what a double-click off
     /// the pane it opened named (later on 2026-09-21, the user's ask): the pane's own word — its
@@ -6271,13 +6402,13 @@ internal sealed partial class ChatScreen
     {
         while (true)
         {
-            var (command, _) = SlashCommands.Parse(text);
+            var (command, _) = ParseLine(text);
             if (await HandleOnceAsync(text, images, cancellationToken).ConfigureAwait(false))
             {
                 return true;
             }
 
-            if (_pane.TakeDismissHit() is not { } hit || OffPaneLine(hit) is not { } next || SlashCommands.Parse(next).Command == command)
+            if (_pane.TakeDismissHit() is not { } hit || OffPaneLine(hit) is not { } next || ParseLine(next).Command == command)
             {
                 return false;
             }
@@ -6294,7 +6425,7 @@ internal sealed partial class ChatScreen
     /// </summary>
     private async Task<bool> HandleOnceAsync(string text, IReadOnlyList<ImageAttachment> images, CancellationToken cancellationToken)
     {
-        var (command, args) = SlashCommands.Parse(text);
+        var (command, args) = ParseLine(text);
         if (command != SlashCommand.None)
         {
             DiagnosticLog.Debug(AppCategory, CommandLogLine(command, text));
@@ -6317,7 +6448,7 @@ internal sealed partial class ChatScreen
                 }
 
                 // No pane to open (a redirected console): the list in the transcript.
-                foreach (var line in SlashCommands.HelpText.Split('\n'))
+                foreach (var line in (_logFile is null ? SlashCommands.HelpText : SlashCommands.HelpTextWithLog).Split('\n'))
                 {
                     _transcript.Notice(line);
                 }
@@ -6434,6 +6565,10 @@ internal sealed partial class ChatScreen
                 HandleTree(args);
                 return false;
 
+            case SlashCommand.Vault:
+                HandleVault();
+                return false;
+
             case SlashCommand.Explore:
                 HandleExplore(args);
                 return false;
@@ -6464,6 +6599,10 @@ internal sealed partial class ChatScreen
 
             case SlashCommand.EmptyTrash:
                 await EmptyTrashAsync(cancellationToken).ConfigureAwait(false);
+                return false;
+
+            case SlashCommand.Log:
+                HandleLog();
                 return false;
 
             case SlashCommand.Window:

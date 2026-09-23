@@ -258,6 +258,27 @@ public sealed class WorkingDirectoryTests : IDisposable
     }
 
     [Fact]
+    public void FileTree_HideDotEntries_LeavesOutEveryDotName_AtEveryDepth()
+    {
+        // /vault (2026-09-22): .obsidian, .trash, .git and any dot-file, at the root or deeper, as the vault tools leave them.
+        Put(@".obsidian\app.json", "{}");
+        Put(@".git\HEAD", "");
+        Put(@".trash\old.md", "");
+        Put(@"Notes\.draft.md", "");
+        Put(@"Notes\.cache\x.md", "");
+        Put(@"Notes\Plan.md", "");
+        Put("Home.md", "");
+        Put(".hidden.md", "");
+
+        var result = _files.FileTree("", WorkingDirectory.DefaultTreeLength, hideDotEntries: true);
+
+        Assert.Equal(new[] { ("Notes", 1, false), ("Plan.md", 2, true), ("Home.md", 1, true) }, result.Entries.Select(e => (e.Name, e.Depth, e.IsLast)));
+        // Without the switch the dot-names are there as ever (the root's .trash aside).
+        Assert.Contains(_files.FileTree("", WorkingDirectory.DefaultTreeLength).Entries, e => e.Name == ".obsidian");
+        Assert.DoesNotContain(_files.FileTree("", WorkingDirectory.DefaultTreeLength).Entries, e => e.Name == ".trash");
+    }
+
+    [Fact]
     public void FileTree_EmptyFolder_HasNoEntries()
     {
         Directory.CreateDirectory(Full("empty"));

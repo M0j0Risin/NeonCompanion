@@ -349,6 +349,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/help` | Show the commands and the keys. |
 | `/interrupt [on\|off]` | Toggle the wake-word interrupt during a spoken reply. |
 | `/learn [note \| sessions [N \| text]]` | Write or improve a skill in the background from the last turn, or from the stored sessions. |
+| `/log` | Only when the app was started with `--log <path>`: open that diagnostic log file in your editor. Without the flag, `/log` is an unknown command and neither `/help` nor the `/` list shows it. |
 | `/loop <count> <message>`, `/loop infinite <message>` | Send the message that many times, or until ESC or Ctrl+C stops it, each reply waited for; a cancelled, withdrawn or failed turn ends the loop. |
 | `/expand` | Show every line of the folded tool runs and code blocks in the transcript, and of the ones to come (Ctrl+O flips between this and `/collapse`). |
 | `/collapse` | Fold the tool runs and code blocks in the transcript again. |
@@ -376,6 +377,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/tree [path]` | Print a tree of the working directory. |
 | `/tts [on\|off]` | Toggle speech output. |
 | `/usage` | Show token usage and performance statistics. |
+| `/vault` | Print a tree of the *Obsidian vault*'s folders and notes, as `/tree` prints the working directory: the dot-folders (`.obsidian`, `.trash`, `.git`) left out, capped by *File /tree max length*, sizes under *File /tree show sizes*. An error while *Obsidian tools* is off, no vault is set, or the folder cannot be reached or has no `.obsidian`. |
 | `/view <image>` | Show an image from the working directory in the transcript. |
 | `/vocalia [reset \| copy <profile> [force]]` | Edit `vocalia.md` (the spoken-reply directive) in your editor, go back to the default, or copy it into another profile (`force` replaces the one it has). |
 | `/wake [on\|off]` | Toggle the speech-input wake word. |

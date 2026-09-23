@@ -451,9 +451,11 @@ public sealed class WorkingDirectory
     /// the folder asked for. Stops at <paramref name="maxEntries"/> (clamped to
     /// <see cref="MinTreeLength"/>..<see cref="MaxTreeLength"/>) with <c>Truncated</c>. <paramref name="maxDepth"/>
     /// (2026-09-18, the nested listing's <c>depth</c>) stops the descent that many levels down; the default
-    /// is every level.
+    /// is every level. <paramref name="hideDotEntries"/> (2026-09-22, <c>/vault</c>) leaves out every file and
+    /// folder whose name starts with a dot, at any depth — <c>.obsidian</c>, <c>.trash</c>, <c>.git</c>, the
+    /// entries the vault tools leave to Obsidian.
     /// </summary>
-    public FileTreeResult FileTree(string relative, int maxEntries, int maxDepth = int.MaxValue)
+    public FileTreeResult FileTree(string relative, int maxEntries, int maxDepth = int.MaxValue, bool hideDotEntries = false)
     {
         var outcome = Resolve(relative, forWrite: false, out string full);
         if (outcome != FileOutcome.Ok)
@@ -478,7 +480,7 @@ public sealed class WorkingDirectory
 
             int cap = Math.Clamp(maxEntries, MinTreeLength, MaxTreeLength);
             var entries = new List<FileTreeEntry>();
-            bool truncated = !DescendAll(full, 1, cap, Math.Max(1, maxDepth), entries);
+            bool truncated = !DescendAll(full, 1, cap, Math.Max(1, maxDepth), hideDotEntries, entries);
             return new FileTreeResult(FileOutcome.Ok, display, header, entries, truncated);
         }
         catch (Exception ex) when (IsFileFailure(ex))
@@ -488,7 +490,7 @@ public sealed class WorkingDirectory
     }
 
     /// <summary>Depth-first, folders first then names per level; false once <paramref name="cap"/> entries are listed and more remain.</summary>
-    private bool DescendAll(string directory, int depth, int cap, int maxDepth, List<FileTreeEntry> entries)
+    private bool DescendAll(string directory, int depth, int cap, int maxDepth, bool hideDotEntries, List<FileTreeEntry> entries)
     {
         bool atRoot = string.Equals(directory, Root, StringComparison.OrdinalIgnoreCase);
         var children = new List<DirectoryEntry>();
@@ -497,7 +499,7 @@ public sealed class WorkingDirectory
             foreach (var info in new DirectoryInfo(directory).EnumerateFileSystemInfos("*", WalkOptions(recurse: false)))
             {
                 bool isDirectory = (info.Attributes & FileAttributes.Directory) != 0;
-                if (atRoot && isDirectory && IsTrashName(info.Name))
+                if ((atRoot && isDirectory && IsTrashName(info.Name)) || (hideDotEntries && info.Name.StartsWith('.')))
                 {
                     continue;
                 }
@@ -521,7 +523,7 @@ public sealed class WorkingDirectory
 
             var child = children[i];
             entries.Add(new FileTreeEntry(child.Name, depth, child.IsDirectory, child.Length, i == children.Count - 1));
-            if (child.IsDirectory && depth < maxDepth && !DescendAll(Path.Combine(directory, child.Name), depth + 1, cap, maxDepth, entries))
+            if (child.IsDirectory && depth < maxDepth && !DescendAll(Path.Combine(directory, child.Name), depth + 1, cap, maxDepth, hideDotEntries, entries))
             {
                 return false;
             }
