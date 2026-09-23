@@ -40,8 +40,11 @@ public static class ToolsText
     /// <summary>The vault tools' tab and group (2026-09-22), the last but one in the strip, before Options.</summary>
     public const string ObsidianTabTitle = "Obsidian";
 
-    /// <summary>The eight tabs in strip order: Offered, Web, Files, Shell, Ask, Git (native), Obsidian, Options — Options last since later on 2026-09-22 (the user's ask; second, after Offered, before), Obsidian added that day; the user's order of the rest since later on 2026-09-21 (alphabetical before: Ask, Files, Git, Shell, Web); the last seven index <see cref="SettingsMenu.ToolsTabFields"/> one down.</summary>
-    public static readonly IReadOnlyList<string> TabTitles = [OfferedTabTitle, WebTabTitle, FilesTabTitle, ShellTabTitle, AskTabTitle, GitTabTitle, ObsidianTabTitle, OptionsTabTitle];
+    /// <summary>The SQL tools' tab and group (2026-09-23), after Obsidian, before Options.</summary>
+    public const string SqlTabTitle = "SQL";
+
+    /// <summary>The nine tabs in strip order: Offered, Web, Files, Shell, Ask, Git (native), Obsidian, SQL (2026-09-23), Options — Options last since later on 2026-09-22 (the user's ask; second, after Offered, before), Obsidian added that day; the user's order of the rest since later on 2026-09-21 (alphabetical before: Ask, Files, Git, Shell, Web); the last eight index <see cref="SettingsMenu.ToolsTabFields"/> one down.</summary>
+    public static readonly IReadOnlyList<string> TabTitles = [OfferedTabTitle, WebTabTitle, FilesTabTitle, ShellTabTitle, AskTabTitle, GitTabTitle, ObsidianTabTitle, SqlTabTitle, OptionsTabTitle];
 
     /// <summary>The Offered tab's hint row. Pinned.</summary>
     public const string OfferedKeys = "Enter / Space = on or off · ←/→ tabs · ESC = close";
@@ -54,6 +57,9 @@ public static class ToolsText
 
     /// <summary>After the Obsidian heading while the group is not offered: the switch is off or no vault is set (2026-09-22). Pinned.</summary>
     public const string ObsidianOffSuffix = "(off: Obsidian tools is off or no Obsidian vault is set)";
+
+    /// <summary>After the SQL heading while the group is not offered: the switch is off or <c>sql.json</c> holds no connection (2026-09-23). Pinned.</summary>
+    public const string SqlOffSuffix = "(off: SQL tools is off or no connection is set in sql.json)";
 
     /// <summary>The name column of a tool row: <see cref="SystemPromptSummary.ToolNameWidth"/>, the plain lines' column.</summary>
     public const int NameWidth = SystemPromptSummary.ToolNameWidth;
@@ -127,6 +133,12 @@ public static class ToolsText
         {
             // Two things keep the vault group off (2026-09-22): the switch, or no vault set — the switch alone would mislead.
             return ObsidianOffSuffix;
+        }
+
+        if (group.Switch == SettingsField.SqlTools)
+        {
+            // The vault's two-reason shape (2026-09-23): the switch, or no connection defined.
+            return SqlOffSuffix;
         }
 
         return group.Switch is { } field ? GroupOffSuffix(SettingsMenu.FieldName(field)) : "";

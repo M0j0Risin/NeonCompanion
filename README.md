@@ -44,7 +44,7 @@ Neon Companion is released under the GPLv3 license.
 * **Self-Learning:** An automatic self-reflection system that dynamically updates and creates new skills based on interactions and tool outcomes.
 
 ### Built-In Tooling & Voice
-* **Essential Tools:** Sandboxed file I/O, shell integration (powershell/cmd/bash), scripting (powershell/python/node), Git management, web search (DuckDuckGo/SearXNG), web browsing (httpClient/Chromium), graphical clarification prompts, and clock/timers.
+* **Essential Tools:** Sandboxed file I/O, shell integration (powershell/cmd/bash), scripting (powershell/python/node), Git management, read-only SQL Server queries, web search (DuckDuckGo/SearXNG), web browsing (httpClient/Chromium), graphical clarification prompts, and clock/timers.
 * **MCP Server Support:** Seamless integration with Model Context Protocol (MCP) servers to expand tool capabilities and connect to external data sources.
 * **Native Voice Stack:** Features in-process Whisper STT, push-to-talk, and Vosk wake-word integration.
 * **Text-to-Speech:** Includes in-process Kokoro TTS, with support for an external HTTP Kokoro endpoint.
@@ -65,6 +65,8 @@ Neon Companion is released under the GPLv3 license.
 * `PhotoSauce.MagicScaler`
 * `Markdig`
 * `LibGit2Sharp`
+* `Microsoft.Data.SqlClient`
+* `Microsoft.SqlServer.TransactSql.ScriptDom`
 
 ## Settings & menus
 [↑ Back to top](#neon-companion)
@@ -212,7 +214,7 @@ One row, **Project file**: whether `NEON.md` (or `AGENTS.md`) in the working dir
 
 #### Offered
 
-Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Obsidian, Web, Memory, Skills, Sessions, Questions) with the description the model reads. Enter or Space flips a single tool on or off; a group whose switch is off is shown dim. `git_delete` — the git tool that loses branches, tags and stashes — and `zip` / `unzip` — the bulk pack and extract — start off; `git_discard` is on out of the box (a profile saved earlier keeps its own list).
+Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Obsidian, SQL, Web, Memory, Skills, Sessions, Questions) with the description the model reads. Enter or Space flips a single tool on or off; a group whose switch is off is shown dim. `git_delete` — the git tool that loses branches, tags and stashes — and `zip` / `unzip` — the bulk pack and extract — start off; `git_discard` is on out of the box (a profile saved earlier keeps its own list).
 
 #### Web
 
@@ -280,6 +282,17 @@ Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Obsidian, Web
 | Obsidian vault | The Obsidian vault's folder — the one holding `.obsidian` (a folder Obsidian has opened); editing the row opens the `/cwd browse` folder picker on the vault set (on the working directory while none is). Separate from the working directory: the vault is where the notes live. `NEONCOMPANION_OBSIDIAN_VAULT` outranks it. | (not set) |
 | Obsidian allow delete (.trash) | Offers `vault_delete`, which moves a note or attachment into the vault's `.trash` (never deleted for good). A profile saved with it off keeps it off. | on |
 
+#### SQL
+
+| Setting | What it does | Default |
+|---|---|---|
+| SQL tools | Offers the SQL tools (connections, databases, tables, columns, describe, relationships, indexes, query) over the connections in `sql.json`. On, but nothing is offered until a connection is defined. | on |
+| SQL default connection | The connection a SQL tool uses when the call names none: a pick of the names in `sql.json`, or the first. | (the first connection) |
+| SQL max rows | How many rows `sql_query` returns unless the call says otherwise (1–1000); past it the header says more exist and the server stops. | 100 |
+| SQL query timeout (s) | How long one SQL tool's batch may run on the server before it is stopped (1–600). | 30 |
+| SQL connections (profile) | Enter opens the profile's `sql.json` in the editor (made with a commented example first); the value counts its connections. | (none) |
+| SQL connections (global) | The same for the home's `sql.json`, which every profile reads; the profile's wins a name. | (none) |
+
 #### Options
 
 | Setting | What it does | Default |
@@ -316,7 +329,7 @@ Read-only: exactly what the next reply will be sent, nothing paraphrased.
 
 #### Prompt
 
-The system prompt section by section, each with its status — **Persona** (default or `persona.md`), **Operating rules** (default or `operata.md`), **Reply format** (Markdown or plain text, and why), **Project notes** (`NEON.md` / `AGENTS.md`), **Memory**, **Skills** (the catalog), **Git native tools**, **Shell tools**, **Obsidian tools** (only while a vault is set), **MCP servers**, and **Voice directive** (default or `vocalia.md`, only on a spoken turn, always last). Under *Also sent, outside the system prompt*: the opening clock, working-directory and memory calls seeded with the first message, and the reasoning fields on the request.
+The system prompt section by section, each with its status — **Persona** (default or `persona.md`), **Operating rules** (default or `operata.md`), **Reply format** (Markdown or plain text, and why), **Project notes** (`NEON.md` / `AGENTS.md`), **Memory**, **Skills** (the catalog), **Git native tools**, **Shell tools**, **Obsidian tools** (only while a vault is set), **SQL tools** (only while a connection is set), **MCP servers**, and **Voice directive** (default or `vocalia.md`, only on a spoken turn, always last). Under *Also sent, outside the system prompt*: the opening clock, working-directory and memory calls seeded with the first message, and the reasoning fields on the request.
 
 #### Tools
 
@@ -389,7 +402,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 ## Tools
 [↑ Back to top](#neon-companion)
 
-What the model can call, in the groups `/tools` and `/sys` show. A group's switch (`File tools`, `Git native tools`, `Shell command policy`, `Obsidian tools`, `Web tools`, `Memory`, `Agent skills`, `Session tool`, `Ask user`, `MCP servers`) offers or withholds the whole group; a single tool goes on or off on `/tools`' Offered tab. Required arguments come first; `?` marks an optional one.
+What the model can call, in the groups `/tools` and `/sys` show. A group's switch (`File tools`, `Git native tools`, `Shell command policy`, `Obsidian tools`, `SQL tools`, `Web tools`, `Memory`, `Agent skills`, `Session tool`, `Ask user`, `MCP servers`) offers or withholds the whole group; a single tool goes on or off on `/tools`' Offered tab. Required arguments come first; `?` marks an optional one.
 
 <details>
 <summary><b>🕒 Clock & Timers</b></summary>
@@ -475,6 +488,47 @@ The notes of an Obsidian vault (the *Obsidian vault* setting), read and written 
 | `vault_properties` | `note, set?, remove?` | Lists the note's properties, or sets and removes them in one write; only the named keys' lines change. |
 | `vault_move` | `note, to` | Renames it (a bare name), moves it into a folder (`Archive/`), or to a new path, and rewrites every link that pointed at it. |
 | `vault_delete` | `note` | Offered only while *Obsidian allow delete (.trash)* is on (the default). Moves one note (named as Obsidian names it) or one attachment (by its path) into the vault's `.trash`, where Obsidian can restore it, and lists the notes whose links still point at it; never a folder or anything under a dot-folder. |
+
+</details>
+
+<details>
+<summary><b>🗄️ SQL</b></summary>
+
+### SQL
+
+Read-only queries on SQL Server over named connections, in-process (Microsoft.Data.SqlClient, no ODBC driver). The connections live in `sql.json` — the profile's and the home's, the profile's winning a name — read afresh at every call, so an edit counts at the next one:
+
+```json
+{
+  "connections": {
+    "adventureworks": {
+      "server": "127.0.0.1,1433",
+      "database": "AdventureWorks2022",
+      "auth": "sql",
+      "user": "reader",
+      "password": "…",
+      "encrypt": "mandatory",
+      "trustServerCertificate": true,
+      "description": "the sample sales database"
+    }
+  }
+}
+```
+
+`server` is `host`, `host,port` or `host\instance`; `auth` is `sql` (with `user` and `password`) or `windows` (integrated, as the app's own Windows identity); `encrypt` is `strict`, `mandatory` (the default) or `optional`, and `trustServerCertificate` accepts a self-signed certificate (a dev container's); `connectTimeoutSeconds` (1–120) defaults to 15. The model sees each connection's name, server, database, login name and `description` — never the password, which sits in the file as plain text the way the LLM API key sits in `profile.json`.
+
+`sql_query` takes one statement: a `SELECT`, or a `WITH …` CTE that ends in one. The text is parsed by the T-SQL parser SQL Server's own tools use (ScriptDom), not matched by pattern, so a second statement with no `;` between (`SELECT 1 DELETE FROM t`), `SELECT … INTO`, `EXEC`, DDL, `OPENROWSET` / `OPENQUERY` / `OPENDATASOURCE`, a linked server's four-part name and `NEXT VALUE FOR` are refused before anything is sent. What passes runs in a transaction that is always rolled back, with read-only intent and the *SQL query timeout (s)*; ESC cancels it on the server. Values go in as `@name` parameters, never spliced into the text. The results are a Markdown table under a header that says when the row cap or the text cap cut them; a `decimal` keeps every digit, and a CLR type (`geography`, `hierarchyid`) is shown as a hint to select it with `.ToString()`. **The parser and the rollback are guards, not permissions: point a connection at a login that may only read.**
+
+| Tool | Arguments | What it does |
+|---|---|---|
+| `sql_connections` | — | The named connections: server, database, sign-in and description, the default marked. Touches no server. |
+| `sql_databases` | `connection?` | The databases on the connection's server that its login may open, with state, compatibility level and collation. |
+| `sql_tables` | `connection?, database?, schema?, pattern?` | The tables and views as `schema.name` with their kind, approximate row count and description (`MS_Description`, shown when the database has any); `pattern` is text anywhere in the name, or a `LIKE` pattern (`%`, `_`, `*`). |
+| `sql_columns` | `pattern, connection?, database?, schema?` | Every table and view column whose name matches (`EmailAddress`, `%CustomerID`): where it lives, its type, whether it allows NULL, and its description. |
+| `sql_describe` | `table, connection?, database?` | One table or view: its description, its columns (type as declared, nullability, identity, computed, default, primary key, description), the foreign keys out of and into it, its indexes (UNIQUE constraints marked), its CHECK constraints and its triggers. A bare name finds the one schema that has it. |
+| `sql_relationships` | `connection?, database?, table?` | The foreign-key join paths `from_table.from_column -> to_table.to_column`, every one or those touching a table. |
+| `sql_indexes` | `connection?, database?, table?, schema?, missing?` | The indexes of a table, a schema or the whole database: kind (clustered, PK, unique, unique constraint, disabled), key and included columns, filter and size; then each one's seeks, scans, lookups and updates since the server started, a nonclustered index nothing has read marked *(no reads since restart)*. `missing: true` adds the optimizer's missing-index suggestions. The usage and suggestions come from DMVs, which need `VIEW SERVER STATE`; without it the indexes still list and a line says why the rest is missing. |
+| `sql_query` | `sql, connection?, database?, params?, max_rows?` | One read-only `SELECT`; `params` is an object (`{"id": 43659}` for `@id`), `max_rows` 1–1000 (*SQL max rows* by default). |
 
 </details>
 

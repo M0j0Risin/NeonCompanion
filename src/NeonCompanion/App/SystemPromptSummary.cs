@@ -47,6 +47,8 @@ namespace NeonCompanion.App;
 /// <param name="ObsidianEnabled">Whether the vault tools may be offered (2026-09-22): the setting <c>Obsidian tools</c> on and <c>Obsidian vault</c> naming a folder with <c>.obsidian</c> — the group's switch (<see cref="ChatScreen.ObsidianOffered"/>).</param>
 /// <param name="ObsidianTools">How many vault tools the next turn offers (the ones switched off on <c>/tools</c> left out); the rules carry <see cref="Assistant.ObsidianRule"/> while any is.</param>
 /// <param name="ObsidianAllowDelete">The setting <c>Obsidian allow delete</c> (later on 2026-09-22; on by default since 2026-09-23, the parameter's false the bare facts' default): on, and <c>vault_delete</c> not switched off, the vault rule gains <see cref="Assistant.ObsidianDeleteRule"/>.</param>
+/// <param name="SqlEnabled">Whether the SQL tools may be offered (2026-09-23): the setting <c>SQL tools</c> on and a usable connection in <c>sql.json</c> — the group's switch (<see cref="ChatScreen.SqlOffered"/>).</param>
+/// <param name="SqlTools">How many SQL tools the next turn offers (the ones switched off on <c>/tools</c> left out); the rules carry <see cref="Assistant.SqlRule"/> while any is.</param>
 public sealed record SystemPromptFacts(
     string? Persona,
     string? OperatingRules,
@@ -80,7 +82,9 @@ public sealed record SystemPromptFacts(
     bool ShellPolice = true,
     bool ObsidianEnabled = false,
     int ObsidianTools = 0,
-    bool ObsidianAllowDelete = false)
+    bool ObsidianAllowDelete = false,
+    bool SqlEnabled = false,
+    int SqlTools = 0)
 {
     /// <summary>Whether the rules carry <see cref="Assistant.McpRule"/>: tools on, the MCP switch on and at least one MCP tool offered.</summary>
     public bool Mcp => ToolsEnabled && McpEnabled && McpTools > 0;
@@ -102,6 +106,9 @@ public sealed record SystemPromptFacts(
 
     /// <summary>Whether that rule is followed by <see cref="Assistant.ObsidianDeleteRule"/>: <c>vault_delete</c> offered — the setting <c>Obsidian allow delete</c> on and the tool not switched off (later on 2026-09-22).</summary>
     public bool ObsidianDelete => Obsidian && ObsidianAllowDelete && !Off(NeonCompanion.Llm.Tools.VaultDeleteTool.ToolName);
+
+    /// <summary>Whether the rules carry <see cref="Assistant.SqlRule"/>: tools on, a connection defined with the switch on, and at least one SQL tool offered (2026-09-23).</summary>
+    public bool Sql => ToolsEnabled && SqlEnabled && SqlTools > 0;
 
     /// <summary>The next turn's reply is styled Markdown and asked for as such (<see cref="ChatScreen.MarkdownTurn"/>): the setting, the pane, and the turn not spoken.</summary>
     public bool Markdown => ChatScreen.MarkdownTurn(TranscriptMarkdown, PaneOn, TtsOutput && SpeechReady);
@@ -226,6 +233,9 @@ public static class SystemPromptSummary
     /// <summary>The tail of the Obsidian group and its Prompt-tab heading while the vault tools cannot be offered: the switch off, or no vault set (2026-09-22). Pinned.</summary>
     public const string ObsidianOffSuffix = "Obsidian tools is off or no vault is set";
 
+    /// <summary>The tail of the SQL group while the SQL tools cannot be offered: the switch off, or no connection in <c>sql.json</c> (2026-09-23). Pinned.</summary>
+    public const string SqlOffSuffix = "SQL tools is off or no connection is set in sql.json";
+
     /// <summary>The note on <c>execute_code</c> while none of the languages <c>Shell code languages</c> names is installed (2026-09-21). Pinned.</summary>
     public const string NoInterpreterSuffix = "no interpreter found for the languages in Shell code languages";
 
@@ -273,7 +283,7 @@ public static class SystemPromptSummary
 
         bool customRules = !string.IsNullOrWhiteSpace(facts.OperatingRules);
         string defaultLabel = !facts.ToolsEnabled ? $"default ({ToolsOffSuffix})" : !facts.FilesEnabled ? $"default ({FilesOffSuffix})" : "default";
-        string rules = customRules ? facts.OperatingRules!.Trim() : Assistant.DefaultRules(facts.Markdown, facts.ToolsEnabled, facts.FilesEnabled, delete: !facts.Off(DeleteTool.ToolName), mcp: facts.Mcp, safeEdits: facts.FileSafeEdits, timers: facts.Timers, git: facts.Git, shell: facts.Shell, bridge: facts.Bridge, police: facts.Police, obsidian: facts.Obsidian, obsidianDelete: facts.ObsidianDelete);
+        string rules = customRules ? facts.OperatingRules!.Trim() : Assistant.DefaultRules(facts.Markdown, facts.ToolsEnabled, facts.FilesEnabled, delete: !facts.Off(DeleteTool.ToolName), mcp: facts.Mcp, safeEdits: facts.FileSafeEdits, timers: facts.Timers, git: facts.Git, shell: facts.Shell, bridge: facts.Bridge, police: facts.Police, obsidian: facts.Obsidian, obsidianDelete: facts.ObsidianDelete, sql: facts.Sql);
         sections.Add(new(
             customRules ? $"Operating rules — {OperataFile.FileName} ({rules.Length.ToString(CultureInfo.InvariantCulture)} chars)" : $"Operating rules — {defaultLabel}",
             rules,
@@ -379,6 +389,17 @@ public static class SystemPromptSummary
                 !facts.ToolsEnabled ? $"Obsidian tools — not offered ({ToolsOffSuffix})"
                 : facts.ObsidianTools == 0 ? "Obsidian tools — on, none offered (every vault tool is switched off in /tools)"
                 : $"Obsidian tools — on, {GitText.Count(facts.ObsidianTools, "tool")} offered",
+                "",
+                SystemPromptPart.Prompt));
+        }
+
+        // The SQL tools (2026-09-23): a heading only, the vault shape — only while a connection is offered.
+        if (facts.SqlEnabled)
+        {
+            sections.Add(new(
+                !facts.ToolsEnabled ? $"SQL tools — not offered ({ToolsOffSuffix})"
+                : facts.SqlTools == 0 ? "SQL tools — on, none offered (every SQL tool is switched off in /tools)"
+                : $"SQL tools — on, {GitText.Count(facts.SqlTools, "tool")} offered",
                 "",
                 SystemPromptPart.Prompt));
         }
@@ -504,7 +525,8 @@ public static class SystemPromptSummary
             bridge: facts.Bridge,
             police: facts.Police,
             obsidian: facts.Obsidian,
-            obsidianDelete: facts.ObsidianDelete);
+            obsidianDelete: facts.ObsidianDelete,
+            sql: facts.Sql);
     }
 
     /// <summary>The Prompt tab: every section's heading and, when it has one, its text.</summary>
@@ -598,7 +620,9 @@ public static class SystemPromptSummary
         bool shellEnabled = true,
         bool codeAvailable = true,
         IReadOnlyList<AIFunction>? obsidian = null,
-        bool obsidianEnabled = true)
+        bool obsidianEnabled = true,
+        IReadOnlyList<AIFunction>? sql = null,
+        bool sqlEnabled = true)
     {
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(timers);
@@ -638,6 +662,13 @@ public static class SystemPromptSummary
             // The vault tools (2026-09-22): after the shell tools, the last of the tools that act on the disk; offered while the setting Obsidian tools is on and a vault is set.
             string obsidianNote = !obsidianEnabled ? NotOffered(ObsidianOffSuffix) : standing;
             groups.Add(Group(ToolsText.ObsidianTabTitle, obsidian, obsidianNote, obsidianEnabled && toolsEnabled, SettingsField.ObsidianTools, disabled));
+        }
+
+        if (sql is not null)
+        {
+            // The SQL tools (2026-09-23): after the vault tools; offered while the setting SQL tools is on and sql.json holds a connection.
+            string sqlNote = !sqlEnabled ? NotOffered(SqlOffSuffix) : standing;
+            groups.Add(Group(ToolsText.SqlTabTitle, sql, sqlNote, sqlEnabled && toolsEnabled, SettingsField.SqlTools, disabled));
         }
 
         if (web is not null)

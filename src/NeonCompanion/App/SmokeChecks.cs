@@ -40,7 +40,8 @@ public static partial class SmokeChecks
     /// libraries it links against; without any one of them it fails to load. ONNX Runtime's two
     /// (Kokoro in-process, 2026-09-16) land at the root from the Microsoft.ML.OnnxRuntime package, and
     /// libgit2 (the git tools, 2026-09-20) from LibGit2Sharp.NativeBinaries — the file is named after the
-    /// libgit2 commit it was built from, so the const follows a package bump.
+    /// libgit2 commit it was built from, so the const follows a package bump; SqlClient's SNI (the SQL tools,
+    /// 2026-09-23) from Microsoft.Data.SqlClient.SNI.runtime.
     /// </summary>
     public static readonly string[] RequiredNativeLibraries =
     {
@@ -56,6 +57,7 @@ public static partial class SmokeChecks
         "libstdc++-6.dll",
         "libwinpthread-1.dll",
         Git.GitAccess.NativeLibraryFileName,
+        Sql.SqlAccess.NativeLibraryFileName,
     };
 
     /// <summary>
@@ -112,6 +114,8 @@ public static partial class SmokeChecks
         results.Add(ProbeSessions());
         results.Add(ProbeMcp());
         results.Add(ProbeGit());
+        results.Add(ProbeSql());
+        results.Add(ProbeCulture());
         results.Add(ProbeKokoroVoices(nativeDirectory));
         results.Add(ProbeKokoroPhonemizer());
         results.Add(ProbeKokoroSynthesis(nativeDirectory, modelsDirectory));

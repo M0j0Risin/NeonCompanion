@@ -704,6 +704,21 @@ public class SystemPromptSummaryTests : IDisposable
         Assert.Equal(Assistant.SystemPrompt(false, [], skills: [], obsidian: true), SystemPromptSummary.SystemPrompt(on));
     }
 
+    /// <summary>The SQL row (2026-09-23), the Obsidian shape: absent while no connection is offered, else on / none / not offered, the rule riding while any SQL tool is.</summary>
+    [Fact]
+    public void PromptSections_TheSqlRow_OnlyWithAConnection_AndTheRuleRidesWhileAnyToolIsOffered()
+    {
+        Assert.DoesNotContain(Headings(Facts()), h => h.StartsWith("SQL", StringComparison.Ordinal));
+        var on = Facts() with { SqlEnabled = true, SqlTools = 6 };
+        Assert.Contains("SQL tools — on, 6 tools offered", Headings(on));
+        Assert.Contains("SQL tools — on, none offered (every SQL tool is switched off in /tools)", Headings(on with { SqlTools = 0 }));
+        Assert.Contains("SQL tools — not offered (LLM offer tools is off)", Headings(on with { ToolsEnabled = false }));
+        Assert.Equal(Headings(Facts()).Length + 1, Headings(on).Length);
+        Assert.Contains(Assistant.SqlRule, SystemPromptSummary.PromptSections(on)[1].Body);
+        Assert.DoesNotContain(Assistant.SqlRule, SystemPromptSummary.PromptSections(on with { SqlTools = 0 })[1].Body);
+        Assert.Equal(Assistant.SystemPrompt(false, [], skills: [], sql: true), SystemPromptSummary.SystemPrompt(on));
+    }
+
     [Fact]
     public void PromptSections_TheGitRow_SaysOnOffOrNone_AndTheRuleRidesWhileAnyToolIsOffered()
     {

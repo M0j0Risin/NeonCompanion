@@ -30,6 +30,10 @@ using Spectre.Console;
 //
 // Keys: ESC = cancel/back from anywhere; Ctrl+C = copy / stop the speech / cancel, twice to exit; /exit exits.
 
+// Every culture invariant before anything formats a number or a date (2026-09-23): InvariantGlobalization
+// is off since SqlClient refuses it, and this keeps what the flag gave (App/CulturePin.cs).
+CulturePin.Apply();
+
 // Force UTF-8 console output. On Windows the NativeAOT build (InvariantGlobalization) falls back
 // to the console's OEM code page (CP437/CP850); the themed UI's box-drawing, bullets and braille
 // spinner frames are not in that code page and print as '?'. Wrapped in try/catch because the

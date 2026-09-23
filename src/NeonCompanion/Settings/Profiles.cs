@@ -100,6 +100,14 @@ public static class Profiles
 
     public static bool IsDefault(string? name) => NameEquals(name, DefaultName);
 
+    /// <summary>The home a profile folder sits in: <c>&lt;home&gt;\profiles\&lt;name&gt;</c> two levels up (2026-09-23, for the SQL tab's global row, whose static value knows only the profile's folder).</summary>
+    public static string HomeOf(string profileDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(profileDirectory);
+        string full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(profileDirectory));
+        return Path.GetDirectoryName(Path.GetDirectoryName(full) ?? full) ?? full;
+    }
+
     /// <summary><c>&lt;home&gt;\profiles</c>.</summary>
     public static string Root(string home) => Path.Combine(Path.GetFullPath(home), DirectoryName);
 

@@ -872,6 +872,44 @@ public sealed class AppSettingsData
     /// </summary>
     public bool ObsidianAllowDelete { get; set; } = true;
 
+    // ─── SQL ────────────────────────────────────────────────────────────────────
+    // The SQL tools (2026-09-23, the user's ask: "tools for connecting to and querying MSSQL server", after their
+    // mcp-mssql-read server): read-only queries on the named connections of sql.json (the profile's and the home's).
+
+    /// <summary>
+    /// Whether a turn offers the eight SQL tools (<c>sql_connections</c>, <c>sql_query</c>, …) over the connections
+    /// in <c>sql.json</c> (2026-09-23); read at each turn like <see cref="ObsidianTools"/>, no reconnect. On by
+    /// default for the same reason: it offers nothing until a connection is defined. No variable.
+    /// </summary>
+    public bool SqlTools { get; set; } = true;
+
+    /// <summary>
+    /// The connection a SQL tool uses when the call names none (2026-09-23): a name in <c>sql.json</c>; empty, or a
+    /// name no longer there, = the first connection. The SQL tab of <c>/tools</c>, second row. No variable.
+    /// </summary>
+    public string SqlDefaultConnection { get; set; } = "";
+
+    /// <summary>
+    /// The most rows one <c>sql_query</c> returns (2026-09-23): <see cref="MinSqlQueryMaxRows"/> to
+    /// <see cref="MaxSqlQueryMaxRows"/>; the argument <c>max_rows</c> overrides it up to the same cap. Past it the
+    /// header says more exist and the server stops (the reader never drains the rest).
+    /// </summary>
+    public int SqlQueryMaxRows { get; set; } = DefaultSqlQueryMaxRows;
+
+    public const int MinSqlQueryMaxRows = 1;
+    public const int MaxSqlQueryMaxRows = 1000;
+    public const int DefaultSqlQueryMaxRows = 100;
+
+    /// <summary>
+    /// Seconds a SQL tool's batch may run on the server before it is stopped (2026-09-23; the <c>mcp-mssql-read</c>
+    /// server had no query timeout at all): <see cref="MinSqlQueryTimeoutSeconds"/> to <see cref="MaxSqlQueryTimeoutSeconds"/>.
+    /// </summary>
+    public int SqlQueryTimeoutSeconds { get; set; } = DefaultSqlQueryTimeoutSeconds;
+
+    public const int MinSqlQueryTimeoutSeconds = 1;
+    public const int MaxSqlQueryTimeoutSeconds = 600;
+    public const int DefaultSqlQueryTimeoutSeconds = 30;
+
     // ─── Shell ──────────────────────────────────────────────────────────────────
 
     /// <summary>

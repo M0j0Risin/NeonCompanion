@@ -61,6 +61,8 @@ public class AboutTextTests
             ["ModelContextProtocol.Core"] = "ModelContextProtocol.Core",
             ["LibGit2Sharp"] = "LibGit2Sharp",
             ["LibGit2Sharp.NativeBinaries"] = "LibGit2Sharp.NativeBinaries",
+            ["Microsoft.Data.SqlClient"] = "Microsoft.Data.SqlClient",
+            ["Microsoft.SqlServer.TransactSql.ScriptDom"] = "SqlServer.TransactSql.ScriptDom",   // the package id is 41 characters, past the 40-cell name column
         };
         foreach (Match reference in references)
         {
@@ -112,9 +114,9 @@ public class AboutTextTests
         Assert.DoesNotContain(AboutText.Components, c => c.Name.StartsWith("CLDR", StringComparison.Ordinal) || c.Name.Contains("Kokoro-FastAPI", StringComparison.Ordinal));
         Assert.Equal("MCP client", Assert.Single(AboutText.Components, c => c.Name == "ModelContextProtocol.Core").Role);
         Assert.Equal(
-            ["Spectre.Console", "Microsoft.Extensions.AI (+ .OpenAI)", "OpenAI (.NET SDK)", "Microsoft.ML.OnnxRuntime", "Microsoft.Data.Sqlite", "ModelContextProtocol.Core", "LibGit2Sharp", "LibGit2Sharp.NativeBinaries", "KokoroSharp", "Kokoro-82M in-process", "Whisper.net", "Whisper ggml models", "Vosk", "Vosk models", "Silero VAD", "PhotoSauce.MagicScaler", "Markdig"],
+            ["Spectre.Console", "Microsoft.Extensions.AI (+ .OpenAI)", "OpenAI (.NET SDK)", "Microsoft.ML.OnnxRuntime", "Microsoft.Data.Sqlite", "ModelContextProtocol.Core", "LibGit2Sharp", "LibGit2Sharp.NativeBinaries", "Microsoft.Data.SqlClient", "SqlServer.TransactSql.ScriptDom", "KokoroSharp", "Kokoro-82M in-process", "Whisper.net", "Whisper ggml models", "Vosk", "Vosk models", "Silero VAD", "PhotoSauce.MagicScaler", "Markdig"],
             AboutText.Components.Select(c => c.Name));
-        Assert.Equal(17, AboutText.Components.Count);
+        Assert.Equal(19, AboutText.Components.Count);   // SqlClient and ScriptDom since 2026-09-23
         Assert.All(AboutText.Components, c => Assert.False(string.IsNullOrWhiteSpace(c.License)));
     }
 
@@ -212,7 +214,7 @@ public class AboutTextTests
         Assert.Contains("Licence", lines[0]);
         Assert.EndsWith("Role", lines[0]);
         Assert.Matches(@"^Spectre\.Console\s+0\.57\.2\s+MIT\s+the terminal UI", lines[1]);
-        Assert.Matches(@"^Vosk\s+0\.3\.38\s+Apache-2\.0\s+the wake-word recogniser", lines[13]);   // the two LibGit2Sharp rows since 2026-09-20
+        Assert.Matches(@"^Vosk\s+0\.3\.38\s+Apache-2\.0\s+the wake-word recogniser", lines[15]);   // the two LibGit2Sharp rows since 2026-09-20, the two SQL rows since 2026-09-23
     }
 
     [Fact]

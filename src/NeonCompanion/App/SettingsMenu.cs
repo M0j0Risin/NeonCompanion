@@ -319,6 +319,24 @@ public enum SettingsField
 
     /// <summary>A toggle: whether a turn offers <c>vault_delete</c> (<see cref="Settings.AppSettingsData.ObsidianAllowDelete"/>), on by default since 2026-09-23 (off before). The Obsidian tab's third row (2026-09-22); no reconnect (read at each turn and call). Last in the enum, as every newcomer.</summary>
     ObsidianAllowDelete,
+
+    /// <summary>A toggle: whether a turn offers the eight SQL tools (<see cref="Settings.AppSettingsData.SqlTools"/>). The SQL tab of <c>/tools</c>' first row (2026-09-23); no reconnect (read at each turn). Last in the enum, as every newcomer.</summary>
+    SqlTools,
+
+    /// <summary>A pick: the connection a SQL tool uses when the call names none (<see cref="Settings.AppSettingsData.SqlDefaultConnection"/>), from the names in <c>sql.json</c> or the first. The SQL tab's second row (2026-09-23); no reconnect (read at each call).</summary>
+    SqlDefaultConnection,
+
+    /// <summary>Typed: how many rows a <c>sql_query</c> without <c>max_rows</c> returns, 1 to 1000 (<see cref="Settings.AppSettingsData.SqlQueryMaxRows"/>). The SQL tab's third row (2026-09-23); no reconnect.</summary>
+    SqlQueryMaxRows,
+
+    /// <summary>Typed: seconds a SQL tool's batch may run, 1 to 600 (<see cref="Settings.AppSettingsData.SqlQueryTimeoutSeconds"/>). The SQL tab's fourth row (2026-09-23); no reconnect.</summary>
+    SqlQueryTimeoutSeconds,
+
+    /// <summary>An edit row, no setting behind it: Enter opens the profile's <c>sql.json</c> in the editor (made with <see cref="Sql.SqlConfigFile.EmptyText"/> when missing); the value is its connection count. The SQL tab's fifth row (2026-09-23).</summary>
+    SqlConnectionsProfile,
+
+    /// <summary>The same for the home's <c>sql.json</c>, every profile's connections. The SQL tab's last row (2026-09-23).</summary>
+    SqlConnectionsGlobal,
 }
 
 /// <summary>The tabs of <c>/settings</c> on the pane, in strip order (Sessions right after General — the user's order, 2026-09-18; STT last since 2026-09-19, when the Ask, Files and Web tabs moved to <c>/tools</c> — <see cref="SettingsMenu.ToolsTabFields"/> — and, later that day, the Skills tab to <c>/skills</c> as its Options tab — <see cref="SettingsMenu.SkillsTabFields"/>); the value is the index into <see cref="SettingsMenu.TabTitles"/> and <see cref="SettingsMenu.TabFields"/>.</summary>
@@ -577,6 +595,7 @@ internal sealed class SettingsMenu
         [SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices],
         [SettingsField.GitNativeTools, SettingsField.GitNativeDiffMaxLines, SettingsField.GitNativeLogMaxCommits, SettingsField.GitNativeEmail, SettingsField.GitNativeName],
         [SettingsField.ObsidianTools, SettingsField.ObsidianVault, SettingsField.ObsidianAllowDelete],
+        [SettingsField.SqlTools, SettingsField.SqlDefaultConnection, SettingsField.SqlQueryMaxRows, SettingsField.SqlQueryTimeoutSeconds, SettingsField.SqlConnectionsProfile, SettingsField.SqlConnectionsGlobal],
         [SettingsField.ToolsDollarMention, SettingsField.ToolCollapseCount, SettingsField.CodeCollapseCount],
     ];
 
@@ -600,6 +619,7 @@ internal sealed class SettingsMenu
     private readonly MenuPane _pane;
     private readonly Func<CancellationToken, Task<string?>>? _browseFolder;
     private readonly Func<string, CancellationToken, Task<string?>>? _browseVault;
+    private readonly Action<string>? _openFile;
     private readonly Func<string, string?> _locateBrowser;
     private readonly Func<IReadOnlySet<string>> _installedShells;
     private readonly Func<IReadOnlySet<string>> _installedLanguages;
@@ -620,10 +640,12 @@ internal sealed class SettingsMenu
     /// <param name="locateBrowser">What the empty <c>Web browser path</c> row names: the headless browser auto-detection finds (<see cref="Web.IHeadlessBrowser.Locate"/>); null = the real one.</param>
     /// <param name="installedShells">The shells the <c>Shell default</c> picker marks as found (their <see cref="Shell.ShellKinds.Names"/> words; the screen's <see cref="Shell.Interpreters"/>, 2026-09-21); null = all three marked found.</param>
     /// <param name="installedLanguages">The languages the <c>Shell code languages</c> list marks as found (their <see cref="Shell.CodeLanguages.Names"/> words); null = all three marked found.</param>
+    /// <param name="openFile">What the SQL tab's edit rows open <c>sql.json</c> with (2026-09-23): the screen's editor opener; null = the rows say there is none.</param>
     /// <param name="browseFolder">The folder picker the <c>Working directory (cwd)</c> row opens (2026-09-22, the user's ask): the screen's <c>/cwd browse</c> tree, returning what to save — <c>""</c> for the profile's folder, a full path, or null for nothing chosen. Null (and a console with no pane) falls back to the typed path the row asked for until then.</param>
-    public SettingsMenu(IAnsiConsole console, AppSettings settings, Func<SettingsField, string?> overriddenBy, InputLine input, TranscriptRenderer transcript, SpeechSession speech, MenuPane pane, Func<string, string?>? locateBrowser = null, Func<IReadOnlySet<string>>? installedShells = null, Func<IReadOnlySet<string>>? installedLanguages = null, Func<CancellationToken, Task<string?>>? browseFolder = null, Func<string, CancellationToken, Task<string?>>? browseVault = null)
+    public SettingsMenu(IAnsiConsole console, AppSettings settings, Func<SettingsField, string?> overriddenBy, InputLine input, TranscriptRenderer transcript, SpeechSession speech, MenuPane pane, Func<string, string?>? locateBrowser = null, Func<IReadOnlySet<string>>? installedShells = null, Func<IReadOnlySet<string>>? installedLanguages = null, Func<CancellationToken, Task<string?>>? browseFolder = null, Func<string, CancellationToken, Task<string?>>? browseVault = null, Action<string>? openFile = null)
     {
         _browseFolder = browseFolder;
+        _openFile = openFile;
         _browseVault = browseVault;
         _locateBrowser = locateBrowser ?? new Web.HeadlessBrowser().Locate;
         _installedShells = installedShells ?? (() => new HashSet<string>(Shell.ShellKinds.Names, StringComparer.Ordinal));
@@ -815,7 +837,7 @@ internal sealed class SettingsMenu
             or SettingsField.QueueMessages or SettingsField.AllowSkillDelete or SettingsField.SessionLogging or SettingsField.SessionTool
             or SettingsField.ToolsDollarMention or SettingsField.ReflectionIncludesSessions or SettingsField.McpServers or SettingsField.GitNativeTools
             or SettingsField.LlmCompactShowSummary or SettingsField.ShellToolBridge or SettingsField.ShellPoliceOutsidePaths
-            or SettingsField.ObsidianTools or SettingsField.ObsidianAllowDelete;
+            or SettingsField.ObsidianTools or SettingsField.ObsidianAllowDelete or SettingsField.SqlTools;
 
     public static string FieldName(SettingsField field) => field switch
     {
@@ -883,6 +905,12 @@ internal sealed class SettingsMenu
         SettingsField.GitNativeName => "Git native name",
         SettingsField.ObsidianTools => "Obsidian tools",
         SettingsField.ObsidianVault => "Obsidian vault",
+        SettingsField.SqlTools => "SQL tools",
+        SettingsField.SqlDefaultConnection => "SQL default connection",
+        SettingsField.SqlQueryMaxRows => "SQL max rows",
+        SettingsField.SqlQueryTimeoutSeconds => "SQL query timeout (s)",
+        SettingsField.SqlConnectionsProfile => "SQL connections (profile)",
+        SettingsField.SqlConnectionsGlobal => "SQL connections (global)",
         SettingsField.ObsidianAllowDelete => "Obsidian allow delete (.trash)",   // "Obsidian allow delete" until 2026-09-23 (the user's call: the row says where a delete goes)
         SettingsField.WebBrowserMode => "Web browser mode",
         SettingsField.WebBrowserPath => "Web browser path",
@@ -1016,6 +1044,12 @@ internal sealed class SettingsMenu
             SettingsField.GitNativeName => string.IsNullOrWhiteSpace(data.GitNativeName) ? NoGitIdentityLabel : data.GitNativeName,
             SettingsField.ObsidianTools => OnOff(data.ObsidianTools),
             SettingsField.ObsidianAllowDelete => OnOff(data.ObsidianAllowDelete),
+            SettingsField.SqlTools => OnOff(data.SqlTools),
+            SettingsField.SqlDefaultConnection => string.IsNullOrWhiteSpace(data.SqlDefaultConnection) ? FirstSqlConnectionLabel : data.SqlDefaultConnection,
+            SettingsField.SqlQueryMaxRows => SqlRows(data.SqlQueryMaxRows),
+            SettingsField.SqlQueryTimeoutSeconds => Seconds(data.SqlQueryTimeoutSeconds),
+            SettingsField.SqlConnectionsProfile => SqlConnectionsLabel(Sql.SqlConfigFile.ProfilePath(profileDirectory)),
+            SettingsField.SqlConnectionsGlobal => SqlConnectionsLabel(Sql.SqlConfigFile.GlobalPath(Profiles.HomeOf(profileDirectory))),
             SettingsField.ObsidianVault => string.IsNullOrWhiteSpace(data.ObsidianVault) ? NoObsidianVaultLabel : data.ObsidianVault,
             SettingsField.WebBrowserMode => data.WebBrowserMode,
             SettingsField.WebBrowserPath => string.IsNullOrWhiteSpace(data.WebBrowserPath) ? AutoBrowserLabel(locatedBrowser) : data.WebBrowserPath,
@@ -1088,6 +1122,37 @@ internal sealed class SettingsMenu
 
     /// <summary>How the menu shows an empty <see cref="AppSettingsData.ObsidianVault"/> (2026-09-22): no vault, so no vault tool is offered. Pinned.</summary>
     public const string NoObsidianVaultLabel = "(not set)";
+
+    /// <summary>How the menu shows an empty <see cref="AppSettingsData.SqlDefaultConnection"/> (2026-09-23): a call naming no connection gets the first in <c>sql.json</c>. Pinned.</summary>
+    public const string FirstSqlConnectionLabel = "(the first connection)";
+
+    /// <summary>
+    /// The value of an edit row over one <c>sql.json</c> (2026-09-23): how many connections it holds and how many
+    /// entries it skips, or <c>(none)</c> — the file read afresh at every render, so an edit shows on return.
+    /// </summary>
+    public static string SqlConnectionsLabel(string path)
+    {
+        var loaded = Sql.SqlConfigFile.Load(path);
+        string count = loaded.Connections.Count == 0 ? "(none)" : Sql.SqlText.Count(loaded.Connections.Count, "connection");
+        return (loaded.Problems.Count == 0 ? count : count + ", " + Sql.SqlText.Count(loaded.Problems.Count, "problem")) + " · Enter edits sql.json";
+    }
+
+    /// <summary>How the menu shows <see cref="AppSettingsData.SqlQueryMaxRows"/>.</summary>
+    public static string SqlRows(int value) => value.ToString(CultureInfo.InvariantCulture) + (value == 1 ? " row" : " rows");
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.SqlQueryMaxRows"/>. Pinned.</summary>
+    public static readonly string SqlQueryMaxRowsRangeError =
+        "must be " + AppSettingsData.MinSqlQueryMaxRows.ToString(CultureInfo.InvariantCulture) + " to " + AppSettingsData.MaxSqlQueryMaxRows.ToString(CultureInfo.InvariantCulture) + " rows";
+
+    /// <summary>The settings-menu wording for a bad <see cref="SettingsField.SqlQueryTimeoutSeconds"/>. Pinned.</summary>
+    public static readonly string SqlQueryTimeoutRangeError =
+        "must be " + AppSettingsData.MinSqlQueryTimeoutSeconds.ToString(CultureInfo.InvariantCulture) + " to " + AppSettingsData.MaxSqlQueryTimeoutSeconds.ToString(CultureInfo.InvariantCulture) + " seconds";
+
+    /// <summary>The status line after an edit row opened a <c>sql.json</c> (2026-09-23). Pinned.</summary>
+    public static string SqlEditingNotice(string path) => $"Opened {path} in the editor; the SQL tools read it at their next call.";
+
+    /// <summary>The status line when a <c>sql.json</c> could not be made or opened (2026-09-23). Pinned.</summary>
+    public static string SqlEditFailedError(string path, string detail) => $"Could not open {path}: {detail}.";
 
     /// <summary>The settings-menu wording for a folder that is no Obsidian vault (2026-09-22). Pinned.</summary>
     public const string ObsidianVaultError = "must be the full path of a folder holding .obsidian (a vault Obsidian has opened), or empty";
@@ -1340,6 +1405,8 @@ internal sealed class SettingsMenu
         SettingsField.ShellCodeTimeoutSeconds => data.ShellCodeTimeoutSeconds.ToString(CultureInfo.InvariantCulture),
         SettingsField.ShellCodeMaxToolCalls => data.ShellCodeMaxToolCalls.ToString(CultureInfo.InvariantCulture),
         SettingsField.GitNativeLogMaxCommits => data.GitNativeLogMaxCommits.ToString(CultureInfo.InvariantCulture),
+        SettingsField.SqlQueryMaxRows => data.SqlQueryMaxRows.ToString(CultureInfo.InvariantCulture),
+        SettingsField.SqlQueryTimeoutSeconds => data.SqlQueryTimeoutSeconds.ToString(CultureInfo.InvariantCulture),
         SettingsField.GitNativeEmail => data.GitNativeEmail,
         SettingsField.GitNativeName => data.GitNativeName,
         SettingsField.ObsidianVault => data.ObsidianVault,
@@ -1943,6 +2010,20 @@ internal sealed class SettingsMenu
             return picked is not null ? TrySaveObsidianVault(picked) : Unchanged();
         }
 
+        if (field == SettingsField.SqlDefaultConnection)
+        {
+            return await PickSqlConnectionAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field is SettingsField.SqlConnectionsProfile or SettingsField.SqlConnectionsGlobal)
+        {
+            // An edit row (2026-09-23): the file in the editor, made with its commented shape first; nothing saved here.
+            OpenSqlFile(field == SettingsField.SqlConnectionsProfile
+                ? Sql.SqlConfigFile.ProfilePath(_settings.ProfileDirectory)
+                : Sql.SqlConfigFile.GlobalPath(_settings.StorageDirectory));
+            return false;
+        }
+
         if (field == SettingsField.SttPushToTalkKey)
         {
             return await PickPushToTalkAsync(saved, cancellationToken).ConfigureAwait(false);
@@ -2129,6 +2210,26 @@ internal sealed class SettingsMenu
                 }
 
                 Apply(field, d => d.GitNativeLogMaxCommits = logCommits);
+                return true;
+
+            case SettingsField.SqlQueryMaxRows:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int sqlRows) || sqlRows < AppSettingsData.MinSqlQueryMaxRows || sqlRows > AppSettingsData.MaxSqlQueryMaxRows)
+                {
+                    Sink.Error($"{FieldName(field)} {SqlQueryMaxRowsRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.SqlQueryMaxRows = sqlRows);
+                return true;
+
+            case SettingsField.SqlQueryTimeoutSeconds:
+                if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int sqlTimeout) || sqlTimeout < AppSettingsData.MinSqlQueryTimeoutSeconds || sqlTimeout > AppSettingsData.MaxSqlQueryTimeoutSeconds)
+                {
+                    Sink.Error($"{FieldName(field)} {SqlQueryTimeoutRangeError}; keeping {EditableValue(field, saved)}.");
+                    return false;
+                }
+
+                Apply(field, d => d.SqlQueryTimeoutSeconds = sqlTimeout);
                 return true;
 
             case SettingsField.ShellTimeoutSeconds:
@@ -2766,6 +2867,7 @@ internal sealed class SettingsMenu
             SettingsField.GitNativeTools => data.GitNativeTools,
             SettingsField.ObsidianTools => data.ObsidianTools,
             SettingsField.ObsidianAllowDelete => data.ObsidianAllowDelete,
+            SettingsField.SqlTools => data.SqlTools,
             SettingsField.LlmCompactShowSummary => data.LlmCompactShowSummary,
             SettingsField.TtsVoicePreview => data.TtsVoicePreview,
             SettingsField.FileTools => data.FileTools,
@@ -2813,6 +2915,7 @@ internal sealed class SettingsMenu
             case SettingsField.GitNativeTools: data.GitNativeTools = on; break;
             case SettingsField.ObsidianTools: data.ObsidianTools = on; break;
             case SettingsField.ObsidianAllowDelete: data.ObsidianAllowDelete = on; break;
+            case SettingsField.SqlTools: data.SqlTools = on; break;
             case SettingsField.LlmCompactShowSummary: data.LlmCompactShowSummary = on; break;
             case SettingsField.TtsVoicePreview: data.TtsVoicePreview = on; break;
             case SettingsField.FileTools: data.FileTools = on; break;
@@ -2869,6 +2972,7 @@ internal sealed class SettingsMenu
         SettingsField.GitNativeTools => on ? "the model reads and changes the git repository in the working directory" : "no git native tools",
         SettingsField.ObsidianTools => on ? "the model reads and edits the notes of the Obsidian vault" : "no vault tools",
         SettingsField.ObsidianAllowDelete => on ? "vault_delete may move a note or attachment to the vault's .trash" : "no vault tool deletes anything",
+        SettingsField.SqlTools => on ? "the model reads the SQL Server connections of sql.json" : "no SQL tools",
         SettingsField.LlmCompactShowSummary => on ? "the summary's lines or the pruned results, then the protected counts" : "the one compact notice alone",
         SettingsField.AgentSkills => on ? "the skills catalog, load_skill and skill_editor are offered" : "no skills, no project notes",
         SettingsField.ExternalSkills => on ? "%USERPROFILE%\\.agents\\skills is read too" : "profile and global skills only",
@@ -2967,6 +3071,49 @@ internal sealed class SettingsMenu
     }
 
     /// <summary>The default-shell picker under the settings list (2026-09-21): one <see cref="ShellLabel"/> row per <see cref="Shell.ShellKinds.Names"/> entry, a shell not installed noted, the saved one under the cursor. A shell not found can still be picked: the row is the wish, the tool says what is missing.</summary>
+    /// <summary>
+    /// The <c>SQL default connection</c> pick (2026-09-23): <see cref="FirstSqlConnectionLabel"/>, then every connection
+    /// <c>sql.json</c> holds now (the profile's, then the home's), the cursor on the one saved.
+    /// </summary>
+    private async Task<bool> PickSqlConnectionAsync(AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var names = Sql.SqlConfigFile.LoadCatalog(_settings.ProfileDirectory, _settings.StorageDirectory).Connections.Select(c => c.Name).ToList();
+        var rows = new List<string> { Markup.Escape(FirstSqlConnectionLabel) };
+        rows.AddRange(names.Select(Markup.Escape));
+        int current = names.FindIndex(n => string.Equals(n, saved.SqlDefaultConnection, StringComparison.OrdinalIgnoreCase));
+        var page = new MenuPage(Crumb(FieldName(SettingsField.SqlDefaultConnection)), rows, PickKeys);
+        int? picked = await PickAsync(page, current + 1, cancellationToken).ConfigureAwait(false);
+        if (picked is not { } index)
+        {
+            return Unchanged();
+        }
+
+        string name = index == 0 ? "" : names[index - 1];
+        Apply(SettingsField.SqlDefaultConnection, d => d.SqlDefaultConnection = name);
+        return true;
+    }
+
+    /// <summary>Opens one <c>sql.json</c> in the editor, made first when missing; without an opener (tests, headless) or on an IO failure, the status line says so.</summary>
+    private void OpenSqlFile(string path)
+    {
+        try
+        {
+            Sql.SqlConfigFile.EnsureExists(path);
+            if (_openFile is null)
+            {
+                Sink.Error(SqlEditFailedError(path, "no editor to open it in"));
+                return;
+            }
+
+            _openFile(path);
+            Sink.Notice(SqlEditingNotice(path));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            Sink.Error(SqlEditFailedError(path, Diagnostics.LogText.Excerpt(ex.Message)));
+        }
+    }
+
     private async Task<bool> PickShellAsync(AppSettingsData saved, CancellationToken cancellationToken)
     {
         var installed = _installedShells();

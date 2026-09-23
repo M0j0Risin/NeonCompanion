@@ -82,6 +82,30 @@ public class SmokeChecksTests
     }
 
     [Fact]
+    public void ProbeSql_ParsesWithTheGate_AndReachesTheNativeSni()
+    {
+        var check = SmokeChecks.ProbeSql();
+
+        Assert.Equal("sql:parse-and-sni", check.Name);
+        Assert.True(check.Passed, check.Detail);
+        Assert.StartsWith("ScriptDom gate ok; SqlClient ", check.Detail);
+        Assert.EndsWith(" through the native SNI", check.Detail);
+        Assert.Contains("Microsoft.Data.SqlClient.SNI.dll", SmokeChecks.RequiredNativeLibraries);
+    }
+
+    [Fact]
+    public void ProbeCulture_SeesTheInvariantPin()
+    {
+        // The test assembly pins its cultures as Program.cs does (ModuleInit, 2026-09-23).
+        var check = SmokeChecks.ProbeCulture();
+
+        Assert.Equal("culture:invariant", check.Name);
+        Assert.True(check.Passed, check.Detail);
+        Assert.Equal("current culture invariant; 1234.5 01/07/2009", check.Detail);
+        Assert.True(CulturePin.Holds);
+    }
+
+    [Fact]
     public void ProbeTranscriptMarkdown_ParsesAndLaysOutAReply()
     {
         var check = SmokeChecks.ProbeTranscriptMarkdown();
