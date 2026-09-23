@@ -2279,7 +2279,7 @@ public sealed class WorkingDirectory
     }
 
     /// <summary>A temp sibling written whole, then moved over the target: a reader never sees half a file.</summary>
-    private static long WriteAtomically(string full, byte[] bytes)
+    internal static long WriteAtomically(string full, byte[] bytes)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(full)!);
         string temp = TempSibling(full);

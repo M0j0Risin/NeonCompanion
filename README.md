@@ -280,6 +280,13 @@ Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Web, Memory, 
 | Git native email | The `user.email` that `/git user` writes into the working directory's repository config while *Git native tools* is on. Never read by the git tools. | (not set) |
 | Git native name | The `user.name` that `/git user` writes beside it. | (not set) |
 
+#### Obsidian
+
+| Setting | What it does | Default |
+|---|---|---|
+| Obsidian tools | Offers the vault tools (search, list, read, links, daily, write, properties, move) over the vault below. On, but nothing is offered until a vault is set. | on |
+| Obsidian vault | The Obsidian vault's folder — the one holding `.obsidian` (a folder Obsidian has opened); editing the row opens the `/cwd browse` folder picker. Separate from the working directory: the vault is where the notes live. `NEONCOMPANION_OBSIDIAN_VAULT` outranks it. | (not set) |
+
 </details>
 
 <details>
@@ -308,7 +315,7 @@ Read-only: exactly what the next reply will be sent, nothing paraphrased.
 
 #### Prompt
 
-The system prompt section by section, each with its status — **Persona** (default or `persona.md`), **Operating rules** (default or `operata.md`), **Reply format** (Markdown or plain text, and why), **Project notes** (`NEON.md` / `AGENTS.md`), **Memory**, **Skills** (the catalog), **Git native tools**, **MCP servers**, and **Voice directive** (default or `vocalia.md`, only on a spoken turn, always last). Under *Also sent, outside the system prompt*: the opening clock, working-directory and memory calls seeded with the first message, and the reasoning fields on the request.
+The system prompt section by section, each with its status — **Persona** (default or `persona.md`), **Operating rules** (default or `operata.md`), **Reply format** (Markdown or plain text, and why), **Project notes** (`NEON.md` / `AGENTS.md`), **Memory**, **Skills** (the catalog), **Git native tools**, **Shell tools**, **Obsidian tools** (only while a vault is set), **MCP servers**, and **Voice directive** (default or `vocalia.md`, only on a spoken turn, always last). Under *Also sent, outside the system prompt*: the opening clock, working-directory and memory calls seeded with the first message, and the reasoning fields on the request.
 
 #### Tools
 
@@ -379,7 +386,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 ## Tools
 [↑ Back to top](#neon-companion)
 
-What the model can call, in the groups `/tools` and `/sys` show. A group's switch (`File tools`, `Git native tools`, `Shell command policy`, `Web tools`, `Memory`, `Agent skills`, `Session tool`, `Ask user`, `MCP servers`) offers or withholds the whole group; a single tool goes on or off on `/tools`' Offered tab. Required arguments come first; `?` marks an optional one.
+What the model can call, in the groups `/tools` and `/sys` show. A group's switch (`File tools`, `Git native tools`, `Shell command policy`, `Obsidian tools`, `Web tools`, `Memory`, `Agent skills`, `Session tool`, `Ask user`, `MCP servers`) offers or withholds the whole group; a single tool goes on or off on `/tools`' Offered tab. Required arguments come first; `?` marks an optional one.
 
 <details>
 <summary><b>🕒 Clock & Timers</b></summary>
@@ -444,6 +451,26 @@ A built-in Git for the sandbox, for when the shell tools are off or you would ra
 | `git_stash` | `action, message?, index?, include_untracked?, path?` | `push` saves the working tree's changes aside, `pop` or `apply` brings a stash back, `list` shows them. |
 | `git_discard` | `paths?, ref?, path?` | Throws uncommitted changes away: the paths named back to `ref`, or with none a hard reset of the whole tree (untracked files left alone). |
 | `git_delete` | `kind, name?, index?, path?` | Removes a local `branch` (never the one checked out), a `tag`, or a `stash` by index. |
+
+</details>
+
+<details>
+<summary><b>📓 Obsidian</b></summary>
+
+### Obsidian
+
+The notes of an Obsidian vault (the *Obsidian vault* setting), read and written straight on disk — Obsidian need not be running (it picks every change up when it is), no plugin, no network. A `note` is named the way Obsidian resolves a link: its name, a `[[wikilink]]`, an alias, or its path in the vault; among several notes of one name the shortest path wins and the result names the others. Tags count inline (`#project/alpha`) and in the properties; `.obsidian`, `.trash` and every other dot-folder are left alone. A write keeps the note's line endings and byte-order mark, and an overwrite under *File safe edits* copies the previous version into the vault's own `.trash`. `vault_move` rewrites every link to the note — wikilinks, embeds and Markdown links, keeping their `#heading` and alias — so rename notes with it rather than the file tools.
+
+| Tool | Arguments | What it does |
+|---|---|---|
+| `vault_search` | `query, tag?, folder?, max_results?` | Every line holding the text (any case) as `path:line`, and every note whose name or alias holds it; narrowed to a tag (or one nested under it) or a folder. |
+| `vault_list` | `what?, folder?, tag?, property?, value?, max_results?` | The notes by folder, tag or property (`property: status, value: draft`), or with `what` `tags` / `properties` every tag or property key with how many notes carry it. |
+| `vault_read` | `note, heading?, start_line?, max_lines?` | The note with its properties, one heading's section, or a window of lines; a partial read names the line to continue from. |
+| `vault_links` | `note` | Its outgoing links and embeds with the note each resolves to (or *unresolved*), and every backlink with its line. |
+| `vault_daily` | `date?, append?` | The daily note for a day (`today`, `yesterday`, `+3`, `2026-09-22`) in the folder and date format of the vault's Daily notes settings, created from its template when missing; `append` adds to its end. |
+| `vault_write` | `note, content, mode?, heading?` | `create` (a bare name goes where Obsidian puts new notes), `overwrite`, `append` or `prepend` — at the note's end or top, or within one heading's section. |
+| `vault_properties` | `note, set?, remove?` | Lists the note's properties, or sets and removes them in one write; only the named keys' lines change. |
+| `vault_move` | `note, to` | Renames it (a bare name), moves it into a folder (`Archive/`), or to a new path, and rewrites every link that pointed at it. |
 
 </details>
 

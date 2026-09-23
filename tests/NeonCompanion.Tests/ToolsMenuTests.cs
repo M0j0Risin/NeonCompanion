@@ -118,7 +118,7 @@ public class ToolsMenuTests : IDisposable
     private string Titled(string row) => row + new string(' ', _console.Profile.Width - 2 - TextCells.Width(row)) + ScreenPane.CloseGlyph;
 
     /// <summary>The strip as the pane prints it: the label, then every tab title with a space either side, two spaces between. Pinned.</summary>
-    private const string Strip = ToolsText.Label + "   Offered    Options    Web    Files    Shell    Ask    Git (native) ";   // Options second since later on 2026-09-19; the user's order (Web, Files, Shell, Ask, Git (native)) since later on 2026-09-21, alphabetical before
+    private const string Strip = ToolsText.Label + "   Offered    Options    Web    Files    Shell    Ask    Git (native)    Obsidian ";   // Obsidian last since 2026-09-22   // Options second since later on 2026-09-19; the user's order (Web, Files, Shell, Ask, Git (native)) since later on 2026-09-21, alphabetical before
 
     /// <summary>A tool row as the pane prints it at width 100 (the markup rendered): the name padded to 22, the state to 5, then the description, cut to 99 cells and an ellipsis (FittedMarkup; every description is longer).</summary>
     private string Row(string name, bool on, string mark = "  ") => Fitted(mark + name.PadRight(22) + (on ? "on" : "off").PadRight(5) + Description(name));
@@ -133,14 +133,15 @@ public class ToolsMenuTests : IDisposable
         // The three tabs that left /settings (2026-09-19): their rows unchanged, every field on exactly one tab of the three panes (Skills left for /skills later that day);
         // the Options tab ahead of them (later on 2026-09-19): the pane's own $-mention switch.
         Assert.Equal(5, SettingsMenu.TabFields.Count);
-        Assert.Equal(6, SettingsMenu.ToolsTabFields.Count);   // Git since 2026-09-20, Shell since 2026-09-21; the user's order (Web, Files, Shell, Ask, Git (native)) since later on 2026-09-21, alphabetical before
-        Assert.Equal(["Offered", "Options", "Web", "Files", "Shell", "Ask", "Git (native)"], ToolsText.TabTitles);
+        Assert.Equal(7, SettingsMenu.ToolsTabFields.Count);   // Obsidian since 2026-09-22   // Git since 2026-09-20, Shell since 2026-09-21; the user's order (Web, Files, Shell, Ask, Git (native)) since later on 2026-09-21, alphabetical before
+        Assert.Equal(["Offered", "Options", "Web", "Files", "Shell", "Ask", "Git (native)", "Obsidian"], ToolsText.TabTitles);
         Assert.Equal([SettingsField.ToolsDollarMention, SettingsField.ToolCollapseCount, SettingsField.CodeCollapseCount], SettingsMenu.ToolsTabFields[0]);   // the fold's count under the switch (2026-09-22, the user's place), the code fold's under it
         Assert.Equal([SettingsField.WebTools, SettingsField.WebBrowserMode, SettingsField.WebBrowserPath, SettingsField.WebBrowserNetworkMode, SettingsField.WebSearchMethod, SettingsField.WebSearxngUrl, SettingsField.WebSearchMaxResults], SettingsMenu.ToolsTabFields[1]);
         Assert.Equal([SettingsField.FileTools, SettingsField.FileSafeEdits, SettingsField.FileTreeMaxLength, SettingsField.FileTreeShowSizes, SettingsField.FileMentionFolderMode, SettingsField.FileBrowserMode, SettingsField.FileViewImageMaxPerCall], SettingsMenu.ToolsTabFields[2]);   // the view_image cap last, 2026-09-19; the browser mode under the folder mode, 2026-09-21
         Assert.Equal([SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellPoliceOutsidePaths, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellToolBridge, SettingsField.ShellCodeMaxToolCalls], SettingsMenu.ToolsTabFields[3]);   // the policy (the switch) first, then the list, the shell, the caps, then execute_code's four (2026-09-21; the bridge switch later that day; the police toggle third, 2026-09-22)
         Assert.Equal([SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices], SettingsMenu.ToolsTabFields[4]);
         Assert.Equal([SettingsField.GitNativeTools, SettingsField.GitNativeDiffMaxLines, SettingsField.GitNativeLogMaxCommits, SettingsField.GitNativeEmail, SettingsField.GitNativeName], SettingsMenu.ToolsTabFields[5]);   // the switch first, then the limits, then the identity pair (2026-09-21); the Git native labels later that day
+        Assert.Equal([SettingsField.ObsidianTools, SettingsField.ObsidianVault], SettingsMenu.ToolsTabFields[6]);   // the switch, then the vault (2026-09-22)
         Assert.Equal(Enum.GetValues<SettingsField>().Order(), SettingsMenu.TabFields.Concat(SettingsMenu.SkillsTabFields).Concat(SettingsMenu.ToolsTabFields).Concat(SettingsMenu.McpTabFields).SelectMany(t => t).Order());
         Assert.Equal(21, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[0]));   // "Tool collapse count" (2026-09-22; "$-mention enabled", 19, before)
         Assert.Equal(26, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[1]));   // "Web browser network mode" (the Web-prefixed labels, later still on 2026-09-19; "Web search max results", 24, before)
@@ -148,6 +149,7 @@ public class ToolsMenuTests : IDisposable
         Assert.Equal(29, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[3]));   // "Shell tool bridge max calls" (the Shell tab, 2026-09-21; the row was "Shell code max tool calls", 27, until later that day)
         Assert.Equal(30, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[4]));   // "Ask max choices per question"
         Assert.Equal(28, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[5]));   // "Git native log max commits" (later on 2026-09-21; "Git log max commits", 21, from 2026-09-20)
+        Assert.Equal(16, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[6]));   // "Obsidian tools" (2026-09-22)
         Assert.All(SettingsMenu.ToolsTabFields.SelectMany(t => t), f => Assert.False(SettingsMenu.RefusedMidTurn(f)));
         Assert.Equal("⚙️ Settings", SettingsMenu.Title);
         Assert.Equal(SettingsMenu.Title + " › Web browser mode", SettingsMenu.Breadcrumb("Web browser mode"));
@@ -302,12 +304,34 @@ public class ToolsMenuTests : IDisposable
         pane.Dispose();
     }
 
-    /// <summary>The Git (native) tab (2026-09-20; its name and last place since later on 2026-09-21): the switch first, the two caps typed.</summary>
+    /// <summary>The Obsidian tab (2026-09-22): the last tab, Left wraps to it; the vault is typed here (the fixture has no folder picker), a folder without <c>.obsidian</c> refused, a vault saved.</summary>
     [Fact]
-    public async Task OnThePane_TheGitTab_IsTheLastTab_LeftWrapsToIt_ItsCapsAreTyped()
+    public async Task OnThePane_TheObsidianTab_IsTheLastTab_AndAVaultMustHoldDotObsidian()
+    {
+        string plain = Path.Combine(_dir, "plain");
+        string vault = Path.Combine(_dir, "vault");
+        Directory.CreateDirectory(plain);
+        Directory.CreateDirectory(Path.Combine(vault, ".obsidian"));
+        var (menu, _, _) = PaneMenu();
+        Push(Keys.Left, Keys.Down, Keys.Enter);                 // Offered → Obsidian, the vault row's typed slot
+        Push([.. plain.Select(Keys.Char), Keys.Enter]);         // no .obsidian: refused, kept
+        Push(Keys.Enter);
+        Push([.. vault.Select(Keys.Char), Keys.Enter]);
+        Push(Keys.Escape);
+
+        await menu.ShowAsync(CancellationToken.None);
+
+        Assert.Equal(vault, _settings.Current.ObsidianVault);
+        Assert.Contains("Obsidian vault " + SettingsMenu.ObsidianVaultError[..40], _console.Output);   // the status line, cut at the pane's width
+        Assert.Contains("\n" + Titled(Strip) + "\n \n▸ Obsidian tools  on\n  Obsidian vault  (not set)\n", _console.Output);
+    }
+
+    /// <summary>The Git (native) tab (2026-09-20; its name since later on 2026-09-21, the last but one since 2026-09-22): the switch first, the two caps typed.</summary>
+    [Fact]
+    public async Task OnThePane_TheGitTab_SitsBeforeObsidian_ItsCapsAreTyped()
     {
         var (menu, pane, _) = PaneMenu();
-        Push(Keys.Left);                                        // the strip wraps: Offered → Git (native), its first row
+        Push(Keys.Left, Keys.Left);                             // the strip wraps: Offered → Obsidian → Git (native), its first row
         Push(Keys.Down, Keys.Enter);                            // Git diff max lines: the typed slot, pre-filled with 500
         Push(Keys.Backspace, Keys.Backspace, Keys.Backspace, Keys.Char('1'), Keys.Char('0'), Keys.Char('0'), Keys.Char('0'), Keys.Enter);
         Push(Keys.Down, Keys.Enter);                            // Git log max commits: the slot, pre-filled with 20; 500 is out of range, kept

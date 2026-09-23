@@ -310,6 +310,12 @@ public enum SettingsField
 
     /// <summary>Typed: how many lines a top-level code block of a styled reply may have before it folds to its label line, 0 (off) to 100 (<see cref="Settings.AppSettingsData.CodeCollapseCount"/>). The Options tab of <c>/tools</c>, under <see cref="ToolCollapseCount"/> (2026-09-22, the user's place); no reconnect (read when a reply opens). Last in the enum, as every newcomer.</summary>
     CodeCollapseCount,
+
+    /// <summary>A toggle: whether a turn offers the eight vault tools (<see cref="Settings.AppSettingsData.ObsidianTools"/>). The Obsidian tab of <c>/tools</c>' first row (2026-09-22); no reconnect (read at each turn). Last in the enum, as every newcomer.</summary>
+    ObsidianTools,
+
+    /// <summary>The Obsidian vault's folder (<see cref="Settings.AppSettingsData.ObsidianVault"/>): the <c>/cwd browse</c> folder picker, or a typed full path; it must hold <c>.obsidian</c>, and empty clears it. The Obsidian tab's second row (2026-09-22); no reconnect (read at each call). Last in the enum, as every newcomer.</summary>
+    ObsidianVault,
 }
 
 /// <summary>The tabs of <c>/settings</c> on the pane, in strip order (Sessions right after General — the user's order, 2026-09-18; STT last since 2026-09-19, when the Ask, Files and Web tabs moved to <c>/tools</c> — <see cref="SettingsMenu.ToolsTabFields"/> — and, later that day, the Skills tab to <c>/skills</c> as its Options tab — <see cref="SettingsMenu.SkillsTabFields"/>); the value is the index into <see cref="SettingsMenu.TabTitles"/> and <see cref="SettingsMenu.TabFields"/>.</summary>
@@ -568,6 +574,7 @@ internal sealed class SettingsMenu
         [SettingsField.ShellCommandPolicy, SettingsField.ShellCommandAllowed, SettingsField.ShellPoliceOutsidePaths, SettingsField.ShellDefault, SettingsField.ShellTimeoutSeconds, SettingsField.ShellForegroundCapSeconds, SettingsField.ShellOutputMaxChars, SettingsField.ShellCodeLanguages, SettingsField.ShellCodeTimeoutSeconds, SettingsField.ShellToolBridge, SettingsField.ShellCodeMaxToolCalls],
         [SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices],
         [SettingsField.GitNativeTools, SettingsField.GitNativeDiffMaxLines, SettingsField.GitNativeLogMaxCommits, SettingsField.GitNativeEmail, SettingsField.GitNativeName],
+        [SettingsField.ObsidianTools, SettingsField.ObsidianVault],
     ];
 
     /// <summary>
@@ -802,7 +809,8 @@ internal sealed class SettingsMenu
             or SettingsField.HideExitAutocomplete or SettingsField.CommandTypoIntercept or SettingsField.WelcomeSplash or SettingsField.ShowWorkingDirectory or SettingsField.ShowToolbar
             or SettingsField.QueueMessages or SettingsField.AllowSkillDelete or SettingsField.SessionLogging or SettingsField.SessionTool
             or SettingsField.ToolsDollarMention or SettingsField.ReflectionIncludesSessions or SettingsField.McpServers or SettingsField.GitNativeTools
-            or SettingsField.LlmCompactShowSummary or SettingsField.ShellToolBridge or SettingsField.ShellPoliceOutsidePaths;
+            or SettingsField.LlmCompactShowSummary or SettingsField.ShellToolBridge or SettingsField.ShellPoliceOutsidePaths
+            or SettingsField.ObsidianTools;
 
     public static string FieldName(SettingsField field) => field switch
     {
@@ -868,6 +876,8 @@ internal sealed class SettingsMenu
         SettingsField.GitNativeLogMaxCommits => "Git native log max commits",
         SettingsField.GitNativeEmail => "Git native email",
         SettingsField.GitNativeName => "Git native name",
+        SettingsField.ObsidianTools => "Obsidian tools",
+        SettingsField.ObsidianVault => "Obsidian vault",
         SettingsField.WebBrowserMode => "Web browser mode",
         SettingsField.WebBrowserPath => "Web browser path",
         SettingsField.WebBrowserNetworkMode => "Web browser network mode",
@@ -998,6 +1008,8 @@ internal sealed class SettingsMenu
             SettingsField.GitNativeLogMaxCommits => Commits(data.GitNativeLogMaxCommits),
             SettingsField.GitNativeEmail => string.IsNullOrWhiteSpace(data.GitNativeEmail) ? NoGitIdentityLabel : data.GitNativeEmail,
             SettingsField.GitNativeName => string.IsNullOrWhiteSpace(data.GitNativeName) ? NoGitIdentityLabel : data.GitNativeName,
+            SettingsField.ObsidianTools => OnOff(data.ObsidianTools),
+            SettingsField.ObsidianVault => string.IsNullOrWhiteSpace(data.ObsidianVault) ? NoObsidianVaultLabel : data.ObsidianVault,
             SettingsField.WebBrowserMode => data.WebBrowserMode,
             SettingsField.WebBrowserPath => string.IsNullOrWhiteSpace(data.WebBrowserPath) ? AutoBrowserLabel(locatedBrowser) : data.WebBrowserPath,
             SettingsField.DraftEditor => string.IsNullOrWhiteSpace(data.DraftEditor) ? DefaultDraftEditorLabel : data.DraftEditor,
@@ -1066,6 +1078,12 @@ internal sealed class SettingsMenu
 
     /// <summary>How the menu shows an empty <see cref="AppSettingsData.GitNativeEmail"/> or <see cref="AppSettingsData.GitNativeName"/> (2026-09-21): <c>/git user</c> refuses until both are set (and while <see cref="AppSettingsData.GitNativeTools"/> is off). Pinned.</summary>
     public const string NoGitIdentityLabel = "(not set)";
+
+    /// <summary>How the menu shows an empty <see cref="AppSettingsData.ObsidianVault"/> (2026-09-22): no vault, so no vault tool is offered. Pinned.</summary>
+    public const string NoObsidianVaultLabel = "(not set)";
+
+    /// <summary>The settings-menu wording for a folder that is no Obsidian vault (2026-09-22). Pinned.</summary>
+    public const string ObsidianVaultError = "must be the full path of a folder holding .obsidian (a vault Obsidian has opened), or empty";
 
     /// <summary>How the menu shows an empty <see cref="AppSettingsData.DraftEditor"/>: <c>/draft</c> hands the file to whatever Windows opens a <c>.txt</c> with. Pinned.</summary>
     public const string DefaultDraftEditorLabel = "(default .txt editor)";
@@ -1317,6 +1335,7 @@ internal sealed class SettingsMenu
         SettingsField.GitNativeLogMaxCommits => data.GitNativeLogMaxCommits.ToString(CultureInfo.InvariantCulture),
         SettingsField.GitNativeEmail => data.GitNativeEmail,
         SettingsField.GitNativeName => data.GitNativeName,
+        SettingsField.ObsidianVault => data.ObsidianVault,
         SettingsField.AskMaxQuestions => data.AskMaxQuestions.ToString(CultureInfo.InvariantCulture),
         SettingsField.AskMaxChoices => data.AskMaxChoices.ToString(CultureInfo.InvariantCulture),
         SettingsField.PastePreviewLines => data.PastePreviewLines.ToString(CultureInfo.InvariantCulture),
@@ -1910,6 +1929,13 @@ internal sealed class SettingsMenu
             return await PickWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        if (field == SettingsField.ObsidianVault && _browseFolder is not null && _pane.Enabled)
+        {
+            // The same folder picker (2026-09-22): a vault is a folder, and its path is long to type.
+            string? picked = await _browseFolder(cancellationToken).ConfigureAwait(false);
+            return picked is not null ? TrySaveObsidianVault(picked) : Unchanged();
+        }
+
         if (field == SettingsField.SttPushToTalkKey)
         {
             return await PickPushToTalkAsync(saved, cancellationToken).ConfigureAwait(false);
@@ -1925,7 +1951,7 @@ internal sealed class SettingsMenu
             return await PickVoskModelAsync(saved, cancellationToken).ConfigureAwait(false);
         }
 
-        bool allowEmpty = field is SettingsField.LlmUrl or SettingsField.LlmModel or SettingsField.TtsVoice2 or SettingsField.WorkingDirectory or SettingsField.WebBrowserPath or SettingsField.WebSearxngUrl or SettingsField.DraftEditor or SettingsField.GitNativeEmail or SettingsField.GitNativeName;
+        bool allowEmpty = field is SettingsField.LlmUrl or SettingsField.LlmModel or SettingsField.TtsVoice2 or SettingsField.WorkingDirectory or SettingsField.WebBrowserPath or SettingsField.WebSearxngUrl or SettingsField.DraftEditor or SettingsField.GitNativeEmail or SettingsField.GitNativeName or SettingsField.ObsidianVault;
         var result = await EditTextAsync(field, page, row, EditableValue(field, saved), allowEmpty, cancellationToken).ConfigureAwait(false);
         if (result is not InputResult.Submitted submitted)
         {
@@ -2295,6 +2321,9 @@ internal sealed class SettingsMenu
 
             case SettingsField.WorkingDirectory:
                 return TrySaveWorkingDirectory(text);
+
+            case SettingsField.ObsidianVault:
+                return TrySaveObsidianVault(text);
 
             case SettingsField.SttWakePhrase:
                 if (!IsWakePhraseCandidate(text))
@@ -2720,6 +2749,7 @@ internal sealed class SettingsMenu
             SettingsField.LlmUseFunVerbs => data.LlmUseFunVerbs,
             SettingsField.WebTools => data.WebTools,
             SettingsField.GitNativeTools => data.GitNativeTools,
+            SettingsField.ObsidianTools => data.ObsidianTools,
             SettingsField.LlmCompactShowSummary => data.LlmCompactShowSummary,
             SettingsField.TtsVoicePreview => data.TtsVoicePreview,
             SettingsField.FileTools => data.FileTools,
@@ -2765,6 +2795,7 @@ internal sealed class SettingsMenu
             case SettingsField.LlmUseFunVerbs: data.LlmUseFunVerbs = on; break;
             case SettingsField.WebTools: data.WebTools = on; break;
             case SettingsField.GitNativeTools: data.GitNativeTools = on; break;
+            case SettingsField.ObsidianTools: data.ObsidianTools = on; break;
             case SettingsField.LlmCompactShowSummary: data.LlmCompactShowSummary = on; break;
             case SettingsField.TtsVoicePreview: data.TtsVoicePreview = on; break;
             case SettingsField.FileTools: data.FileTools = on; break;
@@ -2819,6 +2850,7 @@ internal sealed class SettingsMenu
         SettingsField.FileTreeShowSizes => on ? "/tree carries each file's size" : "/tree names alone",
         SettingsField.WebTools => on ? "the model may search and fetch the web" : "no web tools",
         SettingsField.GitNativeTools => on ? "the model reads and changes the git repository in the working directory" : "no git native tools",
+        SettingsField.ObsidianTools => on ? "the model reads and edits the notes of the Obsidian vault" : "no vault tools",
         SettingsField.LlmCompactShowSummary => on ? "the summary's lines or the pruned results, then the protected counts" : "the one compact notice alone",
         SettingsField.AgentSkills => on ? "the skills catalog, load_skill and skill_editor are offered" : "no skills, no project notes",
         SettingsField.ExternalSkills => on ? "%USERPROFILE%\\.agents\\skills is read too" : "profile and global skills only",
@@ -3202,6 +3234,39 @@ internal sealed class SettingsMenu
         }
 
         Apply(SettingsField.WorkingDirectory, d => d.WorkingDirectory = value);
+        return true;
+    }
+
+    /// <summary>
+    /// The one way the Obsidian vault is saved (2026-09-22): empty clears it; otherwise a full path to a folder
+    /// that already holds <c>.obsidian</c> — never created here, since a folder Obsidian has not opened is no
+    /// vault — saved in its full spelling. False = nothing saved.
+    /// </summary>
+    public bool TrySaveObsidianVault(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        string trimmed = text.Trim().Trim('"');
+        string current = FieldValue(SettingsField.ObsidianVault, _settings.Current, _settings.ProfileDirectory);
+        string value = "";
+        if (trimmed.Length > 0)
+        {
+            try
+            {
+                value = Path.IsPathRooted(trimmed) ? Path.TrimEndingDirectorySeparator(Path.GetFullPath(trimmed)) : "";
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
+            {
+                value = "";
+            }
+
+            if (!Obsidian.ObsidianVault.IsVault(value))
+            {
+                Sink.Error($"{FieldName(SettingsField.ObsidianVault)} {ObsidianVaultError}; keeping {current}.");
+                return false;
+            }
+        }
+
+        Apply(SettingsField.ObsidianVault, d => d.ObsidianVault = value);
         return true;
     }
 

@@ -689,6 +689,21 @@ public class SystemPromptSummaryTests : IDisposable
         protected override ValueTask<object?> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken) => new("ok");
     }
 
+    /// <summary>The Obsidian row (2026-09-22): absent while no vault is offered — /sys as it was for every profile that never names one — else on / none / not offered, the rule riding while any vault tool is.</summary>
+    [Fact]
+    public void PromptSections_TheObsidianRow_OnlyWithAVault_AndTheRuleRidesWhileAnyToolIsOffered()
+    {
+        Assert.DoesNotContain(Headings(Facts()), h => h.StartsWith("Obsidian", StringComparison.Ordinal));
+        var on = Facts() with { ObsidianEnabled = true, ObsidianTools = 8 };
+        Assert.Contains("Obsidian tools — on, 8 tools offered", Headings(on));
+        Assert.Contains("Obsidian tools — on, none offered (every vault tool is switched off in /tools)", Headings(on with { ObsidianTools = 0 }));
+        Assert.Contains("Obsidian tools — not offered (LLM offer tools is off)", Headings(on with { ToolsEnabled = false }));
+        Assert.Equal(Headings(Facts()).Length + 1, Headings(on).Length);
+        Assert.Contains(Assistant.ObsidianRule, SystemPromptSummary.PromptSections(on)[1].Body);
+        Assert.DoesNotContain(Assistant.ObsidianRule, SystemPromptSummary.PromptSections(on with { ObsidianTools = 0 })[1].Body);
+        Assert.Equal(Assistant.SystemPrompt(false, [], skills: [], obsidian: true), SystemPromptSummary.SystemPrompt(on));
+    }
+
     [Fact]
     public void PromptSections_TheGitRow_SaysOnOffOrNone_AndTheRuleRidesWhileAnyToolIsOffered()
     {

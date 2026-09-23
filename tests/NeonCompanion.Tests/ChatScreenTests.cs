@@ -7094,7 +7094,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.False(_settings.Current.ShellPoliceOutsidePaths);
         string memory = "\n" + Titled(MemoryMenu.Title) + "\n";
         string settings = "\n" + Titled(SettingsMenu.Title + "   General    Sessions    LLM    TTS    STT ") + "\n";
-        string tools = "\n" + Titled(ToolsText.Label + "   Offered    Options    Web    Files    Shell    Ask    Git (native) ") + "\n";
+        string tools = "\n" + Titled(ToolsText.Label + "   Offered    Options    Web    Files    Shell    Ask    Git (native)    Obsidian ") + "\n";
         string allowed = "\n" + Titled(AllowedCommandsTitle) + "\n";
         Assert.Equal(1, output.Split(memory).Length - 1);
         Assert.Equal(1, output.Split(allowed).Length - 1);
@@ -8203,7 +8203,7 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         string settings = "\n" + Titled(SettingsMenu.Title + "   General    Sessions    LLM    TTS    STT ") + "\n";
-        string tools = "\n" + Titled(ToolsText.Label + "   Offered    Options    Web    Files    Shell    Ask    Git (native) ") + "\n";
+        string tools = "\n" + Titled(ToolsText.Label + "   Offered    Options    Web    Files    Shell    Ask    Git (native)    Obsidian ") + "\n";
         string help = "\n" + Titled(InfoPane.Title + "   Commands    Keys ") + "\n";
         string sys = "\n" + Titled(SystemPromptSummary.Label + "   Prompt    Tools ") + "\n";
         string sessions = "\n" + Titled(SessionsMenu.Title) + "\n";
@@ -9909,7 +9909,7 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         output = string.Join("\n", output.Split('\n').Select(l => l.TrimEnd()));
-        string tools = "\n" + Titled(ToolsText.Label + "   Offered    Options    Web    Files    Shell    Ask    Git (native) ") + "\n";
+        string tools = "\n" + Titled(ToolsText.Label + "   Offered    Options    Web    Files    Shell    Ask    Git (native)    Obsidian ") + "\n";
         string sys = "\n" + Titled(SystemPromptSummary.Label + "   Prompt    Tools ") + "\n";
         string sessions = "\n" + Titled(SessionsMenu.Title) + "\n";
         string settings = "\n" + Titled(SettingsMenu.Title + "   General    Sessions    LLM    TTS    STT ") + "\n";

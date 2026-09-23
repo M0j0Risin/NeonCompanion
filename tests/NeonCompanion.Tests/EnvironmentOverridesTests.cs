@@ -50,7 +50,8 @@ public class EnvironmentOverridesTests
             (EnvironmentOverrides.InterruptConfirmVariable, "600"),
             (EnvironmentOverrides.LlmContextVariable, "32768"),
             (EnvironmentOverrides.SearxngUrlVariable, " http://box:8080 "),
-            (EnvironmentOverrides.CommandPolicyVariable, " YOLO "));
+            (EnvironmentOverrides.CommandPolicyVariable, " YOLO "),
+            (EnvironmentOverrides.ObsidianVaultVariable, @" D:\Notes "));
 
         var e = env.ApplyTo(new AppSettingsData());
 
@@ -71,6 +72,7 @@ public class EnvironmentOverridesTests
         Assert.Equal(32_768, e.LlmContextLength);
         Assert.Equal("http://box:8080", e.WebSearxngUrl);   // trimmed
         Assert.Equal("yolo", e.ShellCommandPolicy);   // normalised to the saved word (2026-09-21)
+        Assert.Equal(@"D:\Notes", e.ObsidianVault);   // trimmed (2026-09-22)
         Assert.Equal(EnvironmentOverrides.AllVariables.Length - 1, env.ActiveVariables().Count);   // everything but HOME
     }
 

@@ -252,7 +252,7 @@ public sealed record SkillFrontmatter(string Name, string Description, IReadOnly
     }
 
     /// <summary>A quoted scalar without its quotes (the two YAML escapes that matter, <c>\"</c> and <c>\\</c>, and <c>''</c>); a plain one without a trailing comment.</summary>
-    private static string Unquote(string value)
+    internal static string Unquote(string value)
     {
         if (value.Length >= 2 && value[0] == '"' && value[^1] == '"')
         {

@@ -837,6 +837,26 @@ public sealed class AppSettingsData
     /// <summary>The <c>user.name</c> <c>/git user</c> writes beside <see cref="GitNativeEmail"/> (2026-09-21); empty = not set. The Git (native) tab's last row. No variable.</summary>
     public string GitNativeName { get; set; } = "";
 
+    // ─── Obsidian ───────────────────────────────────────────────────────────────
+    // The vault tools (2026-09-22, the user's ask: "Obsidian integration — accessing and managing files in
+    // an Obsidian vault"): the notes read and written on disk, links resolved the way Obsidian resolves them.
+
+    /// <summary>
+    /// Whether a turn offers the eight vault tools (<c>vault_read</c>, <c>vault_search</c>, …) over
+    /// <see cref="ObsidianVault"/> (2026-09-22); read at each turn like <see cref="GitNativeTools"/>, no reconnect.
+    /// On by default: it offers nothing until a vault is set, so a profile that never names one never sees them.
+    /// No variable.
+    /// </summary>
+    public bool ObsidianTools { get; set; } = true;
+
+    /// <summary>
+    /// The Obsidian vault the vault tools work in, a full path to the folder holding <c>.obsidian</c>
+    /// (2026-09-22); empty = none, and the tools are not offered. Apart from <see cref="WorkingDirectory"/>
+    /// on purpose: a vault is where the notes live, the working directory where the work is. Per profile;
+    /// <c>NEONCOMPANION_OBSIDIAN_VAULT</c> overrides it for a launch. Read at each call, no reconnect.
+    /// </summary>
+    public string ObsidianVault { get; set; } = "";
+
     // ─── Shell ──────────────────────────────────────────────────────────────────
 
     /// <summary>

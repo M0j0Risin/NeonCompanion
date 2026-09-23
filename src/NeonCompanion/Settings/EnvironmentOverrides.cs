@@ -38,6 +38,7 @@ public sealed class EnvironmentOverrides
     public const string LlmContextVariable = Prefix + "LLM_CONTEXT";
     public const string SearxngUrlVariable = Prefix + "SEARXNG_URL";
     public const string CommandPolicyVariable = Prefix + "COMMAND_POLICY";
+    public const string ObsidianVaultVariable = Prefix + "OBSIDIAN_VAULT";
 
     /// <summary>Every variable this class reads, for documentation.</summary>
     public static readonly string[] AllVariables =
@@ -46,7 +47,7 @@ public sealed class EnvironmentOverrides
         RequestTimeoutVariable, TurnTimeoutVariable, TtsUrlVariable, TtsVoiceVariable, TtsSpeedVariable,
         WhisperModelVariable, LlmReasoningVariable, TtsVoice2Variable, TtsMixVariable,
         InterruptEchoVariable, InterruptConfirmVariable, LlmContextVariable, SearxngUrlVariable,
-        CommandPolicyVariable,
+        CommandPolicyVariable, ObsidianVaultVariable,
     };
 
     /// <summary>The log category of every environment line.</summary>
@@ -73,6 +74,9 @@ public sealed class EnvironmentOverrides
 
     /// <summary>SearXNG instance URL override, or null. The URL alone: the setting <c>Browser search method</c> still picks the engine. Validated where it is used (a non-URL under <c>searxng</c> falls back to DuckDuckGo), not here.</summary>
     public string? WebSearxngUrl => Read(SearxngUrlVariable);
+
+    /// <summary>The Obsidian vault's folder, or null (2026-09-22). Checked where it is used (a folder without <c>.obsidian</c> offers no vault tool), not here.</summary>
+    public string? ObsidianVault => Read(ObsidianVaultVariable);
 
     /// <summary>Whisper model name or path, or null. Validated where it is used, not here.</summary>
     public string? SttWhisperModel => Read(WhisperModelVariable);
@@ -202,6 +206,7 @@ public sealed class EnvironmentOverrides
         if (LlmContextLength is { } context) effective.LlmContextLength = context;
         if (WebSearxngUrl is { } searxng) effective.WebSearxngUrl = searxng;
         if (ShellCommandPolicy is { } policy) effective.ShellCommandPolicy = policy;
+        if (ObsidianVault is { } vault) effective.ObsidianVault = vault;
 
         return effective;
     }

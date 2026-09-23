@@ -257,6 +257,23 @@ public class AssistantTests
         Assert.Equal(Assistant.OperatingRules, Assistant.DefaultRules(false, true));
     }
 
+    /// <summary>The vault rule (2026-09-22): after the shell rule, before the ask rule, only with tools, only while a vault tool is offered; it names all eight and the move as the way to rename.</summary>
+    [Fact]
+    public void SystemPrompt_ObsidianOn_AppendsTheVaultRule_AfterTheShellRule_ToTheDefaultRulesOnly()
+    {
+        Assert.Equal(
+            "The user's Obsidian vault holds their notes: name a note as Obsidian does (its name, a [[wikilink]] or its path in the vault); " +
+            "vault_search and vault_list find notes, vault_read reads one, vault_links shows its links and backlinks, vault_daily opens a day's daily note; " +
+            "vault_write and vault_properties change notes — write Obsidian Markdown ([[links]], #tags) — and vault_move renames or moves one with its links kept; " +
+            "the vault's .obsidian folder is the app's own.",
+            Assistant.ObsidianRule);
+        Assert.All(Fakes.ObsidianToolNames.All, name => Assert.Contains(name, Assistant.ObsidianRule, StringComparison.Ordinal));
+        Assert.Equal(Assistant.DefaultSystemPrompt + " " + Assistant.ObsidianRule, Assistant.SystemPrompt(false, null, obsidian: true));
+        Assert.Equal(Assistant.DefaultSystemPrompt + " " + Assistant.ShellRule + " " + Assistant.ObsidianRule + " " + Assistant.AskRule(AskLimits.Default), Assistant.SystemPrompt(false, null, shell: true, bridge: true, ask: AskLimits.Default, obsidian: true));
+        Assert.Equal(Assistant.DefaultPersona + " " + Assistant.OperatingRulesWithoutTools, Assistant.SystemPrompt(false, null, tools: false, obsidian: true));
+        Assert.Equal(Assistant.DefaultPersona + "\n\nAnswer in haiku.", Assistant.SystemPrompt(false, null, operatingRules: "Answer in haiku.", obsidian: true));
+    }
+
     /// <summary>The shell rule (2026-09-21): after the git rule, before the ask rule, only with tools, only while the tool is offered; it names the tool, its two arguments, the sandbox as the start, the approval and the finality of a denial.</summary>
     [Fact]
     public void SystemPrompt_ShellOn_AppendsTheShellRule_AfterTheGitRule_ToTheDefaultRulesOnly()

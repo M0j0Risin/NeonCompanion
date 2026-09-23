@@ -37,8 +37,11 @@ public static class ToolsText
     public const string ShellTabTitle = "Shell";
     public const string WebTabTitle = "Web";
 
-    /// <summary>The seven tabs in strip order: Offered, Options, Web, Files, Shell, Ask, Git (native) — the user's order since later on 2026-09-21 (alphabetical after Options before: Ask, Files, Git, Shell, Web); the last six index <see cref="SettingsMenu.ToolsTabFields"/> one down.</summary>
-    public static readonly IReadOnlyList<string> TabTitles = [OfferedTabTitle, OptionsTabTitle, WebTabTitle, FilesTabTitle, ShellTabTitle, AskTabTitle, GitTabTitle];
+    /// <summary>The vault tools' tab and group (2026-09-22), last in the strip.</summary>
+    public const string ObsidianTabTitle = "Obsidian";
+
+    /// <summary>The eight tabs in strip order: Offered, Options, Web, Files, Shell, Ask, Git (native), Obsidian (2026-09-22) — the user's order since later on 2026-09-21 (alphabetical after Options before: Ask, Files, Git, Shell, Web); the last seven index <see cref="SettingsMenu.ToolsTabFields"/> one down.</summary>
+    public static readonly IReadOnlyList<string> TabTitles = [OfferedTabTitle, OptionsTabTitle, WebTabTitle, FilesTabTitle, ShellTabTitle, AskTabTitle, GitTabTitle, ObsidianTabTitle];
 
     /// <summary>The Offered tab's hint row. Pinned.</summary>
     public const string OfferedKeys = "Enter / Space = on or off · ←/→ tabs · ESC = close";
@@ -48,6 +51,9 @@ public static class ToolsText
 
     /// <summary>After the Questions heading while the bottom pane is off (<c>ask_user</c> has nowhere to draw). Pinned.</summary>
     public const string NoPaneSuffix = "(off: no pane)";
+
+    /// <summary>After the Obsidian heading while the group is not offered: the switch is off or no vault is set (2026-09-22). Pinned.</summary>
+    public const string ObsidianOffSuffix = "(off: Obsidian tools is off or no Obsidian vault is set)";
 
     /// <summary>The name column of a tool row: <see cref="SystemPromptSummary.ToolNameWidth"/>, the plain lines' column.</summary>
     public const int NameWidth = SystemPromptSummary.ToolNameWidth;
@@ -115,6 +121,12 @@ public static class ToolsText
         if (group.Note == SystemPromptSummary.NotOffered(SystemPromptSummary.NoPaneSuffix))
         {
             return NoPaneSuffix;
+        }
+
+        if (group.Switch == SettingsField.ObsidianTools)
+        {
+            // Two things keep the vault group off (2026-09-22): the switch, or no vault set — the switch alone would mislead.
+            return ObsidianOffSuffix;
         }
 
         return group.Switch is { } field ? GroupOffSuffix(SettingsMenu.FieldName(field)) : "";
