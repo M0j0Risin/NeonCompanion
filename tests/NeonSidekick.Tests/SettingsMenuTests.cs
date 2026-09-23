@@ -1015,7 +1015,7 @@ public class SettingsMenuTests : IDisposable
         Assert.False(SettingsMenu.IsLlmField(SettingsField.ShellPoliceOutsidePaths));
         Assert.Equal("on", SettingsMenu.FieldValue(SettingsField.ShellPoliceOutsidePaths, data, _settings.ProfileDirectory));
         Assert.Equal("off", SettingsMenu.FieldValue(SettingsField.ShellPoliceOutsidePaths, new AppSettingsData { ShellPoliceOutsidePaths = false }, _settings.ProfileDirectory));
-        Assert.Equal("a command or script may only name paths under the working directory", SettingsMenu.ToggleDescribe(SettingsField.ShellPoliceOutsidePaths, true));
+        Assert.Equal("paths outside the working directory are denied",SettingsMenu.ToggleDescribe(SettingsField.ShellPoliceOutsidePaths, true));
         Assert.Equal("paths anywhere on the computer are allowed", SettingsMenu.ToggleDescribe(SettingsField.ShellPoliceOutsidePaths, false));
         Assert.Equal("Shell code languages", SettingsMenu.FieldName(SettingsField.ShellCodeLanguages));
         Assert.Equal("Shell code timeout (s)", SettingsMenu.FieldName(SettingsField.ShellCodeTimeoutSeconds));

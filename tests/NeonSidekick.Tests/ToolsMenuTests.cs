@@ -499,7 +499,7 @@ public class ToolsMenuTests : IDisposable
         await menu.ShowAsync(CancellationToken.None);
 
         Assert.False(_settings.Current.ShellPoliceOutsidePaths);
-        Assert.Contains("\n" + Titled(ToolsText.Label + " › Shell police outside paths") + "\n \n▸ on  a command or script may only name paths under the working directory\n  off paths anywhere on the computer are allowed\n", _console.Output);
+        Assert.Contains("\n" + Titled(ToolsText.Label + " › Shell police outside paths") + "\n \n▸ on  paths outside the working directory are denied\n  off paths anywhere on the computer are allowed\n", _console.Output);
         Assert.Contains("  · Shell police outside paths: off", _console.Output);
         Assert.Contains("\n▸ Shell police outside paths   off\n  Shell default                powershell\n", _console.Output);
         pane.Dispose();

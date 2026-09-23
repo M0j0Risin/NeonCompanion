@@ -79,7 +79,7 @@ public enum SlashCommand
     /// <summary><c>/tree</c>: a tree of the working directory's folders and files, or <c>/tree &lt;path&gt;</c> for a folder under it.</summary>
     Tree,
 
-    /// <summary><c>/vault</c> (2026-09-22, the user's ask: "similar to tree"): the <c>Obsidian vault</c>'s folders and notes as <c>/tree</c> prints the working directory's — the dot-folders (<c>.obsidian</c>, <c>.trash</c>, <c>.git</c>) left out, as the vault tools leave them, and the same <c>File /tree max length</c> and <c>File /tree show sizes</c>. An error while <c>Obsidian tools</c> is off, no vault is set, or the folder cannot be reached or is no vault. No argument.</summary>
+    /// <summary><c>/vault</c> (2026-09-22, the user's ask: "similar to tree"): the <c>Obsidian vault</c>'s folders and notes as <c>/tree</c> prints the working directory's — the dot-folders (<c>.obsidian</c>, <c>.trash</c>, <c>.git</c>) left out, as the vault tools leave them, and the same <c>File /tree max length</c> and <c>File /tree show sizes</c>. An error while <c>Obsidian tools</c> is off, no vault is set, or the folder cannot be reached or is no vault. Since 2026-09-23 (the user's ask: "work like /tree") <c>/vault &lt;path&gt;</c> walks a folder under the vault instead, and the argument list offers the vault's folders as <c>/tree</c>'s offers the sandbox's.</summary>
     Vault,
 
     /// <summary><c>/explore</c>: open the working directory in the system's file browser (Explorer, Finder, …), or <c>/explore &lt;path&gt;</c> for a folder under it.</summary>
@@ -218,7 +218,7 @@ public static class SlashCommands
         [
             new("/cwd", "show or change the working directory, or /cwd <path> | ~ | browse"),
             new("/tree", "print a tree of the working directory's folders and files, or /tree <path>"),
-            new("/vault", "print a tree of the Obsidian vault's folders and notes"),
+            new("/vault", "print a tree of the Obsidian vault's folders and notes, or /vault <path>"),
             new("/explore", "open the working directory in your file browser, or /explore <path>"),
             new("/emptytrash", "empty the working directory's .trash for good (asks first)"),
             new("/git", "write the Git native email and Git native name settings into the working directory's repository: /git user [force]"),
@@ -440,6 +440,6 @@ public static class SlashCommands
         or SlashCommand.Learn
         or SlashCommand.Persona or SlashCommand.Operata or SlashCommand.Vocalia
         or SlashCommand.Remember or SlashCommand.Memory or SlashCommand.CmdCopy or SlashCommand.Profile or SlashCommand.Timer
-        or SlashCommand.Cwd or SlashCommand.Tree or SlashCommand.Explore or SlashCommand.Copy or SlashCommand.Session or SlashCommand.Git
+        or SlashCommand.Cwd or SlashCommand.Tree or SlashCommand.Vault or SlashCommand.Explore or SlashCommand.Copy or SlashCommand.Session or SlashCommand.Git
         or SlashCommand.Loop or SlashCommand.Queue;
 }

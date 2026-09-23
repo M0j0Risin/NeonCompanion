@@ -2293,7 +2293,7 @@ internal sealed partial class ChatScreen
     /// (<c>Complete(query, ImageFile.IsImagePath)</c>, for <c>/view</c>) — <see cref="ArgumentPaths"/> —
     /// the disk reads behind a function each, so <c>/tts o</c> scans no catalog.
     /// </summary>
-    public sealed record ArgumentSources(Func<IReadOnlyList<string>> Profiles, string LoadedProfile, IReadOnlyList<string> Timers, Func<string, IReadOnlyList<string>> Folders, Func<string, MentionResult> TextFiles, Func<string, MentionResult> ImageFiles, Func<IReadOnlyList<CompletionItem>>? Sessions = null, Func<IReadOnlyList<CompletionItem>>? Skills = null);
+    public sealed record ArgumentSources(Func<IReadOnlyList<string>> Profiles, string LoadedProfile, IReadOnlyList<string> Timers, Func<string, IReadOnlyList<string>> Folders, Func<string, MentionResult> TextFiles, Func<string, MentionResult> ImageFiles, Func<IReadOnlyList<CompletionItem>>? Sessions = null, Func<IReadOnlyList<CompletionItem>>? Skills = null, Func<string, IReadOnlyList<string>>? VaultFolders = null);
 
     /// <summary>The note beside <c>on</c> / <c>off</c> on a switch's list: what the switch is. Pinned.</summary>
     public static string SwitchSubject(SlashCommand command) => command switch
@@ -2385,7 +2385,7 @@ internal sealed partial class ChatScreen
     /// levels, the profile names and verbs (and <c>delete | rename | reset &lt;name&gt;</c> as a second
     /// level), <c>stop</c> then <c>stop all | &lt;name&gt;</c> for the timers, <c>~</c> for
     /// <c>/cwd</c> (a path is free text and resolves against the process directory, not the
-    /// sandbox), the sandbox's folders for <c>/tree</c> and <c>/explore</c>, <c>all</c> for <c>/copy</c>,
+    /// sandbox), the sandbox's folders for <c>/tree</c> and <c>/explore</c>, the vault's for <c>/vault</c> (2026-09-23), <c>all</c> for <c>/copy</c>,
     /// <c>reset</c> for the three prompt files. Free text (a URL, a
     /// memory, a focus, a new name, a duration, a message; <c>/loop</c> lists <c>infinite</c> alone and <c>/skills</c> <c>edit</c> then <c>edit &lt;name&gt;</c> over the catalog, 2026-09-21) and <c>/model</c>'s ids (a network probe,
     /// nothing cached; the picker lists them) get nothing — and so do <c>/speak</c> and <c>/view</c>
@@ -2494,6 +2494,10 @@ internal sealed partial class ChatScreen
 
             case SlashCommand.Tree or SlashCommand.Explore:
                 return MentionCompleter.Matches(sources.Folders(argText).Select(folder => new CompletionItem(folder, "")).ToList(), argText);
+
+            case SlashCommand.Vault:
+                // The vault's folders, as /tree's are the sandbox's (2026-09-23, the user's ask).
+                return MentionCompleter.Matches((sources.VaultFolders?.Invoke(argText) ?? []).Select(folder => new CompletionItem(folder, "")).ToList(), argText);
 
             case SlashCommand.Copy:
                 return MentionCompleter.Matches([new("all", CopyAllNote)], argText);
@@ -2609,7 +2613,8 @@ internal sealed partial class ChatScreen
             prefix => _files.Complete(prefix, WorkingDirectory.IsTextFile),
             prefix => _files.Complete(prefix, ImageFile.IsImagePath),
             SessionChoices,
-            SkillChoices);
+            SkillChoices,
+            VaultFolderChoices);
         return ArgumentPaths(command, argText, sources) is { } paths
             ? new ArgumentList([], paths.Paths, paths.Truncated)
             : new ArgumentList(ArgumentItems(command, argText, sources));
@@ -4411,21 +4416,59 @@ internal sealed partial class ChatScreen
     /// tools never list either). The walk is <c>/tree</c>'s, capped by <c>File /tree max length</c>, sizes under
     /// <c>File /tree show sizes</c>. <c>Obsidian tools</c> off, no <c>Obsidian vault</c>, a folder that cannot be
     /// reached or holds no <c>.obsidian</c> is an error, checked in that order; the folder is never created.
+    /// Since 2026-09-23 (the user's ask: "work like /tree") <c>/vault &lt;path&gt;</c> walks a folder under the
+    /// vault, resolved as <c>/tree</c> resolves one under the sandbox — outside the vault, missing or a file is
+    /// <c>/tree</c>'s error line — and a path through a dot-folder (<c>.obsidian</c>, <c>.trash/…</c>) is the
+    /// missing one, since the vault tools never show those.
     /// </summary>
-    private void HandleVault()
+    private void HandleVault(string args)
     {
         var effective = _effective();
+        if (VaultRoot(effective, out string? error) is not { } root)
+        {
+            _transcript.Error(error!);
+            return;
+        }
+
+        if (NamesADotFolder(args))
+        {
+            _transcript.Error(TreeText.Error(new FileTreeResult(FileOutcome.Missing, args, "", [], false)));
+            return;
+        }
+
+        int cap = Math.Clamp(effective.FileTreeMaxLength, WorkingDirectory.MinTreeLength, WorkingDirectory.MaxTreeLength);
+        var result = new WorkingDirectory(() => root, _time).FileTree(args, cap, hideDotEntries: true);
+        if (result.Outcome != FileOutcome.Ok)
+        {
+            _transcript.Error(TreeText.Error(result));
+            return;
+        }
+
+        foreach (var line in TreeText.Lines(result, effective.FileTreeShowSizes, cap))
+        {
+            _transcript.Notice(line);
+        }
+    }
+
+    /// <summary>
+    /// The vault <c>/vault</c> walks and its argument list offers, trimmed; null with the error line when
+    /// <c>Obsidian tools</c> is off, no <c>Obsidian vault</c> is set, the folder cannot be reached or holds no
+    /// <c>.obsidian</c> — checked in that order, the folder never created.
+    /// </summary>
+    private static string? VaultRoot(AppSettingsData effective, out string? error)
+    {
+        error = null;
         if (!effective.ObsidianTools)
         {
-            _transcript.Error(VaultToolsOffError);
-            return;
+            error = VaultToolsOffError;
+            return null;
         }
 
         string root = effective.ObsidianVault.Trim();
         if (root.Length == 0)
         {
-            _transcript.Error(VaultNotSetError);
-            return;
+            error = VaultNotSetError;
+            return null;
         }
 
         bool reachable;
@@ -4440,28 +4483,39 @@ internal sealed partial class ChatScreen
 
         if (!reachable)
         {
-            _transcript.Error(VaultUnreachableError(root));
-            return;
+            error = VaultUnreachableError(root);
+            return null;
         }
 
         if (!ObsidianVault.IsVault(root))
         {
-            _transcript.Error(VaultNotAVaultError(root));
-            return;
+            error = VaultNotAVaultError(root);
+            return null;
         }
 
-        int cap = Math.Clamp(effective.FileTreeMaxLength, WorkingDirectory.MinTreeLength, WorkingDirectory.MaxTreeLength);
-        var result = new WorkingDirectory(() => root, _time).FileTree("", cap, hideDotEntries: true);
-        if (result.Outcome != FileOutcome.Ok)
+        return root;
+    }
+
+    /// <summary>Whether a vault path goes through a dot-folder (<c>.obsidian</c>, <c>.trash/x</c>) — <c>.</c> and <c>..</c> are not names, and resolve as usual. Pure.</summary>
+    public static bool NamesADotFolder(string path) =>
+        (path ?? "").Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries)
+            .Any(segment => segment.StartsWith('.') && segment is not ("." or ".."));
+
+    /// <summary>
+    /// The <c>/vault</c> argument list's folders for <paramref name="prefix"/> (2026-09-23): the vault's
+    /// <see cref="WorkingDirectory.Complete"/> kept to folders, none through a dot-folder; empty while
+    /// <see cref="VaultRoot"/> has no vault to offer.
+    /// </summary>
+    private IReadOnlyList<string> VaultFolderChoices(string prefix)
+    {
+        if (VaultRoot(_effective(), out _) is not { } root)
         {
-            _transcript.Error(TreeText.Error(result));
-            return;
+            return [];
         }
 
-        foreach (var line in TreeText.Lines(result, effective.FileTreeShowSizes, cap))
-        {
-            _transcript.Notice(line);
-        }
+        return new WorkingDirectory(() => root, _time).Complete(prefix).Paths
+            .Where(path => path.EndsWith('/') && !NamesADotFolder(path))
+            .ToList();
     }
 
     // ── /git ────────────────────────────────────────────────────────────────
@@ -6645,7 +6699,7 @@ internal sealed partial class ChatScreen
                 return false;
 
             case SlashCommand.Vault:
-                HandleVault();
+                HandleVault(args);
                 return false;
 
             case SlashCommand.Explore:

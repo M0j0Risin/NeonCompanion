@@ -393,7 +393,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/tree [path]` | Print a tree of the working directory; hidden, system and dot entries only under *File browser/tree mode* `show-hidden`. |
 | `/tts [on\|off]` | Toggle speech output. |
 | `/usage` | Show token usage and performance statistics. |
-| `/vault` | Print a tree of the *Obsidian vault*'s folders and notes, as `/tree` prints the working directory: the dot-folders (`.obsidian`, `.trash`, `.git`) left out, capped by *File /tree max length*, sizes under *File /tree show sizes*. An error while *Obsidian tools* is off, no vault is set, or the folder cannot be reached or has no `.obsidian`. |
+| `/vault [path]` | Print a tree of the *Obsidian vault*'s folders and notes (or of a folder under it, which the argument list completes as you type), as `/tree` prints the working directory: the dot-folders (`.obsidian`, `.trash`, `.git`) left out, capped by *File /tree max length*, sizes under *File /tree show sizes*. An error while *Obsidian tools* is off, no vault is set, or the folder cannot be reached or has no `.obsidian`. |
 | `/view <image>` | Show an image from the working directory in the transcript. |
 | `/vocalia [reset \| copy <profile> [force]]` | Edit `vocalia.md` (the spoken-reply directive) in your editor, go back to the default, or copy it into another profile (`force` replaces the one it has). |
 | `/wake [on\|off]` | Toggle the speech-input wake word. |

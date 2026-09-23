@@ -3049,7 +3049,7 @@ internal sealed class SettingsMenu
         SettingsField.SessionLogging => on ? "every completed turn is written to this profile's session store" : "nothing is written; what is stored still lists, restores and purges",
         SettingsField.SessionTool => on ? "the model can search, list and read this profile's earlier sessions" : "the model never sees an earlier session",
         SettingsField.ShellToolBridge => on ? "a script may call this app's other tools through its neon_tools module" : "a script does everything itself: no neon_tools module, no tool calls",
-        SettingsField.ShellPoliceOutsidePaths => on ? "a command or script may only name paths under the working directory" : "paths anywhere on the computer are allowed",
+        SettingsField.ShellPoliceOutsidePaths => on ? "paths outside the working directory are denied" : "paths anywhere on the computer are allowed",
         _ => "",
     };
 

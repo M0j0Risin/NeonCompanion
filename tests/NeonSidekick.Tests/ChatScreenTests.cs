@@ -8756,7 +8756,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.StartsWith(HelpRow("/cmdlist", "list this profile's allowed shell commands on a pane, Enter removes one"), lines[33]);   // later on 2026-09-21
         Assert.StartsWith(HelpRow("/police", "switch Shell police outside paths on or off on a pane: whether a shell command may name paths outside the working directory"), lines[34]);   // later still on 2026-09-22
         Assert.StartsWith(HelpRow("/tree", "print a tree of the working directory's folders and files, or /tree <path>"), lines[37]);
-        Assert.StartsWith(HelpRow("/vault", "print a tree of the Obsidian vault's folders and notes"), lines[38]);   // under /tree since later still on 2026-09-22
+        Assert.StartsWith(HelpRow("/vault", "print a tree of the Obsidian vault's folders and notes, or /vault <path>"), lines[38]);   // under /tree since later still on 2026-09-22
         Assert.StartsWith(HelpRow("/emptytrash", "empty the working directory's .trash for good (asks first)"), lines[40]);
         Assert.StartsWith(HelpRow("/git", "write the Git native email and Git native name settings into the working directory's repository: /git user [force]"), lines[41]);   // 2026-09-21
         Assert.True(string.IsNullOrWhiteSpace(lines[42]));
@@ -11110,6 +11110,41 @@ public partial class ChatScreenTests : IDisposable
         PushLine("/exit");
         output = await RunAsync();
         Assert.Contains("  · " + TreeText.CutLine(1), output);
+    }
+
+    /// <summary><c>/vault &lt;path&gt;</c> (2026-09-23, the user's ask: "work like /tree"): a folder under the vault alone; outside, missing or through a dot-folder is /tree's error line.</summary>
+    [Fact]
+    public async Task Vault_WithAPath_PrintsThatFolder_AndABadPathIsTheTreeError()
+    {
+        string vault = Path.Combine(_dir, "Vault");
+        Directory.CreateDirectory(Path.Combine(vault, ".obsidian"));
+        Directory.CreateDirectory(Path.Combine(vault, "Projects", "Neon"));
+        File.WriteAllText(Path.Combine(vault, "Projects", "Neon", "Plan.md"), "# Plan");
+        File.WriteAllText(Path.Combine(vault, "Home.md"), "hi");
+        _settings.Update(d => { d.ObsidianVault = vault; d.FileTreeShowSizes = false; });
+        PushLine("/vault Projects");
+        PushLine("/vault ..");
+        PushLine("/vault Nope");
+        PushLine("/vault .obsidian");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains(
+            "  · " + Path.Combine(vault, "Projects") + @"\" + "\n"
+            + "  · └── Neon\\\n"
+            + "  ·     └── Plan.md\n",
+            output);
+        Assert.DoesNotContain("Home.md", output);
+        Assert.Equal(3, CountOf(output, "  ✗ "));   // outside, missing, a dot-folder: each /tree's error line
+        Assert.Contains("  ✗ " + TreeText.Error(new FileTreeResult(FileOutcome.Missing, ".obsidian", "", [], false)), output);
+        Assert.DoesNotContain("app.json", output);
+
+        Assert.True(ChatScreen.NamesADotFolder(".trash/old"));
+        Assert.True(ChatScreen.NamesADotFolder(@"Projects\.git"));
+        Assert.False(ChatScreen.NamesADotFolder("../x"));
+        Assert.False(ChatScreen.NamesADotFolder("./Projects"));
+        Assert.False(ChatScreen.NamesADotFolder(""));
     }
 
     [Fact]
@@ -15344,6 +15379,10 @@ public partial class ChatScreenTests : IDisposable
         Assert.Empty(ChatScreen.ArgumentItems("/cwd", "D:", sources));
         Assert.Equal(["docs/", "docs/tools/"], Texts(ChatScreen.ArgumentItems("/tree", "d", sources)));   // the sandbox's folders, a full-path prefix
         Assert.Equal(["test/"], Texts(ChatScreen.ArgumentItems("/explore", "t", sources)));
+        Assert.Empty(ChatScreen.ArgumentItems("/vault", "", sources));   // no vault source, no list (2026-09-23)
+        var vaultSources = sources with { VaultFolders = prefix => new[] { "Daily/", "Projects/", "Projects/Neon/" }.Where(f => f.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).ToList() };
+        Assert.Equal(["Projects/", "Projects/Neon/"], Texts(ChatScreen.ArgumentItems("/vault", "P", vaultSources)));   // the vault's folders, as /tree's
+        Assert.Equal(["Daily/", "Projects/", "Projects/Neon/"], Texts(ChatScreen.ArgumentItems("/vault", "", vaultSources)));
         Assert.Empty(ChatScreen.ArgumentItems("/speak", "", sources));   // a path list, ArgumentPaths (2026-09-17)
         Assert.Equal([new CompletionItem("all", ChatScreen.CopyAllNote)], ChatScreen.ArgumentItems("/copy", "", sources));
         Assert.Equal([new CompletionItem("reset", ChatScreen.PromptFileResetNote("persona.md"))], ChatScreen.ArgumentItems("/persona", "re", sources));

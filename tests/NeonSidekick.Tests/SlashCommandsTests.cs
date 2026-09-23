@@ -392,7 +392,7 @@ public class SlashCommandsTests
             SlashCommand.Learn,
             SlashCommand.Persona, SlashCommand.Operata, SlashCommand.Vocalia,
             SlashCommand.Remember, SlashCommand.Memory, SlashCommand.CmdCopy, SlashCommand.Profile, SlashCommand.Timer,   // /cmdcopy 2026-09-21; /memory 2026-09-22 (forget, then copy <profile> [overwrite], the folded /memcopy)
-            SlashCommand.Cwd, SlashCommand.Tree, SlashCommand.Explore, SlashCommand.Copy, SlashCommand.Session, SlashCommand.Git,
+            SlashCommand.Cwd, SlashCommand.Tree, SlashCommand.Vault, SlashCommand.Explore, SlashCommand.Copy, SlashCommand.Session, SlashCommand.Git,   // /vault [path] 2026-09-23
             SlashCommand.Loop, SlashCommand.Queue,   // 2026-09-21 (/queue clear later that day; /skills with edit <name> from then until 2026-09-23); /tools off the list later on 2026-09-22, its expand and collapse root words
         ];
         foreach (var command in Enum.GetValues<SlashCommand>())
@@ -447,11 +447,11 @@ public class SlashCommandsTests
     [Fact]
     public void Vault_IsABareCommand()
     {
-        // /vault (2026-09-22): the vault's tree; no argument, so one given is the overloaded error.
+        // /vault (2026-09-22): the vault's tree; a folder under it since 2026-09-23, as /tree takes one.
         Assert.Equal((SlashCommand.Vault, ""), SlashCommands.Parse("/vault"));
         Assert.Equal((SlashCommand.Vault, ""), SlashCommands.Parse("  /VAULT "));
-        Assert.Equal((SlashCommand.Overloaded, "Notes"), SlashCommands.Parse("/vault Notes"));
-        Assert.False(SlashCommands.TakesArgument(SlashCommand.Vault));
+        Assert.Equal((SlashCommand.Vault, "Notes"), SlashCommands.Parse("/vault Notes"));
+        Assert.True(SlashCommands.TakesArgument(SlashCommand.Vault));
         Assert.Contains(SlashCommands.Completions, i => i.Text == "/vault");
     }
 
@@ -689,7 +689,7 @@ public class SlashCommandsTests
         Assert.Equal("/police", SlashCommands.HelpEntries[30].Command);   // under /cmdlist since later still on 2026-09-22: every row under it one down
         Assert.Equal("/cwd", SlashCommands.HelpEntries[31].Command);
         Assert.Equal("/vault", SlashCommands.HelpEntries[33].Command);   // under /tree since later still on 2026-09-22: every row under it one down
-        Assert.Equal("print a tree of the Obsidian vault's folders and notes", SlashCommands.HelpEntries[33].Summary);
+        Assert.Equal("print a tree of the Obsidian vault's folders and notes, or /vault <path>", SlashCommands.HelpEntries[33].Summary);   // the path since 2026-09-23
         Assert.Equal(["/cwd", "/tree", "/vault", "/explore", "/emptytrash", "/git"], SlashCommands.HelpGroups[5].Select(e => e.Command));   // /git last since 2026-09-21
         Assert.Equal("/emptytrash", SlashCommands.HelpEntries[35].Command);
         Assert.Equal("/git", SlashCommands.HelpEntries[36].Command);   // the working-directory group's last row (2026-09-21)
