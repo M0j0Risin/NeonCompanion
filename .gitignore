@@ -47,7 +47,7 @@ CodeCoverage/
 TestResult.xml
 nunit-*.xml
 
-# NeonCompanion: build.ps1 publish output and logs
+# NeonSidekick: build.ps1 publish output and logs
 publish/
 
 # temp docs folder

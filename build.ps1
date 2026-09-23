@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Build, test, publish (NativeAOT) and smoke NeonCompanion.
+    Build, test, publish (NativeAOT) and smoke NeonSidekick.
 
 .DESCRIPTION
     Mirrors the CI pipeline. Run from PowerShell, not Git Bash (the smoke gate hangs under MSYS
@@ -11,7 +11,7 @@
         .\build.ps1 -Publish       # restore + build + AOT publish + smoke (skip tests)
         .\build.ps1 -Clean         # delete bin/, obj/, publish/
         .\build.ps1 -CoverageFloor 0           # report line coverage without gating (the default floor is 80%)
-        .\build.ps1 -Package                   # ...and stage publish/package/NeonCompanion-v<ver>-win-x64.zip + .sha256
+        .\build.ps1 -Package                   # ...and stage publish/package/NeonSidekick-v<ver>-win-x64.zip + .sha256
         .\build.ps1 -Package -Tag v0.2.0       # the same, refusing a tag that is not the csproj <Version> (release.yml)
 #>
 
@@ -27,10 +27,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = $PSScriptRoot
-$AppProject = Join-Path $ProjectRoot "src/NeonCompanion/NeonCompanion.csproj"
-$TestProject = Join-Path $ProjectRoot "tests/NeonCompanion.Tests/NeonCompanion.Tests.csproj"
+$AppProject = Join-Path $ProjectRoot "src/NeonSidekick/NeonSidekick.csproj"
+$TestProject = Join-Path $ProjectRoot "tests/NeonSidekick.Tests/NeonSidekick.Tests.csproj"
 $PublishDir = Join-Path $ProjectRoot "publish/output"
-$Exe = Join-Path $PublishDir "NeonCompanion.exe"
+$Exe = Join-Path $PublishDir "NeonSidekick.exe"
 $CoverageDir = Join-Path $ProjectRoot "publish/coverage"
 $RunSettings = Join-Path $ProjectRoot "tests/coverage.runsettings"
 $PackageRoot = Join-Path $ProjectRoot "publish/package"
@@ -61,14 +61,14 @@ if ($Clean) {
 }
 
 Write-Section "Restore"
-dotnet restore (Join-Path $ProjectRoot "NeonCompanion.slnx")
+dotnet restore (Join-Path $ProjectRoot "NeonSidekick.slnx")
 if ($LASTEXITCODE -ne 0) { Fail "Restore FAILED" }
 
 # Warnings are captured and counted. The AOT analyzers (IsAotCompatible) report our own
 # reflection/trim hazards as warnings here, and a warning that scrolls by is a warning nobody
 # reads. The budget for our code is zero.
 Write-Section "Build (Release)"
-$buildLog = @(dotnet build (Join-Path $ProjectRoot "NeonCompanion.slnx") --no-restore -c Release --verbosity minimal 2>&1)
+$buildLog = @(dotnet build (Join-Path $ProjectRoot "NeonSidekick.slnx") --no-restore -c Release --verbosity minimal 2>&1)
 $buildLog | ForEach-Object { Write-Host $_ }
 if ($LASTEXITCODE -ne 0) { Fail "Build FAILED" }
 $buildWarnings = @($buildLog | Where-Object { $_ -match ': warning ' })
@@ -142,17 +142,17 @@ if ($LASTEXITCODE -ne 0) { Fail "Publish FAILED" }
 
 # Third-party AOT warnings (Whisper.net's library loader, the OpenAI SDK) are reported and
 # tolerated; a warning that points into our own code fails the build. ILC appends the project
-# path "[...NeonCompanion.csproj]" to EVERY warning line, so that suffix is stripped before
-# deciding whose warning it is: ours name a NeonCompanion.* symbol or a src/NeonCompanion/*.cs file.
+# path "[...NeonSidekick.csproj]" to EVERY warning line, so that suffix is stripped before
+# deciding whose warning it is: ours name a NeonSidekick.* symbol or a src/NeonSidekick/*.cs file.
 $aotWarnings = @($publishLog | Where-Object { $_ -match 'warning IL\d+' } | Sort-Object -Unique)
 $ownWarnings = @($aotWarnings | Where-Object {
     $text = $_ -replace '\s*\[[^\]]*\.csproj\]\s*$', ''
-    ($text -match 'src[\\/]NeonCompanion[\\/].*\.cs') -or ($text -match '\bNeonCompanion\.[A-Z]')
+    ($text -match 'src[\\/]NeonSidekick[\\/].*\.cs') -or ($text -match '\bNeonSidekick\.[A-Z]')
 })
 $aotWarnings | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
 Write-Host ""
 Write-Host "  AOT warnings: $($aotWarnings.Count) unique, $($ownWarnings.Count) in our code." -ForegroundColor $(if ($ownWarnings.Count -eq 0) { "Green" } else { "Red" })
-if ($ownWarnings.Count -gt 0) { Fail "AOT warnings in NeonCompanion code; fix them, do not suppress them." }
+if ($ownWarnings.Count -gt 0) { Fail "AOT warnings in NeonSidekick code; fix them, do not suppress them." }
 
 Write-Section "Smoke (published binary)"
 if (-not (Test-Path $Exe)) { Fail "No published binary at $Exe" }
@@ -198,11 +198,11 @@ if ($Package) {
     }
 
     $versionOut = (& $Exe --version | Out-String).Trim()
-    if ($versionOut -ne "NeonCompanion $version") {
-        Fail "The published exe reports '$versionOut', expected 'NeonCompanion $version'."
+    if ($versionOut -ne "NeonSidekick $version") {
+        Fail "The published exe reports '$versionOut', expected 'NeonSidekick $version'."
     }
 
-    $stageName = "NeonCompanion-v$version-win-x64"
+    $stageName = "NeonSidekick-v$version-win-x64"
     $stage = Join-Path $PackageRoot $stageName
     if (Test-Path $PackageRoot) { Remove-Item -Recurse -Force $PackageRoot }
     New-Item -ItemType Directory -Path $stage | Out-Null

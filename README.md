@@ -1,6 +1,6 @@
-# Neon Companion
+# Neon Sidekick
 
-Neon Companion is a streamlined agentic TUI harness for local LLMs, built on .NET 10. I built this to combine and expand on my favorite features from Claude Code, Hermes Agent, and Cline—with a focus on local execution.
+Neon Sidekick is a streamlined agentic TUI harness for local LLMs, built on .NET 10. I built this to combine and expand on my favorite features from Claude Code, Hermes Agent, and Cline—with a focus on local execution.
 
 Current State: A foundational shell for continued tool development (Windows-first).
 On the Roadmap: Expanded coding capabilities and official macOS/Linux support.
@@ -17,12 +17,12 @@ On the Roadmap: Expanded coding capabilities and official macOS/Linux support.
 - [Why "Neon"](#why-neon)
 
 ## License
-[↑ Back to top](#neon-companion)
+[↑ Back to top](#neon-sidekick)
 
-Neon Companion is released under the GPLv3 license.
+Neon Sidekick is released under the GPLv3 license.
 
 ## Features
-[↑ Back to top](#neon-companion)
+[↑ Back to top](#neon-sidekick)
 
 ### Core Architecture & UI
 * Built on **.NET 10 NativeAOT** for lightweight, high-performance execution.
@@ -50,7 +50,7 @@ Neon Companion is released under the GPLv3 license.
 * **Text-to-Speech:** Includes in-process Kokoro TTS, with support for an external HTTP Kokoro endpoint.
 
 ## Components & Libraries
-[↑ Back to top](#neon-companion)
+[↑ Back to top](#neon-sidekick)
 
 * `.NET 10 (NativeAOT)`
 * `Spectre.Console`
@@ -69,7 +69,7 @@ Neon Companion is released under the GPLv3 license.
 * `Microsoft.SqlServer.TransactSql.ScriptDom`
 
 ## Settings & menus
-[↑ Back to top](#neon-companion)
+[↑ Back to top](#neon-sidekick)
 
 **Navigation**
 * **Keyboard:** ←/→ (switch tabs), ↑/↓ (move), Enter (edit/toggle), ESC (close).
@@ -244,7 +244,7 @@ Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Obsidian, SQL
 
 | Setting | What it does | Default |
 |---|---|---|
-| Shell command policy | What stands between `run_command` and the shell: `off` (no shell tool is offered — the group's switch), `ask` (a command whose prefixes are not all allowed is put to you on the pane first: Deny, Allow once, Allow the prefixes for this session, or Allow them always; with no pane to ask on it is refused), `yolo` (everything runs, nothing is asked). The toolbar shows it as a lock — 🔒 under `ask`, 🔓 under `yolo`, none under `off` — whose double-click is `/cmdlist`. `NEONCOMPANION_COMMAND_POLICY` outranks it, so a scripted `--headless` run can say `yolo`. | `ask` |
+| Shell command policy | What stands between `run_command` and the shell: `off` (no shell tool is offered — the group's switch), `ask` (a command whose prefixes are not all allowed is put to you on the pane first: Deny, Allow once, Allow the prefixes for this session, or Allow them always; with no pane to ask on it is refused), `yolo` (everything runs, nothing is asked). The toolbar shows it as a lock — 🔒 under `ask`, 🔓 under `yolo`, none under `off` — whose double-click is `/cmdlist`. `NEONSIDEKICK_COMMAND_POLICY` outranks it, so a scripted `--headless` run can say `yolo`. | `ask` |
 | Shell allowed commands | The prefixes allowed for good — `git status`, `dotnet build`, `python` (the program, plus its subcommand for git, dotnet, npm, pip, gh, docker, cargo, go, winget and the like). Enter on one removes it; the pane's *Allow … always* adds one; `/cmdlist` (or the toolbar's lock) opens the list straight; `/cmdcopy` copies it into another profile. | none |
 | Shell police outside paths | Whether a `run_command` line, an `execute_code` script or the text `process` writes to a background process may name a path outside the working directory. On: an absolute path not under it (`C:\…`, a UNC share, a rooted `/etc/hosts`), a `..` that climbs out, `~`, or a folder variable (`%USERPROFILE%`, `$env:TEMP`, `$HOME`, `Path.home()`…) is refused before anything runs or the pane asks — the model gets `Error: outside the working directory: '…'`, the transcript line wears 👮 — and the tool descriptions and the operating rules say the shell stays under the working directory. It reads the text, not what runs: a script that computes a path is not seen, and a cmd switch (`dir /s`) or a URL is not a path. Off: any path goes, and nothing tells the model it may leave the working directory, so it does not try unless asked. The toolbar shows 👮 while it is on, unless *Shell command policy* is `off` (no shell tool to police); a double-click on it, or `/police`, opens this row's on/off page straight. | on |
 | Shell default | The shell a `run_command` without `shell` runs in: `powershell` (pwsh when installed, else Windows PowerShell 5.1), `cmd`, or `bash` (Git Bash, when found). | `powershell` |
@@ -279,7 +279,7 @@ Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Obsidian, SQL
 | Setting | What it does | Default |
 |---|---|---|
 | Obsidian tools | Offers the vault tools (search, list, read, links, daily, write, properties, move) over the vault below. On, but nothing is offered until a vault is set. | on |
-| Obsidian vault | The Obsidian vault's folder — the one holding `.obsidian` (a folder Obsidian has opened); editing the row opens the `/cwd browse` folder picker on the vault set (on the working directory while none is). Separate from the working directory: the vault is where the notes live. `NEONCOMPANION_OBSIDIAN_VAULT` outranks it. | (not set) |
+| Obsidian vault | The Obsidian vault's folder — the one holding `.obsidian` (a folder Obsidian has opened); editing the row opens the `/cwd browse` folder picker on the vault set (on the working directory while none is). Separate from the working directory: the vault is where the notes live. `NEONSIDEKICK_OBSIDIAN_VAULT` outranks it. | (not set) |
 | Obsidian allow delete (.trash) | Offers `vault_delete`, which moves a note or attachment into the vault's `.trash` (never deleted for good). A profile saved with it off keeps it off. | on |
 
 #### SQL
@@ -341,7 +341,7 @@ Every tool the reply may call, grouped — Clock, Timers, Files, Git, Web, Memor
 </details>
 
 ## Slash commands
-[↑ Back to top](#neon-companion)
+[↑ Back to top](#neon-sidekick)
 
 Type `/` and the list opens with every command and its summary; after the command and a space, the argument list follows for any argument that can be listed. `//` is the one alias (for `/settings`); it is never listed.
 
@@ -403,7 +403,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 </details>
 
 ## Tools
-[↑ Back to top](#neon-companion)
+[↑ Back to top](#neon-sidekick)
 
 What the model can call, in the groups `/tools` and `/sys` show. A group's switch (`File tools`, `Git native tools`, `Shell command policy`, `Obsidian tools`, `SQL tools`, `Web tools`, `Memory`, `Agent skills`, `Session tool`, `Ask user`, `MCP servers`) offers or withholds the whole group; a single tool goes on or off on `/tools`' Offered tab. Required arguments come first; `?` marks an optional one.
 
@@ -523,20 +523,20 @@ Read-only queries on SQL Server over named connections, in-process (Microsoft.Da
 **Passwords.** Each `sql` or `runas` connection keeps its password where its `passwordStore` says:
 
 - `file` (the default): in `password`, encrypted with Windows DPAPI (`dpapi:…`) — readable only by your Windows account on this machine. Type a password there in plain text if you like: when the app next starts (it checks the home's `sql.json` and every profile's, not only the loaded one), or sooner the next time it reads that file, it replaces just that value with the encrypted one, comments and layout kept.
-- `credman`: in Windows Credential Manager, as the Generic credential `credential` (default `NeonCompanion/sql/<connection name>`); nothing about the password is in the file.
+- `credman`: in Windows Credential Manager, as the Generic credential `credential` (default `NeonSidekick/sql/<connection name>`); nothing about the password is in the file.
 
 Either way, **SQL set password** on the SQL tab of `/tools` asks for it in a masked field and saves it to the connection's store. Without the pane (headless), write the `file` password in plain text and let the app encrypt it, or make the Credential Manager entry yourself from a command prompt (it asks for the password):
 
 ```
-cmdkey /generic:NeonCompanion/sql/reports-admin /user:CONTOSO\svc-reader /pass
+cmdkey /generic:NeonSidekick/sql/reports-admin /user:CONTOSO\svc-reader /pass
 ```
 
-**Example: integrated auth, as you and as another account.** The file is `%USERPROFILE%\.neoncompanion\profiles\<profile>\sql.json` for one profile or `%USERPROFILE%\.neoncompanion\sql.json` for all of them (the *SQL connections (profile)* and *(global)* rows on the SQL tab open either); comments and trailing commas are allowed. The names below are stand-ins:
+**Example: integrated auth, as you and as another account.** The file is `%USERPROFILE%\.neonsidekick\profiles\<profile>\sql.json` for one profile or `%USERPROFILE%\.neonsidekick\sql.json` for all of them (the *SQL connections (profile)* and *(global)* rows on the SQL tab open either); comments and trailing commas are allowed. The names below are stand-ins:
 
 ```jsonc
 {
   "connections": {
-    // Integrated auth as you: the Windows account running NeonCompanion. No password.
+    // Integrated auth as you: the Windows account running NeonSidekick. No password.
     "reports-me": {
       "server": "sqlhost01.example.com,1453",
       "database": "Reports",
@@ -547,7 +547,7 @@ cmdkey /generic:NeonCompanion/sql/reports-admin /user:CONTOSO\svc-reader /pass
     },
 
     // Integrated auth as another account (the runas /netonly way); the password in Credential Manager
-    // under NeonCompanion/sql/reports-admin (SQL set password, or the cmdkey line above).
+    // under NeonSidekick/sql/reports-admin (SQL set password, or the cmdkey line above).
     "reports-admin": {
       "server": "sqlhost01.example.com,1453",
       "database": "Reports",
@@ -598,7 +598,7 @@ To check which account a connection signs in as, ask for `SELECT SUSER_SNAME()` 
 
 ### Shell
 
-A command line on your machine. It **starts** in the working directory (`workdir` names a folder under it); whether it may name a path outside it is `Shell police outside paths` (on by default: the text of a command, a script or a line typed to a background process is read before anything runs, and a path outside the working directory is refused with a 👮 line — a lexical guard, not a jail, since a script that computes a path is not seen). The other guard is the `Shell command policy` — under `ask` (the default) the command is shown on the pane with its shell and you choose Deny, Allow once, Allow its prefixes for this session, or Allow them always (saved to the profile); a denial is returned to the model as an error it is told not to work around. Every child runs with no window, its output read as UTF-8, colour and pagers off, stdin closed (a background one keeps it for `write`); on a timeout the command and everything it started are killed. Background processes die with the app. Under `--headless` nothing can ask, so `ask` runs only what the allow list covers — set `NEONCOMPANION_COMMAND_POLICY=yolo` for a scripted run. A crash of the app leaves a running command to Windows.
+A command line on your machine. It **starts** in the working directory (`workdir` names a folder under it); whether it may name a path outside it is `Shell police outside paths` (on by default: the text of a command, a script or a line typed to a background process is read before anything runs, and a path outside the working directory is refused with a 👮 line — a lexical guard, not a jail, since a script that computes a path is not seen). The other guard is the `Shell command policy` — under `ask` (the default) the command is shown on the pane with its shell and you choose Deny, Allow once, Allow its prefixes for this session, or Allow them always (saved to the profile); a denial is returned to the model as an error it is told not to work around. Every child runs with no window, its output read as UTF-8, colour and pagers off, stdin closed (a background one keeps it for `write`); on a timeout the command and everything it started are killed. Background processes die with the app. Under `--headless` nothing can ask, so `ask` runs only what the allow list covers — set `NEONSIDEKICK_COMMAND_POLICY=yolo` for a scripted run. A crash of the app leaves a running command to Windows.
 
 | Tool | Arguments | What it does |
 |---|---|---|
@@ -658,9 +658,9 @@ Every connected MCP server is a group of its own, its tools offered as `<server>
 </details>
 
 ## Screenshots
-[↑ Back to top](#neon-companion)
+[↑ Back to top](#neon-sidekick)
 
-Explore the UI and features of Neon Companion by expanding the panel below.
+Explore the UI and features of Neon Sidekick by expanding the panel below.
 
 <details>
 <summary><b>✨ Core Interface & Usage</b></summary><br>
@@ -677,6 +677,6 @@ Explore the UI and features of Neon Companion by expanding the panel below.
 </details>
 
 ## Why "Neon"
-[↑ Back to top](#neon-companion)
+[↑ Back to top](#neon-sidekick)
 
 During early development, I was experimenting with synthwave-style themes in Spectre.Console while simultaneously testing the Vosk voice integration. I needed a short, punchy wake word, and "Neon" fit the aesthetic perfectly. The name stuck for the project. Today, while the default profile is still named "Neon," the system is completely configurable—allowing you to create as many custom profiles, personas, and wake words as you like.

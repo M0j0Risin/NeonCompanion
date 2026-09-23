@@ -5,7 +5,7 @@
   it produces under publish/coverage; -CoverageFloor turns the number into a gate.
 
   Exclusions, and why:
-  - NeonCompanion.Audio.WinMm*: the WinMM device classes (playback, capture, the imports) run
+  - NeonSidekick.Audio.WinMm*: the WinMM device classes (playback, capture, the imports) run
     only against a real device and only prove anything in the PUBLISHED binary (the NAudio
     by-value-marshalling scar was invisible under the JIT). They are gated by the published-exe
     smoke (audio:winmm, audio:winmm-in) and by the audio and voice checks on the published exe,
@@ -22,7 +22,7 @@
       <DataCollector friendlyName="XPlat Code Coverage">
         <Configuration>
           <Format>cobertura</Format>
-          <Exclude>[NeonCompanion]NeonCompanion.Audio.WinMm*,[NeonCompanion]Program</Exclude>
+          <Exclude>[NeonSidekick]NeonSidekick.Audio.WinMm*,[NeonSidekick]Program</Exclude>
           <ExcludeByAttribute>GeneratedCodeAttribute,ExcludeFromCodeCoverageAttribute</ExcludeByAttribute>
           <SkipAutoProps>true</SkipAutoProps>
           <IncludeTestAssembly>false</IncludeTestAssembly>

@@ -5,7 +5,7 @@
 // A .NET 10 file-based app: no csproj, not in the solution, not run by build.ps1. The .ico is
 // committed; run this only when the SVG changes, from the repository root:
 //
-//     dotnet run tools/IconGen.cs                       # writes src/NeonCompanion/Assets/app.ico
+//     dotnet run tools/IconGen.cs                       # writes src/NeonSidekick/Assets/app.ico
 //     dotnet run tools/IconGen.cs -- --preview <dir>    # also 256 / 32 / 16 px PNGs for eyeballing
 //     dotnet run tools/IconGen.cs -- --svg <icon.svg> --out <dir>
 //
@@ -19,7 +19,7 @@ using Svg.Skia;
 int[] sizes = [16, 20, 24, 32, 40, 48, 64, 128, 256];
 
 var svgPath = Arg("--svg") ?? "assets/icon.svg";
-var outDir = Arg("--out") ?? "src/NeonCompanion/Assets";
+var outDir = Arg("--out") ?? "src/NeonSidekick/Assets";
 var previewDir = Arg("--preview");
 
 if (!File.Exists(svgPath))

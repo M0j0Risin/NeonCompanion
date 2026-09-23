@@ -64,5 +64,5 @@ jobs:
             Write-Host "Release $tag already exists; skipping."
             exit 0
           }
-          gh release create $tag --verify-tag --generate-notes --title "NeonCompanion $tag" $zip.FullName $sha
+          gh release create $tag --verify-tag --generate-notes --title "NeonSidekick $tag" $zip.FullName $sha
           if ($LASTEXITCODE -ne 0) { throw "gh release create failed." }

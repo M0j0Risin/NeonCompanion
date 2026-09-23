@@ -1,0 +1,577 @@
+using System.Collections.Concurrent;
+using NeonSidekick.Diagnostics;
+using NeonSidekick.Llm.Tools;
+using NeonSidekick.Shell;
+using NeonSidekick.UI;
+
+namespace NeonSidekick.App;
+
+/// <summary>How a line submitted while a reply runs is handled (<see cref="ChatScreen.MidTurnPolicy"/>).</summary>
+public enum MidTurnClass
+{
+    /// <summary>Not a command: type-ahead, sent when the reply ends.</summary>
+    Message,
+
+    /// <summary>A pane that reads the keys until ESC while the reply streams under it (<c>/help</c>, <c>/settings</c>, <c>/memory</c>, a confirmation).</summary>
+    Pane,
+
+    /// <summary>Runs at once on the turn's task, its feedback a notice line in the reply (<c>/tts off</c>, <c>/timer 5m</c>).</summary>
+    Quick,
+
+    /// <summary>Cancels the turn like ESC and runs at the idle line that follows (<c>/clear</c>, <c>/new</c>, <c>/exit</c>).</summary>
+    Cancel,
+
+    /// <summary>Dropped with a notice: it waits for the reply to end (<c>/profile</c>, <c>/server</c>, <c>/compact</c> …).</summary>
+    Refused,
+}
+
+/// <summary>
+/// Commands while a reply runs (2026-09-15). The turn's key watcher offers every completed line to
+/// <see cref="OnMidTurnLineAsync"/> on its own task; what happens next follows <see cref="MidTurnPolicy"/>.
+///
+/// <para>Two tasks, one rule each. <b>The turn task is the only transcript writer and the only
+/// mutator of turn state</b>: a quick command is posted as an <em>act</em> to <see cref="_acts"/>
+/// and run where the turn loop selects on "the next event or an act" (<see cref="NextEventAsync"/>),
+/// so <c>/tts off</c> lands within a poll even while the model is inside a buffered tool call, and
+/// a notice breaks the streamed paragraph exactly as a timer alert does. <b>The watcher task owns
+/// the keys and the overlay</b>: a pane command runs its pane phase there — the pane's writes are
+/// under the <see cref="ScreenPane"/>'s lock, its reads are of locked or snapshotted state — and
+/// posts its act (a memory wipe, the trash) to the turn task. ESC closes the pane, the next ESC
+/// cancels the turn. Anything the pane phase would say to the transcript goes through
+/// <see cref="FlowSink"/>, which posts while a turn runs and writes directly otherwise. The
+/// <c>ask_user</c> tool goes the other way (<see cref="AskUserAsync"/>, 2026-09-15): it runs on the
+/// turn task and hands its pane to the watcher as a request, then waits for the answers.</para>
+///
+/// <para>A reconnect is never run mid-turn — <see cref="LlmSession.Connect"/> disposes the client
+/// the turn streams from — so a switch saves at once, flags <see cref="_deferred"/> and the
+/// reconnect follows the turn quietly (<see cref="EndTurnAsync"/>). <c>/settings</c> refuses the
+/// rows that would need one (<see cref="SettingsMenu.RefusedMidTurn"/>). Without the pane on the
+/// screen nothing here runs: the watcher gets no hook and every line is type-ahead as before.</para>
+/// </summary>
+internal sealed partial class ChatScreen
+{
+    // Acts the turn task runs at its next select point; the signal wakes the select. A poster
+    // enqueues, then completes the signal; the drain swaps a fresh signal in before it empties the
+    // queue, so a post between the two is either drained now or wakes the next wait.
+    private readonly ConcurrentQueue<Func<Task>> _acts = new();
+    private TaskCompletionSource _actSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    // True from a turn's start until its pane phase (if any) closed and its acts were drained.
+    private volatile bool _turnRunning;
+
+    // The reconnects the turn's quick switches owe, applied after the turn (the turn task only).
+    private SettingsChanges _deferred;
+
+    // Closes a pane opened mid-turn when the turn's end needs the keys back at once (the interrupt's listen).
+    private CancellationTokenSource? _paneClose;
+
+    // The transcript for the menus' flow lines and the confirmations' pre-checks (see FlowSink).
+    private readonly INoticeSink _flow;
+
+    /// <summary>The notice for a never-mid-turn command typed while a reply runs: the line is dropped. Pinned.</summary>
+    public static string MidTurnRefusedNotice(string word) => $"({word} waits for the reply to end)";
+
+    /// <summary>The notice after a switch saved mid-turn: the reconnect it needs follows the reply. Pinned.</summary>
+    public static string MidTurnSwitchNotice(string what, bool on)
+    {
+        // The switch's own glyph, on and off alike (2026-09-22, the user's pick).
+        string glyph = what switch
+        {
+            SpeechOutputWord => NoticeGlyphs.Tts,
+            VoiceInputWord => NoticeGlyphs.Stt,
+            WakeWordWord => NoticeGlyphs.Wake,
+            InterruptWord => NoticeGlyphs.Interrupt,
+            _ => "",
+        };
+        return on ? $"({glyph}{what} on — connecting when this reply ends)" : $"({glyph}{what} off — applies when this reply ends)";
+    }
+
+    /// <summary>The notice after <c>/reasoning</c> saved a level mid-turn (under the menu's own saved line). Pinned.</summary>
+    public const string MidTurnAppliesNotice = "(applies when this reply ends)";
+
+    /// <summary>The words <see cref="MidTurnSwitchNotice"/> names the four switches by. Pinned.</summary>
+    public const string SpeechOutputWord = "speech output";
+    public const string VoiceInputWord = "voice input";
+    public const string WakeWordWord = "wake word";
+    public const string InterruptWord = "interrupt";
+
+    /// <summary>The tail a confirmation gets on a console without menus, where the answer is typed. Pinned.</summary>
+    public const string TypedConfirmSuffix = " y = yes, anything else = keep";
+
+    /// <summary>A confirmation question as the typed-answer path prints it. Pinned.</summary>
+    public static string TypedConfirm(string question) => question + TypedConfirmSuffix;
+
+    /// <summary>
+    /// What a line does while a reply runs, by command (the user's lists, 2026-09-15): the info
+    /// panes, <c>/settings</c>, <c>/memory</c> every way (2026-09-22: <c>forget</c>'s confirmation
+    /// is a pane as the list is, and so is <c>copy &lt;profile&gt;</c>'s — it writes another
+    /// profile's file, nothing the turn holds —, so the word never changes the class; the standalone
+    /// <c>/forget</c> was a pane too, and <c>/memcopy</c> was refused until the word folded in),
+    /// <c>/emptytrash</c>'s confirmation and the <c>/reasoning</c>
+    /// picker and <c>/queue</c> (2026-09-18) are <see cref="MidTurnClass.Pane"/> (<c>/expand</c> and <c>/collapse</c>, 2026-09-22 — <c>/tools expand|collapse</c> until later that day — quick like <c>/queue clear</c>), as is <c>/cmdlist</c> (2026-09-21: the <c>Shell allowed commands</c> row, which <c>/tools</c> edits under a reply too) and <c>/police</c> (2026-09-22, its <c>Shell police outside paths</c> row the same way); the four speech switches, <c>/reasoning</c>
+    /// with a level, <c>/queue</c> with a word (<c>clear</c>, 2026-09-21: the drop on the turn task, or the usage error), <c>/copy</c>, <c>/remember</c>, <c>/explore</c>, <c>/log</c> (2026-09-22: an editor launch like <c>/explore</c>'s), <c>/timer</c> and an unknown
+    /// command are <see cref="MidTurnClass.Quick"/>; <c>/clear</c>, <c>/new</c>, <c>/splash</c> (2026-09-19) and <c>/exit</c> cancel; the rest
+    /// (<c>/profile</c>, <c>/server</c>, <c>/model</c>, <c>/compact</c>, <c>/cwd</c>, <c>/tree</c>, <c>/vault</c> (2026-09-22, as <c>/tree</c>),
+    /// <c>/learn</c>, <c>/window</c>, <c>/cmdcopy</c> (2026-09-21), <c>/git</c> (2026-09-21), <c>/speak</c> — the turn owns the transcript and the speaker —, <c>/draft</c> (2026-09-19: it would send a message the turn cannot take), <c>/loop</c> (2026-09-21, the same reason), the three prompt files) are refused; <c>/skills</c> is a pane (2026-09-16 as <c>/skills</c>, <c>/skill list</c> then the bare <c>/skill</c> on 2026-09-18, the plural again since 2026-09-19; <c>/skill</c> with a name was refused until later on 2026-09-18, when the name form went — an argument was <see cref="SlashCommand.Overloaded"/>, quick like an unknown command, until <c>/skills edit &lt;name&gt;</c> came on 2026-09-21: an editor launch, refused like <c>/profile edit</c>; since it went on 2026-09-23 <c>/skills</c> takes none, an argument is <see cref="SlashCommand.Overloaded"/> again, and the bare word is the pane). Pure.
+    /// </summary>
+    public static MidTurnClass MidTurnPolicy(SlashCommand command, bool hasArgs) => command switch
+    {
+        SlashCommand.None => MidTurnClass.Message,
+        SlashCommand.Help or SlashCommand.Settings or SlashCommand.Sys or SlashCommand.Memory
+            or SlashCommand.Usage or SlashCommand.About or SlashCommand.EmptyTrash or SlashCommand.Mcp or SlashCommand.CmdList or SlashCommand.Police or SlashCommand.Tools or SlashCommand.Skills => MidTurnClass.Pane,
+        SlashCommand.Reasoning or SlashCommand.Queue => hasArgs ? MidTurnClass.Quick : MidTurnClass.Pane,
+        SlashCommand.Session => hasArgs ? MidTurnClass.Refused : MidTurnClass.Pane,
+        SlashCommand.Tts or SlashCommand.Voice or SlashCommand.Wake or SlashCommand.Interrupt or SlashCommand.Copy
+            or SlashCommand.Remember or SlashCommand.Explore or SlashCommand.Log or SlashCommand.Timer or SlashCommand.Expand or SlashCommand.Collapse or SlashCommand.Unknown or SlashCommand.Overloaded => MidTurnClass.Quick,
+        SlashCommand.Clear or SlashCommand.New or SlashCommand.Splash or SlashCommand.Exit => MidTurnClass.Cancel,
+        _ => MidTurnClass.Refused,
+    };
+
+    /// <summary>The first word of a typed line, for the notices that name a command.</summary>
+    private static string CommandWord(string text) => text.Trim().Split(' ', 2)[0];
+
+    /// <summary>
+    /// The watcher's line hook (<see cref="KeySource.WatchAsync(CancellationTokenSource, CancellationToken, Func{ConsoleKeyInfo, bool}?, CancellationTokenSource?, Func{string, Task{bool}}?, Func{bool}?)"/>),
+    /// on the watcher task. True when the line was taken (a pane ran, an act was posted, a refusal
+    /// was posted, a message was queued under <c>Queue messages</c> — a line holding a paste is always one, its
+    /// <c>Text</c> null); false leaves it type-ahead — a message with
+    /// the queue off, and <c>/clear</c> / <c>/new</c> / <c>/exit</c> after
+    /// cancelling the turn, so the idle line that follows runs them.
+    /// </summary>
+    private async Task<bool> OnMidTurnLineAsync(KeySource.WatchedLine line, CancellationTokenSource turnCts, CancellationToken paneToken)
+    {
+        if (line.Text is not { } text)
+        {
+            // A paste in the line: never a command (the README's rule); queued like a message
+            // under the switch, type-ahead as before without it.
+            return QueueLine(line);
+        }
+
+        var (command, args) = ParseLine(text);
+        var policy = MidTurnPolicy(command, args.Length > 0);
+        if (policy != MidTurnClass.Message)
+        {
+            DiagnosticLog.Debug(AppCategory, MidTurnCommandLogLine(CommandWord(text), policy));
+        }
+
+        switch (policy)
+        {
+            case MidTurnClass.Message:
+                return QueueLine(line);
+            case MidTurnClass.Cancel:
+                // The queue goes with the conversation whatever Queue cancel mode says (2026-09-18):
+                // the line stays type-ahead and is read after the loop top's drain, so under drain
+                // a queued message would otherwise reach the conversation about to be forgotten.
+                if (_queue.Clear() is > 0 and var dropped)
+                {
+                    Post(() => _transcript.Notice(QueueDroppedNotice(dropped)));
+                }
+
+                VoiceSession.SafeCancel(turnCts);
+                return false;
+            case MidTurnClass.Refused:
+                Post(() => _transcript.Notice(MidTurnRefusedNotice(CommandWord(text))));
+                return true;
+            case MidTurnClass.Quick:
+                Post(() => HandleQuickAsync(command, args, text, paneToken));
+                return true;
+            default:
+                await RunPaneAsync(command, args, paneToken).ConfigureAwait(false);
+                return true;
+        }
+    }
+
+    /// <summary>
+    /// A message typed under the reply (2026-09-18), on the watcher task: under <c>Queue messages</c>
+    /// its events go into the queue — taken off the buffer, so the mirror re-previews an empty row —
+    /// and the idle loop replays them once the reply ends; a blank line, or the switch off, leaves
+    /// it type-ahead as before. The setting is read here, at each Enter.
+    /// </summary>
+    private bool QueueLine(KeySource.WatchedLine line)
+    {
+        string label = line.Label.Trim();
+        if (!_effective().QueueMessages || label.Length == 0)
+        {
+            return false;
+        }
+
+        _queue.Enqueue(new QueuedMessage(label, line.Events));
+        return true;
+    }
+
+    /// <summary>
+    /// The pane phase of a mid-turn pane command, on the watcher task; its acts are posted. Then
+    /// what a double-click off the pane named (later on 2026-09-21, as <c>HandleAsync</c> at idle):
+    /// the pane's own word ends there; another <see cref="MidTurnClass.Pane"/> command's opens that
+    /// pane; a word refused under the reply (<c>/model</c>, <c>/cwd browse</c>) is the close alone —
+    /// a click deserves no refusal notice.
+    /// </summary>
+    private async Task RunPaneAsync(SlashCommand command, string args, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            await RunPaneOnceAsync(command, args, cancellationToken).ConfigureAwait(false);
+            if (_pane.TakeDismissHit() is not { } hit || OffPaneLine(hit) is not { } next)
+            {
+                return;
+            }
+
+            var (nextCommand, nextArgs) = ParseLine(next);
+            if (nextCommand == command || MidTurnPolicy(nextCommand, nextArgs.Length > 0) != MidTurnClass.Pane)
+            {
+                return;
+            }
+
+            command = nextCommand;
+            args = nextArgs;
+        }
+    }
+
+    private async Task RunPaneOnceAsync(SlashCommand command, string args, CancellationToken cancellationToken)
+    {
+        switch (command)
+        {
+            case SlashCommand.Help:
+                await _info.ShowAsync(InfoPane.Title, HelpTabs(), 0, cancellationToken).ConfigureAwait(false);
+                break;
+            case SlashCommand.Sys:
+                await _info.ShowAsync(SystemPromptSummary.Label, SysPromptTabs(), 0, cancellationToken).ConfigureAwait(false);
+                break;
+            case SlashCommand.Usage:
+                await _info.ShowAsync(UsageText.Label, UsageTabs(), 0, cancellationToken).ConfigureAwait(false);
+                break;
+            case SlashCommand.About:
+                await _info.ShowAsync(AboutText.Label, AboutTabs(), 0, cancellationToken).ConfigureAwait(false);
+                break;
+            case SlashCommand.Skills:
+                // A bare /skills: the list shows; a scope pick is refused under the reply (a move could race load_skill).
+                await _skillsMenu.ShowAsync(cancellationToken, midTurn: true).ConfigureAwait(false);
+                break;
+            case SlashCommand.Tools:
+                // /tools (2026-09-19): a flip saves and is read at the next turn; the settings rows edit as on /settings mid-turn (none reconnects).
+                await _toolsMenu.ShowAsync(cancellationToken, midTurn: true).ConfigureAwait(false);
+                break;
+            case SlashCommand.Police:
+                // /police (2026-09-22): the Shell police outside paths row alone, which /tools edits under a reply already; a flip is read at the next call.
+                await _toolsMenu.ShowPoliceAsync(cancellationToken).ConfigureAwait(false);
+                break;
+            case SlashCommand.CmdList:
+                // /cmdlist (2026-09-21): the allowed-commands row alone, which /tools edits under a reply already; a removal is read at the next approval.
+                await _toolsMenu.ShowAllowedCommandsAsync(cancellationToken).ConfigureAwait(false);
+                break;
+            case SlashCommand.Mcp:
+                // /mcp (2026-09-20): a tool flip saves for the next turn and the edit rows open the files; a server flip, a retry, a reload and the master switch are refused under the reply.
+                await _mcpMenu.ShowAsync(cancellationToken, midTurn: true).ConfigureAwait(false);
+                break;
+            case SlashCommand.Settings:
+                // The rows that would reconnect, switch the profile, move the sandbox or reshape
+                // the history are refused on the pane, so the flags come back empty.
+                await _menu.ShowAsync(cancellationToken, midTurn: true).ConfigureAwait(false);
+                break;
+            case SlashCommand.Memory:
+                // /memory (2026-09-22): the list pane, or forget's or copy's confirmation — the panes
+                // /forget opened and /memcopy was refused for, so all three forms are panes under a reply.
+                await HandleMemoryAsync(args, cancellationToken).ConfigureAwait(false);
+                break;
+            case SlashCommand.Queue:
+                await _queueMenu.ShowAsync(cancellationToken).ConfigureAwait(false);
+                break;
+            case SlashCommand.Session:
+                // The list alone: every pick is refused there, so nothing comes back to restore.
+                await _sessionsMenu.ShowAsync(cancellationToken, midTurn: true).ConfigureAwait(false);
+                break;
+            case SlashCommand.EmptyTrash:
+                await EmptyTrashAsync(cancellationToken).ConfigureAwait(false);
+                break;
+            case SlashCommand.Reasoning:
+                if (await _menu.PickReasoningAsync("", _effective().LlmReasoning, cancellationToken).ConfigureAwait(false))
+                {
+                    Post(() => Defer(SettingsChanges.Llm, MidTurnAppliesNotice));
+                }
+
+                break;
+        }
+    }
+
+    /// <summary>A quick command's act, on the turn task: the handler the idle line runs, with a reconnect deferred where one would follow.</summary>
+    private async Task HandleQuickAsync(SlashCommand command, string args, string text, CancellationToken cancellationToken)
+    {
+        switch (command)
+        {
+            case SlashCommand.Tts or SlashCommand.Voice or SlashCommand.Wake or SlashCommand.Interrupt:
+                await HandleSwitchAsync(command, args, midTurn: true, cancellationToken).ConfigureAwait(false);
+                break;
+            case SlashCommand.Reasoning:
+                if (await _menu.PickReasoningAsync(args, _effective().LlmReasoning, cancellationToken).ConfigureAwait(false))
+                {
+                    Defer(SettingsChanges.Llm, MidTurnAppliesNotice);
+                }
+
+                break;
+            case SlashCommand.Queue:
+                HandleQueueArgs(args);
+                break;
+            case SlashCommand.Expand or SlashCommand.Collapse:
+                // The tool runs and code blocks above the reply fold or unfold as it streams (2026-09-22).
+                SetFolds(command == SlashCommand.Expand);
+                break;
+            case SlashCommand.Copy:
+                HandleCopy(args);
+                break;
+            case SlashCommand.Remember:
+                Remember(args);
+                break;
+            case SlashCommand.Explore:
+                HandleExplore(args);
+                break;
+            case SlashCommand.Log:
+                HandleLog();
+                break;
+            case SlashCommand.Timer:
+                HandleTimer(args);
+                break;
+            case SlashCommand.Unknown:
+                _transcript.Error(UnknownCommandError(CommandWord(text)));
+                break;
+            case SlashCommand.Overloaded:
+                _transcript.Error(NoArgumentError(CommandWord(text)));
+                break;
+        }
+    }
+
+    /// <summary>A switch saved mid-turn: the reconnect it needs is owed to the turn's end, and the line says so.</summary>
+    private void Defer(SettingsChanges change, string notice)
+    {
+        _deferred |= change;
+        _transcript.Notice(notice);
+    }
+
+    /// <summary>Queues an act for the turn task and wakes its select.</summary>
+    private void Post(Func<Task> act)
+    {
+        _acts.Enqueue(act);
+        Volatile.Read(ref _actSignal).TrySetResult();
+    }
+
+    private void Post(Action act) => Post(() =>
+    {
+        act();
+        return Task.CompletedTask;
+    });
+
+    /// <summary>Runs <paramref name="act"/> here at the idle line, or posts it to the turn task while a turn runs (the pane phase of a confirmation).</summary>
+    private void RunOrPost(Action act)
+    {
+        if (_turnRunning)
+        {
+            Post(act);
+        }
+        else
+        {
+            act();
+        }
+    }
+
+    /// <summary>
+    /// The turn loop's wait: <paramref name="pending"/> (the enumerator's next event) or an act,
+    /// whichever comes first; the acts are run here and the wait resumes until the event is in.
+    /// The same pending task is awaited through every wake, so no event is lost.
+    /// </summary>
+    private async Task<bool> NextEventAsync(Task<bool> pending)
+    {
+        while (true)
+        {
+            var signal = Volatile.Read(ref _actSignal).Task;
+            await Task.WhenAny(pending, signal).ConfigureAwait(false);
+            await DrainActsAsync().ConfigureAwait(false);
+            if (pending.IsCompleted)
+            {
+                return await pending.ConfigureAwait(false);
+            }
+        }
+    }
+
+    /// <summary>Runs every queued act, a fresh signal armed first. A failing act is one error line, never the turn's end.</summary>
+    private async Task DrainActsAsync()
+    {
+        Interlocked.Exchange(ref _actSignal, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
+        while (_acts.TryDequeue(out var act))
+        {
+            try
+            {
+                await act().ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                DiagnosticLog.Error(ScreenPane.Category, "A mid-turn command failed: " + Llm.Assistant.Explain(ex), ex);
+            }
+        }
+    }
+
+    /// <summary>
+    /// After a turn: a pane still open on the watcher task is closed when the keys are needed at
+    /// once (<paramref name="closePane"/>: the interrupt's listen, the exit) and awaited otherwise
+    /// (the reply ended under <c>/help</c>; the user closes it), then the acts posted meanwhile run
+    /// and the reconnects the quick switches owe follow, quietly.
+    /// </summary>
+    private async Task EndTurnAsync(bool closePane, CancellationToken cancellationToken)
+    {
+        if (closePane && _paneClose is { } close)
+        {
+            VoiceSession.SafeCancel(close);
+        }
+
+        await _keys.PendingLine.ConfigureAwait(false);
+        _turnRunning = false;
+        await DrainActsAsync().ConfigureAwait(false);
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        var owed = _deferred;
+        _deferred = SettingsChanges.None;
+        if (owed.HasFlag(SettingsChanges.Llm))
+        {
+            await ConnectLlmAsync(cancellationToken, quiet: true).ConfigureAwait(false);
+        }
+
+        if (owed.HasFlag(SettingsChanges.Tts))
+        {
+            await ConnectSpeechAsync(cancellationToken, quiet: true).ConfigureAwait(false);
+        }
+
+        if (owed.HasFlag(SettingsChanges.Voice))
+        {
+            await ConnectVoiceAsync(cancellationToken, quiet: true).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// The <c>ask_user</c> tool's wait (2026-09-15), on the turn task: the questions go to the
+    /// watcher as a pane request (<see cref="KeySource.RequestPaneAsync"/>), which runs
+    /// <see cref="QuestionMenu.AskAsync"/> on its own task with the keys — the third thing that
+    /// runs there, after a line's pane and its acts — under a token linked to the turn's and the
+    /// pane-close signal, so the wake phrase, the app token or the turn's end close the pane; ESC
+    /// (or Ctrl+C, since 2026-09-17) inside it closes the pane alone (null: not answered) and the
+    /// reply runs on. The wait itself is
+    /// under the turn token: cancelled, the tool's cancellation ends the turn as ESC does. Null
+    /// too when no watcher could run the pane (never mid-turn on the screen; a guard). A pane that
+    /// fails is one error line and null, never the turn's end.
+    /// </summary>
+    private async Task<IReadOnlyList<AskAnswer>?> AskUserAsync(IReadOnlyList<AskQuestion> questions, CancellationToken turnToken)
+    {
+        var paneToken = _paneClose?.Token ?? CancellationToken.None;
+        IReadOnlyList<AskAnswer>? answers = null;
+        var request = _keys.RequestPaneAsync(async () =>
+        {
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(paneToken, turnToken);
+            try
+            {
+                answers = await _questionMenu.AskAsync(questions, linked.Token).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException && !linked.IsCancellationRequested)
+            {
+                DiagnosticLog.Error(ScreenPane.Category, "The question pane failed: " + Llm.Assistant.Explain(ex), ex);
+            }
+        });
+        try
+        {
+            await request.WaitAsync(turnToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!turnToken.IsCancellationRequested)
+        {
+            // No watcher to run the pane: never asked.
+            DiagnosticLog.Info(AppCategory, AskUserNotAskedLogLine);
+            return null;
+        }
+
+        DiagnosticLog.Info(AppCategory, answers is null ? AskUserNotAnsweredLogLine : AskUserAnsweredLogLine(questions.Count));
+        return answers;
+    }
+
+    /// <summary><c>ask_user: 2 questions answered</c>. Pinned.</summary>
+    public static string AskUserAnsweredLogLine(int questions) =>
+        string.Create(System.Globalization.CultureInfo.InvariantCulture, $"ask_user: {questions} question{(questions == 1 ? "" : "s")} answered");
+
+    public const string AskUserNotAnsweredLogLine = "ask_user: not answered (ESC).";
+    public const string AskUserNotAskedLogLine = "ask_user: never asked (no watcher to run the pane).";
+
+    /// <summary>
+    /// The gate's asker (2026-09-21), on the turn task: the <see cref="AskUserAsync"/> shape over the
+    /// approval pane (<see cref="CommandApprovalMenu"/>) — the request goes to the watcher as a pane
+    /// request, the wait is under the turn token, ESC inside the pane is a deny and the reply runs
+    /// on with the tool's refusal. Null (never asked) when no watcher could run the pane: the gate
+    /// answers with the no-screen sentence. A Session or Permanent pick is noted on the transcript
+    /// here, on its way back to the gate that records it — the pane is gone by then, and the line
+    /// reads above the tool's own.
+    /// </summary>
+    private async Task<CommandChoice?> ApproveCommandAsync(CommandRequest request, CancellationToken turnToken)
+    {
+        var paneToken = _paneClose?.Token ?? CancellationToken.None;
+        CommandChoice? choice = null;
+        var pending = _keys.RequestPaneAsync(async () =>
+        {
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(paneToken, turnToken);
+            try
+            {
+                choice = await _approvalMenu.AskAsync(request, linked.Token).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException && !linked.IsCancellationRequested)
+            {
+                DiagnosticLog.Error(ScreenPane.Category, "The approval pane failed: " + Llm.Assistant.Explain(ex), ex);
+            }
+        });
+        try
+        {
+            await pending.WaitAsync(turnToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!turnToken.IsCancellationRequested)
+        {
+            // No watcher to run the pane: never asked.
+            DiagnosticLog.Info(AppCategory, ApprovalNotAskedLogLine);
+            return null;
+        }
+
+        switch (choice)
+        {
+            case CommandChoice.Session:
+                _transcript.Notice(ShellText.SessionAllowedNotice(request.Prefixes));
+                break;
+            case CommandChoice.Permanent:
+                _transcript.Notice(ShellText.PermanentAllowedNotice(request.Prefixes));
+                break;
+        }
+
+        return choice;
+    }
+
+    public const string ApprovalNotAskedLogLine = "run_command: never asked (no watcher to run the pane).";
+
+    /// <summary>A yes/no question: the pane (<see cref="SettingsMenu.ConfirmAsync"/>) where menus open, else the question with <see cref="TypedConfirmSuffix"/> and a typed <c>y</c> on the input line.</summary>
+    private async Task<bool> ConfirmAsync(string question, CancellationToken cancellationToken)
+    {
+        if (_menu.CanShowMenus())
+        {
+            return await _menu.ConfirmAsync(question, cancellationToken).ConfigureAwait(false);
+        }
+
+        _transcript.Notice(TypedConfirm(question));
+        var answer = await _input.ReadAsync(remember: false, allowEmpty: true, cancellationToken: cancellationToken).ConfigureAwait(false);
+        return answer is InputResult.Submitted submitted && IsYes(submitted.Text);
+    }
+
+    /// <summary>
+    /// The transcript for code that may run on the watcher task (a menu's flow lines, a
+    /// confirmation's pre-check): written directly at the idle line, posted to the turn task while
+    /// a turn runs, so the streamed reply is never written into from two tasks.
+    /// </summary>
+    private sealed class FlowSink(ChatScreen screen) : INoticeSink
+    {
+        public void Notice(string text) => screen.RunOrPost(() => screen._transcript.Notice(text));
+
+        public void Warning(string text) => screen.RunOrPost(() => screen._transcript.Warning(text));
+
+        public void Error(string text) => screen.RunOrPost(() => screen._transcript.Error(text));
+    }
+}

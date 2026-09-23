@@ -1,8 +1,0 @@
-<Solution>
-  <Folder Name="/src/">
-    <Project Path="src/NeonCompanion/NeonCompanion.csproj" />
-  </Folder>
-  <Folder Name="/tests/">
-    <Project Path="tests/NeonCompanion.Tests/NeonCompanion.Tests.csproj" />
-  </Folder>
-</Solution>

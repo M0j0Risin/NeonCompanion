@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
   <!--
-    NeonCompanion icon: a neon speech bubble with a voice waveform inside.
-    A magenta neon-tube speech bubble on the deep-space tile, holding five cyan bars: a companion
-    that talks and listens. Colours are the synthwave palette in src/NeonCompanion/UI/SynthwaveTheme.cs
+    NeonSidekick icon: a neon speech bubble with a voice waveform inside.
+    A magenta neon-tube speech bubble on the deep-space tile, holding five cyan bars: a sidekick
+    that talks and listens. Colours are the synthwave palette in src/NeonSidekick/UI/SynthwaveTheme.cs
     (Bg #0B0416, Magenta #FF2E97, Cyan #33E0FF). Each tube is drawn twice: a blurred copy
     (feGaussianBlur, which Svg.Skia renders) for the glow, then the crisp tube on top.
     Keep shapes bold: the 16 px frame must still read as "pink box with cyan bars".
-    tools/IconGen.cs renders this to src/NeonCompanion/Assets/app.ico; commit both.
+    tools/IconGen.cs renders this to src/NeonSidekick/Assets/app.ico; commit both.
   -->
   <defs>
     <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
