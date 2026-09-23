@@ -43,7 +43,12 @@ public static class SqlText
     public static string PasswordSavedToCredman(string name, string target) => $"Saved the password of '{name}' to Windows Credential Manager as {target}.";
     public static string PasswordSaveFailed(string name, string detail) => $"Could not save the password of '{name}': {detail}.";
     public static string ConnectionNotInFile(string name) => $"no connection '{name}' was found in the file to write to";
-    public const string NoPasswordConnections = "No connection in sql.json takes a password (sql or runas); add one first.";
+    public static string ConnectionAlreadyInFile(string name) => $"a connection named '{name}' is already in the file";
+    public const string FileNotAnObject = "the file does not hold a JSON object";
+    public const string ConnectionsNotAnObject = "\"connections\" in the file is not an object";
+    public static string ConnectionAdded(string name, string path) => $"Added '{name}' to {path}.";
+    public static string ConnectionAddFailed(string name, string detail) => $"Could not add '{name}': {detail}.";
+    public const string NoPasswordConnections ="No connection in sql.json takes a password (sql or runas); add one first.";
     public static string BadEncrypt(string word) => $"\"encrypt\" is '{word}'; it must be strict, mandatory or optional";
     public static string BadConnectTimeout(int seconds, int max) => $"\"connectTimeoutSeconds\" is {Invariant(seconds)}; it must be 1 to {Invariant(max)}";
     public static string UnreadableFile(string detail) => $"the file cannot be read ({detail})";

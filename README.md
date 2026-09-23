@@ -57,6 +57,8 @@ Neon Sidekick is released under the GPLv3 license.
 * `Microsoft.Extensions.AI`
 * `Microsoft.Extensions.AI.OpenAI`
 * `Microsoft.Data.Sqlite`
+* `Microsoft.Data.SqlClient`
+* `Microsoft.SqlServer.TransactSql.ScriptDom`
 * `Microsoft.ML.OnnxRuntime`
 * `KokoroSharp`
 * `Whisper.net`
@@ -65,8 +67,6 @@ Neon Sidekick is released under the GPLv3 license.
 * `PhotoSauce.MagicScaler`
 * `Markdig`
 * `LibGit2Sharp`
-* `Microsoft.Data.SqlClient`
-* `Microsoft.SqlServer.TransactSql.ScriptDom`
 
 ## Settings & menus
 [↑ Back to top](#neon-sidekick)
@@ -289,6 +289,7 @@ Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Obsidian, SQL
 | SQL connections offered | Which connections of `sql.json` this profile offers the model: a checklist of every connection in the two files. Until you first use it every connection is offered, new ones too; once narrowed, only the ticked ones are, and a connection added to `sql.json` later stays hidden until you tick it. A hidden connection is out of every SQL tool, the rules, the `%`-mention and the default; `sql_connections` tells the model how many are hidden, never which. | all (not narrowed) |
 | SQL default connection | The connection a SQL tool uses when the call names none: a pick of the offered connections, or the first. A default, not a limit: a call that names another offered connection uses that one, and `database` still opens other databases on the same server under that login. | (the first connection) |
 | SQL set password | Enter picks a connection that takes a password (`sql` or `runas`) and asks for it masked, then saves it to that connection's store: encrypted in its `sql.json`, or Windows Credential Manager. | — |
+| SQL add connection | Enter walks a new connection through every choice, one page each: the scope of `sql.json` (profile or global), the name, the server, the database, the sign-in (`sql`, `windows` or `runas`), the account, where its password is kept and the password (masked), the encryption, trusting a self-signed certificate, the connect timeout and the description. The summary can **test** the unsaved draft (`SELECT @@VERSION`, nothing written) and saves it into the file, comments kept, the password encrypted or in Credential Manager; on a profile that narrowed *SQL connections offered* it can offer the new one too. ESC steps back a page; Enter on a summary row changes that choice. Adds only: edit an existing entry in the file. | — |
 | SQL %-mention enabled | `%` and part of a name on the input line lists the SQL connections of `sql.json` (with their server, database and description); a pick writes `%name` as text. Lists nothing while *SQL tools* is off. | on |
 | SQL max rows | How many rows `sql_query` returns unless the call says otherwise (1–1000); past it the header says more exist and the server stops. | 100 |
 | SQL query timeout (s) | How long one SQL tool's batch may run on the server before it is stopped (1–600). | 30 |
@@ -524,7 +525,7 @@ Read-only queries on SQL Server over named connections, in-process (Microsoft.Da
 - `file` (the default): in `password`, encrypted with Windows DPAPI (`dpapi:…`) — readable only by your Windows account on this machine. Type a password there in plain text if you like: when the app next starts (it checks the home's `sql.json` and every profile's, not only the loaded one), or sooner the next time it reads that file, it replaces just that value with the encrypted one, comments and layout kept.
 - `credman`: in Windows Credential Manager, as the Generic credential `credential` (default `NeonSidekick/sql/<connection name>`); nothing about the password is in the file.
 
-Either way, **SQL set password** on the SQL tab of `/tools` asks for it in a masked field and saves it to the connection's store. Without the pane (headless), write the `file` password in plain text and let the app encrypt it, or make the Credential Manager entry yourself from a command prompt (it asks for the password):
+The easiest way to add a connection is **SQL add connection** on the SQL tab of `/tools`, which asks every choice in turn, tests the draft and writes the entry. Either way, **SQL set password** on the SQL tab of `/tools` asks for it in a masked field and saves it to the connection's store. Without the pane (headless), write the `file` password in plain text and let the app encrypt it, or make the Credential Manager entry yourself from a command prompt (it asks for the password):
 
 ```
 cmdkey /generic:NeonSidekick/sql/reports-admin /user:CONTOSO\svc-reader /pass

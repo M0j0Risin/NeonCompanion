@@ -245,6 +245,173 @@ public sealed class SqlConfigFile
         }
     }
 
+    /// <summary>
+    /// Adds connection <paramref name="name"/> to <paramref name="path"/> (2026-09-23, the SQL tab's <c>SQL add connection</c>
+    /// wizard, the user's ask: step through every choice rather than hand-write the entry), the <see cref="WritePassword"/>
+    /// way — the file's comments and layout kept, the entry's bytes inserted: after the last entry of <c>connections</c>
+    /// (a comma before it), inside an empty one, or a whole <c>connections</c> object after the root's brace when the file
+    /// has none. A missing file is made with <see cref="EmptyText"/> first. The entry is <paramref name="config"/> through
+    /// <see cref="SqlJsonContext"/>, its <c>password</c> left out: the caller stores it after (<see cref="SqlSecrets.Save"/>),
+    /// so a plain password never reaches the disk. A name already in the file (as <see cref="Load"/> matches it) is refused.
+    /// Written to a temp file and moved over the original. Null on success, else why not.
+    /// </summary>
+    public static string? AddConnection(string path, string name, SqlConnectionConfig config)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(config);
+        name = name.Trim();
+        try
+        {
+            EnsureExists(path);
+            byte[] bytes = File.ReadAllBytes(path);
+            int bom = bytes.AsSpan().StartsWith((ReadOnlySpan<byte>)[0xEF, 0xBB, 0xBF]) ? 3 : 0;
+            var json = bytes.AsSpan(bom);
+            var spot = LocateInsert(json, name);
+            if (spot.Error is { } refused)
+            {
+                return refused;
+            }
+
+            string newline = json.IndexOf("\r\n"u8) >= 0 ? "\r\n" : "\n";
+            string entry = "\"" + JsonEncodedText.Encode(name, JavaScriptEncoder.UnsafeRelaxedJsonEscaping) + "\": " + EntryText(config, newline, "    ");
+            string insert = spot.Kind switch
+            {
+                InsertKind.AfterLast => "," + newline + "    " + entry,
+                InsertKind.IntoEmpty => newline + "    " + entry + newline + "  ",
+                InsertKind.IntoEmptyWithComments => newline + "    " + entry,
+                _ => newline + "  \"connections\": {" + newline + "    " + entry + newline + "  }" + (spot.RootHasKeys ? "," : ""),
+            };
+
+            byte[] inserted = Encoding.UTF8.GetBytes(insert);
+            int start = bom + spot.Start;
+            int end = bom + spot.End;
+            var rewritten = new byte[bytes.Length - (end - start) + inserted.Length];
+            bytes.AsSpan(0, start).CopyTo(rewritten);
+            inserted.CopyTo(rewritten.AsSpan(start));
+            bytes.AsSpan(end).CopyTo(rewritten.AsSpan(start + inserted.Length));
+
+            string temp = path + ".tmp";
+            File.WriteAllBytes(temp, rewritten);
+            File.Move(temp, path, overwrite: true);
+            return null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return LogText.Excerpt(ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// One connection object as <see cref="AddConnection"/> writes it: <see cref="SqlJsonContext"/>'s keys in its order,
+    /// indented two spaces a level under <paramref name="indent"/> (the entry's own), no <c>password</c>, the relaxed
+    /// escaping (a <c>DOMAIN\name</c> reads as typed, the backslash doubled), <paramref name="newline"/> the file's.
+    /// </summary>
+    private static string EntryText(SqlConnectionConfig config, string newline, string indent)
+    {
+        string? password = config.Password;
+        config.Password = null;
+        try
+        {
+            using var stream = new MemoryStream();
+            using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping }))
+            {
+                JsonSerializer.Serialize(writer, config, SqlJsonContext.Default.SqlConnectionConfig);
+            }
+
+            string text = Encoding.UTF8.GetString(stream.ToArray()).ReplaceLineEndings("\n");
+            return string.Join(newline + indent, text.Split('\n'));
+        }
+        finally
+        {
+            config.Password = password;
+        }
+    }
+
+    /// <summary>Where <see cref="AddConnection"/>'s bytes go in the file.</summary>
+    private enum InsertKind
+    {
+        /// <summary>After the last entry of <c>connections</c>, a comma first.</summary>
+        AfterLast,
+
+        /// <summary>Over the whitespace inside an empty <c>connections</c> object (<c>{}</c>, <c>{ }</c>).</summary>
+        IntoEmpty,
+
+        /// <summary>After the brace of an empty <c>connections</c> that holds comments, which stay after it.</summary>
+        IntoEmptyWithComments,
+
+        /// <summary>A whole <c>connections</c> object after the root's brace: the file has none.</summary>
+        NewConnections,
+    }
+
+    /// <summary>What <see cref="LocateInsert"/> found: the byte range to replace (empty for a plain insert), how, whether the root has other keys, or why not.</summary>
+    private readonly record struct InsertSpot(int Start, int End, InsertKind Kind, bool RootHasKeys, string? Error);
+
+    /// <summary>
+    /// Where a new <c>connections.&lt;name&gt;</c> goes in <paramref name="json"/> (the <see cref="Locate"/> walk): the refusal
+    /// when the root is not an object, <c>connections</c> is not one, or <paramref name="name"/> is already an entry
+    /// (trimmed, case-insensitive — as <see cref="SqlCatalog.Find"/> would match it).
+    /// </summary>
+    private static InsertSpot LocateInsert(ReadOnlySpan<byte> json, string name)
+    {
+        var reader = new Utf8JsonReader(json, new JsonReaderOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
+        if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject)
+        {
+            return new InsertSpot(0, 0, default, false, SqlText.FileNotAnObject);
+        }
+
+        int rootBrace = (int)reader.TokenStartIndex;
+        bool rootHasKeys = false;
+        while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+        {
+            rootHasKeys = true;
+            bool isConnections = reader.GetString()!.Equals("connections", StringComparison.OrdinalIgnoreCase);
+            reader.Read();
+            if (!isConnections)
+            {
+                reader.Skip();
+                continue;
+            }
+
+            if (reader.TokenType != JsonTokenType.StartObject)
+            {
+                return new InsertSpot(0, 0, default, true, SqlText.ConnectionsNotAnObject);
+            }
+
+            int open = (int)reader.TokenStartIndex;
+            int lastEnd = -1;
+            while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+            {
+                if (string.Equals(reader.GetString()!.Trim(), name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return new InsertSpot(0, 0, default, true, SqlText.ConnectionAlreadyInFile(name));
+                }
+
+                reader.Read();
+                reader.Skip();
+                lastEnd = (int)reader.BytesConsumed;
+            }
+
+            int close = (int)reader.TokenStartIndex;
+            if (lastEnd >= 0)
+            {
+                return new InsertSpot(lastEnd, lastEnd, InsertKind.AfterLast, true, null);
+            }
+
+            bool blank = true;
+            foreach (byte b in json[(open + 1)..close])
+            {
+                blank &= b is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n';
+            }
+
+            return blank
+                ? new InsertSpot(open + 1, close, InsertKind.IntoEmpty, true, null)
+                : new InsertSpot(open + 1, open + 1, InsertKind.IntoEmptyWithComments, true, null);
+        }
+
+        return new InsertSpot(rootBrace + 1, rootBrace + 1, InsertKind.NewConnections, rootHasKeys, null);
+    }
+
     /// <summary>Where <see cref="WritePassword"/> writes: the byte range to replace (empty for an insert) and, for an insert, what goes either side of the new key.</summary>
     private readonly record struct PasswordSpot(int Start, int End, bool Replace, string Prefix, string Suffix);
 

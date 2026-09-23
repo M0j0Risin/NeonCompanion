@@ -238,6 +238,72 @@ public sealed class SqlConfigFileTests : IDisposable
         Assert.Equal(SqlText.ConnectionNotInFile("nope"), SqlConfigFile.WritePassword(path, "nope", "dpapi:x"));
     }
 
+    /// <summary>
+    /// <see cref="SqlConfigFile.AddConnection"/> (later on 2026-09-23, the add-connection wizard): a missing file made with its
+    /// commented shape and the entry put inside its empty <c>connections</c>, the comments kept, the password left out; a
+    /// second entry after the first, a comma between; the name taken refused, as the loader would match it.
+    /// </summary>
+    [Fact]
+    public void AddConnection_MakesTheFile_KeepsItsComments_AndAppendsAfterTheLast()
+    {
+        string path = SqlConfigFile.ProfilePath(_profile);
+        var first = new SqlConnectionConfig { Server = "127.0.0.1,1433", Database = "AdventureWorks2022", Auth = "sql", User = "reader", Password = "never-written", PasswordStore = "file", Encrypt = "mandatory", TrustServerCertificate = true, Description = "the sample" };
+
+        Assert.Null(SqlConfigFile.AddConnection(path, " aw ", first));
+        Assert.Null(SqlConfigFile.AddConnection(path, "admin", new SqlConnectionConfig { Server = "sqlhost01", Auth = "runas", User = @"CONTOSO\svc-reader", PasswordStore = "credman", ConnectTimeoutSeconds = 30 }));
+
+        string text = File.ReadAllText(path);
+        Assert.StartsWith(SqlConfigFile.EmptyText[..SqlConfigFile.EmptyText.IndexOf("  \"connections\"", StringComparison.Ordinal)], text);
+        Assert.DoesNotContain("never-written", text);
+        Assert.Equal("never-written", first.Password);   // the caller's draft keeps it
+        Assert.Contains("  \"connections\": {\n    \"aw\": {\n      \"server\": \"127.0.0.1,1433\",\n", text);
+        Assert.Contains("      \"description\": \"the sample\"\n    },\n    \"admin\": {\n", text);
+        Assert.Contains("\"user\": \"CONTOSO\\\\svc-reader\"", text);
+        Assert.EndsWith("      \"connectTimeoutSeconds\": 30\n    }\n  }\n}\n", text);
+        var loaded = SqlConfigFile.Load(path);
+        Assert.Empty(loaded.Problems);
+        Assert.Equal(["aw", "admin"], loaded.Connections.Select(c => c.Name));
+        Assert.Equal(@"CONTOSO\svc-reader", loaded.Connections[1].Config.User);
+        Assert.True(loaded.Connections[0].Config.TrustServerCertificate);
+
+        Assert.Equal(SqlText.ConnectionAlreadyInFile("AW"), SqlConfigFile.AddConnection(path, "AW", first));
+        Assert.Equal(text, File.ReadAllText(path));
+    }
+
+    /// <summary>The other shapes: no <c>connections</c> key (made after the root's brace), an empty one holding a comment, the file's CRLF and BOM kept; a file that is not an object refused.</summary>
+    [Fact]
+    public void AddConnection_FitsTheFilesShape_OrRefusesOne_ItCannotWriteInto()
+    {
+        string path = SqlConfigFile.ProfilePath(_profile);
+        var windows = new SqlConnectionConfig { Server = "y", Auth = "windows" };
+
+        Profile("{ \"other\": 1 }");
+        Assert.Null(SqlConfigFile.AddConnection(path, "me", windows));
+        Assert.Equal(["me"], SqlConfigFile.Load(path).Connections.Select(c => c.Name));
+        Assert.EndsWith("    }\n  }, \"other\": 1 }", File.ReadAllText(path));
+
+        Profile("{}");
+        Assert.Null(SqlConfigFile.AddConnection(path, "me", windows));
+        Assert.Equal(["me"], SqlConfigFile.Load(path).Connections.Select(c => c.Name));
+
+        File.WriteAllBytes(path, [0xEF, 0xBB, 0xBF, .. System.Text.Encoding.UTF8.GetBytes("{\r\n  \"connections\": { // none yet\r\n  }\r\n}\r\n")]);
+        Assert.Null(SqlConfigFile.AddConnection(path, "me", windows));
+        byte[] bytes = File.ReadAllBytes(path);
+        Assert.Equal([0xEF, 0xBB, 0xBF], bytes[..3]);
+        string text = System.Text.Encoding.UTF8.GetString(bytes[3..]);
+        Assert.Contains("\"connections\": {\r\n    \"me\": {\r\n      \"server\": \"y\",\r\n", text);
+        Assert.Contains("// none yet", text);
+        Assert.DoesNotContain("\n", text.Replace("\r\n", "", StringComparison.Ordinal));
+        Assert.Equal(["me"], SqlConfigFile.Load(path).Connections.Select(c => c.Name));
+
+        Profile("""{ "connections": [] }""");
+        Assert.Equal(SqlText.ConnectionsNotAnObject, SqlConfigFile.AddConnection(path, "me", windows));
+        Profile("[]");
+        Assert.Equal(SqlText.FileNotAnObject, SqlConfigFile.AddConnection(path, "me", windows));
+        Profile("{ \"connections\": { ");
+        Assert.NotNull(SqlConfigFile.AddConnection(path, "me", windows));
+    }
+
     [Fact]
     public void TheListing_NamesEveryConnection_TheDefaultMarked_AndNeverThePassword()
     {

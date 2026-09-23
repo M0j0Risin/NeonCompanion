@@ -343,6 +343,9 @@ public enum SettingsField
 
     /// <summary>A checklist: which connections of <c>sql.json</c> this profile offers (<see cref="Settings.AppSettingsData.SqlConnectionsOffered"/>). The SQL tab's second row (later on 2026-09-23); no reconnect (read at each call). Last in the enum, as every newcomer.</summary>
     SqlConnectionsOffered,
+
+    /// <summary>An action row, no setting behind it (later on 2026-09-23, the user's ask): Enter walks a new connection through every choice — the file, the name, the server, the sign-in, the password (masked), the TLS pair — tests it and adds it to that <c>sql.json</c> (<c>SettingsMenu.SqlWizard.cs</c>). The SQL tab's fifth row, under <see cref="SqlSetPassword"/>. Last in the enum, as every newcomer.</summary>
+    SqlAddConnection,
 }
 
 /// <summary>The tabs of <c>/settings</c> on the pane, in strip order (Sessions right after General — the user's order, 2026-09-18; STT last since 2026-09-19, when the Ask, Files and Web tabs moved to <c>/tools</c> — <see cref="SettingsMenu.ToolsTabFields"/> — and, later that day, the Skills tab to <c>/skills</c> as its Options tab — <see cref="SettingsMenu.SkillsTabFields"/>); the value is the index into <see cref="SettingsMenu.TabTitles"/> and <see cref="SettingsMenu.TabFields"/>.</summary>
@@ -402,7 +405,7 @@ public enum SettingsChanges
 /// says the override still wins. The model list is never empty: the current id is always offered,
 /// so a server that lists nothing (or wants a key) still lets the user type one.</para>
 /// </summary>
-internal sealed class SettingsMenu
+internal sealed partial class SettingsMenu
 {
     // The labels and the key hints: the pane shows the label as its title and the keys in its hint
     // row; the prompt host joins them (PromptTitle). Every pane's title leads with its glyph since
@@ -601,7 +604,7 @@ internal sealed class SettingsMenu
         [SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices],
         [SettingsField.GitNativeTools, SettingsField.GitNativeDiffMaxLines, SettingsField.GitNativeLogMaxCommits, SettingsField.GitNativeEmail, SettingsField.GitNativeName],
         [SettingsField.ObsidianTools, SettingsField.ObsidianVault, SettingsField.ObsidianAllowDelete],
-        [SettingsField.SqlTools, SettingsField.SqlConnectionsOffered, SettingsField.SqlDefaultConnection, SettingsField.SqlSetPassword, SettingsField.SqlPercentMention, SettingsField.SqlQueryMaxRows, SettingsField.SqlQueryTimeoutSeconds, SettingsField.SqlConnectionsProfile, SettingsField.SqlConnectionsGlobal],
+        [SettingsField.SqlTools, SettingsField.SqlConnectionsOffered, SettingsField.SqlDefaultConnection, SettingsField.SqlSetPassword, SettingsField.SqlAddConnection, SettingsField.SqlPercentMention, SettingsField.SqlQueryMaxRows, SettingsField.SqlQueryTimeoutSeconds, SettingsField.SqlConnectionsProfile, SettingsField.SqlConnectionsGlobal],
         [SettingsField.ToolsDollarMention, SettingsField.ToolCollapseCount, SettingsField.CodeCollapseCount],
     ];
 
@@ -626,6 +629,7 @@ internal sealed class SettingsMenu
     private readonly Func<CancellationToken, Task<string?>>? _browseFolder;
     private readonly Func<string, CancellationToken, Task<string?>>? _browseVault;
     private readonly Action<string>? _openFile;
+    private readonly Func<Sql.SqlNamedConnection, CancellationToken, Task<Sql.SqlRun>> _testSqlConnection;
     private readonly Func<string, string?> _locateBrowser;
     private readonly Func<IReadOnlySet<string>> _installedShells;
     private readonly Func<IReadOnlySet<string>> _installedLanguages;
@@ -646,10 +650,12 @@ internal sealed class SettingsMenu
     /// <param name="locateBrowser">What the empty <c>Web browser path</c> row names: the headless browser auto-detection finds (<see cref="Web.IHeadlessBrowser.Locate"/>); null = the real one.</param>
     /// <param name="installedShells">The shells the <c>Shell default</c> picker marks as found (their <see cref="Shell.ShellKinds.Names"/> words; the screen's <see cref="Shell.Interpreters"/>, 2026-09-21); null = all three marked found.</param>
     /// <param name="installedLanguages">The languages the <c>Shell code languages</c> list marks as found (their <see cref="Shell.CodeLanguages.Names"/> words); null = all three marked found.</param>
+    /// <param name="testSqlConnection">What the <c>SQL add connection</c> summary's test runs over the unsaved draft (later on 2026-09-23), its typed password in it as a plain <c>file</c> value; null = a real <see cref="Sql.SqlAccess"/> run of <see cref="SqlTestQuery"/>.</param>
     /// <param name="openFile">What the SQL tab's edit rows open <c>sql.json</c> with (2026-09-23): the screen's editor opener; null = the rows say there is none.</param>
     /// <param name="browseFolder">The folder picker the <c>Working directory (cwd)</c> row opens (2026-09-22, the user's ask): the screen's <c>/cwd browse</c> tree, returning what to save — <c>""</c> for the profile's folder, a full path, or null for nothing chosen. Null (and a console with no pane) falls back to the typed path the row asked for until then.</param>
-    public SettingsMenu(IAnsiConsole console, AppSettings settings, Func<SettingsField, string?> overriddenBy, InputLine input, TranscriptRenderer transcript, SpeechSession speech, MenuPane pane, Func<string, string?>? locateBrowser = null, Func<IReadOnlySet<string>>? installedShells = null, Func<IReadOnlySet<string>>? installedLanguages = null, Func<CancellationToken, Task<string?>>? browseFolder = null, Func<string, CancellationToken, Task<string?>>? browseVault = null, Action<string>? openFile = null)
+    public SettingsMenu(IAnsiConsole console, AppSettings settings, Func<SettingsField, string?> overriddenBy, InputLine input, TranscriptRenderer transcript, SpeechSession speech, MenuPane pane, Func<string, string?>? locateBrowser = null, Func<IReadOnlySet<string>>? installedShells = null, Func<IReadOnlySet<string>>? installedLanguages = null, Func<CancellationToken, Task<string?>>? browseFolder = null, Func<string, CancellationToken, Task<string?>>? browseVault = null, Action<string>? openFile = null, Func<Sql.SqlNamedConnection, CancellationToken, Task<Sql.SqlRun>>? testSqlConnection = null)
     {
+        _testSqlConnection = testSqlConnection ?? TestSqlConnectionAsync;
         _browseFolder = browseFolder;
         _openFile = openFile;
         _browseVault = browseVault;
@@ -915,6 +921,7 @@ internal sealed class SettingsMenu
         SettingsField.SqlDefaultConnection => "SQL default connection",
         SettingsField.SqlConnectionsOffered => "SQL connections offered",
         SettingsField.SqlSetPassword => "SQL set password",
+        SettingsField.SqlAddConnection => "SQL add connection",
         SettingsField.SqlPercentMention => "SQL %-mention enabled",
         SettingsField.SqlQueryMaxRows => "SQL max rows",
         SettingsField.SqlQueryTimeoutSeconds => "SQL query timeout (s)",
@@ -1055,6 +1062,7 @@ internal sealed class SettingsMenu
             SettingsField.SqlTools => OnOff(data.SqlTools),
             SettingsField.SqlDefaultConnection => string.IsNullOrWhiteSpace(data.SqlDefaultConnection) ? FirstSqlConnectionLabel : data.SqlDefaultConnection,
             SettingsField.SqlSetPassword => SqlSetPasswordLabel,
+            SettingsField.SqlAddConnection => SqlAddConnectionLabel,
             SettingsField.SqlConnectionsOffered => SqlOfferedValue(data.SqlConnectionsOffered, Sql.SqlConfigFile.LoadCatalog(profileDirectory, Profiles.HomeOf(profileDirectory))),
             SettingsField.SqlPercentMention => OnOff(data.SqlPercentMention),
             SettingsField.SqlQueryMaxRows => SqlRows(data.SqlQueryMaxRows),
@@ -1174,7 +1182,7 @@ internal sealed class SettingsMenu
     }
 
     /// <summary>The value column of the <c>SQL set password</c> action row (later on 2026-09-23). Pinned.</summary>
-    public const string SqlSetPasswordLabel = "Enter asks for a connection's password (masked)";
+    public const string SqlSetPasswordLabel = "Enter to set password for a connection";
 
     /// <summary>A connection on the <c>SQL set password</c> pick: its name and where its password goes. Pinned.</summary>
     public static string SqlPasswordRow(Sql.SqlNamedConnection connection)
@@ -2066,6 +2074,11 @@ internal sealed class SettingsMenu
         if (field == SettingsField.SqlConnectionsOffered)
         {
             return await EditSqlOfferedAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.SqlAddConnection)
+        {
+            return await AddSqlConnectionAsync(cancellationToken).ConfigureAwait(false);
         }
 
         if (field == SettingsField.SqlSetPassword)

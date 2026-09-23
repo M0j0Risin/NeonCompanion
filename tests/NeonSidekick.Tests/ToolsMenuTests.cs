@@ -86,13 +86,13 @@ public class ToolsMenuTests : IDisposable
     }
 
     /// <summary>The menu over a pane with geometry: every list is a level of the pane, the notices its status line.</summary>
-    private (ToolsMenu Menu, ScreenPane Pane, SettingsMenu Settings) PaneMenu(Func<string, CancellationToken, Task<string?>>? browseVault = null)
+    private (ToolsMenu Menu, ScreenPane Pane, SettingsMenu Settings) PaneMenu(Func<string, CancellationToken, Task<string?>>? browseVault = null, Func<NeonSidekick.Sql.SqlNamedConnection, CancellationToken, Task<NeonSidekick.Sql.SqlRun>>? testSql = null)
     {
         _console.Profile.Height = 40;
         var pane = new ScreenPane(_console, new ScreenGeometry(() => null), new ManualTimeProvider()) { Hint = () => "idle" };
         var keys = new KeySource(_console.Input, TimeSpan.FromMilliseconds(1));
         var menuPane = new MenuPane(pane, keys);
-        var settings = new SettingsMenu(new ConsoleWithInput(pane, keys), _settings, _ => null, new InputLine(pane, keys), new TranscriptRenderer(pane), _speech, menuPane, _ => FakeBrowserPath, browseVault: browseVault);
+        var settings = new SettingsMenu(new ConsoleWithInput(pane, keys), _settings, _ => null, new InputLine(pane, keys), new TranscriptRenderer(pane), _speech, menuPane, _ => FakeBrowserPath, browseVault: browseVault, testSqlConnection: testSql);
         var menu = new ToolsMenu(Facts, _settings, settings, new TranscriptRenderer(pane), menuPane);
         pane.Show();
         return (menu, pane, settings);
@@ -147,7 +147,7 @@ public class ToolsMenuTests : IDisposable
         Assert.Equal([SettingsField.AskUser, SettingsField.AskMaxQuestions, SettingsField.AskMaxChoices], SettingsMenu.ToolsTabFields[3]);
         Assert.Equal([SettingsField.GitNativeTools, SettingsField.GitNativeDiffMaxLines, SettingsField.GitNativeLogMaxCommits, SettingsField.GitNativeEmail, SettingsField.GitNativeName], SettingsMenu.ToolsTabFields[4]);   // the switch first, then the limits, then the identity pair (2026-09-21); the Git native labels later that day
         Assert.Equal([SettingsField.ObsidianTools, SettingsField.ObsidianVault, SettingsField.ObsidianAllowDelete], SettingsMenu.ToolsTabFields[5]);   // the switch, then the vault (2026-09-22), then the delete switch (later that day)
-        Assert.Equal([SettingsField.SqlTools, SettingsField.SqlConnectionsOffered, SettingsField.SqlDefaultConnection, SettingsField.SqlSetPassword, SettingsField.SqlPercentMention, SettingsField.SqlQueryMaxRows, SettingsField.SqlQueryTimeoutSeconds, SettingsField.SqlConnectionsProfile, SettingsField.SqlConnectionsGlobal], SettingsMenu.ToolsTabFields[6]);   // the switch, the offered list (later that day), the default, the password prompt and the %-mention switch (later that day), the two caps, the two edit rows (2026-09-23)
+        Assert.Equal([SettingsField.SqlTools, SettingsField.SqlConnectionsOffered, SettingsField.SqlDefaultConnection, SettingsField.SqlSetPassword, SettingsField.SqlAddConnection, SettingsField.SqlPercentMention, SettingsField.SqlQueryMaxRows, SettingsField.SqlQueryTimeoutSeconds, SettingsField.SqlConnectionsProfile, SettingsField.SqlConnectionsGlobal], SettingsMenu.ToolsTabFields[6]);   // the switch, the offered list (later that day), the default, the password prompt, the add-connection wizard and the %-mention switch (later that day), the two caps, the two edit rows (2026-09-23)
         Assert.Equal(Enum.GetValues<SettingsField>().Order(), SettingsMenu.TabFields.Concat(SettingsMenu.SkillsTabFields).Concat(SettingsMenu.ToolsTabFields).Concat(SettingsMenu.McpTabFields).SelectMany(t => t).Order());
         Assert.Equal(21, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[7]));   // "Tool collapse count" (2026-09-22; "$-mention enabled", 19, before)
         Assert.Equal(26, SettingsMenu.LabelWidthOf(SettingsMenu.ToolsTabFields[0]));   // "Web browser network mode" (the Web-prefixed labels, later still on 2026-09-19; "Web search max results", 24, before)
@@ -359,6 +359,229 @@ public class ToolsMenuTests : IDisposable
         Assert.DoesNotContain("s3cret", _console.Output);
         Assert.Contains("Saved the password of 'prod', encrypted, in ", _console.Output);
         Assert.Equal("prod  (runas CONTOSO\\svc-test · encrypted in sql.json)", SettingsMenu.SqlPasswordRow(loaded.Connections[0]));
+    }
+
+    /// <summary>Types <paramref name="text"/> into the open slot and submits it.</summary>
+    private void Type(string text) => Push([.. text.Select(Keys.Char), Keys.Enter]);
+
+    /// <summary>Offered → Options → SQL, the add-connection row (the fifth, under the password prompt): the wizard.</summary>
+    private void OpenSqlWizard() => Push(Keys.Left, Keys.Left, Keys.Down, Keys.Down, Keys.Down, Keys.Down, Keys.Enter);
+
+    /// <summary>
+    /// <c>SQL add connection</c> (later on 2026-09-23, the user's ask): a SQL login walked through every page into the profile's
+    /// file, the test run over the unsaved draft (its password handed over plain, nothing written), then saved — the entry in the
+    /// file, the password encrypted after it, never on screen.
+    /// </summary>
+    [Fact]
+    public async Task OnThePane_TheSqlWizard_WalksASqlLogin_TestsTheDraft_AndSavesIt()
+    {
+        string path = NeonSidekick.Sql.SqlConfigFile.ProfilePath(_settings.ProfileDirectory);
+        var tested = new List<(NeonSidekick.Sql.SqlNamedConnection Connection, bool FileThere)>();
+        var (menu, _, _) = PaneMenu(testSql: (c, _) =>
+        {
+            tested.Add((c, File.Exists(path)));
+            return Task.FromResult(new NeonSidekick.Sql.SqlRun(NeonSidekick.Sql.SqlOutcome.Ok, "", c.Name, "", [new NeonSidekick.Sql.SqlGrid(["v"], [["Microsoft SQL Server 2022 (RTM) - 16.0\n\tCopyright"]], false)], TimeSpan.Zero));
+        });
+        OpenSqlWizard();
+        Push(Keys.Enter);                         // the profile's file
+        Type("aw");
+        Type("127.0.0.1,1433");
+        Type("AdventureWorks2022");
+        Push(Keys.Enter);                         // sql
+        Type("reader");
+        Push(Keys.Enter);                         // file
+        Type("s3cret");
+        Push(Keys.Enter);                         // mandatory
+        Push(Keys.Char('y'), Keys.Enter);         // trust the certificate
+        Push(Keys.Enter);                         // the default timeout
+        Type("the sample");
+        Push(Keys.Down, Keys.Enter);              // Test
+        Push(Keys.Up, Keys.Enter);                // Save
+        Push(Keys.Escape);
+
+        await menu.ShowAsync(CancellationToken.None);
+
+        var (connection, fileThere) = Assert.Single(tested);
+        Assert.False(fileThere);
+        Assert.Equal("s3cret", connection.Config.Password);
+        Assert.Equal("file", connection.Config.PasswordStore);
+        var loaded = NeonSidekick.Sql.SqlConfigFile.Load(path);
+        var aw = Assert.Single(loaded.Connections);
+        Assert.Equal("aw", aw.Name);
+        Assert.Equal("127.0.0.1,1433", aw.Config.Server);
+        Assert.Equal("AdventureWorks2022", aw.Config.Database);
+        Assert.Equal("reader", aw.Config.User);
+        Assert.True(aw.Config.TrustServerCertificate);
+        Assert.Null(aw.Config.ConnectTimeoutSeconds);
+        Assert.Equal("the sample", aw.Config.Description);
+        Assert.StartsWith(NeonSidekick.Sql.WindowsCredentials.ProtectedPrefix, aw.Config.Password);
+        Assert.Equal("s3cret", NeonSidekick.Sql.SqlSecrets.Resolve(aw).Value);
+        Assert.StartsWith(NeonSidekick.Sql.SqlConfigFile.EmptyText[..40], File.ReadAllText(path));   // made with its commented shape
+        Assert.Contains(SettingsMenu.SqlWizardTestOkNotice("aw", "Microsoft SQL Server 2022 (RTM) - 16.0"), _console.Output);
+        Assert.Contains("Added 'aw' to ", _console.Output);   // the status line cuts the temp path at the pane's width
+        Assert.Equal("Added 'aw' to " + path + ".", NeonSidekick.Sql.SqlText.ConnectionAdded("aw", path));
+        Assert.Contains(SettingsMenu.SqlWizardSummaryCaption, _console.Output);
+        Assert.Contains(SettingsMenu.SqlWizardMasked, _console.Output);
+        Assert.DoesNotContain("s3cret", _console.Output);
+        Assert.Null(_settings.Current.SqlConnectionsOffered);   // not narrowed: offered as it is
+    }
+
+    /// <summary>
+    /// The wizard's other paths: Windows sign-in into the home's file skips the account and password pages; a bad timeout
+    /// asks again; on a profile that narrowed its offered list the first save row offers the new one too.
+    /// </summary>
+    [Fact]
+    public async Task OnThePane_TheSqlWizard_WindowsSignIn_IntoTheHomesFile_OfferedToTheModel()
+    {
+        _settings.Update(d => d.SqlConnectionsOffered = ["other"]);
+        string path = NeonSidekick.Sql.SqlConfigFile.GlobalPath(_settings.StorageDirectory);
+        var (menu, _, _) = PaneMenu();
+        OpenSqlWizard();
+        Push(Keys.Down, Keys.Enter);              // the home's file
+        Type("me");
+        Type("sqlhost01");
+        Push(Keys.Enter);                         // the login's default database
+        Push(Keys.Down, Keys.Enter);              // windows: no user, store or password page follows
+        Push(Keys.Enter);                         // mandatory
+        Push(Keys.Enter);                         // no
+        Type("abc");
+        Push(Keys.Backspace, Keys.Backspace, Keys.Backspace);
+        Type("30");
+        Push(Keys.Enter);                         // no description
+        Push(Keys.Enter);                         // Save, and offer it
+        Push(Keys.Escape);
+
+        await menu.ShowAsync(CancellationToken.None);
+
+        var me = Assert.Single(NeonSidekick.Sql.SqlConfigFile.Load(path).Connections);
+        Assert.Equal("windows", me.Config.Auth);
+        Assert.Null(me.Config.User);
+        Assert.Null(me.Config.PasswordStore);
+        Assert.Null(me.Config.Password);
+        Assert.Null(me.Config.Database);
+        Assert.Equal(30, me.Config.ConnectTimeoutSeconds);
+        Assert.Equal(["other", "me"], _settings.Current.SqlConnectionsOffered);
+        Assert.Contains(SettingsMenu.SqlWizardTimeoutError("abc"), _console.Output);
+        Assert.Contains(SettingsMenu.SqlWizardSaveHiddenRow, _console.Output);
+        Assert.False(File.Exists(NeonSidekick.Sql.SqlConfigFile.ProfilePath(_settings.ProfileDirectory)));
+    }
+
+    /// <summary>ESC steps back a page at a time, the answers kept; before the first page it ends with nothing written.</summary>
+    [Fact]
+    public async Task OnThePane_TheSqlWizard_EscStepsBack_AndOutOfTheFirstPage_WritesNothing()
+    {
+        var (menu, _, _) = PaneMenu();
+        OpenSqlWizard();
+        Push(Keys.Enter);
+        Type("aw");
+        Push(Keys.Escape);                        // the server page: back to the name, "aw" in its slot
+        Push(Keys.Enter);                         // kept: forward again
+        Push(Keys.Escape, Keys.Escape, Keys.Escape);   // server → name → file → out
+        Push(Keys.Escape);
+
+        await menu.ShowAsync(CancellationToken.None);
+
+        Assert.Contains(SettingsMenu.SqlWizardCancelledNotice, _console.Output);
+        Assert.DoesNotContain(SettingsMenu.SqlWizardNameRequired, _console.Output);
+        Assert.False(File.Exists(NeonSidekick.Sql.SqlConfigFile.ProfilePath(_settings.ProfileDirectory)));
+    }
+
+    /// <summary>
+    /// A name the file has is refused, a runas account without a domain too; a failed test says the server's words and still
+    /// leaves the choice; Cancel writes nothing (a Credential Manager draft never reaches the store).
+    /// </summary>
+    [Fact]
+    public async Task OnThePane_TheSqlWizard_RefusesATakenName_AndARunAsWithoutDomain_AndCancelWritesNothing()
+    {
+        string path = NeonSidekick.Sql.SqlConfigFile.ProfilePath(_settings.ProfileDirectory);
+        Directory.CreateDirectory(_settings.ProfileDirectory);
+        const string Before = """{ "connections": { "aw": { "server": "x", "auth": "windows" } } }""";
+        File.WriteAllText(path, Before);
+        var (menu, _, _) = PaneMenu(testSql: (c, _) => Task.FromResult(NeonSidekick.Sql.SqlRun.Refused(NeonSidekick.Sql.SqlOutcome.ConnectFailed, "Login failed for user.", c.Name)));
+        OpenSqlWizard();
+        Push(Keys.Enter);
+        Type("AW");                               // taken, whatever the case
+        Push(Keys.Backspace, Keys.Backspace);
+        Type("rep");
+        Type("sqlhost01");
+        Push(Keys.Enter);
+        Push(Keys.Down, Keys.Down, Keys.Enter);   // runas
+        Type("svc");                              // no domain
+        Push(Keys.Backspace, Keys.Backspace, Keys.Backspace);
+        Type(@"CONTOSO\svc");
+        Push(Keys.Down, Keys.Enter);              // credman
+        Type("pw");
+        Push(Keys.Enter, Keys.Enter, Keys.Enter, Keys.Enter);   // mandatory, no, the default timeout, no description
+        Push(Keys.Down, Keys.Enter);              // Test: refused
+        Push(Keys.Down, Keys.Enter);              // Cancel
+        Push(Keys.Escape);
+
+        await menu.ShowAsync(CancellationToken.None);
+
+        Assert.Contains("'AW' is already in ", _console.Output);
+        Assert.Contains(NeonSidekick.Sql.SqlText.RunAsNeedsDomain("svc"), _console.Output);
+        Assert.Contains("Error: could not connect to rep: Login failed for user.", _console.Output);
+        Assert.Contains(SettingsMenu.SqlWizardCancelledNotice, _console.Output);
+        Assert.Equal(Before, File.ReadAllText(path));
+    }
+
+    /// <summary>The summary's real test (no fake): the live server's login walked in, <c>SELECT @@VERSION</c> answered, then Cancel — nothing written.</summary>
+    [LiveSqlFact]
+    public async Task OnThePane_TheSqlWizard_TestsALiveServer()
+    {
+        var live = LiveSql.Config!;
+        var (menu, _, _) = PaneMenu();
+        OpenSqlWizard();
+        Push(Keys.Enter);
+        Type("live");
+        Type(live.Server!);
+        Type(live.Database ?? "");
+        Push(Keys.Enter);                         // sql
+        Type(live.User!);
+        Push(Keys.Enter);                         // file
+        Type(LiveSql.Password);
+        int encrypt = SettingsMenu.SqlWizardEncryptWords.ToList().IndexOf(live.Encrypt!);
+        Push([.. Enumerable.Repeat(Keys.Down, encrypt), Keys.Enter]);
+        Push(live.TrustServerCertificate ? Keys.Char('y') : Keys.Char('n'), Keys.Enter);
+        Push(Keys.Enter, Keys.Enter);             // the default timeout, no description
+        Push(Keys.Down, Keys.Enter);              // Test
+        Push(Keys.Down, Keys.Enter);              // Cancel
+        Push(Keys.Escape);
+
+        await menu.ShowAsync(CancellationToken.None);
+
+        Assert.Contains("Connected to 'live': Microsoft SQL Server", _console.Output);
+        Assert.DoesNotContain(LiveSql.Password, _console.Output);
+        Assert.False(File.Exists(NeonSidekick.Sql.SqlConfigFile.ProfilePath(_settings.ProfileDirectory)));
+    }
+
+    /// <summary>Enter on a summary row changes that choice and comes back — by the page the change now asks for (a sign-in that takes a password asks for the account and the password).</summary>
+    [Fact]
+    public async Task OnThePane_TheSqlWizard_ChangesAChoiceFromTheSummary()
+    {
+        string path = NeonSidekick.Sql.SqlConfigFile.ProfilePath(_settings.ProfileDirectory);
+        var (menu, _, _) = PaneMenu();
+        OpenSqlWizard();
+        Push(Keys.Enter);
+        Type("me");
+        Type("sqlhost01");
+        Push(Keys.Enter);
+        Push(Keys.Down, Keys.Enter);              // windows
+        Push(Keys.Enter, Keys.Enter, Keys.Enter, Keys.Enter);
+        // The summary: Save, Test, Cancel, then the rows File, Name, Server, Database, Sign-in (the eighth).
+        Push(Keys.Down, Keys.Down, Keys.Down, Keys.Down, Keys.Down, Keys.Down, Keys.Down, Keys.Enter);
+        Push(Keys.Up, Keys.Enter);                // sql: the user page, then the password page, then the summary
+        Type("reader");
+        Type("pw");
+        Push(Keys.Home, Keys.Enter);              // Save
+        Push(Keys.Escape);
+
+        await menu.ShowAsync(CancellationToken.None);
+
+        var me = Assert.Single(NeonSidekick.Sql.SqlConfigFile.Load(path).Connections);
+        Assert.Equal("sql", me.Config.Auth);
+        Assert.Equal("reader", me.Config.User);
+        Assert.Equal("pw", NeonSidekick.Sql.SqlSecrets.Resolve(me).Value);
     }
 
     /// <summary>
@@ -749,7 +972,7 @@ public class ToolsMenuTests : IDisposable
         Assert.Contains("  · Web\n  ·   Web tools: on\n  ·   Web browser mode: default\n  ·   Web browser path: (auto: msedge.exe)\n", _console.Output);
         Assert.Contains("  ·   Web search max results: 20 results\n  · Files\n  ·   File tools: on\n  ·   File safe edits: off\n", _console.Output);
         Assert.Contains("  · Shell\n  ·   Shell command policy: ask\n", _console.Output);
-        Assert.Contains("  · Ask\n  ·   Ask user: on\n  ·   Ask max questions: 10 questions\n  ·   Ask max choices per question: 10 choices\n  · Git (native)\n  ·   Git native tools: on\n  ·   Git native diff max lines: 500 lines\n  ·   Git native log max commits: 20 commits\n  ·   Git native email: (not set)\n  ·   Git native name: (not set)\n  · Obsidian\n  ·   Obsidian tools: on\n  ·   Obsidian vault: (not set)\n  ·   Obsidian allow delete (.trash): on\n  · SQL\n  ·   SQL tools: on\n  ·   SQL connections offered: all (not narrowed)\n  ·   SQL default connection: (the first connection)\n  ·   SQL set password: Enter asks for a connection's password (masked)\n  ·   SQL %-mention enabled: on\n  ·   SQL max rows: 100 rows\n  ·   SQL query timeout (s): 30\n  ·   SQL connections (profile): (none) · Enter edits sql.json\n  ·   SQL connections (global): (none) · Enter edits sql.json\n  · Options\n  ·   $-mention enabled: on\n  ·   Tool collapse count: 2 lines\n  ·   Code collapse count: 20 lines\n", _console.Output);
+        Assert.Contains("  · Ask\n  ·   Ask user: on\n  ·   Ask max questions: 10 questions\n  ·   Ask max choices per question: 10 choices\n  · Git (native)\n  ·   Git native tools: on\n  ·   Git native diff max lines: 500 lines\n  ·   Git native log max commits: 20 commits\n  ·   Git native email: (not set)\n  ·   Git native name: (not set)\n  · Obsidian\n  ·   Obsidian tools: on\n  ·   Obsidian vault: (not set)\n  ·   Obsidian allow delete (.trash): on\n  · SQL\n  ·   SQL tools: on\n  ·   SQL connections offered: all (not narrowed)\n  ·   SQL default connection: (the first connection)\n  ·   SQL set password: Enter to set password for a connection\n  ·   SQL add connection: Enter to start connection wizard\n  ·   SQL %-mention enabled: on\n  ·   SQL max rows: 100 rows\n  ·   SQL query timeout (s): 30\n  ·   SQL connections (profile): (none) · Enter edits sql.json\n  ·   SQL connections (global): (none) · Enter edits sql.json\n  · Options\n  ·   $-mention enabled: on\n  ·   Tool collapse count: 2 lines\n  ·   Code collapse count: 20 lines\n", _console.Output);
         Assert.False(pane.OverlayOpen);
         pane.Dispose();
     }
