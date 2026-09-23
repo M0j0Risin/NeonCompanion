@@ -52,17 +52,49 @@ public sealed class SqlConfigFile
     /// <summary>The log category of everything SQL.</summary>
     public const string Category = "Sql";
 
-    /// <summary>What a fresh file holds: no connections, a comment on the shape. Pinned.</summary>
+    /// <summary>
+    /// What a fresh file holds: no connections, and a commented example of each kind — a SQL login, Windows sign-in as
+    /// the user, and <c>runas</c> with its password in Credential Manager or in the file (later on 2026-09-23, the
+    /// user's ask) — each one valid once its <c>//</c> are removed (pinned by a test). Pinned.
+    /// </summary>
     public const string EmptyText =
         "{\n" +
-        "  // One entry per connection; its name is what the model passes as \"connection\". For example:\n" +
-        "  // \"adventureworks\": { \"server\": \"127.0.0.1,1433\", \"database\": \"AdventureWorks2022\",\n" +
-        "  //   \"auth\": \"sql\", \"user\": \"reader\", \"password\": \"...\", \"encrypt\": \"mandatory\",\n" +
-        "  //   \"trustServerCertificate\": true, \"description\": \"the sample sales database\" }\n" +
-        "  // auth: sql (user + password), windows (as you) or runas (user DOMAIN\\name + password: Windows sign-in as that account).\n" +
-        "  // passwordStore: file (the default; a password typed here is encrypted at the next read) or credman (Windows Credential Manager);\n" +
-        "  // set either with SQL set password on the SQL tab of /tools. encrypt: strict, mandatory or optional.\n" +
-        "  // The tools only read, but a read-only login is the real guard.\n" +
+        "  // One entry per connection. Its name is what the model passes as \"connection\", and what %name picks on the input\n" +
+        "  // line. Every key but \"server\" is optional, and a JSON backslash is doubled: \"CONTOSO\\\\svc-reader\". Remove the\n" +
+        "  // leading // from an example to use it, and put it inside \"connections\" below.\n" +
+        "  //\n" +
+        "  // A SQL login (auth sql), the password kept in this file: typed in plain text, it is encrypted (\"dpapi:…\") when\n" +
+        "  // the app next starts or reads this file.\n" +
+        "  // \"adventureworks\": {\n" +
+        "  //   \"server\": \"127.0.0.1,1433\", \"database\": \"AdventureWorks2022\",\n" +
+        "  //   \"auth\": \"sql\", \"user\": \"reader\", \"password\": \"type-it-here-once\",\n" +
+        "  //   \"encrypt\": \"mandatory\", \"trustServerCertificate\": true,\n" +
+        "  //   \"description\": \"the sample sales database\"\n" +
+        "  // },\n" +
+        "  //\n" +
+        "  // Windows sign-in as you (auth windows: the account running NeonCompanion, no password).\n" +
+        "  // \"reports-me\": {\n" +
+        "  //   \"server\": \"sqlhost01.example.com,1453\", \"database\": \"Reports\",\n" +
+        "  //   \"auth\": \"windows\"\n" +
+        "  // },\n" +
+        "  //\n" +
+        "  // Windows sign-in as another account (auth runas: runas /netonly's way, remote servers only), the password in\n" +
+        "  // Windows Credential Manager as NeonCompanion/sql/<name> — set it with SQL set password on the SQL tab of /tools,\n" +
+        "  // or: cmdkey /generic:NeonCompanion/sql/reports-admin /user:CONTOSO\\svc-reader /pass\n" +
+        "  // \"reports-admin\": {\n" +
+        "  //   \"server\": \"sqlhost01.example.com,1453\", \"database\": \"Reports\",\n" +
+        "  //   \"auth\": \"runas\", \"user\": \"CONTOSO\\\\svc-reader\", \"passwordStore\": \"credman\"\n" +
+        "  // },\n" +
+        "  //\n" +
+        "  // The same account with the password kept (encrypted) in this file instead of Credential Manager.\n" +
+        "  // \"reports-admin-file\": {\n" +
+        "  //   \"server\": \"sqlhost01.example.com,1453\", \"database\": \"Reports\",\n" +
+        "  //   \"auth\": \"runas\", \"user\": \"svc-reader@contoso.com\", \"password\": \"type-it-here-once\"\n" +
+        "  // },\n" +
+        "  //\n" +
+        "  // \"passwordStore\": \"credman\" works for a SQL login too; \"credential\" names another Credential Manager entry.\n" +
+        "  // encrypt: strict, mandatory (the default) or optional; trustServerCertificate only for a self-signed certificate;\n" +
+        "  // connectTimeoutSeconds: 1 to 120 (15 by default). The tools only read, but a read-only login is the real guard.\n" +
         "  \"connections\": {}\n" +
         "}\n";
 

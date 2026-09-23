@@ -292,7 +292,7 @@ Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Obsidian, SQL
 | SQL %-mention enabled | `%` and part of a name on the input line lists the SQL connections of `sql.json` (with their server, database and description); a pick writes `%name` as text. Lists nothing while *SQL tools* is off. | on |
 | SQL max rows | How many rows `sql_query` returns unless the call says otherwise (1–1000); past it the header says more exist and the server stops. | 100 |
 | SQL query timeout (s) | How long one SQL tool's batch may run on the server before it is stopped (1–600). | 30 |
-| SQL connections (profile) | Enter opens the profile's `sql.json` in the editor (made with a commented example first); the value counts its connections. | (none) |
+| SQL connections (profile) | Enter opens the profile's `sql.json` in the editor (made first with a commented example of each kind: a SQL login, Windows sign-in as you, and runas with its password in Credential Manager or in the file); the value counts its connections. | (none) |
 | SQL connections (global) | The same for the home's `sql.json`, which every profile reads; the profile's wins a name. | (none) |
 
 #### Options

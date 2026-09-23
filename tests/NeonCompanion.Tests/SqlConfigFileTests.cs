@@ -37,6 +37,27 @@ public sealed class SqlConfigFileTests : IDisposable
         Assert.Empty(loaded.Problems);
     }
 
+    /// <summary>The fresh file's commented examples (later on 2026-09-23): one of each kind, and each a usable connection once its <c>//</c> are gone.</summary>
+    [Fact]
+    public void TheEmptyShapesExamples_AreEachAUsableConnection_OnceUncommented()
+    {
+        var example = SqlConfigFile.EmptyText.Split('\n')
+            .Where(l => l.StartsWith("  // ", StringComparison.Ordinal))
+            .Select(l => l["  // ".Length..])
+            .Where(l => l.EndsWith('{') || l.EndsWith(',') || l.EndsWith('}') || l.EndsWith('"') || l.EndsWith("true", StringComparison.Ordinal))
+            .Where(l => l.StartsWith('"') || l.StartsWith("  ", StringComparison.Ordinal) || l.StartsWith('}'));
+        Profile("{ \"connections\": {\n" + string.Join("\n", example) + "\n} }");
+
+        var loaded = SqlConfigFile.Load(SqlConfigFile.ProfilePath(_profile));
+
+        Assert.Empty(loaded.Problems);
+        Assert.Equal(["adventureworks", "reports-me", "reports-admin", "reports-admin-file"], loaded.Connections.Select(c => c.Name));
+        Assert.Equal(["sql", "windows", "runas", "runas"], loaded.Connections.Select(c => c.Config.Auth));
+        Assert.True(loaded.Connections[2].Config.InCredentialManager);
+        Assert.Equal(@"CONTOSO\svc-reader", loaded.Connections[2].Config.User);
+        Assert.Contains(@"cmdkey /generic:NeonCompanion/sql/reports-admin /user:CONTOSO\svc-reader /pass", SqlConfigFile.EmptyText);
+    }
+
     [Fact]
     public void Connections_LoadInFileOrder_AndABadEntryIsAProblem_NotAThrow()
     {
