@@ -4311,13 +4311,16 @@ internal sealed partial class ChatScreen
     /// <c>/tree [path]</c>: the folders and files under the working directory (or the folder named,
     /// resolved through the sandbox) as notice lines, <see cref="TreeText"/>'s picture; the walk
     /// stops at <c>File /tree max length</c> entries and a file's size rides along under <c>File /tree show sizes</c>.
-    /// A path outside the root, missing or a file is the usual file error.
+    /// What it lists follows <c>File browser/tree mode</c>, as the folder browsers do (2026-09-23, the user's call):
+    /// <c>default</c> leaves out hidden and system entries and every dot-file and dot-folder, <c>show-hidden</c> lists
+    /// them all (<c>.git</c> too). A path outside the root, missing or a file is the usual file error.
     /// </summary>
     private void HandleTree(string args)
     {
         var effective = _effective();
         int cap = Math.Clamp(effective.FileTreeMaxLength, WorkingDirectory.MinTreeLength, WorkingDirectory.MaxTreeLength);
-        var result = _files.FileTree(args, cap);
+        bool showHidden = FileBrowserMode.Resolve(effective) == FileBrowserVisibility.ShowHidden;
+        var result = _files.FileTree(args, cap, hideDotEntries: !showHidden, showHidden: showHidden);
         if (result.Outcome != FileOutcome.Ok)
         {
             _transcript.Error(TreeText.Error(result));
@@ -5173,7 +5176,7 @@ internal sealed partial class ChatScreen
             _holdWheel?.Invoke(true);
             ApplyWindowTitle();
 
-            await ConnectLlmAsync(cancellationToken, quiet: true).ConfigureAwait(false);
+            await ConnectLlmAsync(cancellationToken, quiet: true, startup: true).ConfigureAwait(false);
             await ConnectSpeechAsync(cancellationToken, quiet: true).ConfigureAwait(false);
             await ConnectVoiceAsync(cancellationToken, quiet: true).ConfigureAwait(false);
             await ConnectMcpAsync(cancellationToken).ConfigureAwait(false);
@@ -5930,15 +5933,20 @@ internal sealed partial class ChatScreen
     /// <summary>
     /// Resolves the LLM endpoint under the spinner and reports the outcome as transcript lines.
     /// With a blank URL and menus available the local ports are probed here (not in
-    /// <see cref="LlmSession.ConnectAsync"/>) so that, when several servers answer, the user
-    /// picks one after the spinner is gone: the pick is saved as the URL and connects as
-    /// configured; ESC connects to the first in list order, unsaved, as a single answer does.
+    /// <see cref="LlmSession.ConnectAsync"/>) so that, when several servers answer — or any does at
+    /// the app's start (<paramref name="startup"/>, 2026-09-23, the user's call: starting with no server
+    /// set walks <c>/server</c>'s server, model, reasoning; a profile switch or a closed settings pane
+    /// with one answer still connects to it quietly) — the user picks one after the spinner is gone: the
+    /// pick is saved as the URL, the model and reasoning pickers follow (since 2026-09-23), and it connects
+    /// as configured; ESC connects to the first in list order, unsaved, with neither picker, as a single
+    /// answer off the start does.
     /// A configured URL, an override or a console without menus take the session's own path. A blank
     /// URL under <c>LLM scan mode</c> <c>disabled</c> asks nothing: the session's connect drops the
     /// old endpoint and resolves null at once, no spinner, and the report says why (2026-09-15).
     /// </summary>
     /// <param name="quiet">The banner was just drawn above, or the settings pane just closed: report only what the settings cannot say.</param>
-    private async Task ConnectLlmAsync(CancellationToken cancellationToken, bool quiet = false)
+    /// <param name="startup">The app's first connect (<see cref="RunAsync"/>): the server picker opens for a single answer too.</param>
+    private async Task ConnectLlmAsync(CancellationToken cancellationToken, bool quiet = false, bool startup = false)
     {
         var effective = _effective();
         bool blankUrl = string.IsNullOrWhiteSpace(effective.LlmUrl);
@@ -5969,7 +5977,7 @@ internal sealed partial class ChatScreen
 
         if (servers.Count > 0)
         {
-            var picked = servers.Count > 1
+            var picked = servers.Count > 1 || startup
                 ? await _menu.PickServerAsync(servers, null, SettingsMenu.StartupServerTitle, cancellationToken).ConfigureAwait(false)
                 : null;
             LlmEndpoint endpoint;
@@ -5979,7 +5987,11 @@ internal sealed partial class ChatScreen
             }
             else
             {
+                // /server's walk (2026-09-23, the user's call): the URL saved, then the model over the list the
+                // discovery already holds, then the reasoning level — one connect after, no second request.
                 _menu.SaveServer(picked.BaseUrl);
+                await _menu.PickModelFromListAsync(picked.Result, _settings.Current.LlmModel, cancellationToken).ConfigureAwait(false);
+                await _menu.PickReasoningAsync("", _effective().LlmReasoning, cancellationToken).ConfigureAwait(false);
                 effective = _effective();
                 endpoint = LlmEndpointProbe.Endpoint(picked, effective.LlmApiKey, ConfiguredModel(effective), configured: true);
             }

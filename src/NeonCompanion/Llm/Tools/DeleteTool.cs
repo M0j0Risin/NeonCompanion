@@ -43,13 +43,16 @@ public sealed class DeleteTool : FileTool
     /// names neither <c>restore</c> nor <c>.trash</c> (later still on 2026-09-20, the user's ask: the tool is not
     /// offered then, and the model never hears of a trash), nor the setting itself, nor that nothing brings a file
     /// back (2026-09-21, the user's ask: told so, the model answered about a restore it could not reach — it need
-    /// not know of a switch it cannot use). Pinned.
+    /// not know of a switch it cannot use). Both end on <see cref="GitNote"/> (2026-09-23, the user's call). Pinned.
     /// </summary>
     public static string DescribeTool(bool safeEdits) =>
-        safeEdits
+        (safeEdits
             ? "Deletes a file or folder under the working directory (the user's cwd / current directory) by moving it to the .trash folder there; " +
               "nothing is destroyed, and restore brings it back."
-            : "Deletes a file or folder under the working directory (the user's cwd / current directory) for good; a folder goes with everything in it.";
+            : "Deletes a file or folder under the working directory (the user's cwd / current directory) for good; a folder goes with everything in it.") + GitNote;
+
+    /// <summary>The sentence both descriptions end on: <c>.git</c> is refused, whatever the path (2026-09-23). Pinned.</summary>
+    public const string GitNote = " A .git folder, anything in it, or a folder holding one is never deleted.";
 
     public override JsonElement JsonSchema => Schema;
 

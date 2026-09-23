@@ -109,6 +109,16 @@ public class CompanionAppTests : IDisposable
     private void ServerOn1234(params string[] models) =>
         _http.Map(LmStudioModels, HttpStatusCode.OK, StubHttpMessageHandler.ModelsJson(models));
 
+    /// <summary>
+    /// <see cref="ServerOn1234"/> with the URL saved (2026-09-23): a blank URL walks the server, model and reasoning
+    /// pickers at the app's start now, so the interactive scripts that only want a server to talk to name it.
+    /// </summary>
+    private void InteractiveServerOn1234(params string[] models)
+    {
+        ServerOn1234(models);
+        _settings.Update(d => d.LlmUrl = "http://127.0.0.1:1234/v1");
+    }
+
     private async Task<string> Headless(string input, EnvironmentOverrides? env = null, Func<LlmEndpoint, LlmTimeouts, IChatClient>? chat = null)
     {
         var stdout = new StringWriter();
@@ -1071,14 +1081,14 @@ public class CompanionAppTests : IDisposable
     [Fact]
     public async Task Interactive_TypeEnterReply_ThenQuit()
     {
-        ServerOn1234("llama");
+        InteractiveServerOn1234("llama");
         _chat.EnqueueText("Hi ", "there");
         PushLine("hello");
         PushLine("/exit");
 
         string output = await InteractiveAsync();
 
-        Assert.Contains("LLM: http://127.0.0.1:1234/v1 model=llama (probed http://127.0.0.1:1234/v1)", output);
+        Assert.Contains("LLM: http://127.0.0.1:1234/v1 model=llama (first listed)", output);
         Assert.Contains("› hello", output);
         Assert.Contains("● Hi there", output);
         Assert.Single(_chat.Requests);
@@ -1089,7 +1099,7 @@ public class CompanionAppTests : IDisposable
     [Fact]
     public async Task Interactive_EscapeMidStream_CommitsThePartial_SaysCancelled_AndTheLoopContinues()
     {
-        ServerOn1234("llama");
+        InteractiveServerOn1234("llama");
         _chat.EnqueueText("par", "tial").EnqueueText("next");
         _chat.BeforeUpdate = async (i, ct) =>
         {
@@ -1119,7 +1129,7 @@ public class CompanionAppTests : IDisposable
     [Fact]
     public async Task Interactive_AppTokenMidStream_Exits()
     {
-        ServerOn1234("llama");
+        InteractiveServerOn1234("llama");
         using var shutdown = new CancellationTokenSource();
         _chat.EnqueueText("par", "tial");
         _chat.BeforeUpdate = async (i, ct) =>
@@ -1146,7 +1156,7 @@ public class CompanionAppTests : IDisposable
     [Fact]
     public async Task Interactive_Clear_ForgetsTheConversation()
     {
-        ServerOn1234("llama");
+        InteractiveServerOn1234("llama");
         _chat.EnqueueText("one").EnqueueText("two");
         PushLine("a");
         PushLine("/clear");
@@ -1197,7 +1207,7 @@ public class CompanionAppTests : IDisposable
         // the old status rows read it too) the line went to stdout above the banner.
         Directory.CreateDirectory(_settings.ProfileDirectory);
         File.WriteAllText(Path.Combine(_settings.ProfileDirectory, PersonaFile.FileName), "You are Rex, a gruff pirate.");
-        ServerOn1234("llama");
+        InteractiveServerOn1234("llama");
         _chat.EnqueueText("Arr.");
         bool echoBefore = DiagnosticLog.EchoToConsole;
         var echoAtPersonaLoad = new List<bool>();
@@ -1229,7 +1239,7 @@ public class CompanionAppTests : IDisposable
     [Fact]
     public async Task Interactive_HelpAndUnknownAndLaterCommands()
     {
-        ServerOn1234("llama");
+        InteractiveServerOn1234("llama");
         PushLine("/help");
         PushLine("/bogus now");
         PushLine("/stt");
@@ -1252,7 +1262,7 @@ public class CompanionAppTests : IDisposable
     [Fact]
     public async Task Interactive_SpeechOn_NoServer_PrintsTheWarning()
     {
-        ServerOn1234("llama");
+        InteractiveServerOn1234("llama");
         _settings.Update(d => { d.TtsOutput = true; d.TtsSource = "http"; });
         PushLine("/exit");
 
@@ -1264,7 +1274,7 @@ public class CompanionAppTests : IDisposable
     [Fact]
     public async Task Interactive_SpeechServerFound_ProbesOnce_AndPrintsNothingUnderThePanel()
     {
-        ServerOn1234("llama");
+        InteractiveServerOn1234("llama");
         _settings.Update(d => { d.TtsOutput = true; d.TtsSource = "http"; });
         PushLine("/exit");
         _console.Interactive();
@@ -1282,7 +1292,7 @@ public class CompanionAppTests : IDisposable
     [Fact]
     public async Task Interactive_FreshInstall_SpeechIsOff_AndNeverProbes()
     {
-        ServerOn1234("llama");
+        InteractiveServerOn1234("llama");
         PushLine("/exit");
         _console.Interactive();
         _console.Profile.Width = 240;
@@ -1337,7 +1347,7 @@ public class CompanionAppTests : IDisposable
     [Fact]
     public async Task Interactive_WarningDuringTheReply_LandsAfterTheTokenNotInsideIt()
     {
-        ServerOn1234("llama");
+        InteractiveServerOn1234("llama");
         string category = "Cat" + Guid.NewGuid().ToString("N")[..6];
         _chat.EnqueueText("par", "tial");
         _chat.BeforeUpdate = (i, _) =>
@@ -1362,7 +1372,7 @@ public class CompanionAppTests : IDisposable
     [Fact]
     public async Task Interactive_ServerErrorMidStream_IsAnErrorLine_AndTheLoopSurvives()
     {
-        ServerOn1234("llama");
+        InteractiveServerOn1234("llama");
         _chat.EnqueueText("par", "tial").EnqueueText("fine");
         _chat.ThrowAt = 1;
         PushLine("one");
@@ -1379,7 +1389,7 @@ public class CompanionAppTests : IDisposable
     [Fact]
     public async Task Interactive_TypeAheadDuringAReply_BecomesTheNextMessage()
     {
-        ServerOn1234("llama");
+        InteractiveServerOn1234("llama");
         _chat.EnqueueText("first reply").EnqueueText("second reply");
         _chat.BeforeUpdate = async (i, _) =>
         {
@@ -1402,7 +1412,7 @@ public class CompanionAppTests : IDisposable
     [Fact]
     public async Task Interactive_ModelPick_SavesAndReconnectsWithTheNewModel()
     {
-        ServerOn1234("alpha", "beta");
+        InteractiveServerOn1234("alpha", "beta");
         var endpoints = new List<LlmEndpoint>();
         var clients = new List<FakeChatClient>();
         Func<LlmEndpoint, LlmTimeouts, IChatClient> factory = (e, _) =>
@@ -1424,7 +1434,7 @@ public class CompanionAppTests : IDisposable
         Assert.Equal(new[] { "alpha", "beta" }, endpoints.Select(e => e.ModelId));
         Assert.Equal("beta", _settings.Current.LlmModel);
         Assert.True(clients[0].Disposed);
-        Assert.Contains("model=beta (probed http://127.0.0.1:1234/v1)", output);
+        Assert.Contains("model=beta (configured)", output);
         // The conversation survived the reconnect: the second client saw the first exchange.
         Assert.Equal(new[] { ChatRole.System, ChatRole.User, ChatRole.Assistant, ChatRole.Tool, ChatRole.Assistant, ChatRole.Tool, ChatRole.Assistant, ChatRole.Tool, ChatRole.Assistant, ChatRole.User }, clients[1].Requests[0].Select(m => m.Role));
     }
@@ -1682,7 +1692,7 @@ public class CompanionAppTests : IDisposable
     [Fact]
     public async Task Interactive_CwdFlag_OverridesTheSetting()
     {
-        ServerOn1234("llama");
+        InteractiveServerOn1234("llama");
         _settings.Update(d => d.WorkingDirectory = @"D:\saved");
         string launch = Path.Combine(_dir, "launch");
         PushLine("/cwd");

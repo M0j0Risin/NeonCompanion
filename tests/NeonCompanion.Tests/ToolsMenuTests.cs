@@ -298,7 +298,7 @@ public class ToolsMenuTests : IDisposable
 
         Assert.False(_settings.Current.FileTools);
         // The seven rows (the view_image cap last, 2026-09-19; the @-mention folder mode before it, 2026-09-17, and the browser mode under that, 2026-09-21; Safe edits off by default since 2026-09-19, folder-remain the default since then, Always return line numbers gone later that day and the stale line number guard later still, with edit_lines) padded to the tab's own column (32), the toggle's notice on the status line under the strip.
-        Assert.Contains("\n" + Titled(Strip) + "\n \n▸ File tools                      on\n  File safe edits                 off\n  File /tree max length           500 entries\n  File /tree show sizes           on\n  File @-mention folder mode      folder-remain\n  File browser mode               default\n  File view image max (per call)  10 pictures\n" + Rule(100), _console.Output);
+        Assert.Contains("\n" + Titled(Strip) + "\n \n▸ File tools                      on\n  File safe edits                 off\n  File /tree max length           500 entries\n  File /tree show sizes           on\n  File @-mention folder mode      folder-remain\n  File browser/tree mode          default\n  File view image max (per call)  10 pictures\n" + Rule(100), _console.Output);
         Assert.Contains("\n" + Titled(Strip) + "\n  · File tools: off\n▸ File tools                      off\n", _console.Output);
         Assert.Contains("\n▸ Git native tools            on\n", _console.Output);
         pane.Dispose();

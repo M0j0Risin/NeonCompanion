@@ -279,6 +279,24 @@ public sealed class WorkingDirectoryTests : IDisposable
     }
 
     [Fact]
+    public void FileTree_ShowHidden_ListsHiddenAndDotEntries_ButNeverTheRootsTrash()
+    {
+        // /tree under File browser/tree mode show-hidden (2026-09-23, the user's call): the Hidden .git and a hidden folder too; the
+        // default (hideDotEntries, the walk's own Hidden skip) leaves out both and the plain dot-file; the root's .trash stays out always.
+        Put(@".git\HEAD", "");
+        Put(".config", "");
+        Put(@"secret\x.txt", "");
+        Put(@".trash\old.txt", "");
+        Put("a.txt", "");
+        File.SetAttributes(Full(".git"), FileAttributes.Directory | FileAttributes.Hidden);
+        File.SetAttributes(Full("secret"), FileAttributes.Directory | FileAttributes.Hidden);
+
+        Assert.Equal(new[] { ".git", "HEAD", "secret", "x.txt", ".config", "a.txt" }, _files.FileTree("", WorkingDirectory.DefaultTreeLength, showHidden: true).Entries.Select(e => e.Name));
+        Assert.Equal(new[] { "a.txt" }, _files.FileTree("", WorkingDirectory.DefaultTreeLength, hideDotEntries: true).Entries.Select(e => e.Name));
+        Assert.Equal(new[] { ".config", "a.txt" }, _files.FileTree("", WorkingDirectory.DefaultTreeLength).Entries.Select(e => e.Name));   // the model's listing, untouched
+    }
+
+    [Fact]
     public void FileTree_EmptyFolder_HasNoEntries()
     {
         Directory.CreateDirectory(Full("empty"));
@@ -1241,6 +1259,37 @@ public sealed class WorkingDirectoryTests : IDisposable
         Assert.Equal(FileOutcome.Missing, _files.Delete("nope").Outcome);
         Assert.Equal(FileOutcome.TrashReadOnly, _files.Delete(@".trash\x").Outcome);
         Assert.Equal(FileOutcome.IntoItself, _files.Delete("").Outcome);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Delete_NeverTouchesGit_ItsContents_OrAFolderHoldingIt(bool toTrash)
+    {
+        // 2026-09-23, the user's call: .git, anything in it, and a folder with a .git anywhere under it (a folder, or a worktree's
+        // .git file) are refused under either File safe edits mode, in any case; nothing moves, nothing is removed.
+        Put(@".git\config", "[core]");
+        Put(@"repo\sub\.git\HEAD", "ref: refs/heads/main");
+        Put(@"repo\readme.md", "hi");
+        Put(@"wt\.git", "gitdir: ../.git/worktrees/wt");
+        Put(@"plain\a.txt", "a");
+
+        foreach (string path in new[] { ".git", @".git\config", @".GIT\config", "repo", @"repo\sub", @"repo\sub\.git", @"repo\sub\.git\HEAD", "wt", @"wt\.git" })
+        {
+            Assert.Equal(FileOutcome.GitProtected, _files.Delete(path, toTrash).Outcome);
+        }
+
+        Assert.True(File.Exists(Full(@".git\config")));
+        Assert.True(File.Exists(Full(@"repo\sub\.git\HEAD")));
+        Assert.True(File.Exists(Full(@"wt\.git")));
+        Assert.False(Directory.Exists(Full(".trash")));
+
+        Assert.Equal(FileOutcome.Ok, _files.Delete(@"repo\readme.md", toTrash).Outcome);   // a file beside a .git is the user's own
+        Assert.Equal(FileOutcome.Ok, _files.Delete("plain", toTrash).Outcome);
+        Assert.Equal(@"Error: 'repo\' is or holds a .git folder, which delete never removes", FileText.Trashed(_files.Delete("repo", toTrash)));
+        Assert.True(WorkingDirectory.IsGitPath(@"a\.Git\b"));
+        Assert.False(WorkingDirectory.IsGitPath(@"a\.github\b"));
+        Assert.False(WorkingDirectory.IsGitPath(".gitignore"));
     }
 
     [Fact]

@@ -137,8 +137,8 @@ public sealed class GitToolsTests : IDisposable
             "Removes a local branch (never the one checked out), a tag, or a stash by its index. " +
             "A branch's unmerged commits and a dropped stash are gone from every listing — do it only when the user asked for exactly that.",
             Tool<GitDeleteTool>().Description);
-        // The two that lose work are the fresh profile's opt-ins; the rule names neither.
-        Assert.Equal(["git_delete", "git_discard", "unzip", "zip"], new AppSettingsData().ToolsDisabled);   // delete on out of the box since later on 2026-09-21
+        // git_delete is the fresh profile's opt-in (git_discard on out of the box since 2026-09-23); the rule names neither.
+        Assert.Equal(["git_delete", "unzip", "zip"], new AppSettingsData().ToolsDisabled);   // delete on out of the box since later on 2026-09-21
         Assert.All(_tools, t => Assert.Contains(t.Name, App.ChatScreen.QuietTools));
     }
 

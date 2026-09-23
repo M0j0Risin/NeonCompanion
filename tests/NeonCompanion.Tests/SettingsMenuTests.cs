@@ -1066,7 +1066,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal("off  [#9A8BB8]no shell or script tool is offered[/]", SettingsMenu.CommandPolicyLabel("off"));
         Assert.Equal("bash       [#9A8BB8]Git Bash, when bash.exe is found — not found[/]", SettingsMenu.ShellLabel("bash", installed: false));
         Assert.Equal("cmd        [#9A8BB8]cmd.exe: batch syntax[/]", SettingsMenu.ShellLabel("cmd", installed: true));
-        Assert.Equal("(none: Allow … always on the approval pane adds one)", SettingsMenu.NoAllowedCommandsRow);
+        Assert.Equal("(none)", SettingsMenu.NoAllowedCommandsRow);   // the bare word since 2026-09-23
         Assert.Equal("Enter = remove · ESC = back", SettingsMenu.RemoveKeys);
         Assert.Equal("Shell allowed commands: git push removed", SettingsMenu.PrefixRemovedNotice("git push"));
         // The git rows (2026-09-20): the Git tab (Git (native), the last, since later on 2026-09-21) — the switch, then the two caps alphabetically; typed, none a reconnect.
@@ -2448,7 +2448,7 @@ public class SettingsMenuTests : IDisposable
     public void ServerStrings_ArePinned()
     {
         Assert.Equal("🖥️ LLM server", SettingsMenu.ServerTitle);
-        Assert.Equal("🖥️ Several LLM servers answered", SettingsMenu.StartupServerTitle);
+        Assert.Equal("🖥️ Pick an LLM server", SettingsMenu.StartupServerTitle);   // since 2026-09-23: shown for a single answer too
         Assert.Equal("Enter = choose · ESC = the first listed", SettingsMenu.StartupServerKeys);
         Assert.Equal(SettingsMenu.ServerTitle + "   Enter = choose · ESC = keep", SettingsMenu.PromptTitle(SettingsMenu.ServerTitle, SettingsMenu.KeepKeys));
         Assert.Equal("LM Studio  [#EFE6FF]http://127.0.0.1:1234/v1[/][#9A8BB8]  1 chat model[/]", SettingsMenu.ServerLabel(Server(1234, "LM Studio", "lm")));

@@ -151,6 +151,10 @@ public static class FileText
     public static string FolderInTheWay(string path) =>
         $"Error: '{path}' is a folder in the way — move it aside first";
 
+    /// <summary>A <c>delete</c> of <c>.git</c>, of anything in it, or of a folder holding one (2026-09-23, the user's call). Pinned.</summary>
+    public static string GitProtected(string path) =>
+        $"Error: '{path}' is or holds a {WorkingDirectory.GitFolderName} folder, which delete never removes";
+
     /// <summary><c>restore</c> over something that is there again, without <c>overwrite</c>. Pinned.</summary>
     public static string RestoreExists(string path) => $"Error: '{path}' is already there; call again with overwrite true to put the trashed copy over it";
 
@@ -199,6 +203,7 @@ public static class FileText
             FileOutcome.EscapeDrift => EscapeDriftSentence(path, detail),
             FileOutcome.AlreadyApplied => AlreadyApplied(path),
             FileOutcome.FolderInTheWay => FolderInTheWay(path),
+            FileOutcome.GitProtected => GitProtected(path),
             _ => CouldNot(verb, path, detail),
         };
 

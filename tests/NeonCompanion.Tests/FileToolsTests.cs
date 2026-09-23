@@ -362,8 +362,11 @@ public sealed class FileToolsTests : IDisposable
         // Later still on 2026-09-20 (the user's ask): the off-form names neither restore nor .trash — the tool is not offered then, and the model never hears of a trash.
         // 2026-09-21 (the user's ask again): nor the setting, nor that nothing brings a file back — the model confused itself over a restore it could not reach.
         Assert.Equal(
-            "Deletes a file or folder under the working directory (the user's cwd / current directory) for good; a folder goes with everything in it.",
+            "Deletes a file or folder under the working directory (the user's cwd / current directory) for good; a folder goes with everything in it." +
+            " A .git folder, anything in it, or a folder holding one is never deleted.",   // the .git note on both forms since 2026-09-23 (the user's call)
             DeleteTool.DescribeTool(false));
+        Assert.EndsWith(DeleteTool.GitNote, DeleteTool.DescribeTool(true), StringComparison.Ordinal);
+        Assert.Equal(" A .git folder, anything in it, or a folder holding one is never deleted.", DeleteTool.GitNote);
         Assert.DoesNotContain("safe edits", DeleteTool.DescribeTool(false), StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("brings it back", DeleteTool.DescribeTool(false));
         Assert.Equal("deleted d.txt", await Invoke(delete, ("path", "d.txt")));   // no "(File safe edits is off: nothing was kept)" since 2026-09-21
@@ -375,7 +378,8 @@ public sealed class FileToolsTests : IDisposable
         Assert.Equal(FileText.TrashReadOnly(@".trash\20260911-140530"), await Invoke(delete, ("path", @".trash\20260911-140530")));
         _settings.FileSafeEdits = true;
         Assert.Equal(
-            "Deletes a file or folder under the working directory (the user's cwd / current directory) by moving it to the .trash folder there; nothing is destroyed, and restore brings it back.",
+            "Deletes a file or folder under the working directory (the user's cwd / current directory) by moving it to the .trash folder there; nothing is destroyed, and restore brings it back." +
+            " A .git folder, anything in it, or a folder holding one is never deleted.",
             delete.Description);
     }
 

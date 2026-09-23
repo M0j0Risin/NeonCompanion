@@ -296,7 +296,7 @@ public enum SettingsField
     /// <summary>A toggle: whether an <c>execute_code</c> script may call the app's other tools through its <c>neon_tools</c> module (<see cref="Settings.AppSettingsData.ShellToolBridge"/>). The Shell tab, right above the tool-call cap it governs (later on 2026-09-21); no reconnect (read at each call and each turn).</summary>
     ShellToolBridge,
 
-    /// <summary>A picker over <see cref="Files.FileBrowserMode.Names"/>: what the <c>/cwd browse</c> tree lists (<see cref="Settings.AppSettingsData.FileBrowserMode"/>). The Files tab's row under the @-mention folder mode (2026-09-21); no reconnect (read when the pane opens).</summary>
+    /// <summary>A picker over <see cref="Files.FileBrowserMode.Names"/>: what the <c>/cwd browse</c> tree and <c>/tree</c> (2026-09-23) list (<see cref="Settings.AppSettingsData.FileBrowserMode"/>). The Files tab's row under the @-mention folder mode (2026-09-21); no reconnect (read when the pane opens).</summary>
     FileBrowserMode,
 
     /// <summary>A toggle: whether the toolbar is drawn under the hint row (<see cref="Settings.AppSettingsData.ShowToolbar"/>). The General tab's row after Show working directory (2026-09-21); no reconnect (read at each pane draw).</summary>
@@ -504,8 +504,8 @@ internal sealed class SettingsMenu
     /// <summary>The <c>/server</c> picker's label; ESC keeps the server in use.</summary>
     public const string ServerTitle = "🖥️ LLM server";
 
-    /// <summary>The startup picker's label, when several local servers answered; ESC takes the first listed, as before.</summary>
-    public const string StartupServerTitle = "🖥️ Several LLM servers answered";
+    /// <summary>The startup picker's label, when several servers answered a blank URL, or any did at the app's start (2026-09-23; "Several LLM servers answered" until then); ESC takes the first listed, as before.</summary>
+    public const string StartupServerTitle = "🖥️ Pick an LLM server";
     public const string StartupServerKeys = "Enter = choose · ESC = the first listed";
 
     private static readonly SettingsField[] Fields = Enum.GetValues<SettingsField>();
@@ -896,7 +896,7 @@ internal sealed class SettingsMenu
         SettingsField.AskMaxQuestions => "Ask max questions",
         SettingsField.AskMaxChoices => "Ask max choices per question",
         SettingsField.FileMentionFolderMode => "File @-mention folder mode",
-        SettingsField.FileBrowserMode => "File browser mode",
+        SettingsField.FileBrowserMode => "File browser/tree mode",   // "File browser mode" until 2026-09-23, when /tree came to follow it (the user's call)
         SettingsField.AgentSkills => "Agent skills",
         SettingsField.ExternalSkills => ExternalSkillsName,
         SettingsField.TranscriptMarkdown => "Transcript markdown",
@@ -1158,8 +1158,8 @@ internal sealed class SettingsMenu
     /// <summary>After a shell's hint on the picker while it is not installed. Pinned.</summary>
     public const string NotFoundSuffix = " — not found";
 
-    /// <summary>The one row of the allowed-commands list while nothing is allowed for good. Pinned.</summary>
-    public const string NoAllowedCommandsRow = "(none: Allow … always on the approval pane adds one)";
+    /// <summary>The one row of the allowed-commands list while nothing is allowed for good; the bare word since 2026-09-23 (the user's call, the hint on how to add one dropped). Pinned.</summary>
+    public const string NoAllowedCommandsRow = "(none)";
 
     /// <summary>The allowed-commands list's hint. Pinned.</summary>
     public const string RemoveKeys = "Enter = remove · ESC = back";

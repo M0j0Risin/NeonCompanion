@@ -652,9 +652,11 @@ public sealed class AppSettingsData
     /// pack are opt-in too); a saved list stands — a profile that holds <c>[]</c> or <c>["delete"]</c> keeps the
     /// rest on, so a profile from before keeps zip and unzip. <c>delete</c> was here from the start (2026-09-20,
     /// the user's call: the trash tool opt-in, flipped on <c>/tools</c>' Offered tab) until later on 2026-09-21,
-    /// when the user asked for it on out of the box; a profile saved with it off keeps it off.
+    /// when the user asked for it on out of the box; a profile saved with it off keeps it off. <c>git_discard</c> left
+    /// the list on 2026-09-23 (the user's call: on out of the box, as <c>delete</c> went before it); a profile saved
+    /// with it off keeps it off until it is flipped on the Offered tab.
     /// </summary>
-    public List<string> ToolsDisabled { get; set; } = [Llm.Tools.GitDeleteTool.ToolName, Llm.Tools.GitDiscardTool.ToolName, Llm.Tools.UnzipTool.ToolName, Llm.Tools.ZipTool.ToolName];
+    public List<string> ToolsDisabled { get; set; } = [Llm.Tools.GitDeleteTool.ToolName, Llm.Tools.UnzipTool.ToolName, Llm.Tools.ZipTool.ToolName];
 
     /// <summary>
     /// Whether <c>$</c> and part of a name on the chat line lists the tools the next turn offers
@@ -743,7 +745,9 @@ public sealed class AppSettingsData
     /// <summary>
     /// What the <c>/cwd browse</c> folder tree lists (2026-09-21, the user's ask): <c>default</c>
     /// leaves out hidden and system folders and dot-folders, Explorer's and Finder's default;
-    /// <c>show-hidden</c> lists them too. One of <see cref="Files.FileBrowserMode.Names"/>; anything
+    /// <c>show-hidden</c> lists them too. <c>/tree</c> follows it since 2026-09-23 (the user's call; the row
+    /// <c>File browser/tree mode</c> since): <c>default</c> leaves out hidden and system entries and every dot-file
+    /// and dot-folder, <c>show-hidden</c> lists them all. One of <see cref="Files.FileBrowserMode.Names"/>; anything
     /// else reads as <see cref="Files.FileBrowserMode.Default"/>. No variable.
     /// </summary>
     public string FileBrowserMode { get; set; } = Files.FileBrowserMode.Default;
@@ -821,8 +825,8 @@ public sealed class AppSettingsData
     /// directory (2026-09-20; <c>Git native tools</c> since 2026-09-21); read at each turn like <see cref="WebTools"/>, no reconnect.
     /// Off — the default since 2026-09-21 (the user's call, like <see cref="McpServers"/>): the model reaches git
     /// through the shell unless the profile opts in — the default rules lose their git sentence and
-    /// <c>/git user</c> refuses. The two destructive tools (<c>git_discard</c>, <c>git_delete</c>) are off by
-    /// name in a fresh profile's <see cref="ToolsDisabled"/> besides. No variable.
+    /// <c>/git user</c> refuses. <c>git_delete</c> is off by name in a fresh profile's <see cref="ToolsDisabled"/>
+    /// besides (<c>git_discard</c> was too until 2026-09-23). No variable.
     /// </summary>
     public bool GitNativeTools { get; set; }
 

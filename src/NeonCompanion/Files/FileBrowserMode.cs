@@ -3,13 +3,13 @@ using NeonCompanion.Settings;
 
 namespace NeonCompanion.Files;
 
-/// <summary>What the <c>/cwd browse</c> tree lists (<c>File browser mode</c>).</summary>
+/// <summary>What the folder browsers and <c>/tree</c> list (<c>File browser/tree mode</c>; <c>File browser mode</c>, the browsers alone, until 2026-09-23).</summary>
 public enum FileBrowserVisibility
 {
-    /// <summary>Hidden and system folders, and dot-folders, are left out — Explorer's and Finder's default.</summary>
+    /// <summary>Hidden and system folders, and dot-folders, are left out — Explorer's and Finder's default; <c>/tree</c> leaves out dot-files too.</summary>
     Default,
 
-    /// <summary>Every folder the enumeration returns.</summary>
+    /// <summary>Every folder the enumeration returns; <c>/tree</c> lists every file too, hidden or dot-named.</summary>
     ShowHidden,
 }
 
@@ -51,8 +51,8 @@ public static class FileBrowserMode
     /// <summary>The menu hint next to a mode. Pinned.</summary>
     public static string Describe(string name) => name switch
     {
-        "default" => "hide hidden and system folders",
-        "show-hidden" => "list hidden and system folders too",
+        "default" => "hide hidden, system and dot entries",
+        "show-hidden" => "list hidden, system and dot entries too",
         _ => "",
     };
 

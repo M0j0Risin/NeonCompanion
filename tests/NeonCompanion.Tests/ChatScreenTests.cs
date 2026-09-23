@@ -121,6 +121,10 @@ public partial class ChatScreenTests : IDisposable
         // every file tool offered, so the fixture opts it back on; the delete-off tests pin the fresh-profile picture themselves. The same
         // rule reads "into .trash" only while File safe edits is on (later on 2026-09-20; off by default since 2026-09-19), so that goes on too.
         _settings.Update(d => { d.ToolsDisabled = []; d.FileSafeEdits = true; d.GitNativeTools = true; });   // Git native tools off by default since 2026-09-21: the fixture opts in, the git-off test flips it back
+        // A blank URL walks server, model and reasoning pickers at startup since 2026-09-23 (the user's call), even for the one
+        // server answering here: the scripts were written for a quiet connect, so the fixture names the server and the startup
+        // tests put the URL back to blank themselves.
+        _settings.Update(d => d.LlmUrl = "http://127.0.0.1:1234/v1");   // the form /server saves
         _http.Map("http://127.0.0.1:1234/v1/models", HttpStatusCode.OK, StubHttpMessageHandler.ModelsJson("llama"));
         _session = new LlmSession(new LlmEndpointProbe(new HttpClient(_http), TimeSpan.FromMilliseconds(500)), new ContextLengthProbe(new HttpClient(_http), TimeSpan.FromMilliseconds(500)), (_, _) => _chat, _time);
         _speech = new SpeechSession(_ => _synth, _ => _playback, new ModelStore(Path.Combine(_dir, "models"), new HttpClient(_http)));
@@ -1233,7 +1237,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.False(_settings.Current.TtsOutput);
         // The pane said "TTS output: off"; the transcript gets no TTS: line for a healthy session.
         Assert.DoesNotContain("TTS: ", output);
-        Assert.Equal(LlmEndpointProbe.CandidatePorts.Length, ModelProbes);   // startup discovery only; no reconnect
+        Assert.Equal(1, ModelProbes);   // the fixture's URL at startup only; no reconnect
         Assert.Equal(1, _synth.ListCalls);
     }
 
@@ -1325,24 +1329,38 @@ public partial class ChatScreenTests : IDisposable
         _http.Map($"http://127.0.0.1:{port}/v1/models", HttpStatusCode.OK, StubHttpMessageHandler.ModelsJson(models));
 
     [Fact]
-    public async Task Startup_OneServer_ConnectsWithoutAMenu_AndSavesNothing()
+    public async Task Startup_OneServer_WalksServerModelAndReasoning_AndSavesAll()
     {
+        // 2026-09-23, the user's call: a blank URL walks /server's pickers at startup, a single answer too (it connected
+        // silently and unsaved until then) — the server, the model over the list the discovery holds, the reasoning level.
+        _settings.Update(d => d.LlmUrl = "");
+        _console.Input.PushKey(Keys.Enter);   // the one server
+        _console.Input.PushKey(Keys.Enter);   // llama
+        _console.Input.PushKey(Keys.Down);    // none → low
+        _console.Input.PushKey(Keys.Enter);
         PushLine("/exit");
 
         string output = await RunAsync();
 
-        Assert.Contains("LLM: http://127.0.0.1:1234/v1 model=llama (probed http://127.0.0.1:1234/v1)", output);
-        Assert.DoesNotContain(SettingsMenu.StartupServerTitle, output);
-        Assert.Equal("", _settings.Current.LlmUrl);
-        Assert.Equal(LlmEndpointProbe.CandidatePorts.Length, ModelProbes);
+        Assert.Contains(SettingsMenu.StartupServerTitle, output);
+        Assert.Contains(SettingsMenu.ModelTitle, output);
+        Assert.Contains(SettingsMenu.ReasoningTitle, output);
+        Assert.Equal("http://127.0.0.1:1234/v1", _settings.Current.LlmUrl);
+        Assert.Equal("llama", _settings.Current.LlmModel);
+        Assert.Equal("low", _settings.Current.LlmReasoning);
+        Assert.Equal("llama", _session.Endpoint!.ModelId);
+        Assert.Equal(LlmEndpointProbe.CandidatePorts.Length, ModelProbes);   // the walk costs no second request
     }
 
     [Fact]
-    public async Task Startup_TwoServers_OffersThePicker_SavesThePick_AndConnectsConfigured()
+    public async Task Startup_TwoServers_OffersThePicker_SavesThePick_ThenModelAndReasoning_AndConnectsConfigured()
     {
+        _settings.Update(d => d.LlmUrl = "");
         ServerOn(11434, "phi");
         _console.Input.PushKey(Keys.Down);
         _console.Input.PushKey(Keys.Enter);
+        _console.Input.PushKey(Keys.Enter);   // phi
+        _console.Input.PushKey(Keys.Enter);   // the level in force (none)
         PushLine("/exit");
 
         string output = await RunAsync();
@@ -1351,16 +1369,37 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains("LM Studio  http://127.0.0.1:1234/v1  1 chat model", output);
         Assert.Contains("Ollama     http://127.0.0.1:11434/v1  1 chat model", output);
         Assert.Contains("  · 🖥️ LLM URL: http://127.0.0.1:11434/v1", output);
-        Assert.Contains("LLM: http://127.0.0.1:11434/v1 model=phi (first listed)", output);
+        Assert.Contains(SettingsMenu.ModelTitle, output);
+        Assert.Contains(SettingsMenu.ReasoningTitle, output);
         Assert.Equal("http://127.0.0.1:11434/v1", _settings.Current.LlmUrl);
-        Assert.Equal("", _settings.Current.LlmModel);
+        Assert.Equal("phi", _settings.Current.LlmModel);
+        Assert.Equal("none", _settings.Current.LlmReasoning);
         Assert.Equal("phi", _session.Endpoint!.ModelId);
         Assert.Equal(LlmEndpointProbe.CandidatePorts.Length, ModelProbes);   // the pick costs no second request
     }
 
     [Fact]
+    public async Task Startup_EscapeOnTheModelPicker_KeepsTheFirstListed_AndStillOffersReasoning()
+    {
+        _settings.Update(d => d.LlmUrl = "");
+        _console.Input.PushKey(Keys.Enter);    // the one server
+        _console.Input.PushKey(Keys.Escape);   // no model saved: the first listed
+        _console.Input.PushKey(Keys.Escape);   // the level kept
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains(SettingsMenu.ReasoningTitle, output);
+        Assert.Equal("http://127.0.0.1:1234/v1", _settings.Current.LlmUrl);
+        Assert.Equal("", _settings.Current.LlmModel);
+        Assert.Equal("none", _settings.Current.LlmReasoning);
+        Assert.Equal("llama", _session.Endpoint!.ModelId);
+    }
+
+    [Fact]
     public async Task Startup_TwoServers_Escape_TakesTheFirstListed_Unsaved()
     {
+        _settings.Update(d => d.LlmUrl = "");
         ServerOn(11434, "phi");
         _settings.Update(d => d.LlmModel = "pinned");
         _console.Input.PushKey(Keys.Escape);
@@ -1370,6 +1409,8 @@ public partial class ChatScreenTests : IDisposable
 
         Assert.Contains(SettingsMenu.StartupServerTitle, output);
         Assert.DoesNotContain(SettingsMenu.UnchangedNotice, output);
+        Assert.DoesNotContain(SettingsMenu.ModelTitle, output);   // ESC on the server: neither picker follows
+        Assert.DoesNotContain(SettingsMenu.ReasoningTitle, output);
         Assert.Contains("LLM: http://127.0.0.1:1234/v1 model=pinned (probed http://127.0.0.1:1234/v1)", output);
         Assert.Equal("", _settings.Current.LlmUrl);
         Assert.Equal(LlmEndpointProbe.CandidatePorts.Length, ModelProbes);
@@ -1433,6 +1474,7 @@ public partial class ChatScreenTests : IDisposable
     [Fact]
     public async Task Startup_NoServer_SaysSo()
     {
+        _settings.Update(d => d.LlmUrl = "");
         var http = new StubHttpMessageHandler();   // nothing mapped: every port refuses
         using var session = new LlmSession(new LlmEndpointProbe(new HttpClient(http), TimeSpan.FromMilliseconds(500)), new ContextLengthProbe(new HttpClient(http), TimeSpan.FromMilliseconds(500)), (_, _) => _chat);
         var screen = new ChatScreen(_console, _settings, () => _settings.Current, _overriddenBy, session, _speech, new KeySource(_console.Input, TimeSpan.FromMilliseconds(1)), _voice, _openedFiles.Add, RenderScreen, _time);
@@ -1477,7 +1519,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(1, Count(output, "LLM: http://127.0.0.1:1234/v1 model=llama (first listed)"));  // the startup pick: URL saved, model still auto
         Assert.Equal(1, Count(output, "LLM: http://127.0.0.1:11434/v1 model=gemma (configured)"));   // one reconnect: the picked model is now configured
         Assert.Equal(2, Count(output, "LLM: "));                                                    // the reasoning pick rode the same reconnect
-        Assert.Equal(2 * LlmEndpointProbe.CandidatePorts.Length + 1, ModelProbes);        // startup + /server's look-around + the reconnect's probe
+        Assert.Equal(LlmEndpointProbe.CandidatePorts.Length + 2, ModelProbes);        // the fixture's URL at startup + /server's look-around + the reconnect's probe
         Assert.Equal(2, clients.Count);
         Assert.True(clients[0].Disposed);
         Assert.False(clients[1].Disposed);
@@ -1539,7 +1581,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains("  · 🖥️ LLM URL: http://127.0.0.1:5000/v1", output);
         Assert.Contains("  · 🖥️ LLM model: odd-b", output);
         Assert.Contains("LLM: http://127.0.0.1:5000/v1 model=odd-b (configured)", output);
-        Assert.Equal(LlmEndpointProbe.CandidatePorts.Length + 2, ModelProbes);            // startup, the one probe, the reconnect
+        Assert.Equal(3, ModelProbes);            // startup, the one probe, the reconnect
     }
 
     [Fact]
@@ -1569,8 +1611,8 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         Assert.Contains("✗ Not a usable server URL: ", output);
-        Assert.Equal("", _settings.Current.LlmUrl);
-        Assert.Equal(LlmEndpointProbe.CandidatePorts.Length, ModelProbes);
+        Assert.Equal("http://127.0.0.1:1234/v1", _settings.Current.LlmUrl);   // the fixture's, untouched
+        Assert.Equal(1, ModelProbes);
     }
 
     [Fact]
@@ -1590,12 +1632,12 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(0, await screen.RunAsync(CancellationToken.None));
         string output = Output;
 
-        Assert.Contains("LLM: http://127.0.0.1:1234/v1 model=llama (probed http://127.0.0.1:1234/v1)", output);
+        Assert.Contains("LLM: http://127.0.0.1:1234/v1 model=llama (first listed)", output);
         Assert.Contains("✗ " + LlmSession.NoServerLine(ScanScope.Local), output);
         Assert.Contains(ChatScreen.NoServerHint, output);
         Assert.DoesNotContain(SettingsMenu.PromptTitle(SettingsMenu.ServerTitle, SettingsMenu.KeepKeys), output);
         Assert.NotNull(session.Assistant);   // the session in use is untouched
-        Assert.Equal("", _settings.Current.LlmUrl);
+        Assert.Equal("http://127.0.0.1:1234/v1", _settings.Current.LlmUrl);   // the fixture's, untouched
     }
 
     // ── LLM scan mode = disabled (2026-09-15) ────────────────────────────────
@@ -1614,7 +1656,7 @@ public partial class ChatScreenTests : IDisposable
     public async Task Startup_ScanDisabled_ConnectsNothing_AndSaysSo_AndServerRefuses()
     {
         // The fixture's server on :1234 is up; with the scan disabled and no URL it is never asked — not at launch, not by a bare /server.
-        _settings.Update(d => d.LlmScanMode = "disabled");
+        _settings.Update(d => { d.LlmScanMode = "disabled"; d.LlmUrl = ""; });
         PushLine("hello");
         PushLine("/server");
         PushLine("/exit");
@@ -1637,7 +1679,7 @@ public partial class ChatScreenTests : IDisposable
     public async Task Server_WithUrl_StillWorks_UnderScanDisabled()
     {
         // /server <url> probes one URL, no scan: the way in when the scan is off.
-        _settings.Update(d => d.LlmScanMode = "disabled");
+        _settings.Update(d => { d.LlmScanMode = "disabled"; d.LlmUrl = ""; });
         PushLine("/server http://127.0.0.1:1234");
         _console.Input.PushKey(Keys.Enter);     // llama, the one listed
         _console.Input.PushKey(Keys.Escape);    // keep the reasoning
@@ -1726,7 +1768,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.True(after.IndexOf(llmLine, StringComparison.Ordinal) < after.IndexOf("› b", StringComparison.Ordinal));
 
         // No re-probe: one model listing, one voice listing, one recogniser, and the conversation forgotten.
-        Assert.Equal(LlmEndpointProbe.CandidatePorts.Length, ModelProbes);   // startup discovery only
+        Assert.Equal(1, ModelProbes);   // the fixture's URL at startup only
         Assert.Equal(1, _synth.ListCalls);
         Assert.Equal(1, _recognizersBuilt);
         Assert.Equal(2, _chat.Requests.Count);
@@ -1761,7 +1803,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(1, Count(output, llmLine));
         Assert.DoesNotContain("TTS: ", output);
         Assert.DoesNotContain("STT: ", output);
-        Assert.Equal(LlmEndpointProbe.CandidatePorts.Length, ModelProbes);
+        Assert.Equal(1, ModelProbes);   // the fixture's URL
         Assert.Equal(1, _synth.ListCalls);
 
         // The conversation forgotten: the second message opens with the clock and cwd pairs again.
@@ -2023,7 +2065,7 @@ public partial class ChatScreenTests : IDisposable
         // pane showed the value, and the settings tabs / the Keys tab say the rest.
         Assert.DoesNotContain("STT: ", output[output.LastIndexOf("› /settings", StringComparison.Ordinal)..]);
         Assert.Equal(2, _recognizersBuilt);
-        Assert.Equal(LlmEndpointProbe.CandidatePorts.Length, ModelProbes);   // no LLM reconnect
+        Assert.Equal(1, ModelProbes);   // the fixture's URL; no LLM reconnect
         Assert.Equal(1, _synth.ListCalls);                                   // no TTS re-probe
     }
 
@@ -2051,7 +2093,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.True(_voice.WakeReady, _voice.WakeDetail);
         Assert.DoesNotContain("STT: ", output[output.LastIndexOf("› /settings", StringComparison.Ordinal)..]);
         Assert.Equal(2, _recognizersBuilt);                                  // a voice re-probe, nothing else
-        Assert.Equal(LlmEndpointProbe.CandidatePorts.Length, ModelProbes);   // no LLM reconnect
+        Assert.Equal(1, ModelProbes);   // the fixture's URL; no LLM reconnect
         Assert.Equal(1, _synth.ListCalls);                                   // no TTS re-probe
         Assert.DoesNotContain(_http.Requests, r => r.Uri.AbsoluteUri.StartsWith(ModelStore.VoskRepository, StringComparison.Ordinal));   // the folder was in place: no download
     }
@@ -3687,12 +3729,12 @@ public partial class ChatScreenTests : IDisposable
     }
 
     [Fact]
-    public async Task Turn_FreshProfile_DeleteIsOn_ZipAndTheTwoGitToolsOff_AndSysPromptCountsThirteen()
+    public async Task Turn_FreshProfile_DeleteAndGitDiscardOn_ZipAndGitDeleteOff_AndSysPromptCountsThirteen()
     {
-        // A fresh profile's ToolsDisabled: git_discard and git_delete (2026-09-20), zip and unzip (2026-09-21) — and delete no longer
+        // A fresh profile's ToolsDisabled: git_delete (2026-09-20), zip and unzip (2026-09-21) — git_discard no longer (2026-09-23, the user's call) and delete no longer
         // (later on 2026-09-21, the user's call: on out of the box, so the file rule keeps its delete / restore clause); the fixture had opted every tool on.
         _settings.Update(d => { d.TtsOutput = false; d.ToolsDisabled = [.. new AppSettingsData().ToolsDisabled]; });
-        Assert.Equal([GitDeleteTool.ToolName, GitDiscardTool.ToolName, UnzipTool.ToolName, ZipTool.ToolName], _settings.Current.ToolsDisabled);
+        Assert.Equal([GitDeleteTool.ToolName, UnzipTool.ToolName, ZipTool.ToolName], _settings.Current.ToolsDisabled);
         _chat.EnqueueText("Hello.");
         _console.Profile.Height = 90;
         _geometry = new ScreenGeometry(() => null);
@@ -3707,10 +3749,10 @@ public partial class ChatScreenTests : IDisposable
         var offered = _chat.Options[0]!.Tools!.Cast<AIFunction>().Select(t => t.Name).ToArray();
         Assert.Contains(DeleteTool.ToolName, offered);
         Assert.Contains(RestoreTool.ToolName, offered);
-        Assert.Equal(StandingAndFileTools.Length + 3 - 4, offered.Length);   // skill_editor, session_manager and (the pane on) ask_user ride; zip, unzip, git_discard and git_delete gone
+        Assert.Equal(StandingAndFileTools.Length + 3 - 3, offered.Length);   // skill_editor, session_manager and (the pane on) ask_user ride; zip, unzip and git_delete gone
         Assert.DoesNotContain(ZipTool.ToolName, offered);
         Assert.DoesNotContain(UnzipTool.ToolName, offered);
-        Assert.DoesNotContain(GitDiscardTool.ToolName, offered);
+        Assert.Contains(GitDiscardTool.ToolName, offered);
         Assert.DoesNotContain(GitDeleteTool.ToolName, offered);
         Assert.Contains(GitCommitTool.ToolName, offered);
         string prompt = _chat.Requests[0][0].Text!;
@@ -3741,7 +3783,7 @@ public partial class ChatScreenTests : IDisposable
         var offered = _chat.Options[0]!.Tools!.Cast<AIFunction>().Select(t => t.Name).ToArray();
         Assert.DoesNotContain(DeleteTool.ToolName, offered);
         Assert.Contains(RestoreTool.ToolName, offered);
-        Assert.Equal(StandingAndFileTools.Length + 3 - 5, offered.Length);   // delete gone with the four
+        Assert.Equal(StandingAndFileTools.Length + 3 - 4, offered.Length);   // delete gone with the three (git_discard on since 2026-09-23)
         string prompt = _chat.Requests[0][0].Text!;
         Assert.Contains(Assistant.FileRuleWithoutDelete, prompt, StringComparison.Ordinal);
         Assert.DoesNotContain(Assistant.FileRule, prompt, StringComparison.Ordinal);
@@ -5959,7 +6001,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains("\"Profile\": \"work\"", File.ReadAllText(_settings.PointerPath));
         Assert.Equal(new[] { Profiles.FileName }, Directory.GetFiles(ProfileDir("work")).Select(Path.GetFileName));   // the default profile here has no memories, persona, operating rules or voice directive to copy
         // Startup discovery, then the reconnect after the switch (LLM, TTS and voice).
-        Assert.Equal(2 * LlmEndpointProbe.CandidatePorts.Length, ModelProbes);
+        Assert.Equal(2, ModelProbes);   // the fixture's URL, copied into the new profile: one probe each
         Assert.Equal(2, _synth.ListCalls);
     }
 
@@ -6195,7 +6237,7 @@ public partial class ChatScreenTests : IDisposable
         string output = await RunAsync();
 
         Assert.Contains("  · " + SettingsMenu.AlreadyCurrentNotice(Profiles.DefaultName), output);
-        Assert.Equal(LlmEndpointProbe.CandidatePorts.Length, ModelProbes);
+        Assert.Equal(1, ModelProbes);   // the fixture's URL
     }
 
     [Fact]
@@ -6491,7 +6533,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.True(renamedAt >= 0 && switchedAt > renamedAt);
         Assert.DoesNotContain(SettingsMenu.SwitchedNotice("work"), output);
         Assert.Equal(new[] { "Neon", "office" }, _titles);
-        Assert.Equal(2 * LlmEndpointProbe.CandidatePorts.Length, ModelProbes);   // startup discovery + the switch's reconnect; none for the rename
+        Assert.Equal(1 + LlmEndpointProbe.CandidatePorts.Length, ModelProbes);   // the fixture's URL + the switch's reconnect (a blank-URL discovery); none for the rename
         Assert.Equal("office", _settings.ProfileName);
         Assert.Equal("work-model", _settings.Current.LlmModel);
         Assert.NotEqual(pointer, File.ReadAllText(_settings.PointerPath));
@@ -7202,7 +7244,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.Contains("  · " + SettingsMenu.UnchangedNotice, output);
         Assert.Contains("  · " + SettingsMenu.SwitchedNotice("work"), output);
         Assert.Equal("work", _settings.ProfileName);
-        Assert.Equal(2 * LlmEndpointProbe.CandidatePorts.Length, ModelProbes);
+        Assert.Equal(1 + LlmEndpointProbe.CandidatePorts.Length, ModelProbes);   // the fixture's URL, then the new profile's blank-URL discovery
     }
 
     [Fact]
@@ -7220,7 +7262,7 @@ public partial class ChatScreenTests : IDisposable
 
         Assert.Contains("  · " + SettingsMenu.SwitchedNotice("work"), output);
         Assert.Equal("work", _settings.ProfileName);
-        Assert.Equal(2 * LlmEndpointProbe.CandidatePorts.Length, ModelProbes);
+        Assert.Equal(1 + LlmEndpointProbe.CandidatePorts.Length, ModelProbes);   // the fixture's URL, then the new profile's blank-URL discovery
         Assert.False(_speech.IsReady);   // the work profile has speech off
     }
 
@@ -9454,7 +9496,7 @@ public partial class ChatScreenTests : IDisposable
     [Fact]
     public async Task Compact_WithoutAnAssistant_IsTheNoEndpointError()
     {
-        _settings.Update(d => d.TtsOutput = false);
+        _settings.Update(d => { d.TtsOutput = false; d.LlmUrl = ""; });
         var http = new StubHttpMessageHandler();   // nothing mapped: every port refuses
         using var session = new LlmSession(new LlmEndpointProbe(new HttpClient(http), TimeSpan.FromMilliseconds(500)), new ContextLengthProbe(new HttpClient(http), TimeSpan.FromMilliseconds(500)), (_, _) => _chat);
         var screen = new ChatScreen(_console, _settings, () => _settings.Current, _overriddenBy, session, _speech, new KeySource(_console.Input, TimeSpan.FromMilliseconds(1)), _voice, _openedFiles.Add, RenderScreen, _time);
@@ -12072,6 +12114,29 @@ public partial class ChatScreenTests : IDisposable
             + "  · " + TreeText.CutLine(2) + "\n",
             output);
         Assert.DoesNotContain(" B\n", output);
+    }
+
+    [Theory]
+    [InlineData("default")]
+    [InlineData("show-hidden")]
+    public async Task Tree_FollowsTheFileBrowserTreeMode(string mode)
+    {
+        // 2026-09-23, the user's call: /tree follows File browser/tree mode — default leaves dot-files and dot-folders out, show-hidden lists them.
+        _settings.Update(d => { d.FileTreeShowSizes = false; d.FileBrowserMode = mode; });
+        string files = Path.Combine(_settings.ProfileDirectory, WorkingDirectory.DefaultFolderName);
+        Directory.CreateDirectory(Path.Combine(files, ".folder"));
+        File.WriteAllText(Path.Combine(files, ".folder", "x.txt"), "1");
+        File.WriteAllText(Path.Combine(files, ".gitignore"), "bin/");
+        File.WriteAllText(Path.Combine(files, "a.txt"), "1");
+        PushLine("/tree");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        string expected = mode == "show-hidden"
+            ? "  · " + files + @"\" + "\n" + "  · ├── .folder\\\n" + "  · │   └── x.txt\n" + "  · ├── .gitignore\n" + "  · └── a.txt\n"
+            : "  · " + files + @"\" + "\n" + "  · └── a.txt\n";
+        Assert.Contains(expected, output);
     }
 
     [Fact]

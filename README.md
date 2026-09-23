@@ -126,7 +126,7 @@ Neon Companion is released under the GPLv3 license.
 | Setting | What it does | Default |
 |---|---|---|
 | LLM scan mode | Where a blank URL looks for a server: `local` (the usual ports on this machine), `remote` (the same ports across the local network), `both`, or `disabled` (no scan; set the URL by hand). | `local` |
-| LLM URL | The OpenAI-compatible base URL (`http://127.0.0.1:1234/v1`); empty scans per the mode above. `/server` fills it in. | (scan) |
+| LLM URL | The OpenAI-compatible base URL (`http://127.0.0.1:1234/v1`); empty scans per the mode above, and at startup the servers found are offered as `/server` offers them — then the model and reasoning pickers, all saved (ESC on the server takes the first listed, unsaved). `/server` fills it in. | (scan) |
 | LLM model | The model id; empty takes the first the server lists. `/model` picks one. | (first listed) |
 | LLM API key | The bearer token; `empty` for keyless local servers. | `empty` |
 | LLM reasoning | The reasoning effort sent with every request: `none` (thinking off), `low`, `medium`, `high` or `xhigh`. `/reasoning` opens the same list. | `none` |
@@ -212,7 +212,7 @@ One row, **Project file**: whether `NEON.md` (or `AGENTS.md`) in the working dir
 
 #### Offered
 
-Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Obsidian, Web, Memory, Skills, Sessions, Questions) with the description the model reads. Enter or Space flips a single tool on or off; a group whose switch is off is shown dim. `git_discard` and `git_delete` — the git tools that lose work — and `zip` / `unzip` — the bulk pack and extract — start off (a profile saved earlier keeps its own list).
+Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Obsidian, Web, Memory, Skills, Sessions, Questions) with the description the model reads. Enter or Space flips a single tool on or off; a group whose switch is off is shown dim. `git_delete` — the git tool that loses branches, tags and stashes — and `zip` / `unzip` — the bulk pack and extract — start off; `git_discard` is on out of the box (a profile saved earlier keeps its own list).
 
 #### Web
 
@@ -235,7 +235,7 @@ Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Obsidian, Web
 | File /tree max length | How many entries `/tree` prints before it stops (1–10000). | 500 |
 | File /tree show sizes | `/tree` carries each file's size. | on |
 | File @-mention folder mode | Picking a folder from the `@` list: `folder-remain` keeps the list open inside it; `folder-apply` writes `@folder/` and closes. | `folder-remain` |
-| File browser mode | What `/cwd browse` lists: `default` hides hidden and system folders and dot-folders; `show-hidden` lists them too. | `default` |
+| File browser/tree mode | What the folder browsers (`/cwd browse`, the *Obsidian vault* row) and `/tree` list: `default` hides hidden and system entries and dot-folders (and, in `/tree`, dot-files); `show-hidden` lists them too. | `default` |
 | File view image max (per call) | How many pictures one `view_image` call may load (1–100). | 10 |
 
 #### Shell
@@ -376,7 +376,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/sys` | Show the system prompt and the tools sent to the model. |
 | `/timer [duration [name] \| stop <name> \| stop all]` | List the timers, or start one (`10m`, `90s`, `1h30m`), or stop one. |
 | `/tools` | Switch the model's tools on or off and edit the Ask, Files, Git and Web settings. |
-| `/tree [path]` | Print a tree of the working directory. |
+| `/tree [path]` | Print a tree of the working directory; hidden, system and dot entries only under *File browser/tree mode* `show-hidden`. |
 | `/tts [on\|off]` | Toggle speech output. |
 | `/usage` | Show token usage and performance statistics. |
 | `/vault` | Print a tree of the *Obsidian vault*'s folders and notes, as `/tree` prints the working directory: the dot-folders (`.obsidian`, `.trash`, `.git`) left out, capped by *File /tree max length*, sizes under *File /tree show sizes*. An error while *Obsidian tools* is off, no vault is set, or the folder cannot be reached or has no `.obsidian`. |
@@ -432,7 +432,7 @@ All paths are relative to the working directory; nothing outside it is reachable
 | `create_directory` | `path` | Creates a folder and any missing parents. |
 | `move` | `from, to, overwrite?` | Renames or moves a file or folder; refuses to replace anything at the new path unless `overwrite` is true. |
 | `copy` | `from, to, overwrite?` | Copies a file or folder to a new path under the same overwrite rule; a folder copied over a folder merges into it. |
-| `delete` | `path` | Deletes a file or folder — into `.trash` while *File safe edits* is on, for good when it is off. |
+| `delete` | `path` | Deletes a file or folder — into `.trash` while *File safe edits* is on, for good when it is off. `.git`, anything in it, and a folder holding one are always refused. |
 | `restore` | `path, overwrite?` | Puts back the newest `.trash` copy of a file or folder; with `overwrite` it undoes the last edit of a file. |
 | `zip` | `path, to?, overwrite?` | Packs a file or folder into a `.zip` archive, by default beside the original. |
 | `unzip` | `path, to?, overwrite?` | Extracts a `.zip` archive into a folder, all or nothing. |

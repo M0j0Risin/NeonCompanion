@@ -45,8 +45,8 @@ public class FileBrowserModeTests
             Assert.NotEqual("", FileBrowserMode.Describe(name));
         }
 
-        Assert.Equal("hide hidden and system folders", FileBrowserMode.Describe("default"));
-        Assert.Equal("list hidden and system folders too", FileBrowserMode.Describe("show-hidden"));
+        Assert.Equal("hide hidden, system and dot entries", FileBrowserMode.Describe("default"));   // since 2026-09-23, when /tree came to follow the mode
+        Assert.Equal("list hidden, system and dot entries too", FileBrowserMode.Describe("show-hidden"));
         Assert.Equal("", FileBrowserMode.Describe("hidden"));
     }
 

@@ -71,6 +71,9 @@ public enum FileOutcome
 
     /// <summary>A folder at a <c>move</c> / <c>copy</c> / <c>restore</c> destination with <c>overwrite</c> while <c>File safe edits</c> is off (2026-09-20): a folder is replaced only with a copy kept in <c>.trash</c>.</summary>
     FolderInTheWay,
+
+    /// <summary>A <c>delete</c> of <c>.git</c>, of anything in it, or of a folder holding one (2026-09-23, the user's call): git's own store is never deleted.</summary>
+    GitProtected,
 }
 
 public readonly record struct DirectoryEntry(string Name, bool IsDirectory, long Length);
@@ -229,6 +232,9 @@ public sealed class WorkingDirectory
 {
     public const string DefaultFolderName = "files";
     public const string TrashFolderName = ".trash";
+
+    /// <summary>The folder <c>delete</c> never touches, nor anything in it or a folder holding it (2026-09-23).</summary>
+    public const string GitFolderName = ".git";
     public const string Category = "Files";
 
     /// <summary>Entries a directory listing shows by default (<c>search_files</c> with no <c>text</c> and no <c>files</c>; <c>/tree</c>'s neighbour).</summary>
@@ -453,9 +459,11 @@ public sealed class WorkingDirectory
     /// (2026-09-18, the nested listing's <c>depth</c>) stops the descent that many levels down; the default
     /// is every level. <paramref name="hideDotEntries"/> (2026-09-22, <c>/vault</c>) leaves out every file and
     /// folder whose name starts with a dot, at any depth — <c>.obsidian</c>, <c>.trash</c>, <c>.git</c>, the
-    /// entries the vault tools leave to Obsidian.
+    /// entries the vault tools leave to Obsidian. <paramref name="showHidden"/> (2026-09-23, <c>/tree</c> under
+    /// <c>File browser/tree mode</c> <c>show-hidden</c>) lists the entries with the Hidden or System attribute too
+    /// (<c>.git</c> on Windows), which every walk leaves out otherwise; reparse points stay out either way.
     /// </summary>
-    public FileTreeResult FileTree(string relative, int maxEntries, int maxDepth = int.MaxValue, bool hideDotEntries = false)
+    public FileTreeResult FileTree(string relative, int maxEntries, int maxDepth = int.MaxValue, bool hideDotEntries = false, bool showHidden = false)
     {
         var outcome = Resolve(relative, forWrite: false, out string full);
         if (outcome != FileOutcome.Ok)
@@ -480,7 +488,7 @@ public sealed class WorkingDirectory
 
             int cap = Math.Clamp(maxEntries, MinTreeLength, MaxTreeLength);
             var entries = new List<FileTreeEntry>();
-            bool truncated = !DescendAll(full, 1, cap, Math.Max(1, maxDepth), hideDotEntries, entries);
+            bool truncated = !DescendAll(full, 1, cap, Math.Max(1, maxDepth), hideDotEntries, showHidden, entries);
             return new FileTreeResult(FileOutcome.Ok, display, header, entries, truncated);
         }
         catch (Exception ex) when (IsFileFailure(ex))
@@ -490,13 +498,19 @@ public sealed class WorkingDirectory
     }
 
     /// <summary>Depth-first, folders first then names per level; false once <paramref name="cap"/> entries are listed and more remain.</summary>
-    private bool DescendAll(string directory, int depth, int cap, int maxDepth, bool hideDotEntries, List<FileTreeEntry> entries)
+    private bool DescendAll(string directory, int depth, int cap, int maxDepth, bool hideDotEntries, bool showHidden, List<FileTreeEntry> entries)
     {
         bool atRoot = string.Equals(directory, Root, StringComparison.OrdinalIgnoreCase);
         var children = new List<DirectoryEntry>();
         try
         {
-            foreach (var info in new DirectoryInfo(directory).EnumerateFileSystemInfos("*", WalkOptions(recurse: false)))
+            var options = WalkOptions(recurse: false);
+            if (showHidden)
+            {
+                options.AttributesToSkip = FileAttributes.ReparsePoint;
+            }
+
+            foreach (var info in new DirectoryInfo(directory).EnumerateFileSystemInfos("*", options))
             {
                 bool isDirectory = (info.Attributes & FileAttributes.Directory) != 0;
                 if ((atRoot && isDirectory && IsTrashName(info.Name)) || (hideDotEntries && info.Name.StartsWith('.')))
@@ -523,7 +537,7 @@ public sealed class WorkingDirectory
 
             var child = children[i];
             entries.Add(new FileTreeEntry(child.Name, depth, child.IsDirectory, child.Length, i == children.Count - 1));
-            if (child.IsDirectory && depth < maxDepth && !DescendAll(Path.Combine(directory, child.Name), depth + 1, cap, maxDepth, hideDotEntries, entries))
+            if (child.IsDirectory && depth < maxDepth && !DescendAll(Path.Combine(directory, child.Name), depth + 1, cap, maxDepth, hideDotEntries, showHidden, entries))
             {
                 return false;
             }
@@ -1640,7 +1654,9 @@ public sealed class WorkingDirectory
     /// Moves a file or folder into <c>.trash\&lt;stamp&gt;\&lt;relative&gt;</c>: a same-volume move, nothing destroyed —
     /// while <paramref name="toTrash"/> (<c>File safe edits</c>). Without it (2026-09-20, the user's call) the entry is
     /// removed in place, a folder with everything in it: the one recursive delete in the sandbox, behind the setting.
-    /// Either way the root and anything under <c>.trash</c> are refused (<c>/emptytrash</c> alone clears the trash).
+    /// Either way the root and anything under <c>.trash</c> are refused (<c>/emptytrash</c> alone clears the trash), and so
+    /// (2026-09-23, the user's call) are <c>.git</c>, anything in it and a folder with a <c>.git</c> anywhere under it —
+    /// <see cref="FileOutcome.GitProtected"/>, whichever the setting: a repository's history is not the model's to lose.
     /// </summary>
     public TrashResult Delete(string relative, bool toTrash = true)
     {
@@ -1663,6 +1679,11 @@ public sealed class WorkingDirectory
             if (string.Equals(full, Root, StringComparison.OrdinalIgnoreCase))
             {
                 return new TrashResult(FileOutcome.IntoItself, display, "", true);
+            }
+
+            if (IsGitPath(Relative(full)) || (isDirectory && HoldsGit(full)))
+            {
+                return new TrashResult(FileOutcome.GitProtected, display, "", isDirectory);
             }
 
             if (!toTrash)
@@ -1688,6 +1709,29 @@ public sealed class WorkingDirectory
             return new TrashResult(FileOutcome.Failed, Relative(full), "", false, ex.Message);
         }
     }
+
+    /// <summary>Whether a segment of <paramref name="relative"/> is <see cref="GitFolderName"/>, in any case: <c>.git</c> itself or anything under it. Pure.</summary>
+    public static bool IsGitPath(string relative)
+    {
+        ArgumentNullException.ThrowIfNull(relative);
+        return relative.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries)
+            .Any(part => string.Equals(part, GitFolderName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Whether a <c>.git</c> is anywhere under <paramref name="directory"/> — a folder, or the file a worktree or a
+    /// submodule keeps in its place — never through a reparse point; the first hit ends the walk. An unreadable
+    /// subfolder is passed over (the delete that follows fails on it anyway).
+    /// </summary>
+    private static bool HoldsGit(string directory) =>
+        Directory.EnumerateFileSystemEntries(directory, GitFolderName, new EnumerationOptions
+        {
+            RecurseSubdirectories = true,
+            IgnoreInaccessible = true,
+            AttributesToSkip = FileAttributes.ReparsePoint,
+            MatchCasing = MatchCasing.CaseInsensitive,
+            ReturnSpecialDirectories = false,
+        }).Any();
 
     /// <summary>The move behind <see cref="Delete"/> and an overwritten folder; returns the full path inside the trash.</summary>
     private string MoveToTrash(string full, string relative)
