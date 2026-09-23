@@ -21,8 +21,10 @@ namespace NeonCompanion.App;
 /// shape: Enter or Space flips it in place (<c>AppSettingsData.ProjectFile</c>, <see cref="SkillsText.ProjectFlippedNotice"/>
 /// on the status line, the facts read again, the cursor kept), mid-turn too — the next turn reads it. Enter or a double-click on
 /// a skill's row (a loaded one, or a shadowed one — the duplicate is the thing to clean up) opens the
-/// scope page under the list: <c>profile</c>, <c>global</c>, <c>rename</c> (2026-09-21, the user's ask) and,
-/// while <c>Allow skill delete</c> is on, <c>delete</c>, the cursor on the scope it is in. Picking the other root moves the folder
+/// scope page under the list: <c>profile</c>, <c>global</c>, <c>rename</c> (2026-09-21, the user's ask), <c>edit</c>
+/// (2026-09-23, the user's ask: it opens the skill's <c>SKILL.md</c> in the editor, the status line saying so, and took
+/// over from <c>/skills edit &lt;name&gt;</c>, which went) and, while <c>Allow skill delete</c> is on, <c>delete</c>, the
+/// cursor on the scope it is in. Picking the other root moves the folder
 /// (<see cref="SkillEditor.Move"/>) after a yes/no confirmation kept under the list; picking
 /// <c>delete</c> removes it (<see cref="SkillEditor.Delete"/>) after one; the scope it is in already
 /// is <see cref="SettingsMenu.UnchangedNotice"/>. Picking <c>rename</c> opens the typed slot under the
@@ -43,7 +45,7 @@ namespace NeonCompanion.App;
 internal sealed class SkillsMenu
 {
     // The key hints. Pinned.
-    public const string LoadedKeys = "Enter = move, rename or delete · ←/→ tabs · ESC = close";
+    public const string LoadedKeys = "Enter = move, rename, edit or delete · ←/→ tabs · ESC = close";
     public const string OtherKeys = "←/→ tabs · ESC = close";
     public const string ScopeKeys = SettingsMenu.PickKeys;
 
@@ -52,6 +54,9 @@ internal sealed class SkillsMenu
 
     /// <summary>The scope page's row after the two roots (2026-09-21). Pinned.</summary>
     public const string RenameWord = "rename";
+
+    /// <summary>The scope page's row after rename (2026-09-23): the skill's <c>SKILL.md</c> opened in the editor. Pinned.</summary>
+    public const string EditWord = "edit";
 
     /// <summary>What a declined confirmation says on the status line: the transcript's word.</summary>
     public const string KeptNotice = ChatScreen.KeptNotice;
@@ -68,6 +73,7 @@ internal sealed class SkillsMenu
     private readonly INoticeSink _transcript;
     private readonly MenuPane _pane;
     private readonly InputLine _input;
+    private readonly Action<string> _openFile;
     private readonly Func<string, string?> _usage;
 
     /// <param name="facts">The catalog as of a fresh scan and the rest the tabs show; read when the list opens and again after every change.</param>
@@ -77,8 +83,9 @@ internal sealed class SkillsMenu
     /// <param name="transcript">Where the lines outside the pane go: the screen's deferring sink, since the list may open while a reply runs.</param>
     /// <param name="pane">The menu host in the bottom pane.</param>
     /// <param name="input">The line the rename's new name is typed on, under the page (2026-09-21).</param>
+    /// <param name="openFile">Opens a file in the user's editor: the <c>edit</c> row's <c>SKILL.md</c> (2026-09-23; the screen's <c>/profile edit</c> seam).</param>
     /// <param name="usage">The scope page's caption for a skill by name (<see cref="UsageCaption"/>; the session store's usage line, 2026-09-19), null for none — read when the page opens; tests pass nothing.</param>
-    public SkillsMenu(Func<SkillsFacts> facts, Func<bool> allowDelete, AppSettings settings, SettingsMenu menu, INoticeSink transcript, MenuPane pane, InputLine input, Func<string, string?>? usage = null)
+    public SkillsMenu(Func<SkillsFacts> facts, Func<bool> allowDelete, AppSettings settings, SettingsMenu menu, INoticeSink transcript, MenuPane pane, InputLine input, Action<string> openFile, Func<string, string?>? usage = null)
     {
         _facts = facts ?? throw new ArgumentNullException(nameof(facts));
         _allowDelete = allowDelete ?? throw new ArgumentNullException(nameof(allowDelete));
@@ -87,6 +94,7 @@ internal sealed class SkillsMenu
         _transcript = transcript ?? throw new ArgumentNullException(nameof(transcript));
         _pane = pane ?? throw new ArgumentNullException(nameof(pane));
         _input = input ?? throw new ArgumentNullException(nameof(input));
+        _openFile = openFile ?? throw new ArgumentNullException(nameof(openFile));
         _usage = usage ?? (_ => null);
     }
 
@@ -128,6 +136,15 @@ internal sealed class SkillsMenu
 
     /// <summary>The rename row (2026-09-21): the word padded to nine, what it does dim after it.</summary>
     public static string RenameRow => Markup.Escape(RenameWord.PadRight(9)) + Theme.DimMarkup("give it a new name (letters, digits and hyphens)");
+
+    /// <summary>The edit row (2026-09-23): the word padded to nine, what it does dim after it.</summary>
+    public static string EditRow => Markup.Escape(EditWord.PadRight(9)) + Theme.DimMarkup("open its SKILL.md in your editor");
+
+    /// <summary>What the status line says once the edit row opened the file (<c>/skills edit</c>'s words until 2026-09-23). Pinned.</summary>
+    public static string EditOpenedNotice(string name, string path) => $"({NoticeGlyphs.Skill}opened skill \"{name}\"'s SKILL.md in your editor: {path})";
+
+    /// <summary>The editor could not be started for the edit row. Pinned.</summary>
+    public static string EditFailedError(string detail) => $"Could not open the SKILL.md: {detail}";
 
     /// <summary>The delete row: the word padded to nine, what it does dim after it.</summary>
     public static string DeleteRow => Markup.Escape(DeleteWord.PadRight(9)) + Theme.DimMarkup("remove the folder and everything in it");
@@ -360,13 +377,14 @@ internal sealed class SkillsMenu
         }
     }
 
-    /// <summary>The scope page under the list — the two roots, rename, delete when allowed —, the confirmation or the typed slot under that, then the act; true when the folder changed (the facts are stale).</summary>
+    /// <summary>The scope page under the list — the two roots, rename, edit, delete when allowed —, the confirmation or the typed slot under that, then the act; true when the folder changed (the facts are stale).</summary>
     private async Task<bool> PickScopeAsync(Skill skill, SkillsFacts facts, CancellationToken cancellationToken)
     {
         var roots = facts.Roots;
         bool delete = _allowDelete();
         var rows = ScopeRows.Select(scope => ScopeRow(scope, roots)).ToList();
         rows.Add(RenameRow);
+        rows.Add(EditRow);
         if (delete)
         {
             rows.Add(DeleteRow);
@@ -384,7 +402,13 @@ internal sealed class SkillsMenu
             return await RenameAsync(skill, facts, page, row, cancellationToken).ConfigureAwait(false);
         }
 
-        if (row > ScopeRows.Count)
+        if (row == ScopeRows.Count + 1)
+        {
+            Edit(skill);
+            return false;
+        }
+
+        if (row > ScopeRows.Count + 1)
         {
             if (!await ConfirmAsync(DeletePrompt(skill.Name, skill.Scope), cancellationToken).ConfigureAwait(false))
             {
@@ -493,6 +517,24 @@ internal sealed class SkillsMenu
             default:
                 Sink.Error(RenameFailedError(renamed.Detail));
                 return renamed.Outcome != SkillEditOutcome.Unparseable;   // a failed write after the move: the list shows the renamed folder
+        }
+    }
+
+    /// <summary>
+    /// The edit row (2026-09-23, the user's ask; <c>/skills edit &lt;name&gt;</c> until then): the skill's <c>SKILL.md</c>
+    /// opened in the editor, the status line saying so or why not. Nothing changes on disk here, so no rescan: the body
+    /// is read at activation, and the edit shows on the next load.
+    /// </summary>
+    private void Edit(Skill skill)
+    {
+        try
+        {
+            _openFile(skill.FilePath);
+            Sink.Notice(EditOpenedNotice(skill.Name, skill.FilePath));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            Sink.Error(EditFailedError(ex.Message));
         }
     }
 

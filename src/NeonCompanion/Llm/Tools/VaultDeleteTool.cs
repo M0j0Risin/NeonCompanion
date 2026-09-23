@@ -7,7 +7,7 @@ namespace NeonCompanion.Llm.Tools;
 
 /// <summary>
 /// <c>vault_delete(note)</c>: one note or attachment moved into the vault's <c>.trash</c>, Obsidian's "Move to Obsidian
-/// trash" (2026-09-22, the user's ask). Offered only while the setting <c>Obsidian allow delete</c> is on — off by
+/// trash" (2026-09-22, the user's ask). Offered only while the setting <c>Obsidian allow delete (.trash)</c> is on — off by
 /// default, a bool rather than a <c>ToolsDisabled</c> default so a profile saved before it keeps it off too
 /// (<see cref="App.ChatScreen.ObsidianToolsFor"/>) — and refused here as well when the setting is off at the call.
 /// </summary>

@@ -8691,7 +8691,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.StartsWith(HelpRow("/sessions", "list, restore and purge sessions: /sessions [<id> | purge <id> | purge older <age> | purge all | title <text>]"), lines[2]);   // under /profile since later on 2026-09-18
         Assert.StartsWith(HelpRow("/tools", "switch the model's tools on or off and edit the Options, Ask, Files and Web settings on a pane"), lines[3]);   // 2026-09-19; the alias /// came and went on 2026-09-21
         Assert.StartsWith(HelpRow("/mcp", "connect external MCP servers and switch their tools on or off on a pane"), lines[4]);   // 2026-09-20
-        Assert.StartsWith(HelpRow("/skills", "list the skills, edit the skill settings and the project file on a pane, or /skills edit <name> to open its SKILL.md"), lines[5]);   // edit 2026-09-21 (the alias //// came and went that day);   // under /sessions since later on 2026-09-19 (/ask /files /web ahead of it until 2026-09-18)
+        Assert.StartsWith(HelpRow("/skills", "list the skills (Enter on one moves, renames, edits or deletes it), edit the skill settings and the project file on a pane"), lines[5]);   // edit 2026-09-21, the scope page's edit row in its place 2026-09-23 (the alias //// came and went that day);   // under /sessions since later on 2026-09-19 (/ask /files /web ahead of it until 2026-09-18)
         Assert.StartsWith(HelpRow("/learn", "write or improve a skill from the last turn or the stored sessions, in the background: /learn [what to keep] | sessions [N | what to search]"), lines[6]);   // 2026-09-17; the sessions form 2026-09-19
         Assert.True(string.IsNullOrWhiteSpace(lines[7]));
         Assert.StartsWith(HelpRow("/server", "pick an LLM server found on the usual ports, or /server <url>"), lines[8]);
@@ -9848,7 +9848,6 @@ public partial class ChatScreenTests : IDisposable
     [InlineData(SlashCommand.Operata, false, MidTurnClass.Refused)]
     [InlineData(SlashCommand.Vocalia, false, MidTurnClass.Refused)]
     [InlineData(SlashCommand.Skills, false, MidTurnClass.Pane)]
-    [InlineData(SlashCommand.Skills, true, MidTurnClass.Refused)]   // /skills edit <name>, 2026-09-21
     [InlineData(SlashCommand.Loop, false, MidTurnClass.Refused)]    // 2026-09-21
     [InlineData(SlashCommand.Loop, true, MidTurnClass.Refused)]
     [InlineData(SlashCommand.Expand, false, MidTurnClass.Quick)]     // later on 2026-09-22
@@ -11015,8 +11014,8 @@ public partial class ChatScreenTests : IDisposable
     {
         string vault = Path.Combine(_dir, "Vault");
         Directory.CreateDirectory(Path.Combine(vault, ".obsidian"));
-        _settings.Update(d => { d.TtsOutput = false; d.ObsidianVault = vault; });
-        Assert.False(_settings.Current.ObsidianAllowDelete);
+        Assert.True(_settings.Current.ObsidianAllowDelete);   // on by default since 2026-09-23: the script switches it off first
+        _settings.Update(d => { d.TtsOutput = false; d.ObsidianVault = vault; d.ObsidianAllowDelete = false; });
         _chat.EnqueueText("One.");
         _chat.EnqueueText("Two.");
         PushLine("hi");
@@ -13235,11 +13234,11 @@ public partial class ChatScreenTests : IDisposable
     }
 
     [Fact]
-    public async Task Skills_WithAnArgumentThatIsNotEdit_IsTheUsageLine_NothingSeeded()
+    public async Task Skills_WithAnArgument_IsTheNoArgumentLine_NothingSeeded_NothingOpened()
     {
         // /skill <name> [message] loaded the skill into the next reply from 2026-09-16 until later on
-        // 2026-09-18 (the user's call: the #-mention covers it); since 2026-09-21 the one argument form
-        // is edit <name>, and anything else is the usage line, whatever the switches say — no request.
+        // 2026-09-18 (the user's call: the #-mention covers it); /skills edit <name> opened a SKILL.md from
+        // 2026-09-21 until 2026-09-23 (the scope page's edit row since): any argument is the no-argument line now.
         _settings.Update(d => d.TtsOutput = false);
         PutSkill(ProfileSkills, "haiku");
         PushLine("/skills haiku");
@@ -13250,71 +13249,11 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Equal(4, CountOf(output, "  ✗ " + ChatScreen.SkillsUsageError));
+        Assert.Equal(4, CountOf(output, "  ✗ " + ChatScreen.NoArgumentError("/skills")));
         Assert.DoesNotContain("Offered", output);   // no pane either
         Assert.DoesNotContain("loaded skill", output);
         Assert.Empty(_chat.Requests);
         Assert.Empty(_openedFiles);
-    }
-
-    /// <summary><c>/skills edit &lt;name&gt;</c> (2026-09-21): the offered skill's SKILL.md in the editor, the case ignored; a name that is not offered is the error; a failed editor is the error line.</summary>
-    [Fact]
-    public async Task Skills_Edit_OpensTheSkillMd_InTheEditor()
-    {
-        _settings.Update(d => d.TtsOutput = false);
-        string directory = PutSkill(ProfileSkills, "haiku");
-        PushLine("/skills edit haiku");
-        PushLine("/SKILLS edit HAIKU");
-        PushLine("/skills edit nope");
-        PushLine("/exit");
-
-        string output = await RunAsync();
-
-        string path = Path.Combine(directory, SkillCatalog.FileName);
-        Assert.Equal([path, path], _openedFiles);
-        Assert.Equal(2, CountOf(output, "  · " + ChatScreen.SkillEditOpenedNotice("haiku", path)));
-        Assert.Contains("  ✗ " + ChatScreen.SkillMissingError("nope"), output);
-        Assert.Empty(_chat.Requests);
-
-        _openFile = _ => throw new System.ComponentModel.Win32Exception("no editor");
-        PushLine("/skills edit haiku");
-        PushLine("/exit");
-        output = await RunAsync();
-        Assert.Contains("  ✗ " + ChatScreen.SkillEditFailedError("no editor"), output);
-    }
-
-    [Fact]
-    public async Task Skills_Edit_WhileTheSkillsAreOff_IsRefused()
-    {
-        _settings.Update(d => { d.TtsOutput = false; d.AgentSkills = false; });
-        PutSkill(ProfileSkills, "haiku");
-        PushLine("/skills edit haiku");
-        PushLine("/exit");
-
-        string output = await RunAsync();
-
-        Assert.Contains("  ✗ " + ChatScreen.SkillsOffError, output);
-        Assert.Empty(_openedFiles);
-    }
-
-    [Fact]
-    public void SkillsEditStrings_AndArgumentList_ArePinned()
-    {
-        Assert.Equal("edit", ChatScreen.SkillsEditWord);
-        Assert.Equal("open a skill's SKILL.md in your editor: /skills edit <name>", ChatScreen.SkillsEditNote);
-        Assert.Equal("Usage: /skills, or /skills edit <skill-name>.", ChatScreen.SkillsUsageError);
-        Assert.Equal("No skill named \"nope\" is offered; /skills lists them.", ChatScreen.SkillMissingError("nope"));
-        Assert.Equal(@"(🎓 opened skill ""haiku""'s SKILL.md in your editor: C:\s\haiku\SKILL.md)", ChatScreen.SkillEditOpenedNotice("haiku", @"C:\s\haiku\SKILL.md"));
-        Assert.Equal("Could not open the SKILL.md: boom", ChatScreen.SkillEditFailedError("boom"));
-
-        // The argument list: edit, then edit with each offered skill's name; the word's case is nothing.
-        var skills = new[] { new CompletionItem("haiku", "Writes haiku."), new CompletionItem("sonnet", "Writes sonnets.") };
-        Assert.Equal([new CompletionItem("edit", ChatScreen.SkillsEditNote)], ChatScreen.ArgumentItems("/skills", "", Sources(skills: skills)));
-        Assert.Equal([new CompletionItem("edit", ChatScreen.SkillsEditNote)], ChatScreen.ArgumentItems("/SKILLS", "ed", Sources(skills: skills)));
-        Assert.Equal([new CompletionItem("edit haiku", "Writes haiku."), new CompletionItem("edit sonnet", "Writes sonnets.")], ChatScreen.ArgumentItems("/skills", "edit ", Sources(skills: skills)));
-        Assert.Equal([new CompletionItem("edit sonnet", "Writes sonnets.")], ChatScreen.ArgumentItems("/skills", "edit so", Sources(skills: skills)));
-        Assert.Empty(ChatScreen.ArgumentItems("/skills", "edit ", Sources()));   // no catalog source: nothing
-        Assert.Empty(ChatScreen.ArgumentItems("/skills", "x", Sources(skills: skills)));
     }
 
     [Fact]
@@ -13326,35 +13265,15 @@ public partial class ChatScreenTests : IDisposable
     }
 
     [Fact]
-    public void MidTurn_SkillsIsAPane_WithAnArgumentItIsRefused()
+    public void MidTurn_SkillsIsAPane_WithAnArgumentItIsOverloaded()
     {
         // A pane (later on 2026-09-18; with a name it was refused until the name form went later that
-        // day; /skill x was Overloaded, quick, until 2026-09-21): /skills edit <name> launches an editor,
-        // refused mid-turn like /profile edit.
+        // day; /skill x was Overloaded, quick, until 2026-09-21, and is again since 2026-09-23): /skills edit
+        // <name> launched an editor in between, refused mid-turn like /profile edit.
         Assert.Equal(MidTurnClass.Pane, ChatScreen.MidTurnPolicy(SlashCommand.Skills, hasArgs: false));
-        Assert.Equal(MidTurnClass.Refused, ChatScreen.MidTurnPolicy(SlashCommand.Skills, hasArgs: true));
         var (command, args) = SlashCommands.Parse("/skills edit x");
-        Assert.Equal((SlashCommand.Skills, "edit x"), (command, args));
-        Assert.Equal(MidTurnClass.Refused, ChatScreen.MidTurnPolicy(command, args.Length > 0));
-    }
-
-    [Fact]
-    public async Task MidTurn_SkillsEdit_IsRefusedWithANotice_AndDropped()
-    {
-        PutSkill(ProfileSkills, "haiku");
-        MidTurnFixture(i =>
-        {
-            if (i == 1)
-            {
-                PushLine("/skills edit haiku");
-            }
-        });
-
-        string output = await RunAsync();
-
-        Assert.Contains("  · " + ChatScreen.MidTurnRefusedNotice("/skills"), output);
-        Assert.Empty(_openedFiles);
-        Assert.Single(_chat.Requests);
+        Assert.Equal((SlashCommand.Overloaded, "edit x"), (command, args));
+        Assert.Equal(MidTurnClass.Quick, ChatScreen.MidTurnPolicy(command, args.Length > 0));
     }
 
     [Fact]
@@ -14510,7 +14429,7 @@ public partial class ChatScreenTests : IDisposable
 
         string output = await RunAsync();
 
-        Assert.Contains("list the skills, edit the skill settings and the project file on a pane", output);   // the help, not the skill
+        Assert.Contains("edit the skill settings and the project file on a pane", output);   // the help, not the skill
         Assert.DoesNotContain("loaded skill 'help'", output);
         Assert.Empty(_chat.Requests);
     }
@@ -15398,8 +15317,9 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal([new CompletionItem("copy work force", ChatScreen.PromptFileCopyForceNote("operata.md"))], ChatScreen.ArgumentItems("/operata", "copy work ", sources));
         Assert.Equal([new CompletionItem("copy work force", ChatScreen.PromptFileCopyForceNote("operata.md"))], ChatScreen.ArgumentItems("/operata", "copy WORK f", sources));
         Assert.Empty(ChatScreen.ArgumentItems("/persona", "copy ghost ", sources));
-        // /skill took nothing from later on 2026-09-18 (the catalog listed under it from 2026-09-16 until then); edit, then the catalog after it, since 2026-09-21.
-        Assert.Equal([new CompletionItem("edit", ChatScreen.SkillsEditNote)], ChatScreen.ArgumentItems("/skills", "", sources));
+        // /skill took nothing from later on 2026-09-18 (the catalog listed under it from 2026-09-16 until then); edit, then the catalog after it, from 2026-09-21
+        // until 2026-09-23 (the scope page's edit row since): nothing again.
+        Assert.Empty(ChatScreen.ArgumentItems("/skills", "", sources));
         Assert.Empty(ChatScreen.ArgumentItems("/skills", "h", sources));
 
         // Free text and the rest: nothing.

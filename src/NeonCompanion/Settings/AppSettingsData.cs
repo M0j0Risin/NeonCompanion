@@ -863,13 +863,14 @@ public sealed class AppSettingsData
 
     /// <summary>
     /// Whether a turn offers <c>vault_delete</c> (2026-09-22, the user's ask: "disabled by default"): one note or
-    /// attachment moved into the vault's <c>.trash</c>, never destroyed. Off by default, and a switch of its own
-    /// rather than a name in <see cref="ToolsDisabled"/>'s default on purpose: a saved profile keeps its own list,
-    /// so a default there would reach only new profiles, while a property absent from every saved file reads as
-    /// off everywhere. On, the tool still has its own switch on <c>/tools</c>' Offered tab. The Obsidian tab of
-    /// <c>/tools</c>, third row; read at each turn and again at the call, no reconnect. No variable.
+    /// attachment moved into the vault's <c>.trash</c>, never destroyed. Off by default until 2026-09-23, on since
+    /// (the user's call: nothing is lost — Obsidian restores from its <c>.trash</c>); a profile saved with it off keeps
+    /// it off. A switch of its own rather than a name in <see cref="ToolsDisabled"/>'s default on purpose: a saved
+    /// profile keeps its own list, so a default there would reach only new profiles. On, the tool still has its own
+    /// switch on <c>/tools</c>' Offered tab. The Obsidian tab of <c>/tools</c>, third row; read at each turn and again
+    /// at the call, no reconnect. No variable.
     /// </summary>
-    public bool ObsidianAllowDelete { get; set; }
+    public bool ObsidianAllowDelete { get; set; } = true;
 
     // ─── Shell ──────────────────────────────────────────────────────────────────
 

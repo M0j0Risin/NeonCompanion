@@ -317,7 +317,7 @@ public enum SettingsField
     /// <summary>The Obsidian vault's folder (<see cref="Settings.AppSettingsData.ObsidianVault"/>): the <c>/cwd browse</c> folder picker, or a typed full path; it must hold <c>.obsidian</c>, and empty clears it. The Obsidian tab's second row (2026-09-22); no reconnect (read at each call). Last in the enum, as every newcomer.</summary>
     ObsidianVault,
 
-    /// <summary>A toggle: whether a turn offers <c>vault_delete</c> (<see cref="Settings.AppSettingsData.ObsidianAllowDelete"/>), off by default. The Obsidian tab's third row (2026-09-22); no reconnect (read at each turn and call). Last in the enum, as every newcomer.</summary>
+    /// <summary>A toggle: whether a turn offers <c>vault_delete</c> (<see cref="Settings.AppSettingsData.ObsidianAllowDelete"/>), on by default since 2026-09-23 (off before). The Obsidian tab's third row (2026-09-22); no reconnect (read at each turn and call). Last in the enum, as every newcomer.</summary>
     ObsidianAllowDelete,
 }
 
@@ -883,7 +883,7 @@ internal sealed class SettingsMenu
         SettingsField.GitNativeName => "Git native name",
         SettingsField.ObsidianTools => "Obsidian tools",
         SettingsField.ObsidianVault => "Obsidian vault",
-        SettingsField.ObsidianAllowDelete => "Obsidian allow delete",
+        SettingsField.ObsidianAllowDelete => "Obsidian allow delete (.trash)",   // "Obsidian allow delete" until 2026-09-23 (the user's call: the row says where a delete goes)
         SettingsField.WebBrowserMode => "Web browser mode",
         SettingsField.WebBrowserPath => "Web browser path",
         SettingsField.WebBrowserNetworkMode => "Web browser network mode",

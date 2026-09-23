@@ -199,7 +199,7 @@ public sealed class Assistant
 
     /// <summary>
     /// The sentence <see cref="ObsidianRule"/> gains while <c>vault_delete</c> is offered (later on 2026-09-22: the setting
-    /// <c>Obsidian allow delete</c> on, off by default, and the tool not switched off): what the delete does and that it
+    /// <c>Obsidian allow delete (.trash)</c> on, on by default since 2026-09-23, and the tool not switched off): what the delete does and that it
     /// waits for the user's word. Appended right after the vault sentence by <see cref="DefaultRules"/>. Pinned.
     /// </summary>
     public const string ObsidianDeleteRule =

@@ -838,7 +838,7 @@ internal sealed partial class ChatScreen
             Flow = _flow,
         };
         // Built once: the roots ride the facts, so a profile switch needs no rebind; the Options rows through the settings menu (2026-09-19).
-        _skillsMenu = new SkillsMenu(SkillsFacts, () => _effective().AllowSkillDelete, settings, _menu, _flow, _menuPane, _input, name => SkillsMenu.UsageCaption(_sessions, name, _effective().SessionLogging, _time.LocalTimeZone));
+        _skillsMenu = new SkillsMenu(SkillsFacts, () => _effective().AllowSkillDelete, settings, _menu, _flow, _menuPane, _input, _openFile, name => SkillsMenu.UsageCaption(_sessions, name, _effective().SessionLogging, _time.LocalTimeZone));
         // The /tools pane (2026-09-19): the tool list over the live facts, the Ask / Files / Web rows through the settings menu.
         _toolsMenu = new ToolsMenu(ToolsFacts, settings, _menu, _flow, _menuPane);
         // The /mcp pane (2026-09-20): the servers and their tools over the session's snapshot, the Options rows through the settings menu.
@@ -2525,18 +2525,6 @@ internal sealed partial class ChatScreen
             case SlashCommand.Loop:
                 // The one word; a count and the message are free text (2026-09-21).
                 return MentionCompleter.Matches([new(LoopInfiniteWord, LoopInfiniteNote)], argText);
-
-            case SlashCommand.Skills:
-            {
-                // edit, then edit with each offered skill's name (2026-09-21).
-                if (argText.StartsWith(SkillsEditWord + " ", StringComparison.OrdinalIgnoreCase))
-                {
-                    var skills = sources.Skills?.Invoke() ?? [];
-                    return MentionCompleter.Matches(skills.Select(skill => new CompletionItem(SkillsEditWord + " " + skill.Text, skill.Note)).ToList(), argText);
-                }
-
-                return MentionCompleter.Matches([new(SkillsEditWord, SkillsEditNote)], argText);
-            }
 
             default:
                 return [];
@@ -4920,14 +4908,6 @@ internal sealed partial class ChatScreen
 
     public static string ProfileMissingError(string name) => $"No profile named \"{name}\"; /profile lists them.";
 
-    // /skills edit <name> (2026-09-21, the user's ask). Pinned.
-    public const string SkillsEditWord = "edit";
-    public const string SkillsEditNote = "open a skill's SKILL.md in your editor: /skills edit <name>";
-    public const string SkillsUsageError = "Usage: /skills, or /skills edit <skill-name>.";
-    public static string SkillMissingError(string name) => $"No skill named \"{name}\" is offered; /skills lists them.";
-    public static string SkillEditOpenedNotice(string name, string path) => $"({NoticeGlyphs.Skill}opened skill \"{name}\"'s SKILL.md in your editor: {path})";
-    public static string SkillEditFailedError(string detail) => $"Could not open the SKILL.md: {detail}";
-
     // /profile edit and /profile reload (2026-09-21). Pinned.
     public static string ProfileEditOpenedNotice(string name) => $"({NoticeGlyphs.Profile}opened profile \"{name}\"'s profile.json in your editor; /profile reload reads it back)";
     public static string ProfileEditCreatedNotice(string name) => $"({NoticeGlyphs.Profile}created and opened profile \"{name}\"'s profile.json in your editor; /profile reload reads it back)";
@@ -6676,14 +6656,10 @@ internal sealed partial class ChatScreen
                 // The tabbed menu on the pane (a skill row's Enter opens the scope page), the three
                 // tabs as lines without one, whatever the switches say. No argument since later on
                 // 2026-09-18 (the user's call): /skill <name> [message] seeded the skill's load_skill
-                // pair ahead of the reply; the #-mention is the way now. /skills edit <name> opens
-                // the skill's SKILL.md in the editor (2026-09-21, the user's ask).
-                if (args.Length > 0)
-                {
-                    HandleSkillsEdit(args);
-                    return false;
-                }
-
+                // pair ahead of the reply; the #-mention is the way now. /skills edit <name> opened
+                // the skill's SKILL.md from 2026-09-21 until 2026-09-23, when the scope page's edit row
+                // took over (the user's call); /skills takes no argument since, so one is the
+                // Overloaded line, as for /tools.
                 await _skillsMenu.ShowAsync(cancellationToken).ConfigureAwait(false);
                 return false;
 
@@ -7275,47 +7251,6 @@ internal sealed partial class ChatScreen
 
             DrainDiagnostics();
         });
-    }
-
-    /// <summary>
-    /// <c>/skills edit &lt;name&gt;</c> (2026-09-21, the user's ask): the offered skill of that name
-    /// (the catalog rescanned, the case ignored, a shadowed copy never) has its <c>SKILL.md</c> opened
-    /// in the editor, as <c>/profile edit</c> opens <c>profile.json</c>. Refused while <c>Agent skills</c>
-    /// is off (the catalog is empty then, and <c>/learn</c> refuses the same way). No rescan after: the
-    /// body is read at activation, so the edit shows on the next load.
-    /// </summary>
-    private void HandleSkillsEdit(string args)
-    {
-        string[] words = args.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
-        if (words.Length != 2 || !string.Equals(words[0], SkillsEditWord, StringComparison.OrdinalIgnoreCase))
-        {
-            _transcript.Error(SkillsUsageError);
-            return;
-        }
-
-        var effective = _effective();
-        if (!effective.AgentSkills)
-        {
-            _transcript.Error(SkillsOffError);
-            return;
-        }
-
-        var skill = Catalog(effective).FirstOrDefault(s => string.Equals(s.Name, words[1], StringComparison.OrdinalIgnoreCase));
-        if (skill is null)
-        {
-            _transcript.Error(SkillMissingError(words[1]));
-            return;
-        }
-
-        try
-        {
-            _openFile(skill.FilePath);
-            _transcript.Notice(SkillEditOpenedNotice(skill.Name, skill.FilePath));
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or InvalidOperationException)
-        {
-            _transcript.Error(SkillEditFailedError(ex.Message));
-        }
     }
 
     /// <summary>

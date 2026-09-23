@@ -808,7 +808,7 @@ public sealed class ObsidianVault
     }
 
     /// <summary>
-    /// <c>vault_delete</c> (2026-09-22, the user's ask, behind the setting <c>Obsidian allow delete</c>, off by default):
+    /// <c>vault_delete</c> (2026-09-22, the user's ask, behind the setting <c>Obsidian allow delete (.trash)</c>, on by default since 2026-09-23):
     /// one note — named as Obsidian names it — or one attachment by its path, moved into the vault's <c>.trash</c>
     /// under a free name (Obsidian's "Move to Obsidian trash"), never destroyed. A folder, a file under a dot-folder
     /// or a name nothing matches is refused. The links that still point at it are left alone (a deletion is no

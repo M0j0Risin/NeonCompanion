@@ -93,9 +93,10 @@ public sealed class ObsidianToolsTests : IDisposable
     // ---- vault_delete (later on 2026-09-22) ----
 
     [Fact]
-    public void AllowDelete_IsOffByDefault_AndTheOfferDropsTheToolUntilItIsOn()
+    public void AllowDelete_IsOnByDefault_AndTheOfferDropsTheToolWhileItIsOff()
     {
-        Assert.False(new AppSettingsData().ObsidianAllowDelete);
+        Assert.True(new AppSettingsData().ObsidianAllowDelete);   // on by default since 2026-09-23 (off from 2026-09-22)
+        _settings.ObsidianAllowDelete = false;
         Assert.Equal(ObsidianToolNames.WithoutDelete, App.ChatScreen.ObsidianToolsFor(_tools, _settings).Select(t => t.Name));
         _settings.ObsidianAllowDelete = true;
         Assert.Same(_tools, App.ChatScreen.ObsidianToolsFor(_tools, _settings));
@@ -105,6 +106,7 @@ public sealed class ObsidianToolsTests : IDisposable
     public async Task Delete_WithTheSettingOff_IsRefused_AndNothingMoves()
     {
         Put("Plan.md", "# Plan");
+        _settings.ObsidianAllowDelete = false;   // on by default since 2026-09-23
 
         Assert.Equal(ObsidianText.DeleteOff, await Invoke<VaultDeleteTool>(("note", "Plan")));
         Assert.True(File.Exists(Path.Combine(_root, "Plan.md")));
@@ -162,7 +164,7 @@ public sealed class ObsidianToolsTests : IDisposable
         Assert.Equal(ObsidianText.Required("note"), await Invoke<VaultDeleteTool>(("note", "")));
         Assert.True(File.Exists(Path.Combine(_root, "Projects", "Plan.md")));
         Assert.Equal("Error: Projects is a folder; vault_delete takes one note or attachment at a time.", ObsidianText.IsAFolder("Projects"));
-        Assert.Equal("Error: deleting is off (Obsidian allow delete, on the Obsidian tab of /tools).", ObsidianText.DeleteOff);
+        Assert.Equal("Error: deleting is off (Obsidian allow delete (.trash), on the Obsidian tab of /tools).", ObsidianText.DeleteOff);   // the row's name since 2026-09-23
     }
 
     [Fact]

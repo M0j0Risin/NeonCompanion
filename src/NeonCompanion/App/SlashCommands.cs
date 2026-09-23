@@ -180,7 +180,7 @@ public static class SlashCommands
             new("/sessions", "list, restore and purge sessions: /sessions [<id> | purge <id> | purge older <age> | purge all | title <text>]"),
             new("/tools", "switch the model's tools on or off and edit the Options, Ask, Files and Web settings on a pane"),
             new("/mcp", "connect external MCP servers and switch their tools on or off on a pane"),
-            new("/skills", "list the skills, edit the skill settings and the project file on a pane, or /skills edit <name> to open its SKILL.md"),
+            new("/skills", "list the skills (Enter on one moves, renames, edits or deletes it), edit the skill settings and the project file on a pane"),
             new("/learn", "write or improve a skill from the last turn or the stored sessions, in the background: /learn [what to keep] | sessions [N | what to search]"),
         ],
         [
@@ -441,5 +441,5 @@ public static class SlashCommands
         or SlashCommand.Persona or SlashCommand.Operata or SlashCommand.Vocalia
         or SlashCommand.Remember or SlashCommand.Memory or SlashCommand.CmdCopy or SlashCommand.Profile or SlashCommand.Timer
         or SlashCommand.Cwd or SlashCommand.Tree or SlashCommand.Explore or SlashCommand.Copy or SlashCommand.Session or SlashCommand.Git
-        or SlashCommand.Loop or SlashCommand.Skills or SlashCommand.Queue;
+        or SlashCommand.Loop or SlashCommand.Queue;
 }

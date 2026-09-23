@@ -46,7 +46,7 @@ namespace NeonCompanion.App;
 /// <param name="ShellPolice">The setting <c>Shell police outside paths</c> (2026-09-22): off, the shell rule is an <c>…Unpoliced</c> variant, which says a command starts in the working directory and no more.</param>
 /// <param name="ObsidianEnabled">Whether the vault tools may be offered (2026-09-22): the setting <c>Obsidian tools</c> on and <c>Obsidian vault</c> naming a folder with <c>.obsidian</c> — the group's switch (<see cref="ChatScreen.ObsidianOffered"/>).</param>
 /// <param name="ObsidianTools">How many vault tools the next turn offers (the ones switched off on <c>/tools</c> left out); the rules carry <see cref="Assistant.ObsidianRule"/> while any is.</param>
-/// <param name="ObsidianAllowDelete">The setting <c>Obsidian allow delete</c> (later on 2026-09-22, off by default): on, and <c>vault_delete</c> not switched off, the vault rule gains <see cref="Assistant.ObsidianDeleteRule"/>.</param>
+/// <param name="ObsidianAllowDelete">The setting <c>Obsidian allow delete</c> (later on 2026-09-22; on by default since 2026-09-23, the parameter's false the bare facts' default): on, and <c>vault_delete</c> not switched off, the vault rule gains <see cref="Assistant.ObsidianDeleteRule"/>.</param>
 public sealed record SystemPromptFacts(
     string? Persona,
     string? OperatingRules,

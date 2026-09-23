@@ -23,6 +23,11 @@ public class SkillsMenuTests : IDisposable
     private bool _external = true;
     private Func<bool> _allowDelete = () => false;
     private Func<string, string?>? _usage;
+    /// <summary>Every file the edit row opened (2026-09-23), and what opening one does: record it, or throw for the failure path.</summary>
+    private readonly List<string> _opened = new();
+    private Action<string>? _openFile;
+
+    private void OpenFile(string path) => (_openFile ?? _opened.Add)(path);
 
     public SkillsMenuTests()
     {
@@ -92,7 +97,7 @@ public class SkillsMenuTests : IDisposable
         var keys = new KeySource(_console.Input, TimeSpan.FromMilliseconds(1));
         var menuPane = new MenuPane(pane, keys);
         var settings = Settings(pane, keys, menuPane);
-        var menu = new SkillsMenu(Facts, () => _allowDelete(), _settings, settings, new TranscriptRenderer(pane), menuPane, new InputLine(pane, keys), _usage);
+        var menu = new SkillsMenu(Facts, () => _allowDelete(), _settings, settings, new TranscriptRenderer(pane), menuPane, new InputLine(pane, keys), OpenFile, _usage);
         pane.Show();
         return (menu, pane, settings);
     }
@@ -104,7 +109,7 @@ public class SkillsMenuTests : IDisposable
         var input = new ScriptedInput();
         var keys = new KeySource(input, TimeSpan.FromMilliseconds(1));
         var menuPane = new MenuPane(pane, keys);
-        var menu = new SkillsMenu(Facts, () => _allowDelete(), _settings, Settings(pane, keys, menuPane), new TranscriptRenderer(pane), menuPane, new InputLine(pane, keys));
+        var menu = new SkillsMenu(Facts, () => _allowDelete(), _settings, Settings(pane, keys, menuPane), new TranscriptRenderer(pane), menuPane, new InputLine(pane, keys), OpenFile);
         pane.Show();
         return (menu, pane, input);
     }
@@ -128,7 +133,7 @@ public class SkillsMenuTests : IDisposable
     [Fact]
     public void Strings_ArePinned()
     {
-        Assert.Equal("Enter = move, rename or delete · ←/→ tabs · ESC = close", SkillsMenu.LoadedKeys);   // rename 2026-09-21
+        Assert.Equal("Enter = move, rename, edit or delete · ←/→ tabs · ESC = close", SkillsMenu.LoadedKeys);   // rename 2026-09-21, edit 2026-09-23
         Assert.Equal("←/→ tabs · ESC = close", SkillsMenu.OtherKeys);
         Assert.Equal("Enter = choose · ESC = back", SkillsMenu.ScopeKeys);
         Assert.Equal("delete", SkillsMenu.DeleteWord);
@@ -150,6 +155,11 @@ public class SkillsMenuTests : IDisposable
         Assert.Equal("Could not rename skill 'haiku' to 'pdf': the global skills already hold it", SkillsMenu.RenameExistsError("haiku", "pdf", SkillScope.Global));
         Assert.Equal("Could not rename the skill: the name needs at least one letter or digit", SkillsMenu.RenameEmptyError);
         Assert.Equal("Could not rename the skill: boom", SkillsMenu.RenameFailedError("boom"));
+        // The edit row (2026-09-23): /skills edit <name>'s words, on the status line now.
+        Assert.Equal("edit", SkillsMenu.EditWord);
+        Assert.Equal("edit     [#9A8BB8]open its SKILL.md in your editor[/]", SkillsMenu.EditRow);
+        Assert.Equal(@"(🎓 opened skill ""haiku""'s SKILL.md in your editor: C:\s\haiku\SKILL.md)", SkillsMenu.EditOpenedNotice("haiku", @"C:\s\haiku\SKILL.md"));
+        Assert.Equal("Could not open the SKILL.md: boom", SkillsMenu.EditFailedError("boom"));
         Assert.Equal("Move skill 'haiku' from the profile skills to the global skills?", SkillsMenu.MovePrompt("haiku", SkillScope.Profile, SkillScope.Global));
         Assert.Equal("(🎓 moved: haiku → global skills)", SkillsMenu.MovedNotice("haiku", SkillScope.Global));
         Assert.Equal("Could not move skill 'pdf-processing': the global skills already hold 'pdf'", SkillsMenu.ExistsError("pdf-processing", "pdf", SkillScope.Global));
@@ -235,7 +245,7 @@ public class SkillsMenuTests : IDisposable
 
         await menu.ShowAsync(CancellationToken.None);
 
-        Assert.Contains("\n" + Titled(SkillsMenu.ScopeTitle("haiku")) + "\n \n" + Fitted("▸ profile  " + _roots.Profile) + "\n" + Fitted("  global   " + _roots.Global) + "\n  rename   give it a new name (letters, digits and hyphens)\n" + Rule(100) + "\n" + SkillsMenu.ScopeKeys + "\n", _console.Output);
+        Assert.Contains("\n" + Titled(SkillsMenu.ScopeTitle("haiku")) + "\n \n" + Fitted("▸ profile  " + _roots.Profile) + "\n" + Fitted("  global   " + _roots.Global) + "\n  rename   give it a new name (letters, digits and hyphens)\n  edit     open its SKILL.md in your editor\n" + Rule(100) + "\n" + SkillsMenu.ScopeKeys + "\n", _console.Output);
         Assert.DoesNotContain("\n  delete   ", _console.Output);   // the switch off
         Assert.Contains("\n" + Titled(SkillsMenu.MovePrompt("haiku", SkillScope.Profile, SkillScope.Global)) + "\n \n▸ No\n  Yes\n" + Rule(100) + "\n" + SettingsMenu.ConfirmKeys + "\n", _console.Output);
         Assert.Contains("\n" + Titled(Strip) + "\n  · " + SkillsMenu.MovedNotice("haiku", SkillScope.Global) + "\n▸ haiku  global   Writes haiku.\n", _console.Output);
@@ -310,19 +320,56 @@ public class SkillsMenuTests : IDisposable
         _allowDelete = () => true;
         var (menu, pane) = PaneMenu();
         Push(Keys.Enter);                                       // the scope page on global
-        Push(Keys.Down, Keys.Down, Keys.Enter);                 // delete (past rename, 2026-09-21)
+        Push(Keys.Down, Keys.Down, Keys.Down, Keys.Enter);      // delete (past rename, 2026-09-21, and edit, 2026-09-23)
         Push(Keys.Enter);                                       // No: kept
-        Push(Keys.Enter, Keys.Down, Keys.Down, Keys.Enter);     // delete again
+        Push(Keys.Enter, Keys.Down, Keys.Down, Keys.Down, Keys.Enter);   // delete again
         Push(Keys.Char('y'), Keys.Enter);                       // Yes by hotkey
         Push(Keys.Escape);
 
         await menu.ShowAsync(CancellationToken.None);
 
-        Assert.Contains("\n" + Titled(SkillsMenu.ScopeTitle("haiku")) + "\n \n" + Fitted("  profile  " + _roots.Profile) + "\n" + Fitted("▸ global   " + _roots.Global) + "\n  rename   give it a new name (letters, digits and hyphens)\n  delete   remove the folder and everything in it\n", _console.Output);
+        Assert.Contains("\n" + Titled(SkillsMenu.ScopeTitle("haiku")) + "\n \n" + Fitted("  profile  " + _roots.Profile) + "\n" + Fitted("▸ global   " + _roots.Global) + "\n  rename   give it a new name (letters, digits and hyphens)\n  edit     open its SKILL.md in your editor\n  delete   remove the folder and everything in it\n", _console.Output);
         Assert.Contains("\n" + Titled(SkillsMenu.DeletePrompt("haiku", SkillScope.Global)) + "\n \n▸ No\n  Yes\n", _console.Output);
         Assert.Contains("\n  · " + SkillsMenu.KeptNotice + "\n▸ haiku  global   Writes haiku.\n", _console.Output);
         Assert.Contains("\n" + Titled(Strip) + "\n  · " + SkillsMenu.DeletedNotice("haiku", SkillScope.Global) + "\n" + Fitted("▸ " + SkillsText.NoneLine) + "\n", _console.Output);
         Assert.False(Directory.Exists(Path.Combine(_roots.Global, "haiku")));
+        pane.Dispose();
+    }
+
+    /// <summary>The edit row (2026-09-23, the user's ask; /skills edit &lt;name&gt; until then): the SKILL.md opened in the editor, the status line saying so, nothing moved, the list shown again.</summary>
+    [Fact]
+    public async Task Edit_OpensTheSkillMd_SaysSoOnTheStatusLine_AndMovesNothing()
+    {
+        Put(SkillScope.Profile, "haiku", "Writes haiku.");
+        var (menu, pane) = PaneMenu();
+        Push(Keys.Enter);                                       // the scope page, the cursor on profile
+        Push(Keys.Down, Keys.Down, Keys.Down, Keys.Enter);      // edit (past global and rename)
+        Push(Keys.Escape);
+
+        await menu.ShowAsync(CancellationToken.None);
+
+        string path = Path.Combine(_roots.Profile, "haiku", SkillCatalog.FileName);
+        Assert.Equal([path], _opened);
+        Assert.Contains("\n  edit     open its SKILL.md in your editor\n", _console.Output);   // no delete row: Allow skill delete is off here
+        Assert.Contains("\n  · " + SkillsMenu.EditOpenedNotice("haiku", "")[..^1], _console.Output);   // the path fitted to the width after it
+        Assert.Contains("\n▸ haiku  profile  Writes haiku.\n", _console.Output);
+        Assert.True(Exists(SkillScope.Profile, "haiku"));
+        pane.Dispose();
+    }
+
+    [Fact]
+    public async Task Edit_WhenTheEditorFails_IsTheErrorOnTheStatusLine()
+    {
+        Put(SkillScope.Profile, "haiku", "Writes haiku.");
+        _openFile = _ => throw new System.ComponentModel.Win32Exception("no editor");
+        var (menu, pane) = PaneMenu();
+        Push(Keys.Enter, Keys.Down, Keys.Down, Keys.Down, Keys.Enter);   // edit
+        Push(Keys.Escape);
+
+        await menu.ShowAsync(CancellationToken.None);
+
+        Assert.Contains(SkillsMenu.EditFailedError("no editor"), _console.Output);
+        Assert.DoesNotContain("opened skill", _console.Output);
         pane.Dispose();
     }
 
@@ -367,7 +414,7 @@ public class SkillsMenuTests : IDisposable
 
         await menu.ShowAsync(CancellationToken.None);
 
-        Assert.Contains("\n▸ rename   give it a new name (letters, digits and hyphens)\n› \n" + Rule(100) + "\n" + SettingsMenu.EditKeys, _console.Output);
+        Assert.Contains("\n▸ rename   give it a new name (letters, digits and hyphens)\n  edit     open its SKILL.md in your editor\n› \n" + Rule(100) + "\n" + SettingsMenu.EditKeys, _console.Output);
         Assert.Contains("\n" + Titled(Strip) + "\n  · " + SkillsMenu.RenamedNotice("haiku", "my-haiku") + "\n▸ my-haiku  profile  Writes haiku.\n", _console.Output);
         Assert.False(Directory.Exists(Path.Combine(_roots.Profile, "haiku")));
         Assert.True(Exists(SkillScope.Profile, "my-haiku"));
@@ -485,7 +532,7 @@ public class SkillsMenuTests : IDisposable
         var keys = new KeySource(_console.Input, TimeSpan.FromMilliseconds(1));
         var menuPane = new MenuPane(pane, keys);
         var settings = new SettingsMenu(_console, _settings, _ => null, new InputLine(_console, keys), new TranscriptRenderer(_console), _speech, menuPane, _ => null);
-        var menu = new SkillsMenu(Facts, () => _allowDelete(), _settings, settings, new TranscriptRenderer(_console), menuPane, new InputLine(_console, keys));
+        var menu = new SkillsMenu(Facts, () => _allowDelete(), _settings, settings, new TranscriptRenderer(_console), menuPane, new InputLine(_console, keys), OpenFile);
 
         await menu.ShowAsync(CancellationToken.None);
 

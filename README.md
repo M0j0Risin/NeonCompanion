@@ -176,7 +176,7 @@ Neon Companion is released under the GPLv3 license.
 
 #### Offered
 
-The loaded skills, one row each with its scope (`profile`, `global` or `external`) and description, then any shadowed duplicates and any folders that were skipped and why. Enter on a skill opens its scope page: move it between the profile and global roots, rename it (what you type is forced to a skill name — lower case, hyphens between the words — and a name another skill already has is refused), or delete it when *Allow skill delete* is on.
+The loaded skills, one row each with its scope (`profile`, `global` or `external`) and description, then any shadowed duplicates and any folders that were skipped and why. Enter on a skill opens its scope page: move it between the profile and global roots, rename it (what you type is forced to a skill name — lower case, hyphens between the words — and a name another skill already has is refused), edit it (its `SKILL.md` opens in your editor; the change shows the next time the skill loads), or delete it when *Allow skill delete* is on.
 
 #### Reflection
 
@@ -278,7 +278,7 @@ Every tool the app has, grouped (Clock, Timers, Files, Git, Shell, Obsidian, Web
 |---|---|---|
 | Obsidian tools | Offers the vault tools (search, list, read, links, daily, write, properties, move) over the vault below. On, but nothing is offered until a vault is set. | on |
 | Obsidian vault | The Obsidian vault's folder — the one holding `.obsidian` (a folder Obsidian has opened); editing the row opens the `/cwd browse` folder picker on the vault set (on the working directory while none is). Separate from the working directory: the vault is where the notes live. `NEONCOMPANION_OBSIDIAN_VAULT` outranks it. | (not set) |
-| Obsidian allow delete | Offers `vault_delete`, which moves a note or attachment into the vault's `.trash` (never deleted for good). Off by default — a profile saved before it existed reads as off too. | off |
+| Obsidian allow delete (.trash) | Offers `vault_delete`, which moves a note or attachment into the vault's `.trash` (never deleted for good). A profile saved with it off keeps it off. | on |
 
 #### Options
 
@@ -368,8 +368,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/server [url]` | Pick an LLM server found on the usual ports, or set one; the model picker and then the reasoning picker follow, and one reconnect carries all three. |
 | `/sessions [id \| purge <id> \| purge older <age> \| purge all \| title <text>]` | List, restore, rename and purge the stored sessions. An age is days as a bare number (`30`, `0`), or a duration with units: `12h`, `90m`, `2 hours`, `1d 6h`. |
 | `/settings`, `//` | Edit and save the settings. |
-| `/skills` | List the skills and edit the skill, reflection and project-file settings. |
-| `/skills edit <name>` | Open a skill's `SKILL.md` in your editor. |
+| `/skills` | List the skills (Enter on one moves, renames, opens its `SKILL.md` in your editor, or deletes it) and edit the skill, reflection and project-file settings. |
 | `/speak [file [n] \| n]` | Read a text file from the working directory aloud as a reply; alone resumes, a number starts from that sentence. |
 | `/splash` | Start a new conversation and show the splash screen. |
 | `/stt [on\|off]` | Toggle speech input. |
@@ -475,7 +474,7 @@ The notes of an Obsidian vault (the *Obsidian vault* setting), read and written 
 | `vault_write` | `note, content, mode?, heading?` | `create` (a bare name goes where Obsidian puts new notes), `overwrite`, `append` or `prepend` — at the note's end or top, or within one heading's section. |
 | `vault_properties` | `note, set?, remove?` | Lists the note's properties, or sets and removes them in one write; only the named keys' lines change. |
 | `vault_move` | `note, to` | Renames it (a bare name), moves it into a folder (`Archive/`), or to a new path, and rewrites every link that pointed at it. |
-| `vault_delete` | `note` | Offered only while *Obsidian allow delete* is on (off by default). Moves one note (named as Obsidian names it) or one attachment (by its path) into the vault's `.trash`, where Obsidian can restore it, and lists the notes whose links still point at it; never a folder or anything under a dot-folder. |
+| `vault_delete` | `note` | Offered only while *Obsidian allow delete (.trash)* is on (the default). Moves one note (named as Obsidian names it) or one attachment (by its path) into the vault's `.trash`, where Obsidian can restore it, and lists the notes whose links still point at it; never a folder or anything under a dot-folder. |
 
 </details>
 

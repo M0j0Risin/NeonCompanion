@@ -135,8 +135,8 @@ public static class ObsidianText
     /// <summary><c>vault_delete</c> named a folder (2026-09-22): only a note or an attachment goes. Pinned.</summary>
     public static string IsAFolder(string path) => $"Error: {path} is a folder; vault_delete takes one note or attachment at a time.";
 
-    /// <summary><c>vault_delete</c> called while the setting <c>Obsidian allow delete</c> is off (2026-09-22): the guard behind the offer. Pinned.</summary>
-    public const string DeleteOff = "Error: deleting is off (Obsidian allow delete, on the Obsidian tab of /tools).";
+    /// <summary><c>vault_delete</c> called while the setting <c>Obsidian allow delete (.trash)</c> is off (2026-09-22; the row's name since 2026-09-23): the guard behind the offer. Pinned.</summary>
+    public const string DeleteOff = "Error: deleting is off (Obsidian allow delete (.trash), on the Obsidian tab of /tools).";
 
     /// <summary>
     /// <c>vault_delete</c>'s result (2026-09-22): where the file went, then the notes whose links still point at it —
