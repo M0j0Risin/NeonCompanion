@@ -489,13 +489,11 @@ public partial class ChatScreenTests : IDisposable
     public async Task Turn_ANewLine_StopsTheSpokenTail_Silently()
     {
         // The reply's text ends the turn; the audio still owed plays under the input line, and
-        // the next line — queued here, typed during the reply in the field — cuts it at once
-        // with no notice: the next turn is the feedback.
+        // the next line — typed once the tail is at the device (LinesOverTheTail; queued up front
+        // until 2026-09-23) — cuts it at once with no notice: the next turn is the feedback.
         _playback.HoldBytes = true;   // the device never drains on its own
         _chat.EnqueueText("One. ", "Two.").EnqueueText("Next.");
-        PushLine("hi");
-        PushLine("again");
-        PushLine("/exit");
+        LinesOverTheTail("hi", "again", "/exit");
 
         string output = await RunAsync();
 
@@ -850,9 +848,7 @@ public partial class ChatScreenTests : IDisposable
     {
         _playback.HoldBytes = true;
         _chat.EnqueueText("One. ", "Two.");
-        PushLine("hi");
-        PushLine("/timer 10m tea");
-        PushLine("/exit");
+        StepsOverTheTail(i => PushLine(i, "hi"), i => { PushLine(i, "/timer 10m tea"); PushLine(i, "/exit"); });   // the command typed once the tail is at the device (2026-09-23); no tail after it, so /exit comes with it
 
         string output = await RunAsync();
 
@@ -902,9 +898,7 @@ public partial class ChatScreenTests : IDisposable
         _playback.HoldBytes = true;
         SpeakTwoBuffers();
         _chat.EnqueueText("One. ", "Two.").EnqueueText("Hi there.");
-        PushLine("hi");
-        _console.Input.PushKey(Keys.F4);
-        PushLine("/exit");
+        StepsOverTheTail(i => PushLine(i, "hi"), i => i.Push(Keys.F4), i => PushLine(i, "/exit"));   // F4 pressed once the tail is at the device (2026-09-23)
 
         string output = await RunAsync();
 
@@ -2535,6 +2529,50 @@ public partial class ChatScreenTests : IDisposable
     /// </summary>
     private void LinesWhenIdle(params string[] lines) =>
         StepsWhenIdle(lines.Select<string, Action<ScriptedInput>>(line => input => PushLine(input, line)).ToArray());
+
+    /// <summary>
+    /// The lines typed over the tails: the first at once, each after it only once a tail no earlier
+    /// line was typed over is at the device (<see cref="StepsOverTheTail"/>). The last should be <c>/exit</c>.
+    /// </summary>
+    private void LinesOverTheTail(params string[] lines) =>
+        StepsOverTheTail(lines.Select<string, Action<ScriptedInput>>(line => input => PushLine(input, line)).ToArray());
+
+    /// <summary>
+    /// A script whose steps cut a spoken tail (2026-09-23, after the v0.3.3 release run failed on
+    /// the runner): the first step at the first wait, each after it at a wait with a tail playing
+    /// that no earlier step was pushed over, and only once that tail is at the device — started,
+    /// bytes held. The device starts when the speech consumer, on the pool, takes the first
+    /// sentence (<see cref="SpeechOutput"/>), so a line queued up front could be read and stop the
+    /// speaker before it ever started the device, and a test counting <c>Started</c>/<c>Stopped</c>
+    /// saw one fewer on a slow machine. The wait blocks the reader's own thread (five seconds at
+    /// most): <see cref="ScriptedInput"/>'s queue is not for another thread, and the consumer runs on
+    /// the pool meanwhile. A step may be read mid-turn (type-ahead), as a line queued up front was.
+    /// </summary>
+    private void StepsOverTheTail(params Action<ScriptedInput>[] steps)
+    {
+        var input = Scripted();
+        int next = 0;
+        SpeechOutput? cut = null;
+        input.OnWait = () =>
+        {
+            if (next >= steps.Length)
+            {
+                return;
+            }
+
+            if (next > 0)
+            {
+                // Every step after the first is typed over a tail of its own, at the device: the wait
+                // holds here rather than returning, since a read that returned empty-handed is not
+                // offered the wait again (OnWait runs once per empty read).
+                SpeechOutput? tail = null;
+                SpinWait.SpinUntil(() => (tail = _speech.Playing) is not null && !ReferenceEquals(tail, cut) && _playback.IsPlaying && _playback.BufferedBytes > 0, TimeSpan.FromSeconds(5));
+                cut = tail;
+            }
+
+            steps[next++](input);
+        };
+    }
 
     /// <summary>
     /// <see cref="LinesWhenIdle"/> for a script that presses keys as well as typing lines: one step
