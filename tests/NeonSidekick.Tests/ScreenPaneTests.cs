@@ -1233,7 +1233,7 @@ public class ScreenPaneTests : IDisposable
         pane.Show();
 
         // The name rides the hint's colour; the mark opens its own right before the glyph.
-        string mark = Sgr(Theme.Purple);
+        string mark = Sgr(Theme.Tertiary);
         string hint = Sgr(Theme.Dim);
         Assert.Contains(mark + "◕", Output);
         Assert.DoesNotContain(mark + "llama", Output);

@@ -231,7 +231,7 @@ public static class AboutText
                 grid.AddRow(new Text(" "), new Text(""));
             }
 
-            grid.AddRow(new Text(rows[i].Label, Theme.AccentCyan), new Text(rows[i].Value, Theme.Body));
+            grid.AddRow(new Text(rows[i].Label, Theme.AccentSecondary), new Text(rows[i].Value, Theme.Body));
         }
 
         return new Rows(
@@ -257,7 +257,7 @@ public static class AboutText
         foreach (var part in Components)
         {
             grid.AddRow(
-                new Text(part.Name, Theme.AccentCyan),
+                new Text(part.Name, Theme.AccentSecondary),
                 new Text(part.Version, Theme.Body),
                 new Text(part.License, Theme.Body),
                 new Text(part.Role, Theme.DimText));

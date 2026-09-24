@@ -47,7 +47,7 @@ public class ToolsTextTests : IDisposable
         return new ToolsFacts(Groups(toolsEnabled, filesEnabled, webEnabled, memoryEnabled, askEnabled, paneOn, skillsEnabled, sessionsEnabled, set, skillInstalled), toolsEnabled, set);
     }
 
-    private static string Cyan(string text) => $"[{Theme.AccentCyan.ToMarkup()}]{Markup.Escape(text)}[/]";
+    private static string Cyan(string text) => $"[{Theme.AccentSecondary.ToMarkup()}]{Markup.Escape(text)}[/]";
     private static string Heading(string text) => $"[{Theme.SectionHeading.ToMarkup()}]{Markup.Escape(text)}[/]";
     private static string Ink(string text) => Theme.ColorMarkup(Theme.Ink, text);
 

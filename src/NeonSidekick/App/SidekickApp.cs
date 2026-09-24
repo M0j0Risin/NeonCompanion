@@ -218,6 +218,10 @@ public sealed class SidekickApp
         ArgumentNullException.ThrowIfNull(options);
         _options = options;
 
+        // The saved theme in force before anything is drawn (2026-09-23): the banner, the check
+        // modes' output and the headless REPL wear it as the screen does.
+        ThemeName.Apply(EffectiveSettings);
+
         if (options.Headless)
         {
             return await RunHeadlessAsync(cancellationToken).ConfigureAwait(false);

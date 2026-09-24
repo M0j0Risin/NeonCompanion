@@ -346,6 +346,9 @@ public enum SettingsField
 
     /// <summary>An action row, no setting behind it (later on 2026-09-23, the user's ask): Enter walks a new connection through every choice — the file, the name, the server, the sign-in, the password (masked), the TLS pair — tests it and adds it to that <c>sql.json</c> (<c>SettingsMenu.SqlWizard.cs</c>). The SQL tab's fifth row, under <see cref="SqlSetPassword"/>. Last in the enum, as every newcomer.</summary>
     SqlAddConnection,
+
+    /// <summary>A pick among <see cref="UI.ThemeName.Names"/>: the look (<see cref="Settings.AppSettingsData.Theme"/>, 2026-09-23). The General tab's last row; a change puts the theme in force at once (the pane re-colours) and raises <see cref="SettingsChanges.Theme"/>, so the screen starts over as <c>/splash</c> does when the pane closes. No reconnect. Last in the enum, as every newcomer.</summary>
+    Theme,
 }
 
 /// <summary>The tabs of <c>/settings</c> on the pane, in strip order (Sessions right after General — the user's order, 2026-09-18; STT last since 2026-09-19, when the Ask, Files and Web tabs moved to <c>/tools</c> — <see cref="SettingsMenu.ToolsTabFields"/> — and, later that day, the Skills tab to <c>/skills</c> as its Options tab — <see cref="SettingsMenu.SkillsTabFields"/>); the value is the index into <see cref="SettingsMenu.TabTitles"/> and <see cref="SettingsMenu.TabFields"/>.</summary>
@@ -385,6 +388,13 @@ public enum SettingsChanges
 
     /// <summary><see cref="SettingsField.McpServers"/> was flipped: the screen connects or disconnects the MCP servers (2026-09-20). Set by the pane-less flat list of <c>/settings</c> and by <c>/mcp</c>' Options tab.</summary>
     Mcp = 32,
+
+    /// <summary>
+    /// <see cref="SettingsField.Theme"/> was changed to another theme (2026-09-23): the screen starts
+    /// over the way <c>/theme</c> and <c>/splash</c> do — a fresh session, the banner and splash in
+    /// the new colours — since what is already drawn keeps the old ones. No reconnect.
+    /// </summary>
+    Theme = 64,
 }
 
 /// <summary>
@@ -439,6 +449,15 @@ internal sealed partial class SettingsMenu
 
     /// <summary>The <c>/reasoning</c> picker's label; ESC keeps the level in use. The settings row's level is <see cref="Breadcrumb"/> over <see cref="FieldName"/>.</summary>
     public const string ReasoningTitle = "🤔 LLM reasoning";
+
+    /// <summary>The title of <c>/theme</c>'s picker (2026-09-23). Pinned.</summary>
+    public const string ThemeTitle = "🎨 Theme";
+
+    /// <summary>What <c>/theme &lt;name&gt;</c> answers to a word that is not one of <see cref="ThemeName.Names"/>. Pinned.</summary>
+    public static string ThemeNameError(string name) => $"No theme named \"{name}\". /theme takes " + string.Join(", ", ThemeName.Names[..^1]) + " or " + ThemeName.Names[^1] + ", or nothing to pick from a list.";
+
+    /// <summary>What <c>/theme</c> says when the theme picked is the one already in force: nothing is cleared. Pinned.</summary>
+    public static string ThemeAlreadyNotice(string name) => $"Theme: {name} (already in force)";
 
     /// <summary>What <c>/reasoning &lt;level&gt;</c> answers to a word that is not one of <see cref="Llm.ReasoningLevel.Levels"/>. Pinned.</summary>
     public static readonly string ReasoningLevelError = "/reasoning takes " + string.Join(", ", Llm.ReasoningLevel.Levels[..^1]) + " or " + Llm.ReasoningLevel.Levels[^1] + ", or nothing to pick from a list.";
@@ -546,7 +565,7 @@ internal sealed partial class SettingsMenu
     /// Files and Web tabs are <c>/tools</c>' since 2026-09-19, <see cref="ToolsTabFields"/>, and the Skills tab
     /// <c>/skills</c>' Options tab since later that day, <see cref="SkillsTabFields"/>).
     /// General is spelled out (the profile and what a new one copies, then where its files live, then the message queue's switch and its cancel mode (2026-09-18, the user's place: right under the working directory), then the switches and pickers (<c>Mouse in menus</c> sat among them until 2026-09-21, when the mouse became the pane's for good), the
-    /// transcript's Markdown and the paste preview, then the two line conveniences of 2026-09-18 — the hidden <c>/exit</c>, the typo intercept —, the welcome splash (the user's order, later that day), the banner's working directory and the draft editor last (2026-09-19)); LLM
+    /// transcript's Markdown and the paste preview, then the two line conveniences of 2026-09-18 — the hidden <c>/exit</c>, the typo intercept —, the welcome splash (the user's order, later that day), the banner's working directory, the draft editor (2026-09-19) and the theme last (2026-09-23)); LLM
     /// is spelled out too: the scan mode (where a blank URL looks, so it sits above the URL), the
     /// <see cref="IsLlmField"/> rows, the compact rows, then <see cref="SettingsField.LlmOfferTools"/> ABOVE
     /// <see cref="SettingsField.LlmToolCompactType"/> (the user's order, 2026-09-15), the round-trip cap and the fun
@@ -557,7 +576,7 @@ internal sealed partial class SettingsMenu
     /// </summary>
     public static readonly IReadOnlyList<IReadOnlyList<SettingsField>> TabFields =
     [
-        [SettingsField.Profile, SettingsField.NewProfileMode, SettingsField.WorkingDirectory, SettingsField.QueueMessages, SettingsField.QueueCancelMode, SettingsField.Memory, SettingsField.CopyUserPrompt, SettingsField.ShowImageThumbnails, SettingsField.ImageThumbnailSize, SettingsField.TranscriptMarkdown, SettingsField.PastePreviewLines, SettingsField.HideExitAutocomplete, SettingsField.CommandTypoIntercept, SettingsField.WelcomeSplash, SettingsField.ShowWorkingDirectory, SettingsField.ShowToolbar, SettingsField.DraftEditor],
+        [SettingsField.Profile, SettingsField.NewProfileMode, SettingsField.WorkingDirectory, SettingsField.QueueMessages, SettingsField.QueueCancelMode, SettingsField.Memory, SettingsField.CopyUserPrompt, SettingsField.ShowImageThumbnails, SettingsField.ImageThumbnailSize, SettingsField.TranscriptMarkdown, SettingsField.PastePreviewLines, SettingsField.HideExitAutocomplete, SettingsField.CommandTypoIntercept, SettingsField.WelcomeSplash, SettingsField.ShowWorkingDirectory, SettingsField.ShowToolbar, SettingsField.DraftEditor, SettingsField.Theme],
         [SettingsField.SessionLogging, SettingsField.SessionRetentionDays, SettingsField.SessionNamingMode, SettingsField.SessionShowName, SettingsField.SessionTool, SettingsField.SessionSearchMaxResults],
         [SettingsField.LlmScanMode, SettingsField.LlmUrl, SettingsField.LlmModel, SettingsField.LlmApiKey, SettingsField.LlmReasoning, SettingsField.LlmRequestTimeoutSeconds, SettingsField.LlmTurnTimeoutSeconds, SettingsField.LlmContextLength, SettingsField.LlmCompactType, SettingsField.LlmCompactKeepRecent, SettingsField.LlmCompactShowSummary, SettingsField.LlmAutoCompactPercent, SettingsField.LlmOfferTools, SettingsField.LlmToolCompactType, SettingsField.LlmMaxToolIterations, SettingsField.LlmUseFunVerbs],
         [SettingsField.TtsOutput, SettingsField.TtsSource, SettingsField.TtsHttpUrl, SettingsField.TtsVoicePreview, SettingsField.TtsVoice, SettingsField.TtsVoice2, SettingsField.TtsVoiceMix, SettingsField.TtsSpeed],
@@ -964,6 +983,7 @@ internal sealed partial class SettingsMenu
         SettingsField.WelcomeSplash => "Welcome splash",
         SettingsField.ShowWorkingDirectory => "Working directory in header",
         SettingsField.ShowToolbar => "Show toolbar",
+        SettingsField.Theme => "Theme",
         SettingsField.QueueMessages => "Queue messages",
         SettingsField.QueueCancelMode => "Queue cancel mode",
         SettingsField.SessionLogging => "Session logging",
@@ -1116,6 +1136,7 @@ internal sealed partial class SettingsMenu
             SettingsField.SessionTool => OnOff(data.SessionTool),
             SettingsField.ShowWorkingDirectory => OnOff(data.ShowWorkingDirectory),
             SettingsField.ShowToolbar => OnOff(data.ShowToolbar),
+            SettingsField.Theme => data.Theme,
             SettingsField.QueueMessages => OnOff(data.QueueMessages),
             SettingsField.QueueCancelMode => data.QueueCancelMode,
             _ => "",
@@ -1383,6 +1404,10 @@ internal sealed partial class SettingsMenu
     public static string ImageThumbnailSizeLabel(string name) =>
         Markup.Escape(name.PadRight(8)) + Theme.DimMarkup(ThumbnailSize.Describe(name));
 
+    /// <summary>One row of the theme picker: the name and its note (padded to ten: the longest names are nine). Pinned.</summary>
+    public static string ThemeLabel(string name) =>
+        Markup.Escape(name.PadRight(10)) + Theme.DimMarkup(ThemeName.Describe(name));
+
     /// <summary>One row of the new-profile-mode picker: the mode and its hint (padded to nine: <c>advanced</c> is eight). Pinned.</summary>
     public static string NewProfileModeLabel(string name) =>
         Markup.Escape(name.PadRight(9)) + Theme.DimMarkup(NewProfileMode.Describe(name));
@@ -1449,6 +1474,7 @@ internal sealed partial class SettingsMenu
         SettingsField.WebBrowserPath => data.WebBrowserPath,
         SettingsField.WebSearxngUrl => data.WebSearxngUrl,
         SettingsField.DraftEditor => data.DraftEditor,
+        SettingsField.Theme => data.Theme,
         SettingsField.FileViewImageMaxPerCall => data.FileViewImageMaxPerCall.ToString(CultureInfo.InvariantCulture),
         SettingsField.McpConnectTimeoutSeconds => data.McpConnectTimeoutSeconds.ToString(CultureInfo.InvariantCulture),
         SettingsField.WebSearchMaxResults => data.WebSearchMaxResults.ToString(CultureInfo.InvariantCulture),
@@ -1523,6 +1549,9 @@ internal sealed partial class SettingsMenu
         }
 
         var changes = SettingsChanges.None;
+        // The theme is put in force as its row is saved (the pane re-colours); what the screen
+        // hears is the net change, so a pick and a pick back is no restart (2026-09-23).
+        var themeBefore = Theme.Current;
         int tab = 0;
         int cursor = 0;
         _midTurn = midTurn;
@@ -1534,7 +1563,7 @@ internal sealed partial class SettingsMenu
                 var picked = await PickSettingAsync(saved, tab, cursor, cancellationToken).ConfigureAwait(false);
                 if (picked is not var (field, page, row))
                 {
-                    return changes;
+                    return ReferenceEquals(Theme.Current, themeBefore) ? changes : changes | SettingsChanges.Theme;
                 }
 
                 tab = page.Tab;
@@ -1591,9 +1620,9 @@ internal sealed partial class SettingsMenu
         }
     }
 
-    /// <summary>Whether <paramref name="field"/> is refused while a reply runs: the profile, the working directory, every reconnecting row and the tools flip. Pure.</summary>
+    /// <summary>Whether <paramref name="field"/> is refused while a reply runs: the profile, the working directory, every reconnecting row, the tools flip and the theme (a change starts the screen over, 2026-09-23). Pure.</summary>
     public static bool RefusedMidTurn(SettingsField field) =>
-        field is SettingsField.Profile or SettingsField.WorkingDirectory or SettingsField.LlmOfferTools
+        field is SettingsField.Profile or SettingsField.WorkingDirectory or SettingsField.LlmOfferTools or SettingsField.Theme
         || IsLlmField(field) || IsTtsField(field) || IsVoiceField(field) || IsMcpField(field);
 
     /// <summary>
@@ -2042,6 +2071,11 @@ internal sealed partial class SettingsMenu
         if (field == SettingsField.WebSearchMethod)
         {
             return await PickSearchMethodAsync(saved, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (field == SettingsField.Theme)
+        {
+            return await PickThemeRowAsync(saved, cancellationToken).ConfigureAwait(false);
         }
 
         if (field == SettingsField.ImageThumbnailSize)
@@ -3419,6 +3453,79 @@ internal sealed partial class SettingsMenu
         Apply(SettingsField.ImageThumbnailSize, d => d.ImageThumbnailSize = name);
         return true;
     }
+
+    /// <summary>The theme picker under the settings list: one <see cref="ThemeLabel"/> row per <see cref="ThemeName.Names"/> entry, the saved one under the cursor. The pick is put in force at once, so the pane wears it; the screen starts over when the pane closes (<see cref="SettingsChanges.Theme"/>).</summary>
+    private async Task<bool> PickThemeRowAsync(AppSettingsData saved, CancellationToken cancellationToken)
+    {
+        var page = new MenuPage(Crumb(FieldName(SettingsField.Theme)), ThemeRows(), PickKeys);
+        int? picked = await PickAsync(page, ThemeCursor(saved.Theme), cancellationToken).ConfigureAwait(false);
+        if (picked is not { } index)
+        {
+            return Unchanged();
+        }
+
+        var palette = ThemePalette.All[index];
+        Apply(SettingsField.Theme, d => d.Theme = palette.Name);
+        Theme.Use(palette);
+        return true;
+    }
+
+    /// <summary>
+    /// <c>/theme</c> (2026-09-23, the user's ask): saves and puts in force <paramref name="requestedName"/>
+    /// when given (one of <see cref="ThemeName.Names"/>, any case; anything else is <see cref="ThemeNameError"/>),
+    /// otherwise the themes as a one-level list opened on the one in force. Quiet on a change — the
+    /// screen starts over and says so itself — and returns true only when the theme in force changed;
+    /// the one already in force says <see cref="ThemeAlreadyNotice"/>, ESC <see cref="UnchangedNotice"/>.
+    /// Without menus the guard prints.
+    /// </summary>
+    public async Task<bool> PickThemeAsync(string requestedName, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(requestedName);
+        if (!string.IsNullOrWhiteSpace(requestedName))
+        {
+            if (!ThemeName.TryParse(requestedName, out var named))
+            {
+                Flow.Error(ThemeNameError(requestedName.Trim()));
+                return false;
+            }
+
+            return SaveTheme(named);
+        }
+
+        if (!CanShowMenus())
+        {
+            Flow.Error(MenusNeedTerminalError);
+            return false;
+        }
+
+        var page = new MenuPage(ThemeTitle, ThemeRows(), KeepKeys);
+        int? picked = await PickOnceAsync(page, ThemeCursor(Theme.Current.Name), cancellationToken).ConfigureAwait(false);
+        return picked is { } index ? SaveTheme(ThemePalette.All[index]) : Unchanged();
+    }
+
+    /// <summary>Saves <paramref name="palette"/>'s name (when the saved one differs) and puts it in force; true when the theme in force changed, else <see cref="ThemeAlreadyNotice"/>.</summary>
+    private bool SaveTheme(ThemePalette palette)
+    {
+        bool changed = !ReferenceEquals(Theme.Current, palette);
+        if (!string.Equals(_settings.Current.Theme, palette.Name, StringComparison.Ordinal))
+        {
+            _settings.Update(d => d.Theme = palette.Name);
+        }
+
+        Theme.Use(palette);
+        if (!changed)
+        {
+            Sink.Notice(ThemeAlreadyNotice(palette.Name));
+        }
+
+        return changed;
+    }
+
+    /// <summary>One <see cref="ThemeLabel"/> row per theme, in <see cref="ThemeName.Names"/> order.</summary>
+    private static List<string> ThemeRows() => ThemeName.Names.Select(ThemeLabel).ToList();
+
+    /// <summary>The row of <paramref name="name"/> (an unknown one reads as the default's, the first).</summary>
+    private static int ThemeCursor(string name) => ThemeName.TryParse(name, out var palette) ? Array.IndexOf(ThemeName.Names, palette.Name) : 0;
 
     /// <summary>The new-profile-mode picker under the settings list: one <see cref="NewProfileModeLabel"/> row per <see cref="NewProfileMode.Names"/> entry, the saved one under the cursor.</summary>
     private async Task<bool> PickNewProfileModeAsync(AppSettingsData saved, CancellationToken cancellationToken)

@@ -304,7 +304,7 @@ public class MenuPaneTests : IDisposable
 
         Assert.Equal("new", Assert.IsType<InputResult.Submitted>(submitted).Text);
         Assert.DoesNotContain("› new", Output[mark..]);
-        Assert.DoesNotContain(Theme.ToHex(Theme.Cyan) + " bold", Output[mark..]);
+        Assert.DoesNotContain(Theme.ToHex(Theme.Secondary) + " bold", Output[mark..]);
 
         menu.Close();
         Assert.EndsWith(Rule(40) + "\n› \n" + Rule(40) + "\nidle", Output);

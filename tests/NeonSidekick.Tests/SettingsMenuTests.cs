@@ -751,7 +751,7 @@ public class SettingsMenuTests : IDisposable
                 SettingsField.LlmCompactShowSummary, SettingsField.GitNativeEmail, SettingsField.GitNativeName, SettingsField.ShellToolBridge, SettingsField.FileBrowserMode, SettingsField.ShowToolbar, SettingsField.ShellPoliceOutsidePaths,
                 SettingsField.ToolCollapseCount, SettingsField.CodeCollapseCount,
                 SettingsField.ObsidianTools, SettingsField.ObsidianVault, SettingsField.ObsidianAllowDelete,
-                SettingsField.SqlTools, SettingsField.SqlDefaultConnection, SettingsField.SqlQueryMaxRows, SettingsField.SqlQueryTimeoutSeconds, SettingsField.SqlConnectionsProfile, SettingsField.SqlConnectionsGlobal, SettingsField.SqlSetPassword, SettingsField.SqlPercentMention, SettingsField.SqlConnectionsOffered, SettingsField.SqlAddConnection,
+                SettingsField.SqlTools, SettingsField.SqlDefaultConnection, SettingsField.SqlQueryMaxRows, SettingsField.SqlQueryTimeoutSeconds, SettingsField.SqlConnectionsProfile, SettingsField.SqlConnectionsGlobal, SettingsField.SqlSetPassword, SettingsField.SqlPercentMention, SettingsField.SqlConnectionsOffered, SettingsField.SqlAddConnection, SettingsField.Theme,
             },
             Enum.GetValues<SettingsField>());
         // The compact rows: on the LLM tab after the context length but no reconnect; the type a picker, the two others typed.
@@ -902,7 +902,7 @@ public class SettingsMenuTests : IDisposable
         Assert.Equal(8, SettingsMenu.ToolsTabFields.Count);   // SQL since 2026-09-23; Obsidian since 2026-09-22 and Options last later that day (first since later on 2026-09-19); Git between Files and Web since 2026-09-20; Shell between Git and Web since 2026-09-21
         Assert.Equal(2, SettingsMenu.SkillsTabFields.Count);   // Options and Reflection, since later on 2026-09-19 (one list of 11, then 14, before)
         Assert.Equal(12, SettingsMenu.SkillsTabFields.Sum(t => t.Count));   // 13 until Allow skill delete went on 2026-09-23; 14 until Reflection verbose went later still on 2026-09-19
-        Assert.Equal(new[] { SettingsField.Profile, SettingsField.NewProfileMode, SettingsField.WorkingDirectory, SettingsField.QueueMessages, SettingsField.QueueCancelMode, SettingsField.Memory, SettingsField.CopyUserPrompt, SettingsField.ShowImageThumbnails, SettingsField.ImageThumbnailSize, SettingsField.TranscriptMarkdown, SettingsField.PastePreviewLines, SettingsField.HideExitAutocomplete, SettingsField.CommandTypoIntercept, SettingsField.WelcomeSplash, SettingsField.ShowWorkingDirectory, SettingsField.ShowToolbar, SettingsField.DraftEditor }, SettingsMenu.TabFields[(int)SettingsTab.General]);
+        Assert.Equal(new[] { SettingsField.Profile, SettingsField.NewProfileMode, SettingsField.WorkingDirectory, SettingsField.QueueMessages, SettingsField.QueueCancelMode, SettingsField.Memory, SettingsField.CopyUserPrompt, SettingsField.ShowImageThumbnails, SettingsField.ImageThumbnailSize, SettingsField.TranscriptMarkdown, SettingsField.PastePreviewLines, SettingsField.HideExitAutocomplete, SettingsField.CommandTypoIntercept, SettingsField.WelcomeSplash, SettingsField.ShowWorkingDirectory, SettingsField.ShowToolbar, SettingsField.DraftEditor, SettingsField.Theme }, SettingsMenu.TabFields[(int)SettingsTab.General]);
         // Draft editor (2026-09-19): typed, the General tab's last row, blank = the shell's default for .txt, no reconnect (read at each /draft).
         Assert.False(SettingsMenu.IsToggle(SettingsField.DraftEditor));
         Assert.Equal("Draft editor", SettingsMenu.FieldName(SettingsField.DraftEditor));
@@ -1489,6 +1489,73 @@ public class SettingsMenuTests : IDisposable
 
         Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
         Assert.Equal("medium", _settings.Current.ImageThumbnailSize);
+    }
+
+    // ── Theme (2026-09-23) ──────────────────────────────────────────────────
+
+    [Fact]
+    public void Theme_Labels_ArePinned()
+    {
+        var data = new AppSettingsData();
+        Assert.False(SettingsMenu.IsToggle(SettingsField.Theme));
+        Assert.Equal("Theme", SettingsMenu.FieldName(SettingsField.Theme));
+        Assert.Equal("synthwave", SettingsMenu.FieldValue(SettingsField.Theme, data, _settings.ProfileDirectory));
+        Assert.Equal("noir", SettingsMenu.FieldValue(SettingsField.Theme, new AppSettingsData { Theme = "noir" }, _settings.ProfileDirectory));
+        Assert.False(SettingsMenu.IsLlmField(SettingsField.Theme) || SettingsMenu.IsTtsField(SettingsField.Theme) || SettingsMenu.IsVoiceField(SettingsField.Theme) || SettingsMenu.IsMcpField(SettingsField.Theme));
+        Assert.True(SettingsMenu.RefusedMidTurn(SettingsField.Theme));   // a change starts the screen over
+        Assert.Equal("synthwave [#9A8BB8]default theme[/]", SettingsMenu.ThemeLabel("synthwave"));
+        Assert.Equal("noir      [#9A8BB8]greyscale[/]", SettingsMenu.ThemeLabel("noir"));
+        Assert.Equal("nostromo  [#9A8BB8]amber phosphor[/]", SettingsMenu.ThemeLabel("nostromo"));
+        Assert.Equal("🎨 Theme", SettingsMenu.ThemeTitle);
+        Assert.Equal("No theme named \"matrix\". /theme takes synthwave, netrunner, nostromo, noir, cyberpunk or vaporwave, or nothing to pick from a list.", SettingsMenu.ThemeNameError("matrix"));
+        Assert.Equal("Theme: noir (already in force)", SettingsMenu.ThemeAlreadyNotice("noir"));
+        Assert.Equal("Theme: netrunner", SettingsMenu.SavedNotice(SettingsField.Theme, new AppSettingsData { Theme = "netrunner" }, _settings.ProfileDirectory));
+    }
+
+    [Fact]
+    public async Task Theme_IsTheLastRow_APicker_PutInForceAtOnce_AndTheScreenHearsIt()
+    {
+        using var scope = new ThemeScope();
+        Down(Enum.GetValues<SettingsField>().Length - 1);
+        Push(Keys.Enter);                           // Theme: the picker opens on synthwave
+        Push(Keys.Down, Keys.Enter);                // netrunner
+        Push(Keys.Escape);
+
+        Assert.Equal(SettingsChanges.Theme, await _menu.ShowAsync(CancellationToken.None));
+
+        Assert.Equal("netrunner", _settings.Current.Theme);
+        Assert.Same(ThemePalette.Netrunner, Theme.Current);
+        Assert.Contains(SettingsMenu.Breadcrumb("Theme"), _console.Output);
+        Assert.Contains("  · Theme: netrunner", _console.Output);
+        Assert.Equal(0, _synth.ListCalls);          // no server is consulted
+    }
+
+    [Fact]
+    public async Task Theme_PickedAndPickedBack_IsNoChangeForTheScreen()
+    {
+        using var scope = new ThemeScope();
+        Down(Enum.GetValues<SettingsField>().Length - 1);
+        Push(Keys.Enter, Keys.Down, Keys.Down, Keys.Enter);   // nostromo
+        Push(Keys.Enter, Keys.Up, Keys.Up, Keys.Enter);       // synthwave again
+        Push(Keys.Escape);
+
+        Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
+
+        Assert.Equal("synthwave", _settings.Current.Theme);
+        Assert.Same(ThemePalette.Synthwave, Theme.Current);
+    }
+
+    [Fact]
+    public async Task Theme_EscapeKeepsIt()
+    {
+        using var scope = new ThemeScope();
+        Down(Enum.GetValues<SettingsField>().Length - 1);
+        Push(Keys.Enter, Keys.Escape, Keys.Escape);
+
+        Assert.Equal(SettingsChanges.None, await _menu.ShowAsync(CancellationToken.None));
+
+        Assert.Equal("synthwave", _settings.Current.Theme);
+        Assert.Contains(SettingsMenu.UnchangedNotice, _console.Output);
     }
 
     // ── Tree max length / Tree show sizes ───────────────────────────────────
@@ -2690,7 +2757,7 @@ public class SettingsMenuTests : IDisposable
         string cwd = SettingsMenu.DefaultWorkingDirectoryLabel(_settings.ProfileDirectory);
         Assert.StartsWith("(", cwd);
         Assert.EndsWith(@"\profiles\default\files)", cwd);
-        Assert.Contains(Rule(240) + "\n" + Titled(Strip) + "\n \n▸ Profile                      default (" + _settings.ProfileDirectory + ")\n  New profile mode             basic\n  Working directory (cwd)      " + cwd + "\n  Queue messages               on\n  Queue cancel mode            empty\n  Memory                       on\n  Copy user prompt             on\n  Show image thumbnails        on\n  Image thumbnail size         small\n  Transcript markdown          on\n  Paste preview lines          25 lines\n  Hide /exit autocomplete      on\n  Command typo intercept       on\n  Welcome splash               on\n  Working directory in header  off\n  Show toolbar                 on\n  Draft editor                 (default .txt editor)\n" + Rule(240) + "\n" + SettingsMenu.TabKeys + "\n", _console.Output);
+        Assert.Contains(Rule(240) + "\n" + Titled(Strip) + "\n \n▸ Profile                      default (" + _settings.ProfileDirectory + ")\n  New profile mode             basic\n  Working directory (cwd)      " + cwd + "\n  Queue messages               on\n  Queue cancel mode            empty\n  Memory                       on\n  Copy user prompt             on\n  Show image thumbnails        on\n  Image thumbnail size         small\n  Transcript markdown          on\n  Paste preview lines          25 lines\n  Hide /exit autocomplete      on\n  Command typo intercept       on\n  Welcome splash               on\n  Working directory in header  off\n  Show toolbar                 on\n  Draft editor                 (default .txt editor)\n  Theme                        synthwave\n" + Rule(240) + "\n" + SettingsMenu.TabKeys + "\n", _console.Output);
         Assert.DoesNotContain("File /tree max length", _console.Output);   // the Files tab's since 2026-09-15
         Assert.DoesNotContain("LLM URL", _console.Output);
         Assert.False(pane.OverlayOpen);
@@ -2848,7 +2915,7 @@ public class SettingsMenuTests : IDisposable
     {
         foreach (var field in Enum.GetValues<SettingsField>())
         {
-            bool expected = field is SettingsField.Profile or SettingsField.WorkingDirectory or SettingsField.LlmOfferTools
+            bool expected = field is SettingsField.Profile or SettingsField.WorkingDirectory or SettingsField.LlmOfferTools or SettingsField.Theme
                 || SettingsMenu.IsLlmField(field) || SettingsMenu.IsTtsField(field) || SettingsMenu.IsVoiceField(field) || SettingsMenu.IsMcpField(field);
             Assert.Equal(expected, SettingsMenu.RefusedMidTurn(field));
         }

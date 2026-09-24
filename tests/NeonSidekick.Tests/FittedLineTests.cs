@@ -39,16 +39,16 @@ public class FittedLineTests
         var options = RenderOptions.Create(new TestConsole(), new TestConsole().Profile.Capabilities);
 
         // The first five cells in the lead style, the rest in the line's: the skill's name over its row.
-        var segments = new FittedLine("haiku  profile  Writes haiku.", Theme.Body, 5, Theme.AccentCyan).Render(options, 40).ToArray();
-        Assert.Equal([("haiku", Theme.AccentCyan), ("  profile  Writes haiku.", Theme.Body)], segments.Select(s => (s.Text, s.Style)));
+        var segments = new FittedLine("haiku  profile  Writes haiku.", Theme.Body, 5, Theme.AccentSecondary).Render(options, 40).ToArray();
+        Assert.Equal([("haiku", Theme.AccentSecondary), ("  profile  Writes haiku.", Theme.Body)], segments.Select(s => (s.Text, s.Style)));
 
         // The whole line is cut first: a lead wider than the room ends in the ellipsis, nothing after it.
-        segments = new FittedLine("haiku  profile  Writes haiku.", Theme.Body, 16, Theme.AccentCyan).Render(options, 10).ToArray();
-        Assert.Equal([("haiku  pr…", Theme.AccentCyan)], segments.Select(s => (s.Text, s.Style)));
+        segments = new FittedLine("haiku  profile  Writes haiku.", Theme.Body, 16, Theme.AccentSecondary).Render(options, 10).ToArray();
+        Assert.Equal([("haiku  pr…", Theme.AccentSecondary)], segments.Select(s => (s.Text, s.Style)));
 
         // No lead style, or a zero lead: one segment as before.
         Assert.Single(new FittedLine("haiku  profile", Theme.Body, 5).Render(options, 40));
-        Assert.Single(new FittedLine("haiku  profile", Theme.Body, 0, Theme.AccentCyan).Render(options, 40));
+        Assert.Single(new FittedLine("haiku  profile", Theme.Body, 0, Theme.AccentSecondary).Render(options, 40));
         Assert.Equal(["haiku  profile  Writes …"], Render(24, "haiku  profile  Writes haiku with seventeen syllables."));
     }
 

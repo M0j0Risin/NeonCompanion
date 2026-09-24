@@ -1226,7 +1226,7 @@ internal sealed partial class ChatScreen
 
             foreach (var entry in groups[i])
             {
-                grid.AddRow(new Text(entry.Label, Theme.AccentCyan), new Text(entry.Summary, Theme.Body));
+                grid.AddRow(new Text(entry.Label, Theme.AccentSecondary), new Text(entry.Summary, Theme.Body));
             }
         }
 
@@ -1238,7 +1238,7 @@ internal sealed partial class ChatScreen
         var grid = TwoColumns();
         foreach (var (key, meaning) in KeyRows(_voice.Enabled, _voice.PushToTalk, _voice.WakeReady, _voice.WakePhrase))
         {
-            grid.AddRow(new Text(key, Theme.AccentCyan), new Text(meaning, Theme.Body));
+            grid.AddRow(new Text(key, Theme.AccentSecondary), new Text(meaning, Theme.Body));
         }
 
         return grid;
@@ -2407,6 +2407,9 @@ internal sealed partial class ChatScreen
 
             case SlashCommand.Reasoning:
                 return MentionCompleter.Matches(ReasoningLevel.Levels.Select(level => new CompletionItem(level, ReasoningLevel.Describe(level))).ToList(), argText);
+
+            case SlashCommand.Theme:
+                return MentionCompleter.Matches(ThemeName.Names.Select(name => new CompletionItem(name, ThemeName.Describe(name))).ToList(), argText);
 
             case SlashCommand.Profile:
             {
@@ -5082,6 +5085,11 @@ internal sealed partial class ChatScreen
             {
                 result |= SettingsChanges.Conversation;
             }
+
+            if (field == SettingsField.Theme)
+            {
+                result |= SettingsChanges.Theme;
+            }
         }
 
         return result;
@@ -5823,6 +5831,21 @@ internal sealed partial class ChatScreen
     }
 
     /// <summary>
+    /// A theme change (2026-09-23, the user's call: <c>/theme</c> and the Settings pane's <c>Theme</c>
+    /// row work just like <c>/splash</c>): what is already drawn keeps the colours it was drawn in (the
+    /// scrollback stores styled segments), so the screen starts over in the new ones — /clear's wipe
+    /// and forgetting, the splash whatever <c>Welcome splash</c> says, and the saved line under it.
+    /// The session was stored turn by turn, so <c>/sessions</c> brings it back, replayed in the new theme.
+    /// </summary>
+    private void RestartInTheme()
+    {
+        ThemeName.Apply(_effective());
+        ClearAndRefresh();
+        ShowSplash(force: true);
+        _transcript.Notice(SettingsMenu.SavedNotice(SettingsField.Theme, _settings.Current, _settings.ProfileDirectory));
+    }
+
+    /// <summary>
     /// The start-of-app view again without the forgetting: the terminal wiped, the banner, then only
     /// what the settings cannot say — <see cref="ClearAndRefresh"/>'s screen half, and what a sent
     /// line over the welcome splash draws (<see cref="DismissSplash"/>). Any redraw of the banner
@@ -6504,6 +6527,13 @@ internal sealed partial class ChatScreen
             await ConnectMcpAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        if (changes.HasFlag(SettingsChanges.Theme))
+        {
+            // The fresh start forgets the conversation too, so the tools switch below has nothing left to clear.
+            RestartInTheme();
+            return;
+        }
+
         if (changes.HasFlag(SettingsChanges.Conversation))
         {
             // The history's shape follows the LLM offer tools switch (see SettingsChanges.Conversation):
@@ -6601,6 +6631,14 @@ internal sealed partial class ChatScreen
                 // /clear's wipe and forgetting, then the picture whatever Welcome splash says.
                 ClearAndRefresh();
                 ShowSplash(force: true);
+                return false;
+
+            case SlashCommand.Theme:
+                if (await _menu.PickThemeAsync(args, cancellationToken).ConfigureAwait(false))
+                {
+                    RestartInTheme();
+                }
+
                 return false;
 
             case SlashCommand.Compact:
@@ -7237,6 +7275,8 @@ internal sealed partial class ChatScreen
         ForgetSession();
         BindProfile();
         DiagnosticLog.Debug(AppSettings.Category, AppSettings.NotDefaultLogLine(SettingsDiff.NotDefault(_effective())));
+        // The new profile's theme (2026-09-23) before the wipe below, so the fresh screen wears it.
+        ThemeName.Apply(_effective());
         ApplyWindowTitle();
         _session.History.Clear();
         DropQueue();

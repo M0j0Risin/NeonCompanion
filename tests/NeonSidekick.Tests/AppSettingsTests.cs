@@ -27,6 +27,7 @@ public class AppSettingsTests : IDisposable
         DraftEditor = "code --wait",
         HideExitAutocomplete = false,
         ImageThumbnailSize = "large",
+        Theme = "noir",
         Memory = false,
         NewProfileMode = "advanced",
         PastePreviewLines = 7,
@@ -125,6 +126,7 @@ public class AppSettingsTests : IDisposable
         Assert.Equal(expected.DraftEditor, actual.DraftEditor);
         Assert.Equal(expected.HideExitAutocomplete, actual.HideExitAutocomplete);
         Assert.Equal(expected.ImageThumbnailSize, actual.ImageThumbnailSize);
+        Assert.Equal(expected.Theme, actual.Theme);
         Assert.Equal(expected.Memory, actual.Memory);
         Assert.Equal(expected.NewProfileMode, actual.NewProfileMode);
         Assert.Equal(expected.PastePreviewLines, actual.PastePreviewLines);
@@ -235,6 +237,7 @@ public class AppSettingsTests : IDisposable
             d.DraftEditor = full.DraftEditor;
             d.HideExitAutocomplete = full.HideExitAutocomplete;
             d.ImageThumbnailSize = full.ImageThumbnailSize;
+            d.Theme = full.Theme;
             d.Memory = full.Memory;
             d.NewProfileMode = full.NewProfileMode;
             d.PastePreviewLines = full.PastePreviewLines;
@@ -342,6 +345,7 @@ public class AppSettingsTests : IDisposable
                 d.DraftEditor = full.DraftEditor;
                 d.HideExitAutocomplete = full.HideExitAutocomplete;
                 d.ImageThumbnailSize = full.ImageThumbnailSize;
+                d.Theme = full.Theme;
                 d.Memory = full.Memory;
                 d.NewProfileMode = full.NewProfileMode;
                 d.PastePreviewLines = full.PastePreviewLines;
@@ -942,6 +946,7 @@ public class AppSettingsTests : IDisposable
         Assert.Equal(85, s.LlmAutoCompactPercent);
         Assert.Equal(10000, s.LlmMaxToolIterations);
         Assert.Equal("small", s.ImageThumbnailSize);
+        Assert.Equal("synthwave", s.Theme);
         Assert.Equal(500, s.FileTreeMaxLength);
         Assert.True(s.FileTreeShowSizes);
         Assert.Equal(10, s.FileViewImageMaxPerCall);   // 2026-09-19 (a constant 4 in the tool until then)

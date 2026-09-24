@@ -140,7 +140,7 @@ public static class UsageText
         grid.AddRow(new Text(ContextHeading, Theme.SectionHeading), new Text(window?.Source ?? WindowUnknown, Theme.DimText));
         foreach (var (label, value) in ContextRows(tally, window))
         {
-            grid.AddRow(new Text(label, Theme.AccentCyan), new Text(value, Theme.Body));
+            grid.AddRow(new Text(label, Theme.AccentSecondary), new Text(value, Theme.Body));
         }
 
         grid.AddRow(new Text(" "), new Text(""));
@@ -155,7 +155,7 @@ public static class UsageText
         Section(grid, SessionHeading, SummedNote, tally.Session, averaged: true);
         if (tally.LearningRequests > 0)
         {
-            grid.AddRow(new Text(LearningLabel, Theme.AccentCyan), new Text(LearningValue(tally), Theme.Body));
+            grid.AddRow(new Text(LearningLabel, Theme.AccentSecondary), new Text(LearningValue(tally), Theme.Body));
         }
 
         return grid;
@@ -190,7 +190,7 @@ public static class UsageText
         {
             foreach (var (label, value) in Rows(usage, averaged))
             {
-                grid.AddRow(new Text(label, Theme.AccentCyan), new Text(value, Theme.Body));
+                grid.AddRow(new Text(label, Theme.AccentSecondary), new Text(value, Theme.Body));
             }
         }
 

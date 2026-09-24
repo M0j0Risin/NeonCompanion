@@ -1,0 +1,186 @@
+using Spectre.Console;
+
+namespace NeonSidekick.UI;
+
+/// <summary>
+/// One named look (2026-09-23, the user's ask: themes beside synthwave, chosen on the General tab's
+/// <c>Theme</c> row or with <c>/theme</c>): the colour of every role <see cref="Theme"/> composes its
+/// styles from. This is the <em>only</em> file that names a colour. The slots are roles, not hues —
+/// <see cref="Primary"/> is synthwave's magenta and netrunner's green — so a call site reads the
+/// same under every theme. <see cref="Synthwave"/> is the default and keeps the original values
+/// exactly; the tests pin them.
+/// </summary>
+/// <param name="Name">The name the setting stores and <c>/theme</c> takes (lower case).</param>
+/// <param name="Description">The note beside the name in the picker and the argument list.</param>
+/// <param name="Primary">The main accent: headings, borders, keywords, markup tags.</param>
+/// <param name="Secondary">The counter-accent: the user's lines, the spinner, table headers, inline code, types and keys, the selection.</param>
+/// <param name="Tertiary">The third accent: section headings, bullets, the quote bar, calls, the paste label.</param>
+/// <param name="Deep">The receding structural colour: the pane rule, a reply table's border.</param>
+/// <param name="Highlight">The warm highlight: string literals, the top of the sun.</param>
+/// <param name="Warm">Between <paramref name="Highlight"/> and <paramref name="Primary"/>: numbers.</param>
+/// <param name="Tint">A soft accent: <c>$variables</c>, the lower sun.</param>
+/// <param name="Ink">Body text.</param>
+/// <param name="Dim">Secondary, dim text.</param>
+/// <param name="Dimmer">A step darker than <paramref name="Dim"/>: the input row's ghost text.</param>
+/// <param name="Bg">The page background (the selection's text, disabled menu rows, a picture's transparent pixels).</param>
+/// <param name="PanelBg">The lifted fill: code blocks, the highlighted menu row.</param>
+/// <param name="Good">Success, enabled, connected.</param>
+/// <param name="Bad">Failure, error.</param>
+/// <param name="Warn">A warning.</param>
+/// <param name="GradientStops">The five stops of the banner title and its rule, left to right.</param>
+public sealed record ThemePalette(
+    string Name,
+    string Description,
+    Color Primary,
+    Color Secondary,
+    Color Tertiary,
+    Color Deep,
+    Color Highlight,
+    Color Warm,
+    Color Tint,
+    Color Ink,
+    Color Dim,
+    Color Dimmer,
+    Color Bg,
+    Color PanelBg,
+    Color Good,
+    Color Bad,
+    Color Warn,
+    Color[] GradientStops)
+{
+    /// <summary>The original neon sunset (the default): hot magenta, cyan, violet, sunset amber on deep space.</summary>
+    public static readonly ThemePalette Synthwave = Build(
+        "synthwave", "default theme",
+        primary: new(0xFF, 0x2E, 0x97),
+        secondary: new(0x33, 0xE0, 0xFF),
+        tertiary: new(0xB1, 0x5B, 0xFF),
+        deep: new(0x7B, 0x2F, 0xF7),
+        highlight: new(0xFF, 0xC8, 0x32),
+        warm: new(0xFF, 0x8A, 0x3D),
+        tint: new(0xF4, 0x5B, 0x9B),
+        ink: new(0xEF, 0xE6, 0xFF),
+        dim: new(0x9A, 0x8B, 0xB8),
+        dimmer: new(0x44, 0x3C, 0x56),
+        bg: new(0x0B, 0x04, 0x16),
+        panelBg: new(0x16, 0x0A, 0x28),
+        good: new(0x3D, 0xF2, 0x7A),
+        bad: new(0xFF, 0x4D, 0x6D),
+        warn: null,
+        gradient: null);
+
+    /// <summary>Matrix-style green phosphor: bright green, aqua-mint and lime on near-black green.</summary>
+    public static readonly ThemePalette Netrunner = Build(
+        "netrunner", "green phosphor",
+        primary: new(0x00, 0xFF, 0x41),
+        secondary: new(0x3D, 0xFF, 0xD0),
+        tertiary: new(0xB6, 0xFF, 0x3D),
+        deep: new(0x0F, 0x6B, 0x2E),
+        highlight: new(0xE0, 0xFF, 0x6B),
+        warm: new(0x9C, 0xFF, 0x57),
+        tint: new(0x5C, 0xFF, 0xA8),
+        ink: new(0xD7, 0xFF, 0xE0),
+        dim: new(0x5E, 0x9A, 0x6C),
+        dimmer: new(0x24, 0x40, 0x2C),
+        bg: new(0x02, 0x0A, 0x04),
+        panelBg: new(0x07, 0x17, 0x0C),
+        good: new(0x39, 0xFF, 0x88),
+        bad: new(0xFF, 0x33, 0x55),
+        warn: null,
+        gradient: [new(0x0F, 0x6B, 0x2E), new(0x00, 0xC8, 0x3A), new(0x00, 0xFF, 0x41), new(0x3D, 0xFF, 0xD0), new(0xE0, 0xFF, 0x6B)]);
+
+    /// <summary>An amber CRT, the Nostromo's monitors (named so 2026-09-23, the user's call; <c>phosphor</c> until then): amber, pale gold and burnt orange on brown-black; red only for failures.</summary>
+    public static readonly ThemePalette Nostromo = Build(
+        "nostromo", "amber phosphor",
+        primary: new(0xFF, 0xB0, 0x00),
+        secondary: new(0xFF, 0xD2, 0x7A),
+        tertiary: new(0xE0, 0x9A, 0x3A),
+        deep: new(0x6E, 0x46, 0x00),
+        highlight: new(0xFF, 0xE6, 0xA8),
+        warm: new(0xFF, 0x8C, 0x1A),
+        tint: new(0xFF, 0xC2, 0x66),
+        ink: new(0xFF, 0xE9, 0xC2),
+        dim: new(0x9C, 0x7A, 0x45),
+        dimmer: new(0x45, 0x34, 0x1B),
+        bg: new(0x0D, 0x08, 0x00),
+        panelBg: new(0x1A, 0x10, 0x04),
+        good: new(0xD4, 0xFF, 0x7A),
+        bad: new(0xFF, 0x4A, 0x2E),
+        warn: null,
+        gradient: [new(0x6E, 0x46, 0x00), new(0xCC, 0x84, 0x00), new(0xFF, 0xB0, 0x00), new(0xFF, 0xD2, 0x7A), new(0xFF, 0xF3, 0xD6)]);
+
+    /// <summary>Monochrome: greys and white, with a muted red kept for errors and failures (the user's call, 2026-09-23).</summary>
+    public static readonly ThemePalette Noir = Build(
+        "noir", "greyscale",
+        primary: new(0xFF, 0xFF, 0xFF),
+        secondary: new(0xC8, 0xC8, 0xC8),
+        tertiary: new(0xA0, 0xA0, 0xA0),
+        deep: new(0x4A, 0x4A, 0x4A),
+        highlight: new(0xE0, 0xE0, 0xE0),
+        warm: new(0xB8, 0xB8, 0xB8),
+        tint: new(0xD0, 0xD0, 0xD0),
+        ink: new(0xE6, 0xE6, 0xE6),
+        dim: new(0x8C, 0x8C, 0x8C),
+        dimmer: new(0x3A, 0x3A, 0x3A),
+        bg: new(0x0A, 0x0A, 0x0A),
+        panelBg: new(0x17, 0x17, 0x17),
+        good: new(0xF5, 0xF5, 0xF5),
+        bad: new(0xD6, 0x45, 0x45),
+        warn: new(0xBD, 0xBD, 0xBD),
+        gradient: [new(0x4A, 0x4A, 0x4A), new(0x8C, 0x8C, 0x8C), new(0xC8, 0xC8, 0xC8), new(0xE6, 0xE6, 0xE6), new(0xFF, 0xFF, 0xFF)]);
+
+    /// <summary>Night City: electric yellow, cyan and danger red on blue-black.</summary>
+    public static readonly ThemePalette Cyberpunk = Build(
+        "cyberpunk", "colorful",
+        primary: new(0xFC, 0xEE, 0x0A),
+        secondary: new(0x00, 0xF0, 0xFF),
+        tertiary: new(0xFF, 0x2A, 0x6D),
+        deep: new(0x7A, 0x15, 0x30),
+        highlight: new(0xFF, 0xB8, 0x00),
+        warm: new(0xFF, 0x6B, 0x00),
+        tint: new(0xC5, 0xF9, 0x00),
+        ink: new(0xF2, 0xF2, 0xF2),
+        dim: new(0x8A, 0x8A, 0x99),
+        dimmer: new(0x35, 0x35, 0x3F),
+        bg: new(0x0A, 0x0A, 0x12),
+        panelBg: new(0x15, 0x15, 0x1F),
+        good: new(0x00, 0xFF, 0x9F),
+        bad: new(0xFF, 0x00, 0x3C),
+        warn: null,
+        gradient: [new(0x00, 0xF0, 0xFF), new(0x7A, 0xF7, 0xFF), new(0xFC, 0xEE, 0x0A), new(0xFF, 0x6B, 0x00), new(0xFF, 0x00, 0x3C)]);
+
+    /// <summary>The soft pastel variant: pink, sky blue, lavender and mint on dusk purple.</summary>
+    public static readonly ThemePalette Vaporwave = Build(
+        "vaporwave", "pastel",
+        primary: new(0xFF, 0x71, 0xCE),
+        secondary: new(0x01, 0xCD, 0xFE),
+        tertiary: new(0xB9, 0x67, 0xFF),
+        deep: new(0x6A, 0x3F, 0xB0),
+        highlight: new(0xFF, 0xFB, 0x96),
+        warm: new(0xFF, 0xB3, 0x8A),
+        tint: new(0x05, 0xFF, 0xA1),
+        ink: new(0xF5, 0xEE, 0xFF),
+        dim: new(0xA9, 0x9C, 0xC4),
+        dimmer: new(0x4A, 0x3F, 0x63),
+        bg: new(0x1A, 0x10, 0x30),
+        panelBg: new(0x25, 0x18, 0x3F),
+        good: new(0x05, 0xFF, 0xA1),
+        bad: new(0xFF, 0x5C, 0x8A),
+        warn: null,
+        gradient: [new(0x01, 0xCD, 0xFE), new(0x05, 0xFF, 0xA1), new(0xB9, 0x67, 0xFF), new(0xFF, 0x71, 0xCE), new(0xFF, 0xFB, 0x96)]);
+
+    /// <summary>Every theme, in menu order (the default first).</summary>
+    public static readonly IReadOnlyList<ThemePalette> All = [Synthwave, Netrunner, Nostromo, Noir, Cyberpunk, Vaporwave];
+
+    /// <summary>
+    /// A palette with synthwave's two derived slots filled in when a theme leaves them out:
+    /// <c>Warn</c> is the <paramref name="highlight"/> (synthwave's amber) and the gradient runs
+    /// secondary → tertiary → primary → warm → highlight (synthwave's cyan → violet → magenta →
+    /// orange → amber).
+    /// </summary>
+    private static ThemePalette Build(
+        string name, string description, Color primary, Color secondary, Color tertiary, Color deep,
+        Color highlight, Color warm, Color tint, Color ink, Color dim, Color dimmer, Color bg, Color panelBg,
+        Color good, Color bad, Color? warn, Color[]? gradient) =>
+        new(name, description, primary, secondary, tertiary, deep, highlight, warm, tint, ink, dim, dimmer, bg, panelBg,
+            good, bad, warn ?? highlight, gradient ?? [secondary, tertiary, primary, warm, highlight]);
+}

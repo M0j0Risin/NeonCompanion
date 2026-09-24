@@ -101,7 +101,7 @@ public class SkillsTextTests
             lines);
     }
 
-    private static string Cyan(string text) => $"[{Theme.AccentCyan.ToMarkup()}]{text}[/]";
+    private static string Cyan(string text) => $"[{Theme.AccentSecondary.ToMarkup()}]{text}[/]";
     private static string Dim(string text) => $"[#9A8BB8]{text}[/]";
     private static string Ink(string text) => Theme.ColorMarkup(Theme.Ink, text);
 

@@ -7799,7 +7799,7 @@ public partial class ChatScreenTests : IDisposable
     public async Task WithGeometry_HelpOpensTheInfoPane_AndEscClosesIt()
     {
         _settings.Update(d => d.TtsOutput = false);
-        _console.Profile.Height = 60;   // the Commands tab is 48 rows (38 commands + 10 blanks) since the three tool switches went (2026-09-18); the pane scrolls past 40
+        _console.Profile.Height = 61;   // 61 with /theme (2026-09-23); the Commands tab is 48 rows (38 commands + 10 blanks) since the three tool switches went (2026-09-18); the pane scrolls past 40
         _geometry = new ScreenGeometry(() => null);
         PushLine("/help");
         _console.Input.PushKey(Keys.Right);
@@ -8725,7 +8725,7 @@ public partial class ChatScreenTests : IDisposable
         }
 
         Assert.Equal(lines.Length, line);
-        Assert.Equal(56, lines.Length);   // 48 commands + 8 blank rows: /police under /cmdlist later still on 2026-09-22; /vault under /tree later still on 2026-09-22; /expand and /collapse under /loop later on 2026-09-22; /forget went 2026-09-22, its wipe now /memory forget, and /memcopy later that day, its copy now /memory copy; /cmdlist under /cmdcopy later on 2026-09-21; /cmdcopy under /memcopy 2026-09-21; /loop under /draft 2026-09-21; /git under /emptytrash 2026-09-21; /mcp under /tools 2026-09-20; /splash under /new later still on 2026-09-19; /draft under /copy since 2026-09-19; nine groups since later on 2026-09-19 (/skills + /learn under /sessions, /window under /view, /timer under /help); 39 + 10 with /tools under /settings that morning (38 + 10 since the three tool switches went, 2026-09-18)
+        Assert.Equal(57, lines.Length);   // 49 commands + 8 blank rows: /theme under /splash on 2026-09-23; /police under /cmdlist later still on 2026-09-22; /vault under /tree later still on 2026-09-22; /expand and /collapse under /loop later on 2026-09-22; /forget went 2026-09-22, its wipe now /memory forget, and /memcopy later that day, its copy now /memory copy; /cmdlist under /cmdcopy later on 2026-09-21; /cmdcopy under /memcopy 2026-09-21; /loop under /draft 2026-09-21; /git under /emptytrash 2026-09-21; /mcp under /tools 2026-09-20; /splash under /new later still on 2026-09-19; /draft under /copy since 2026-09-19; nine groups since later on 2026-09-19 (/skills + /learn under /sessions, /window under /view, /timer under /help); 39 + 10 with /tools under /settings that morning (38 + 10 since the three tool switches went, 2026-09-18)
         Assert.StartsWith(HelpRow("/settings, //", "edit and save settings"), lines[0]);
         Assert.StartsWith(HelpRow("/profile", "switch profiles, or /profile <name> | add <name> | delete <name> | rename <name> <new-name> | reset [name] | edit | reload"), lines[1]);   // the user's order since 2026-09-22: the profile and its sessions ahead of the tool panes
         Assert.StartsWith(HelpRow("/sessions", "list, restore and purge sessions: /sessions [<id> | purge <id> | purge older <age> | purge all | title <text>]"), lines[2]);   // under /profile since later on 2026-09-18
@@ -8741,36 +8741,37 @@ public partial class ChatScreenTests : IDisposable
         Assert.StartsWith(HelpRow("/clear", "start a new conversation and clear the screen"), lines[15]);
         Assert.StartsWith(HelpRow("/new", "start a new conversation but do not clear the screen"), lines[16]);   // its own row since 2026-09-16
         Assert.StartsWith(HelpRow("/splash", "start a new conversation and show the splash screen"), lines[17]);   // under /new since later still on 2026-09-19
-        Assert.StartsWith(HelpRow("/queue", "list and prune the messages queued while a reply runs"), lines[18]);   // 2026-09-18
-        Assert.StartsWith(HelpRow("/copy", "copy the last reply to the clipboard as markdown, or /copy <n> | all"), lines[19]);   // under /queue since later on 2026-09-18
-        Assert.StartsWith(HelpRow("/draft", "write the next message in your editor: a temporary file, sent when it is saved and closed"), lines[20]);   // under /copy since 2026-09-19
-        Assert.StartsWith(HelpRow("/loop", "repeat a message, each reply waited for: /loop <count> <message> | infinite <message> (ESC ends it)"), lines[21]);   // under /draft since 2026-09-21
-        Assert.StartsWith(HelpRow("/expand", "show every line of the folded tool runs and code blocks in the transcript (Ctrl+O flips)"), lines[22]);   // under /loop since 2026-09-22 (/tools expand until then)
-        Assert.StartsWith(HelpRow("/collapse", "fold the tool runs and code blocks in the transcript again"), lines[23]);
-        Assert.True(string.IsNullOrWhiteSpace(lines[24]));
-        Assert.StartsWith(HelpRow("/interrupt", "toggle the speech input wake word interrupt, or /interrupt on|off"), lines[28]);
-        Assert.True(string.IsNullOrWhiteSpace(lines[29]));
-        Assert.StartsWith(HelpRow("/memory", "list and prune memory items, or /memory forget | copy <profile> [overwrite]"), lines[30]);   // the copy word folded in later on 2026-09-22 and /memcopy's row went, every row under it one up
-        Assert.StartsWith(HelpRow("/remember", "add a memory: /remember <text>"), lines[31]);
-        Assert.StartsWith(HelpRow("/cmdcopy", "copy this profile's allowed shell commands into another: /cmdcopy <profile> [overwrite]"), lines[32]);   // 2026-09-21
-        Assert.StartsWith(HelpRow("/cmdlist", "list this profile's allowed shell commands on a pane, Enter removes one"), lines[33]);   // later on 2026-09-21
-        Assert.StartsWith(HelpRow("/police", "switch Shell police outside paths on or off on a pane: whether a shell command may name paths outside the working directory"), lines[34]);   // later still on 2026-09-22
-        Assert.StartsWith(HelpRow("/tree", "print a tree of the working directory's folders and files, or /tree <path>"), lines[37]);
-        Assert.StartsWith(HelpRow("/vault", "print a tree of the Obsidian vault's folders and notes, or /vault <path>"), lines[38]);   // under /tree since later still on 2026-09-22
-        Assert.StartsWith(HelpRow("/emptytrash", "empty the working directory's .trash for good (asks first)"), lines[40]);
-        Assert.StartsWith(HelpRow("/git", "write the Git native email and Git native name settings into the working directory's repository: /git user [force]"), lines[41]);   // 2026-09-21
-        Assert.True(string.IsNullOrWhiteSpace(lines[42]));
+        Assert.StartsWith(HelpRow("/theme", "switch the colour theme, starting a new conversation with the splash screen, or /theme <name>"), lines[18]);   // under /splash since 2026-09-23
+        Assert.StartsWith(HelpRow("/queue", "list and prune the messages queued while a reply runs"), lines[19]);   // 2026-09-18
+        Assert.StartsWith(HelpRow("/copy", "copy the last reply to the clipboard as markdown, or /copy <n> | all"), lines[20]);   // under /queue since later on 2026-09-18
+        Assert.StartsWith(HelpRow("/draft", "write the next message in your editor: a temporary file, sent when it is saved and closed"), lines[21]);   // under /copy since 2026-09-19
+        Assert.StartsWith(HelpRow("/loop", "repeat a message, each reply waited for: /loop <count> <message> | infinite <message> (ESC ends it)"), lines[22]);   // under /draft since 2026-09-21
+        Assert.StartsWith(HelpRow("/expand", "show every line of the folded tool runs and code blocks in the transcript (Ctrl+O flips)"), lines[23]);   // under /loop since 2026-09-22 (/tools expand until then)
+        Assert.StartsWith(HelpRow("/collapse", "fold the tool runs and code blocks in the transcript again"), lines[24]);
+        Assert.True(string.IsNullOrWhiteSpace(lines[25]));
+        Assert.StartsWith(HelpRow("/interrupt", "toggle the speech input wake word interrupt, or /interrupt on|off"), lines[29]);
+        Assert.True(string.IsNullOrWhiteSpace(lines[30]));
+        Assert.StartsWith(HelpRow("/memory", "list and prune memory items, or /memory forget | copy <profile> [overwrite]"), lines[31]);   // the copy word folded in later on 2026-09-22 and /memcopy's row went, every row under it one up
+        Assert.StartsWith(HelpRow("/remember", "add a memory: /remember <text>"), lines[32]);
+        Assert.StartsWith(HelpRow("/cmdcopy", "copy this profile's allowed shell commands into another: /cmdcopy <profile> [overwrite]"), lines[33]);   // 2026-09-21
+        Assert.StartsWith(HelpRow("/cmdlist", "list this profile's allowed shell commands on a pane, Enter removes one"), lines[34]);   // later on 2026-09-21
+        Assert.StartsWith(HelpRow("/police", "switch Shell police outside paths on or off on a pane: whether a shell command may name paths outside the working directory"), lines[35]);   // later still on 2026-09-22
+        Assert.StartsWith(HelpRow("/tree", "print a tree of the working directory's folders and files, or /tree <path>"), lines[38]);
+        Assert.StartsWith(HelpRow("/vault", "print a tree of the Obsidian vault's folders and notes, or /vault <path>"), lines[39]);   // under /tree since later still on 2026-09-22
+        Assert.StartsWith(HelpRow("/emptytrash", "empty the working directory's .trash for good (asks first)"), lines[41]);
+        Assert.StartsWith(HelpRow("/git", "write the Git native email and Git native name settings into the working directory's repository: /git user [force]"), lines[42]);   // 2026-09-21
+        Assert.True(string.IsNullOrWhiteSpace(lines[43]));
         // /speak and /view: a group of their own (the user's call, 2026-09-17); /window (/windowsize until then) under /view since later on 2026-09-19.
-        Assert.StartsWith(HelpRow("/speak", "read a text file from the working directory aloud, as a reply: /speak <file> [n], or /speak to resume, or /speak <n> from sentence n"), lines[43]);
-        Assert.StartsWith(HelpRow("/echo", "print a line as a reply and read it aloud when speech is on: /echo <text>"), lines[44]);
-        Assert.StartsWith(HelpRow("/view", "show an image from the working directory in the transcript, as large as the window allows: /view <image>"), lines[45]);
-        Assert.StartsWith(HelpRow("/window", "show the terminal window's width and height"), lines[46]);
-        Assert.True(string.IsNullOrWhiteSpace(lines[47]));
-        Assert.StartsWith(HelpRow("/persona", "export and manage persona.md (the personality) in your editor, or /persona reset to go back to the default, or /persona copy <profile> [force] to copy it into another profile"), lines[48]);   // copy 2026-09-21
-        Assert.True(string.IsNullOrWhiteSpace(lines[51]));
-        Assert.StartsWith(HelpRow("/timer", "list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all"), lines[52]);   // the bottom group's first row since later still on 2026-09-19 (under /help from earlier that day)
-        Assert.StartsWith(HelpRow("/help", "show help"), lines[53]);   // the bottom group since 2026-09-16, above /about; under /timer since later still on 2026-09-19
-        Assert.StartsWith(HelpRow("/about", "show general information about the app and profile"), lines[54]);
+        Assert.StartsWith(HelpRow("/speak", "read a text file from the working directory aloud, as a reply: /speak <file> [n], or /speak to resume, or /speak <n> from sentence n"), lines[44]);
+        Assert.StartsWith(HelpRow("/echo", "print a line as a reply and read it aloud when speech is on: /echo <text>"), lines[45]);
+        Assert.StartsWith(HelpRow("/view", "show an image from the working directory in the transcript, as large as the window allows: /view <image>"), lines[46]);
+        Assert.StartsWith(HelpRow("/window", "show the terminal window's width and height"), lines[47]);
+        Assert.True(string.IsNullOrWhiteSpace(lines[48]));
+        Assert.StartsWith(HelpRow("/persona", "export and manage persona.md (the personality) in your editor, or /persona reset to go back to the default, or /persona copy <profile> [force] to copy it into another profile"), lines[49]);   // copy 2026-09-21
+        Assert.True(string.IsNullOrWhiteSpace(lines[52]));
+        Assert.StartsWith(HelpRow("/timer", "list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all"), lines[53]);   // the bottom group's first row since later still on 2026-09-19 (under /help from earlier that day)
+        Assert.StartsWith(HelpRow("/help", "show help"), lines[54]);   // the bottom group since 2026-09-16, above /about; under /timer since later still on 2026-09-19
+        Assert.StartsWith(HelpRow("/about", "show general information about the app and profile"), lines[55]);
         Assert.StartsWith(HelpRow("/exit", "exit/quit the application"), lines[^1]);   // the very last row since 2026-09-16
         Assert.DoesNotContain("/windowsize", Output);
         Assert.DoesNotContain("(also", Output);
@@ -11249,7 +11250,7 @@ public partial class ChatScreenTests : IDisposable
         _console.Write(ChatScreen.CommandsTab(log: true));
 
         string[] lines = Output.TrimEnd('\n').Split('\n');
-        Assert.Equal(57, lines.Length);   // CommandsTab()'s 56 and the /log row
+        Assert.Equal(58, lines.Length);   // CommandsTab()'s 57 and the /log row
         int help = Array.FindIndex(lines, l => l.StartsWith(HelpRow("/help", "show help"), StringComparison.Ordinal));
         Assert.StartsWith(HelpRow("/log", SlashCommands.LogEntry.Summary), lines[help - 1]);
         Assert.StartsWith(HelpRow("/timer", "list timers, or /timer <duration> [name] (10m, 90s, 1h30m) | stop <name> | stop all"), lines[help - 2]);
@@ -12075,6 +12076,167 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(2, Refreshes(output));   // /splash's wipe, then /exit's over the picture
         Assert.Contains("▀", output[NthScreen(output, 1)..NthScreen(output, 2)]);
         Assert.DoesNotContain("▀", output[NthScreen(output, 2)..]);
+    }
+
+    // ── /theme (2026-09-23, the user's ask: just like /splash) ──────────────
+
+    [Fact]
+    public async Task Theme_Named_SavesIt_PutsItInForce_AndStartsOverLikeSplash()
+    {
+        using var theme = new ThemeScope();
+        _settings.Update(d => { d.TtsOutput = false; d.WelcomeSplash = false; });
+        PaneOf40Rows();
+        SplashOf(2380, 100);
+        LinesWhenIdle("hi", "/theme CyberPunk", "again", "/exit");
+
+        string output = await RunAsync();
+
+        Assert.Equal("cyberpunk", _settings.Current.Theme);
+        Assert.Same(ThemePalette.Cyberpunk, Theme.Current);
+        // /splash's shape: the wipe, the picture whatever Welcome splash says, the saved line under it.
+        Assert.Equal([SplashName(0)], _splashLoads);
+        // No startup picture (the setting is off), so "hi" wiped nothing; /theme wiped the screen, "again" wiped its picture.
+        int[] screens = Enumerable.Range(0, 3).Select(i => NthScreen(output, i)).ToArray();
+        Assert.Contains("› hi", output[screens[0]..screens[1]]);
+        Assert.Contains("▀", output[screens[1]..screens[2]]);
+        Assert.Contains("  · Theme: cyberpunk", output[screens[1]..screens[2]]);
+        Assert.DoesNotContain("› /theme", output[screens[1]..]);
+        Assert.Contains("› again", output[screens[2]..]);
+        // The conversation forgotten: the second request holds one user message.
+        Assert.Equal(2, _chat.Requests.Count);
+        Assert.Equal("again", UserText(_chat.Requests[1]));
+    }
+
+    [Fact]
+    public async Task Theme_TheOneInForce_ClearsNothing_AndSaysSo()
+    {
+        using var theme = new ThemeScope();
+        _settings.Update(d => d.TtsOutput = false);
+        LinesWhenIdle("hi", "/theme synthwave", "again", "/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains("  · " + SettingsMenu.ThemeAlreadyNotice("synthwave"), output);
+        Assert.Same(ThemePalette.Synthwave, Theme.Current);
+        Assert.Equal(2, _chat.Requests.Count);
+        Assert.Equal(2, _chat.Requests[1].Count(m => m.Role == ChatRole.User));   // "hi" is still in the history
+    }
+
+    [Fact]
+    public async Task Theme_AnUnknownName_IsTheError_AndNothingChanges()
+    {
+        using var theme = new ThemeScope();
+        _settings.Update(d => d.TtsOutput = false);
+        LinesWhenIdle("/theme matrix", "/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains("  ✗ " + SettingsMenu.ThemeNameError("matrix"), output);
+        Assert.Equal("synthwave", _settings.Current.Theme);
+        Assert.Same(ThemePalette.Synthwave, Theme.Current);
+        Assert.Equal(0, Refreshes(output));   // nothing wiped the screen
+    }
+
+    [Fact]
+    public async Task Theme_Bare_OpensThePicker_AndEscKeepsIt()
+    {
+        using var theme = new ThemeScope();
+        _settings.Update(d => d.TtsOutput = false);
+        PushLine("/theme");
+        _console.Input.PushKey(Keys.Escape);
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains(SettingsMenu.ThemeTitle, output);
+        Assert.Contains("  · " + SettingsMenu.UnchangedNotice, output);
+        Assert.Same(ThemePalette.Synthwave, Theme.Current);
+        Assert.Equal("synthwave", _settings.Current.Theme);
+    }
+
+    [Fact]
+    public async Task Theme_Bare_PicksFromTheList()
+    {
+        using var theme = new ThemeScope();
+        _settings.Update(d => d.TtsOutput = false);
+        PushLine("/theme");
+        _console.Input.PushKey(Keys.Down);
+        _console.Input.PushKey(Keys.Down);
+        _console.Input.PushKey(Keys.Down);
+        _console.Input.PushKey(Keys.Enter);     // noir
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Equal("noir", _settings.Current.Theme);
+        Assert.Same(ThemePalette.Noir, Theme.Current);
+        Assert.Contains("  · Theme: noir", output);
+    }
+
+    [Fact]
+    public async Task Theme_TheSettingsRow_StartsOverWhenThePaneCloses()
+    {
+        using var theme = new ThemeScope();
+        _settings.Update(d => d.TtsOutput = false);
+        PushLine("hi");
+        PushLine("/settings");
+        for (int i = 0; i < Enum.GetValues<SettingsField>().Length - 1; i++)
+        {
+            _console.Input.PushKey(Keys.Down);
+        }
+
+        _console.Input.PushKey(Keys.Enter);     // Theme, the last row: its picker
+        _console.Input.PushKey(Keys.Down);
+        _console.Input.PushKey(Keys.Enter);     // netrunner
+        _console.Input.PushKey(Keys.Escape);
+        PushLine("again");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Equal("netrunner", _settings.Current.Theme);
+        Assert.Same(ThemePalette.Netrunner, Theme.Current);
+        Assert.Contains("  · Theme: netrunner", output);
+        Assert.Equal(2, _chat.Requests.Count);
+        Assert.Equal("again", UserText(_chat.Requests[1]));   // the fresh start forgot "hi"
+    }
+
+    [Fact]
+    public async Task MidTurn_Theme_IsRefused_AndTheReplyRunsOn()
+    {
+        // 2026-09-23, the user's call: a theme change waits for the reply to end, as its Settings row does.
+        using var theme = new ThemeScope();
+        _settings.Update(d => d.WelcomeSplash = false);
+        SplashOf(2380, 100);
+        MidTurnFixture(i =>
+        {
+            if (i == 1)
+            {
+                PushLine("/theme noir");
+            }
+        });
+
+        string output = await RunAsync();
+
+        Assert.Single(_chat.Requests);
+        Assert.Contains(ChatScreen.MidTurnRefusedNotice("/theme"), output);
+        Assert.DoesNotContain(ChatScreen.CancelledNotice, output);
+        Assert.Same(ThemePalette.Synthwave, Theme.Current);
+        Assert.Equal("synthwave", _settings.Current.Theme);
+        Assert.Empty(_splashLoads);
+    }
+
+    [Fact]
+    public void MidTurnPolicy_Theme_IsRefused()
+    {
+        Assert.Equal(MidTurnClass.Refused, ChatScreen.MidTurnPolicy(SlashCommand.Theme, hasArgs: false));
+        Assert.Equal(MidTurnClass.Refused, ChatScreen.MidTurnPolicy(SlashCommand.Theme, hasArgs: true));
+    }
+
+    [Fact]
+    public void ReloadChanges_TheTheme_AsksForTheFreshStart()
+    {
+        Assert.Equal(SettingsChanges.Theme, ChatScreen.ReloadChanges(["Theme: synthwave → noir"]));
     }
 
     // ── /echo (2026-09-17) ──────────────────────────────────────────────────
@@ -15331,6 +15493,11 @@ public partial class ChatScreenTests : IDisposable
 
         Assert.Equal(ReasoningLevel.Levels, Texts(ChatScreen.ArgumentItems("/reasoning", "", sources)));
         Assert.Equal([new CompletionItem("high", ReasoningLevel.Describe("high"))], ChatScreen.ArgumentItems("/reasoning", "h", sources));
+
+        // /theme (2026-09-23): the names with their notes, in menu order.
+        Assert.Equal(ThemeName.Names, Texts(ChatScreen.ArgumentItems("/theme", "", sources)));
+        Assert.Equal(["netrunner", "nostromo", "noir"], Texts(ChatScreen.ArgumentItems("/theme", "n", sources)));
+        Assert.Equal([new CompletionItem("netrunner", "green phosphor")], ChatScreen.ArgumentItems("/theme", "ne", sources));
 
         // /profile: the names (the loaded one marked) then the verbs; a verb typed opens the names behind it.
         Assert.Equal(["chef", "default", "work", "add", "delete", "edit", "reload", "rename", "reset"], Texts(ChatScreen.ArgumentItems("/profile", "", sources)));   // edit and reload 2026-09-21

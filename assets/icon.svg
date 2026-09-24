@@ -2,7 +2,7 @@
   <!--
     NeonSidekick icon: a neon speech bubble with a voice waveform inside.
     A magenta neon-tube speech bubble on the deep-space tile, holding five cyan bars: a sidekick
-    that talks and listens. Colours are the synthwave palette in src/NeonSidekick/UI/SynthwaveTheme.cs
+    that talks and listens. Colours are the synthwave palette in src/NeonSidekick/UI/ThemePalette.cs
     (Bg #0B0416, Magenta #FF2E97, Cyan #33E0FF). Each tube is drawn twice: a blurred copy
     (feGaussianBlur, which Svg.Skia renders) for the glow, then the crisp tube on top.
     Keep shapes bold: the 16 px frame must still read as "pink box with cyan bars".

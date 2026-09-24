@@ -581,6 +581,7 @@ public sealed class AppSettings : IDisposable
         ShowImageThumbnails = source.ShowImageThumbnails,
         ShowWorkingDirectory = source.ShowWorkingDirectory,
         ShowToolbar = source.ShowToolbar,
+        Theme = source.Theme,
         TranscriptMarkdown = source.TranscriptMarkdown,
         WelcomeSplash = source.WelcomeSplash,
         WorkingDirectory = source.WorkingDirectory,

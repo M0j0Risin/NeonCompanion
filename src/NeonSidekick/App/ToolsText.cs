@@ -174,7 +174,7 @@ public static class ToolsText
                 string note = group.ToolNotes.TryGetValue(tool.Name, out var why) ? "  " + why : "";
                 bool offered = facts.ToolsEnabled && group.Offers(tool.Name);
                 string row = offered
-                    ? Styled(Theme.AccentCyan, tool.Name.PadRight(NameWidth)) + Theme.ColorMarkup(Theme.Ink, State(on).PadRight(StateWidth)) + Theme.DimMarkup(tool.Description)
+                    ? Styled(Theme.AccentSecondary, tool.Name.PadRight(NameWidth)) + Theme.ColorMarkup(Theme.Ink, State(on).PadRight(StateWidth)) + Theme.DimMarkup(tool.Description)
                     : Theme.DimMarkup(tool.Name.PadRight(NameWidth) + State(on).PadRight(StateWidth) + tool.Description + note);
                 rows.Add((row, tool.Name));
             }

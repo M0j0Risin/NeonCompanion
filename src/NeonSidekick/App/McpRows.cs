@@ -99,7 +99,7 @@ public static class McpRows
             string state = ToolsText.State(server.Enabled).PadRight(StateWidth);
             bool live = facts.ToolsEnabled && facts.Enabled && server.Startable;
             string row = live
-                ? Styled(Theme.AccentCyan, server.Name.PadRight(width)) + Theme.ColorMarkup(Theme.Ink, state) + Theme.DimMarkup(StatusText(server))
+                ? Styled(Theme.AccentSecondary, server.Name.PadRight(width)) + Theme.ColorMarkup(Theme.Ink, state) + Theme.DimMarkup(StatusText(server))
                 : Theme.DimMarkup(server.Name.PadRight(width) + state + StatusText(server));
             rows.Add((row, new McpRow.Server(server.Name)));
         }
@@ -113,7 +113,7 @@ public static class McpRows
 
         if (facts.Problems.Count > 0)
         {
-            rows.Add((Styled(Theme.AccentCyan, McpText.SkippedHeading), null));
+            rows.Add((Styled(Theme.AccentSecondary, McpText.SkippedHeading), null));
             foreach (var problem in facts.Problems)
             {
                 rows.Add((Theme.DimMarkup("  " + McpText.ProblemLine(problem)), null));
@@ -160,7 +160,7 @@ public static class McpRows
             {
                 bool on = !facts.Disabled.Contains(tool.Name);
                 string row = offered && on
-                    ? Styled(Theme.AccentCyan, tool.Name.PadRight(width)) + Theme.ColorMarkup(Theme.Ink, ToolsText.State(on).PadRight(StateWidth)) + Theme.DimMarkup(tool.Description)
+                    ? Styled(Theme.AccentSecondary, tool.Name.PadRight(width)) + Theme.ColorMarkup(Theme.Ink, ToolsText.State(on).PadRight(StateWidth)) + Theme.DimMarkup(tool.Description)
                     : Theme.DimMarkup(tool.Name.PadRight(width) + ToolsText.State(on).PadRight(StateWidth) + tool.Description);
                 rows.Add((row, tool.Name));
             }

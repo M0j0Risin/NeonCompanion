@@ -141,6 +141,16 @@ public sealed class AppSettingsData
     public bool ShowToolbar { get; set; } = true;
 
     /// <summary>
+    /// The look (2026-09-23, the user's ask): <c>synthwave</c> (the default), <c>netrunner</c>,
+    /// <c>nostromo</c>, <c>noir</c>, <c>cyberpunk</c> or <c>vaporwave</c> — one of
+    /// <see cref="UI.ThemeName.Names"/>; anything else reads as <see cref="UI.ThemeName.Default"/>.
+    /// Put in force at startup; a change on the row or with <c>/theme</c> starts over the way
+    /// <c>/splash</c> does (the user's call: a fresh session and the splash in the new colours,
+    /// <c>/sessions</c> brings the old one back). No variable.
+    /// </summary>
+    public string Theme { get; set; } = UI.ThemeName.Default;
+
+    /// <summary>
     /// Whether the assistant's reply is shown as styled Markdown (2026-09-16): bold, lists, code
     /// blocks, headings rendered in the pane's live slot, the markers consumed, and the model asked
     /// for light Markdown instead of plain text on a turn that is not spoken. Off = the plain

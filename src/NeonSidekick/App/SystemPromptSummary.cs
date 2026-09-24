@@ -173,7 +173,7 @@ public sealed record ToolGroup(string Name, string Note, IReadOnlyList<AIFunctio
 /// string, and a test pins it — then two parts that go on the request but not in the system message:
 /// the opening clock, working-directory and memory calls and the reasoning fields. The Tools tab lists every tool the turn offers,
 /// grouped, name and description, in one grid. Every heading in <see cref="Theme.SectionHeading"/> over rows
-/// labelled in <see cref="Theme.AccentCyan"/>. <c>Text</c> cells everywhere, never <c>Markup</c>: a persona or a
+/// labelled in <see cref="Theme.AccentSecondary"/>. <c>Text</c> cells everywhere, never <c>Markup</c>: a persona or a
 /// remembered fact may hold brackets.
 /// </summary>
 public static class SystemPromptSummary
@@ -774,7 +774,7 @@ public static class SystemPromptSummary
                 // A tool the group offers but the turn does not (2026-09-19): dim like an unoffered group, its reason after the description.
                 bool offered = group.Offers(tool.Name);
                 grid.AddRow(
-                    new Text(tool.Name, offered ? Theme.AccentCyan : Theme.DimText),
+                    new Text(tool.Name, offered ? Theme.AccentSecondary : Theme.DimText),
                     group.ToolNotes.TryGetValue(tool.Name, out var toolNote)
                         ? new Text(tool.Description + "  " + toolNote, Theme.DimText)
                         : new Text(tool.Description, offered ? Theme.Body : Theme.DimText));

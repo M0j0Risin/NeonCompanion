@@ -114,7 +114,7 @@ public class McpRowsTests : IAsyncDisposable
         Assert.Equal("reload", Plain(rows[4].Markup));
         Assert.Equal(new McpRow.Reload(), rows[4].Row);
         Assert.Equal(0, McpRows.FirstServerRow(rows));
-        Assert.Contains(Theme.AccentCyan.ToMarkup(), rows[0].Markup);
+        Assert.Contains(Theme.AccentSecondary.ToMarkup(), rows[0].Markup);
     }
 
     [Fact]
@@ -142,7 +142,7 @@ public class McpRowsTests : IAsyncDisposable
         Assert.Null(rows[8].Row);
         Assert.Equal(9, rows.Count);
         // Every row dim while the switches are off: the whole row in one dim span, no label colour.
-        Assert.DoesNotContain(Theme.AccentCyan.ToMarkup(), rows[2].Markup);
+        Assert.DoesNotContain(Theme.AccentSecondary.ToMarkup(), rows[2].Markup);
 
         // LLM offer tools off alone: the reload row stays (the master switch is on).
         Assert.Contains(McpRows.ServerRows(Facts(session, toolsEnabled: false)), r => r.Row is McpRow.Reload);
@@ -174,7 +174,7 @@ public class McpRowsTests : IAsyncDisposable
         Assert.Equal(["docker__echo", "docker__fail", "chrome__navigate"], rows.Where(r => r.Tool is not null).Select(r => r.Tool));
         Assert.Equal(1, ToolsText.FirstToolRow(rows));
         Assert.Contains(Theme.SectionHeading.ToMarkup(), rows[0].Markup);
-        Assert.DoesNotContain(Theme.AccentCyan.ToMarkup(), rows[2].Markup);   // off: dim whole
+        Assert.DoesNotContain(Theme.AccentSecondary.ToMarkup(), rows[2].Markup);   // off: dim whole
     }
 
     [Fact]
@@ -189,7 +189,7 @@ public class McpRowsTests : IAsyncDisposable
         Assert.Equal(McpText.OffLine, Plain(rows[0].Markup));
         Assert.Equal("docker (2)", Plain(rows[1].Markup));
         Assert.Contains(Theme.SectionHeading.ToMarkup(), rows[1].Markup);   // the heading keeps its colour with the switch off (the /tools rule, later on 2026-09-20)
-        Assert.DoesNotContain(Theme.AccentCyan.ToMarkup(), rows[2].Markup);
+        Assert.DoesNotContain(Theme.AccentSecondary.ToMarkup(), rows[2].Markup);
     }
 
     [Fact]

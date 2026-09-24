@@ -217,7 +217,7 @@ public static class SkillsText
         int width = NameWidth(facts);
         foreach (var skill in facts.Skills)
         {
-            rows.Add((Styled(Theme.AccentCyan, skill.Name.PadRight(width)) + Markup.Escape("  " + SkillScopes.Name(skill.Scope).PadRight(9) + skill.Description), skill));
+            rows.Add((Styled(Theme.AccentSecondary, skill.Name.PadRight(width)) + Markup.Escape("  " + SkillScopes.Name(skill.Scope).PadRight(9) + skill.Description), skill));
             if (skill.Warning is { } warning)
             {
                 rows.Add((Theme.DimMarkup(new string(' ', width + 2) + "(" + warning + ")"), null));
@@ -226,7 +226,7 @@ public static class SkillsText
 
         if (facts.Shadowed.Count > 0)
         {
-            rows.Add((Styled(Theme.AccentCyan, ShadowedHeading), null));
+            rows.Add((Styled(Theme.AccentSecondary, ShadowedHeading), null));
             foreach (var skill in facts.Shadowed)
             {
                 rows.Add((Theme.DimMarkup("  " + ShadowedLine(skill, width)), skill));
@@ -235,7 +235,7 @@ public static class SkillsText
 
         if (facts.Problems.Count > 0)
         {
-            rows.Add((Styled(Theme.AccentCyan, ProblemsHeading), null));
+            rows.Add((Styled(Theme.AccentSecondary, ProblemsHeading), null));
             foreach (var problem in facts.Problems)
             {
                 rows.Add((Theme.DimMarkup("  " + ProblemLine(problem)), null));
@@ -264,7 +264,7 @@ public static class SkillsText
         var (label, on, value) = ProjectRow(facts);
         string state = ToolsText.State(on).PadRight(ToolsText.StateWidth);
         rows.Add(facts.Enabled
-            ? Styled(Theme.AccentCyan, label.PadRight(ProjectLabelWidth)) + Theme.ColorMarkup(Theme.Ink, state) + Theme.DimMarkup(value)
+            ? Styled(Theme.AccentSecondary, label.PadRight(ProjectLabelWidth)) + Theme.ColorMarkup(Theme.Ink, state) + Theme.DimMarkup(value)
             : Theme.DimMarkup(label.PadRight(ProjectLabelWidth) + state + value));
         return rows;
     }

@@ -260,7 +260,7 @@ public sealed class InputLine
     public static string SubmittedMarkup(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
-        return string.Concat("[", Theme.ToHex(Theme.Cyan), " bold]", Markup.Escape(PromptGlyph + text.Replace("\n", "\n" + ContinuationIndent, StringComparison.Ordinal)), "[/]");
+        return string.Concat("[", Theme.ToHex(Theme.Secondary), " bold]", Markup.Escape(PromptGlyph + text.Replace("\n", "\n" + ContinuationIndent, StringComparison.Ordinal)), "[/]");
     }
 
     /// <summary>
