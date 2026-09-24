@@ -1,25 +1,25 @@
 # Neon Sidekick
+![License](https://img.shields.io/github/license/M0j0Risin/NeonSidekick)
+![GitHub repo size](https://img.shields.io/github/repo-size/M0j0Risin/NeonSidekick)
 
-**Neon Sidekick** is a lightweight, agentic TUI harness for local LLMs powered by .NET 10. Inspired by the workflows of Claude Code, Hermes Agent, and Cline, Neon Companion brings my favorite features together—alongside my own expanded toolsets—in a privacy-first, locally executed environment. 
+![.NET 10](https://img.shields.io/badge/.NET-10.0-512bd4?logo=dotnet)
+![Windows](https://img.shields.io/badge/Windows-0078D6?style=flat&logo=windows&logoColor=white)
 
-**Current Status:** A stable, Windows-first foundation for agentic tool development. 
+Neon Sidekick brings privacy-first, local LLM inference to your terminal. Powered by .NET 10 and inspired by tools like Claude Code, Hermes Agent, and Cline, this lightweight agentic TUI harness pairs many of my favorite features from those tools with my own toolsets for a 100% locally executed workflow.
+
+**Current Status:** A stable, Windows-first foundation for agentic tool development.
+
 **Roadmap:** Expanding core coding capabilities and delivering official macOS/Linux support.
 
 ## Contents
 
-- [License](#license)
 - [Features](#features)
-- [Components & Libraries](#components--libraries)
 - [Settings & menus](#settings--menus)
 - [Slash commands](#slash-commands)
 - [Tools](#tools-2)
 - [Screenshots](#screenshots)
+- [Components & Libraries](#components--libraries)
 - [Why "Neon"](#why-neon)
-
-## License
-[↑ Back to top](#neon-sidekick)
-
-Neon Sidekick is released under the GPLv3 license.
 
 ## Features
 [↑ Back to top](#neon-sidekick)
@@ -48,25 +48,6 @@ Neon Sidekick is released under the GPLv3 license.
 * **MCP Server Support:** Seamless integration with Model Context Protocol (MCP) servers to expand tool capabilities and connect to external data sources.
 * **Native Voice Stack:** Features in-process Whisper STT, push-to-talk, and Vosk wake-word integration.
 * **Text-to-Speech:** Includes in-process Kokoro TTS, with support for an external HTTP Kokoro endpoint.
-
-## Components & Libraries
-[↑ Back to top](#neon-sidekick)
-
-* `.NET 10 (NativeAOT)`
-* `Spectre.Console`
-* `Microsoft.Extensions.AI`
-* `Microsoft.Extensions.AI.OpenAI`
-* `Microsoft.Data.Sqlite`
-* `Microsoft.Data.SqlClient`
-* `Microsoft.SqlServer.TransactSql.ScriptDom`
-* `Microsoft.ML.OnnxRuntime`
-* `KokoroSharp`
-* `Whisper.net`
-* `Silero VAD`
-* `Vosk`
-* `PhotoSauce.MagicScaler`
-* `Markdig`
-* `LibGit2Sharp`
 
 ## Settings & menus
 [↑ Back to top](#neon-sidekick)
@@ -433,7 +414,7 @@ What the model can call, in the groups `/tools` and `/sys` show. A group's switc
 
 ### Files
 
-All paths are relative to the working directory; nothing outside it is reachable. `restore` is offered only while *File safe edits* is on; `zip` and `unzip` are disabled by default.
+All paths are relative to the working directory; nothing outside it is reachable.
 
 | Tool | Arguments | What it does |
 |---|---|---|
@@ -448,14 +429,29 @@ All paths are relative to the working directory; nothing outside it is reachable
 | `move` | `from, to, overwrite?` | Renames or moves a file or folder; refuses to replace anything at the new path unless `overwrite` is true. |
 | `copy` | `from, to, overwrite?` | Copies a file or folder to a new path under the same overwrite rule; a folder copied over a folder merges into it. |
 | `delete` | `path` | Deletes a file or folder — into `.trash` while *File safe edits* is on, for good when it is off. `.git`, anything in it, and a folder holding one are always refused. |
-| `restore` | `path, overwrite?` | Puts back the newest `.trash` copy of a file or folder; with `overwrite` it undoes the last edit of a file. |
+| `restore` | `path, overwrite?` | Puts back the newest `.trash` copy of a file or folder; with `overwrite` it undoes the last edit of a file. Offered only while *File safe edits* is on |
 | `zip` | `path, to?, overwrite?` | Packs a file or folder into a `.zip` archive, by default beside the original. |
 | `unzip` | `path, to?, overwrite?` | Extracts a `.zip` archive into a folder, all or nothing. |
 | `open` | `path?` | Opens a file in the user's own editor or viewer, or a folder in Explorer; no path opens the working directory. |
 
 ### Git (native)
 
-A built-in Git for the sandbox, for when the shell tools are off or you would rather the model never ran `git.exe`. It runs in-process (LibGit2Sharp) and stays local: no fetch, pull, push or clone. Every tool takes an optional `path` — the file or folder the call is about, and where the repository is looked for (a nested repository is reached through it); the repository's root must be the working directory or a folder inside it. `git_discard` and `git_delete` start switched off. Commits need an author: set *Git native email* and *Git native name* on the Git (native) tab of `/tools`, then run `/git user` to write them into the repository's config. If you use the shell tools for Git instead, turn *Git native tools* off and the whole group disappears from the model's list.
+A native, in-process Git integration (powered by LibGit2Sharp) designed specifically for the sandbox environment. It is ideal for when shell tools are disabled or you want to ensure the model never executes the system `git.exe`.
+
+#### 1. Core Rules & Constraints
+* **Strictly Local:** It does not perform any network operations. Commands like `fetch`, `pull`, `push`, or `clone` are completely unsupported.
+* **Working Directory Boundary:** The root of the repository must be the current working directory or a subfolder within it.
+* **Targeting Paths:** Every tool accepts an optional `path` argument. This specifies the file or folder being targeted and helps the tool locate the repository.
+* **Restricted Tools:** Destructive commands like `git_discard` and `git_delete` are disabled by default for safety.
+
+#### 2. Configuring Commits
+Because commits require an author identity, you must set one up before committing:
+1. Navigate to the **Git (native)** tab under the `/tools` menu.
+2. Set your **Git native email** and **Git native name**.
+3. Run the `/git user` command to write these details into the repository's configuration.
+
+#### 3. Managing the Tools
+If you prefer to use your system's standard Git via shell tools instead, simply toggle off **Git native tools** in the settings. This will completely remove the built-in Git group from the model's available tool list.
 
 | Tool | Arguments | What it does |
 |---|---|---|
@@ -478,7 +474,9 @@ A built-in Git for the sandbox, for when the shell tools are off or you would ra
 
 ### Obsidian
 
-The notes of an Obsidian vault (the *Obsidian vault* setting), read and written straight on disk — Obsidian need not be running (it picks every change up when it is), no plugin, no network. A `note` is named the way Obsidian resolves a link: its name, a `[[wikilink]]`, an alias, or its path in the vault; among several notes of one name the shortest path wins and the result names the others. Tags count inline (`#project/alpha`) and in the properties; `.obsidian`, `.trash` and every other dot-folder are left alone. A write keeps the note's line endings and byte-order mark, and an overwrite under *File safe edits* copies the previous version into the vault's own `.trash`. `vault_move` rewrites every link to the note — wikilinks, embeds and Markdown links, keeping their `#heading` and alias — so rename notes with it rather than the file tools.
+This tool reads and writes directly to your Obsidian vault's local files. Because it works strictly on disk, there are no plugins to install, no network requirements, and Obsidian doesn't even need to be running.
+
+It's designed to understand how Obsidian works out of the box. You can search for notes using standard [[wikilinks]], aliases, or file paths. It respects both inline tags and frontmatter properties, ignores hidden system folders (like .obsidian), and preserves your exact line endings when saving. If you accidentally overwrite a note, it safely backs up the old version to your vault's .trash.
 
 | Tool | Arguments | What it does |
 |---|---|---|
@@ -497,88 +495,80 @@ The notes of an Obsidian vault (the *Obsidian vault* setting), read and written 
 <details>
 <summary><b>🗄️ SQL</b></summary>
 
-### SQL
+### SQL Connections & Queries
 
-Read-only queries on SQL Server over named connections, in-process (Microsoft.Data.SqlClient, no ODBC driver). The connections live in `sql.json` — the profile's and the home's, the profile's winning a name — read afresh at every call, so an edit counts at the next one:
+NeonSidekick executes read-only SQL Server queries over named connections in-process (using `Microsoft.Data.SqlClient`, no ODBC driver). Connections are managed via `sql.json` files, which can be scoped globally or per-profile.
 
-```json
+#### 1. Connection Settings
+
+* **`server`**: The database address (formatted as `host`, `host,port`, or `host\instance`).
+* **`auth`**: Authentication method:
+  * `sql`: Standard SQL login (requires `user` and `password`).
+  * `windows`: Integrated Windows authentication using your current account.
+  * `runas`: Uses an alternate Windows account (requires `user` formatted as `DOMAIN\name` or `name@domain`, plus `password`). Operates like Windows' `runas /netonly` command.
+* **`encrypt`**: Connection encryption level (`strict`, `mandatory` [default], or `optional`).
+* **`trustServerCertificate`**: Set to `true` to accept self-signed certificates.
+* **`connectTimeoutSeconds`**: Connection timeout limit (1–120 seconds, default: 15).
+
+#### 2. Password Storage (`passwordStore`)
+
+* **`file` (Default)**: Passwords typed into the JSON file are automatically encrypted in-place using Windows DPAPI the next time the app reads the file. They remain readable only by your specific Windows account on the current machine.
+* **`credman`**: Passwords are saved securely in the Windows Credential Manager (`NeonSidekick/sql/<connection_name>`). The configuration file will not contain any password data.
+
+#### 3. Managing Connections
+
+**Via the UI:**
+Open the **/tools** menu and navigate to the **SQL** tab. 
+* **SQL add connection:** Launches a wizard to configure, test, and save new connections.
+* **SQL set password:** Securely updates passwords for existing connections.
+
+**Via Configuration Files (Headless):**
+You can edit the JSON configuration files directly (comments and trailing commas are supported).
+* **Global:** `%USERPROFILE%\.neonsidekick\sql.json`
+* **Profile:** `%USERPROFILE%\.neonsidekick\profiles\<profile>\sql.json`
+
+```jsonc
 {
   "connections": {
+    // SQL Auth: Password encrypted in-place by DPAPI after first read
     "adventureworks": {
       "server": "127.0.0.1,1433",
       "database": "AdventureWorks2022",
       "auth": "sql",
       "user": "reader",
-      "password": "…",
+      "password": "type-password-here-once",
       "encrypt": "mandatory",
       "trustServerCertificate": true,
-      "description": "the sample sales database"
-    }
-  }
-}
-```
-
-`server` is `host`, `host,port` or `host\instance`; `auth` is `sql` (a SQL login: `user` and a password), `windows` (integrated, as the app's own Windows identity) or `runas` (integrated, as **another** Windows account: `user` is `DOMAIN\name` or `name@domain`, plus that account's password); `encrypt` is `strict`, `mandatory` (the default) or `optional`, and `trustServerCertificate` accepts a self-signed certificate (a dev container's); `connectTimeoutSeconds` (1–120) defaults to 15. The model sees each connection's name, server, database, login name and `description` — never a password.
-
-**Passwords.** Each `sql` or `runas` connection keeps its password where its `passwordStore` says:
-
-- `file` (the default): in `password`, encrypted with Windows DPAPI (`dpapi:…`) — readable only by your Windows account on this machine. Type a password there in plain text if you like: when the app next starts (it checks the home's `sql.json` and every profile's, not only the loaded one), or sooner the next time it reads that file, it replaces just that value with the encrypted one, comments and layout kept.
-- `credman`: in Windows Credential Manager, as the Generic credential `credential` (default `NeonSidekick/sql/<connection name>`); nothing about the password is in the file.
-
-The easiest way to add a connection is **SQL add connection** on the SQL tab of `/tools`, which asks every choice in turn, tests the draft and writes the entry. Either way, **SQL set password** on the SQL tab of `/tools` asks for it in a masked field and saves it to the connection's store. Without the pane (headless), write the `file` password in plain text and let the app encrypt it, or make the Credential Manager entry yourself from a command prompt (it asks for the password):
-
-```
-cmdkey /generic:NeonSidekick/sql/reports-admin /user:CONTOSO\svc-reader /pass
-```
-
-**Example: integrated auth, as you and as another account.** The file is `%USERPROFILE%\.neonsidekick\profiles\<profile>\sql.json` for one profile or `%USERPROFILE%\.neonsidekick\sql.json` for all of them (the *SQL connections (profile)* and *(global)* rows on the SQL tab open either); comments and trailing commas are allowed. The names below are stand-ins:
-
-```jsonc
-{
-  "connections": {
-    // Integrated auth as you: the Windows account running NeonSidekick. No password.
+      "description": "Sample sales database"
+    },
+    // Windows Auth: Current account, no password required
     "reports-me": {
       "server": "sqlhost01.example.com,1453",
       "database": "Reports",
       "auth": "windows",
-      "encrypt": "mandatory",
-      "trustServerCertificate": true,          // only for a self-signed certificate
-      "description": "the reporting database, as me"
+      "encrypt": "mandatory"
     },
-
-    // Integrated auth as another account (the runas /netonly way); the password in Credential Manager
-    // under NeonSidekick/sql/reports-admin (SQL set password, or the cmdkey line above).
+    // RunAs Auth: Alternate account with password in Windows Credential Manager
     "reports-admin": {
       "server": "sqlhost01.example.com,1453",
       "database": "Reports",
       "auth": "runas",
-      "user": "CONTOSO\\svc-reader",           // DOMAIN\name, the backslash doubled in JSON; or name@domain
+      "user": "CONTOSO\\svc-reader", 
       "passwordStore": "credman",
-      "encrypt": "mandatory",
-      "trustServerCertificate": true,
-      "description": "the reporting database, as the service account"
-    },
-
-    // The same account with the password kept in this file: typed here once in plain text,
-    // it is replaced with "dpapi:…" when the app next starts (or sooner, the next time it reads the file).
-    "reports-admin-file": {
-      "server": "sqlhost01.example.com,1453",
-      "database": "Reports",
-      "auth": "runas",
-      "user": "svc-reader@contoso.com",
-      "password": "type-it-here-once",
-      "encrypt": "mandatory",
-      "trustServerCertificate": true
+      "encrypt": "mandatory"
     }
   }
 }
 ```
+#### 4. Execution Rules & Safety (`sql_query`)
 
-To check which account a connection signs in as, ask for `SELECT SUSER_SNAME()` on it (`%reports-admin` on the input line picks it): a `runas` connection answers with the other account, a `windows` one with you.
+The `sql_query` tool strictly guarantees safe, single-statement data retrieval:
 
-**`runas`** signs in the way `runas /netonly` does, for that connection alone: while it connects, the app presents the other account's credentials to the server, and everything else — the app, its files, its other connections — stays you. The limits are `/netonly`'s: it reaches a **remote** server (a local one over shared memory or named pipes still sees you); Windows does not check the password when the logon is made, so a wrong one shows as the server's login failure; and such a connection is not pooled.
-
-`sql_query` takes one statement: a `SELECT`, or a `WITH …` CTE that ends in one. The text is parsed by the T-SQL parser SQL Server's own tools use (ScriptDom), not matched by pattern, so a second statement with no `;` between (`SELECT 1 DELETE FROM t`), `SELECT … INTO`, `EXEC`, DDL, `OPENROWSET` / `OPENQUERY` / `OPENDATASOURCE`, a linked server's four-part name and `NEXT VALUE FOR` are refused before anything is sent. What passes runs in a transaction that is always rolled back, with read-only intent and the *SQL query timeout (s)*; ESC cancels it on the server. Values go in as `@name` parameters, never spliced into the text. The results are a Markdown table under a header that says when the row cap or the text cap cut them; a `decimal` keeps every digit, and a CLR type (`geography`, `hierarchyid`) is shown as a hint to select it with `.ToString()`. **The parser and the rollback are guards, not permissions: point a connection at a login that may only read.**
+* **Strict Parsing:** Queries are parsed via SQL Server's official T-SQL ScriptDom parser. Multi-statement batches, `DDL`, `EXEC`, `INTO`, `DELETE`, and linked servers are blocked before reaching the server. Only a single `SELECT` (or `WITH ... CTE` ending in `SELECT`) is permitted.
+* **Transactional Rollback:** Approved queries run inside a transaction with read-only intent that is **always rolled back** upon completion, ensuring zero accidental modifications. *(Note: You should still enforce read-only permissions at the database level.)*
+* **Safe Parameters:** Values are passed securely via `@name` parameters to prevent SQL injection.
+* **Verifying Identity:** Run `SELECT SUSER_SNAME()` to confirm the active account. Because `runas` acts as `/netonly`, the app runs as you locally, but authenticates remotely as the alternate user. 
+* **Result Formatting:** Output is returned as a Markdown table. Floating point numbers retain full precision. CLR types (e.g., `geography`, `hierarchyid`) must be explicitly cast using `.ToString()` in your query to render correctly.
 
 | Tool | Arguments | What it does |
 |---|---|---|
@@ -598,13 +588,39 @@ To check which account a connection signs in as, ask for `SELECT SUSER_SNAME()` 
 
 ### Shell
 
-A command line on your machine. It **starts** in the working directory (`workdir` names a folder under it); whether it may name a path outside it is `Shell police outside paths` (on by default: the text of a command, a script or a line typed to a background process is read before anything runs, and a path outside the working directory is refused with a 👮 line — a lexical guard, not a jail, since a script that computes a path is not seen). The other guard is the `Shell command policy` — under `ask` (the default) the command is shown on the pane with its shell and you choose Deny, Allow once, Allow its prefixes for this session, or Allow them always (saved to the profile); a denial is returned to the model as an error it is told not to work around. Every child runs with no window, its output read as UTF-8, colour and pagers off, stdin closed (a background one keeps it for `write`); on a timeout the command and everything it started are killed. Background processes die with the app. Under `--headless` nothing can ask, so `ask` runs only what the allow list covers — set `NEONSIDEKICK_COMMAND_POLICY=yolo` for a scripted run. A crash of the app leaves a running command to Windows.
+### Command Line Execution
+
+Executes commands on your local machine, starting in the specified working directory (`workdir` specifies a folder within it). 
+
+#### 1. Security & Guardrails
+
+* **Path Police (Lexical Guard):** Enabled by default. Before a command, script, or line is executed, its text is statically scanned. Any explicitly typed paths outside the working directory are refused (returning a 👮 warning). 
+  * *Note:* This is a lexical guard, not a strict sandbox. Paths computed dynamically at runtime are not detected.
+* **Command Approval Policy:** Defaults to `ask`. The proposed command and its shell are displayed in the UI pane for your approval.
+  * **Options:** Deny, Allow once, Allow prefixes for this session, or Allow always (saved to your profile).
+  * **Denials:** If denied, a hard error is returned to the model with strict instructions not to attempt a workaround.
+
+#### 2. Execution Environment
+
+* **Process State:** Child processes run completely hidden (no window). Output is read as UTF-8 with colors and pagers forcibly disabled.
+* **Input (`stdin`):** Closed by default, though background processes keep it open for writing.
+* **Lifecycle & Termination:** 
+  * If a command times out, the process and everything it spawned are killed.
+  * Background processes die cleanly when the app is closed.
+  * *Exception:* If the app unexpectedly crashes, any currently running commands are orphaned and left running in Windows.
+
+#### 3. Headless Mode & Scripting
+
+When the app is run with `--headless`, interactive prompts are disabled. The `ask` policy will only execute commands that are already on your saved allow list. 
+
+To bypass this and allow all commands during a scripted or headless run, set the following environment variable:
+`NEONSIDEKICK_COMMAND_POLICY=yolo`
 
 | Tool | Arguments | What it does |
 |---|---|---|
-| `run_command` | `command, shell?, workdir?, timeout?, background?, notify?` | Runs the line in `powershell` (the default), `cmd` or `bash` (Git Bash, offered when found) — under `Shell police outside paths` it may only name paths under the working directory — and returns `exit N in T s (shell): command`, then the output, stderr under its own separator. With `background` (or a `timeout` over the foreground cap) it starts the command and returns its `proc_…` id at once; with `notify` you see a `⚡` line when it exits and the model gets a `process poll` seeded into its next turn. |
-| `execute_code` | `language, code, timeout?` | Runs a script in a fresh `python`, `node` or `powershell` process (the languages `Shell code languages` allows and the machine has) and returns `exit N in T s (language, K tool calls): first line`, then what it printed. With `Shell tool bridge` on the script calls the app's other tools by name through a module written beside it — Python `from neon_tools import call, read_file`, Node `const neon = require('neon_tools'); await neon.call('read_file', { path })` inside `neon.run(async () => …)`, PowerShell `Invoke-NeonTool read_file @{ path = 'x' }` — over a loopback socket with a per-run token; `execute_code` and `ask_user` are out of reach, a nested `run_command` is approved as usual but never in the background. With it off (the default) no module is written, the header has no `K tool calls` clause and the script does everything itself. The approval pane asks once per language (`Allow python scripts for this session`). No kernel: each call is a fresh process. Under `Shell police outside paths` the script's text may only name paths under the working directory. |
-| `process` | `action, session_id?, data?, timeout?, offset?, limit?` | The background processes: `list` them; `poll` one for its state and the output since the last poll; `log` a numbered window of its last 5,000 lines (`offset`, `limit`); `wait` up to `timeout` seconds; `kill` it and everything it started; `write` / `submit` text to its stdin (submit adds a newline; under `Shell police outside paths` the text may only name paths under the working directory); `close` a finished one. Any unique prefix of the id will do; at most 16 run at once and the newest 64 finished ones are kept. |
+| `run_command` | `command, shell?, workdir?, timeout?, background?, notify?` | Executes a command in `powershell` (default), `cmd`, or `bash`. Governed by the **Shell police outside paths** rule (paths must stay within the working directory). Returns execution stats (`exit N in T s (shell)...`) followed by standard output and `stderr`. Using `background` (or a long timeout) runs asynchronously and returns a `proc_…` ID. Using `notify` displays a `⚡` upon exit and automatically queues a `process poll` for the model's next turn. |
+| `execute_code` | `language, code, timeout?` | Runs an isolated script in `python`, `node`, or `powershell` (requires user approval once per language per session; no persistent kernel). Subject to the **Shell police outside paths** rule. If the **Shell tool bridge** is enabled, it injects a secure module allowing the script to call app tools (e.g., Python: `from neon_tools import call`; Node: `await neon.call(...)`; PowerShell: `Invoke-NeonTool`). *Bridge restrictions:* Cannot call `execute_code` or `ask_user`; nested `run_command` calls require approval and cannot be backgrounded. |
+| `process` | `action, session_id?, data?, timeout?, offset?, limit?` | Manages up to 16 concurrent background processes (retains history of the 64 most recently finished). Target a process using any unique prefix of its ID. **Actions:** `list` (view all), `poll` (get state and new output), `log` (view a window of the last 5,000 lines), `wait` (pause up to timeout), `kill` (terminate process and its children), `write` / `submit` (send text to `stdin`; `submit` appends a newline; subject to path police), `close` (clear a finished process from the tracker). |
 
 ### Web
 
@@ -653,7 +669,15 @@ A command line on your machine. It **starts** in the working directory (`workdir
 
 ### MCP servers
 
-Every connected MCP server is a group of its own, its tools offered as `<server>__<tool>` with the descriptions the server publishes — a gateway's `get_current_time` never collides with the app's. They come and go with the server: switch one off on `/mcp`' Servers tab and its group is gone; switch a single tool off on the Tools tab and the rest stay. No approval step stands before a call — enabling the server is the consent.
+### MCP Server Tools
+
+Each connected MCP server operates as its own isolated tool group. 
+
+* **Namespace Isolation:** Tools use a `<server>__<tool>` naming convention (e.g., `gateway__get_current_time`). This ensures server tools never collide with the app's native tools.
+* **Inherited Descriptions:** Tools use the exact descriptions published by their parent server.
+* **Granular Toggling:** 
+  * Turn off a server via the **`/mcp` Servers tab** to remove its entire tool group at once.
+  * Turn off individual tools via the **Tools tab** while keeping the rest of the server's tools active.
 
 </details>
 
@@ -675,6 +699,25 @@ Explore the UI and features of Neon Sidekick by expanding the panel below.
   </tr>
 </table>
 </details>
+
+## Components & Libraries
+[↑ Back to top](#neon-sidekick)
+
+* `.NET 10 (NativeAOT)`
+* `Spectre.Console`
+* `Microsoft.Extensions.AI`
+* `Microsoft.Extensions.AI.OpenAI`
+* `Microsoft.Data.Sqlite`
+* `Microsoft.Data.SqlClient`
+* `Microsoft.SqlServer.TransactSql.ScriptDom`
+* `Microsoft.ML.OnnxRuntime`
+* `KokoroSharp`
+* `Whisper.net`
+* `Silero VAD`
+* `Vosk`
+* `PhotoSauce.MagicScaler`
+* `Markdig`
+* `LibGit2Sharp`
 
 ## Why "Neon"
 [↑ Back to top](#neon-sidekick)
