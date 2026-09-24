@@ -92,7 +92,7 @@ Neon Sidekick brings privacy-first, local LLM inference to your terminal. Powere
 | Working directory in header | Prints the working directory at the right edge of the banner's title line. | off |
 | Show toolbar | Draws a toolbar under the hint row: at its left the glyphs a double-click opens — ⚙️ `/settings`, 🛠️ `/tools`, 🔌 `/mcp`, 🎓 `/skills`, 🎭 `/sys`, 💬 `/sessions`, 💾 `/memory` while *Memory* is on, then a lock that follows *Shell command policy* (🔒 under `ask`, 🔓 under `yolo`, none under `off`) `/cmdlist`, and 👮 while *Shell police outside paths* is on and the policy is not `off` `/police` — at its right the working directory, a double-click on which is `/cwd browse`, and between them blanks a double-click on which is `/settings`. | on |
 | Draft editor | The command `/draft` opens its temporary file with (`code --wait`, `notepad`…); empty uses whatever Windows opens `.txt` files with. | (default .txt editor) |
-| Theme | The colour theme: `synthwave` (the default), `netrunner` (green phosphor), `nostromo` (amber phosphor), `noir` (greyscale), `cyberpunk` (colorful) or `vaporwave` (pastel). A change works like `/splash`: a new conversation and the splash screen in the new colours (`/sessions` restores the old one). Also `/theme`. | `synthwave` |
+| Theme | The colour theme: `synthwave` (the default), `netrunner` (green phosphor), `nostromo` (amber phosphor), `noir` (greyscale), `cyberpunk` (colorful) or `vaporwave` (pastel). | `synthwave` |
 
 #### Sessions
 
@@ -371,7 +371,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/splash` | Start a new conversation and show the splash screen. |
 | `/stt [on\|off]` | Toggle speech input. |
 | `/sys` | Show the system prompt and the tools sent to the model. |
-| `/theme [name]` | Switch the colour theme (the *Theme* setting), picking from a list without a name; like `/splash`, a change starts a new conversation and shows the splash screen in the new colours. Waits for a running reply to end. |
+| `/theme [name]` | Switch the colour theme (the *Theme* setting), If run mid-turn, it waits for a running reply to end. |
 | `/timer [duration [name] \| stop <name> \| stop all]` | List the timers, or start one (`10m`, `90s`, `1h30m`), or stop one. |
 | `/tools` | Switch the model's tools on or off and edit the Ask, Files, Git and Web settings. |
 | `/tree [path]` | Print a tree of the working directory; hidden, system and dot entries only under *File browser/tree mode* `show-hidden`. |
@@ -388,7 +388,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 ## Tools
 [↑ Back to top](#neon-sidekick)
 
-What the model can call, in the groups `/tools` and `/sys` show. A group's switch (`File tools`, `Git native tools`, `Shell command policy`, `Obsidian tools`, `SQL tools`, `Web tools`, `Memory`, `Agent skills`, `Session tool`, `Ask user`, `MCP servers`) offers or withholds the whole group; a single tool goes on or off on `/tools`' Offered tab. Required arguments come first; `?` marks an optional one.
+What the model can call, in the groups `/tools` and `/sys` show. A group's switch (`File tools`, `Git native tools`, `Shell command policy`, `Obsidian tools`, `SQL tools`, `Web tools`, `Memory`, `Agent skills`, `Session tool`, `Ask user`, `MCP servers`) offers or withholds the whole group; a single tool can be switched on or off on `/tools`' Offered tab.
 
 <details>
 <summary><b>🕒 Clock & Timers</b></summary>
