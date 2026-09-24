@@ -190,6 +190,9 @@ public enum MemoryActionKind
     /// <summary><c>copy &lt;profile&gt; [overwrite]</c>: every memory into another profile's, after the confirmation <c>/memcopy</c> asked.</summary>
     Copy,
 
+    /// <summary><c>edit</c> (2026-09-23): <c>memory.json</c> in the editor, created first when it is not there; the store reads the edit back on its next use.</summary>
+    Edit,
+
     /// <summary>Anything else; <see cref="ChatScreen.MemoryUsageError"/>.</summary>
     Invalid,
 }
@@ -386,7 +389,9 @@ internal sealed partial class ChatScreen
     // the prompt files and /cmdcopy. Pinned.
     public const string MemoryForgetWord = "forget";
     public const string MemoryForgetNote = "forget every memory";
-    public const string MemoryUsageError = "/memory lists the memories, /memory forget forgets them all, and /memory copy <profile> [overwrite] copies them into another profile.";
+    public const string MemoryEditWord = "edit";   // 2026-09-23, the user's ask: memory.json in the editor, as /profile edit opens profile.json
+    public const string MemoryEditNote = "open memory.json in your editor";
+    public const string MemoryUsageError = "/memory lists the memories, /memory forget forgets them all, /memory edit opens memory.json in your editor, and /memory copy <profile> [overwrite] copies them into another profile.";
 
     /// <summary>The <c>/copy</c> word for every exchange.</summary>
     public const string CopyAllWord = "all";
@@ -1492,8 +1497,8 @@ internal sealed partial class ChatScreen
     /// <summary>
     /// The <c>/memory</c> grammar, pure (2026-09-22): nothing ⇒ the pane; <c>forget</c> ⇒ the wipe,
     /// after its confirmation; <c>copy &lt;profile&gt;</c>, and <c>overwrite</c> after it, ⇒ the copy
-    /// into that profile, after its own (later that day, the user's ask: what <c>/memcopy</c> did).
-    /// Every word folds case, and the profile is passed on as typed — <see cref="Profiles.Resolve"/>
+    /// into that profile, after its own (later that day, the user's ask: what <c>/memcopy</c> did);
+    /// <c>edit</c> ⇒ <c>memory.json</c> in the editor (2026-09-23). Every word folds case, and the profile is passed on as typed — <see cref="Profiles.Resolve"/>
     /// is the one that judges a name. Anything else ⇒ invalid.
     /// </summary>
     public static MemoryAction ParseMemoryArgs(string args)
@@ -1507,6 +1512,11 @@ internal sealed partial class ChatScreen
         if (words.Length == 1 && words[0].Equals(MemoryForgetWord, StringComparison.OrdinalIgnoreCase))
         {
             return new(MemoryActionKind.Forget);
+        }
+
+        if (words.Length == 1 && words[0].Equals(MemoryEditWord, StringComparison.OrdinalIgnoreCase))
+        {
+            return new(MemoryActionKind.Edit);
         }
 
         if (words[0].Equals(CopyWord, StringComparison.OrdinalIgnoreCase) && words.Length is 2 or 3)
@@ -2527,7 +2537,7 @@ internal sealed partial class ChatScreen
                     return MentionCompleter.Matches(targets.Select(name => new CompletionItem(CopyWord + " " + name, MemoryCopyTargetNote)).ToList(), argText);
                 }
 
-                return MentionCompleter.Matches([new(MemoryForgetWord, MemoryForgetNote), new(CopyWord, MemoryCopyNote)], argText);
+                return MentionCompleter.Matches([new(MemoryForgetWord, MemoryForgetNote), new(CopyWord, MemoryCopyNote), new(MemoryEditWord, MemoryEditNote)], argText);
             }
 
             case SlashCommand.Persona or SlashCommand.Operata or SlashCommand.Vocalia:
@@ -5038,6 +5048,11 @@ internal sealed partial class ChatScreen
     public static string ProfileEditOpenedNotice(string name) => $"({NoticeGlyphs.Profile}opened profile \"{name}\"'s profile.json in your editor; /profile reload reads it back)";
     public static string ProfileEditCreatedNotice(string name) => $"({NoticeGlyphs.Profile}created and opened profile \"{name}\"'s profile.json in your editor; /profile reload reads it back)";
     public static string ProfileEditFailedError(string detail) => $"Could not open profile.json: {detail}";
+
+    // /memory edit (2026-09-23): no reload word — the store reads the file back when it changed. Pinned.
+    public const string MemoryEditOpenedNotice = "(" + NoticeGlyphs.Memory + "opened memory.json in your editor; your changes are read back on its next use)";
+    public const string MemoryEditCreatedNotice = "(" + NoticeGlyphs.Memory + "created and opened memory.json in your editor; your changes are read back on its next use)";
+    public static string MemoryEditFailedError(string detail) => $"Could not open memory.json: {detail}";
     public static string ProfileReloadedNotice(string name, int changed) =>
         $"({NoticeGlyphs.Profile}reloaded profile \"{name}\"; " + (changed == 0 ? "nothing changed" : UsageText.Plural(changed, "setting", "settings") + " changed") + ")";
 
@@ -7352,8 +7367,8 @@ internal sealed partial class ChatScreen
     /// <summary>
     /// <c>/memory</c> (2026-09-22, the user's ask, twice): bare, the list pane; <c>forget</c>, the
     /// wipe the standalone <c>/forget</c> did, confirmation and all; <c>copy &lt;profile&gt;
-    /// [overwrite]</c>, the copy the standalone <c>/memcopy</c> did, confirmation and all; anything
-    /// else <see cref="MemoryUsageError"/>. The one method both dispatches call — the idle line's
+    /// [overwrite]</c>, the copy the standalone <c>/memcopy</c> did, confirmation and all; <c>edit</c>
+    /// (2026-09-23), <c>memory.json</c> in the editor; anything else <see cref="MemoryUsageError"/>. The one method both dispatches call — the idle line's
     /// and the mid-turn pane phase's — so every word behaves the same under a reply; the error goes
     /// through <see cref="_flow"/> for that reason, as <see cref="EmptyTrashAsync"/>'s does.
     /// </summary>
@@ -7372,6 +7387,23 @@ internal sealed partial class ChatScreen
 
             case { Kind: MemoryActionKind.Copy } copy:
                 await CopyMemoryAsync(copy.Profile, copy.Overwrite, cancellationToken).ConfigureAwait(false);
+                break;
+
+            case { Kind: MemoryActionKind.Edit }:
+                // /profile edit's shape (2026-09-23): the file written first when there is none, so
+                // the editor opens the right shape; never waits for the editor.
+                try
+                {
+                    bool existed = _memory.EnsureFile();
+                    _openFile(_memory.FilePath);
+                    _flow.Notice(existed ? MemoryEditOpenedNotice : MemoryEditCreatedNotice);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or InvalidOperationException)
+                {
+                    _flow.Error(MemoryEditFailedError(ex.Message));
+                }
+
+                DrainDiagnostics();
                 break;
 
             default:

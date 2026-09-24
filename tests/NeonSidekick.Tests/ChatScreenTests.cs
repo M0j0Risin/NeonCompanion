@@ -5746,19 +5746,67 @@ public partial class ChatScreenTests : IDisposable
         Assert.Equal(new MemoryAction(MemoryActionKind.Copy, "WORK"), ChatScreen.ParseMemoryArgs(" Copy  WORK "));   // the name goes on as typed; Profiles.Resolve folds the case
         Assert.Equal(new MemoryAction(MemoryActionKind.Copy, "work", Overwrite: true), ChatScreen.ParseMemoryArgs("copy work overwrite"));
         Assert.Equal(new MemoryAction(MemoryActionKind.Copy, "work", Overwrite: true), ChatScreen.ParseMemoryArgs("COPY work Overwrite"));
+        Assert.Equal(new MemoryAction(MemoryActionKind.Edit), ChatScreen.ParseMemoryArgs("edit"));   // 2026-09-23
+        Assert.Equal(new MemoryAction(MemoryActionKind.Edit), ChatScreen.ParseMemoryArgs(" Edit "));
+        Assert.Equal(new MemoryAction(MemoryActionKind.Invalid), ChatScreen.ParseMemoryArgs("edit now"));
         Assert.Equal(new MemoryAction(MemoryActionKind.Invalid), ChatScreen.ParseMemoryArgs("list"));
         Assert.Equal(new MemoryAction(MemoryActionKind.Invalid), ChatScreen.ParseMemoryArgs("forget all"));
         Assert.Equal(new MemoryAction(MemoryActionKind.Invalid), ChatScreen.ParseMemoryArgs("copy"));
         Assert.Equal(new MemoryAction(MemoryActionKind.Invalid), ChatScreen.ParseMemoryArgs("copy work now"));
         Assert.Equal(new MemoryAction(MemoryActionKind.Invalid), ChatScreen.ParseMemoryArgs("copy work overwrite please"));
         Assert.Equal("forget", ChatScreen.MemoryForgetWord);
+        Assert.Equal("edit", ChatScreen.MemoryEditWord);
+        Assert.Equal("open memory.json in your editor", ChatScreen.MemoryEditNote);
         Assert.Equal("copy", ChatScreen.CopyWord);
         Assert.Equal("overwrite", ChatScreen.OverwriteWord);
-        Assert.Equal("/memory lists the memories, /memory forget forgets them all, and /memory copy <profile> [overwrite] copies them into another profile.", ChatScreen.MemoryUsageError);
-        Assert.Equal([new CompletionItem("forget", ChatScreen.MemoryForgetNote), new CompletionItem("copy", ChatScreen.MemoryCopyNote)], ChatScreen.ArgumentItems("/memory", "", Sources()));
+        Assert.Equal("/memory lists the memories, /memory forget forgets them all, /memory edit opens memory.json in your editor, and /memory copy <profile> [overwrite] copies them into another profile.", ChatScreen.MemoryUsageError);
+        Assert.Equal([new CompletionItem("forget", ChatScreen.MemoryForgetNote), new CompletionItem("copy", ChatScreen.MemoryCopyNote), new CompletionItem("edit", ChatScreen.MemoryEditNote)], ChatScreen.ArgumentItems("/memory", "", Sources()));
         Assert.Equal([new CompletionItem("forget", ChatScreen.MemoryForgetNote)], ChatScreen.ArgumentItems("/memory", "fo", Sources()));
         Assert.Equal([new CompletionItem("copy", ChatScreen.MemoryCopyNote)], ChatScreen.ArgumentItems("/memory", "co", Sources()));
+        Assert.Equal([new CompletionItem("edit", ChatScreen.MemoryEditNote)], ChatScreen.ArgumentItems("/memory", "ED", Sources()));
         Assert.Empty(ChatScreen.ArgumentItems("/memory", "x", Sources()));
+    }
+
+    /// <summary>
+    /// /memory edit (2026-09-23, the user's ask): memory.json created when it is not there and handed to
+    /// the editor, then opened as it is; a hand edit is what the next /remember builds on; an editor that
+    /// fails is the error line. The notices are pinned.
+    /// </summary>
+    [Fact]
+    public async Task Memory_Edit_CreatesThenOpensTheFile_AndTheEditIsReadBack()
+    {
+        string path = Path.Combine(_settings.ProfileDirectory, MemoryStore.FileName);
+        Assert.False(File.Exists(path));
+        PushLine("/memory edit");
+        PushLine("/exit");
+
+        string output = await RunAsync();
+
+        Assert.Contains("  · " + ChatScreen.MemoryEditCreatedNotice, output);
+        Assert.Equal([path], _openedFiles);
+        Assert.Empty(_memory.Snapshot());
+        Assert.True(File.Exists(path));
+
+        // The user's editor writes it; the same screen's /remember adds to that, not over it.
+        File.WriteAllText(path, "{ \"SchemaVersion\": 1, \"Entries\": [ { \"Text\": \"Typed by hand.\" } ] }");
+        PushLine("/memory Edit");
+        PushLine("/remember Added after.");
+        PushLine("/exit");
+        output = await RunAsync();
+        Assert.Contains("  · " + ChatScreen.MemoryEditOpenedNotice, output);
+        Assert.Equal([path, path], _openedFiles);
+        Assert.Equal(["Typed by hand.", "Added after."], _memory.Snapshot());
+
+        _openFile = _ => throw new System.ComponentModel.Win32Exception("no editor");
+        PushLine("/memory edit");
+        PushLine("/exit");
+        output = await RunAsync();
+        Assert.Contains("  ✗ " + ChatScreen.MemoryEditFailedError("no editor"), output);
+        Assert.Empty(_chat.Requests);
+
+        Assert.Equal("(💾 opened memory.json in your editor; your changes are read back on its next use)", ChatScreen.MemoryEditOpenedNotice);
+        Assert.Equal("(💾 created and opened memory.json in your editor; your changes are read back on its next use)", ChatScreen.MemoryEditCreatedNotice);
+        Assert.Equal("Could not open memory.json: why", ChatScreen.MemoryEditFailedError("why"));
     }
 
     /// <summary>/memory with a word it does not know (2026-09-22): the usage error, never the takes-nothing one — the command reads an argument now.</summary>
@@ -8751,7 +8799,7 @@ public partial class ChatScreenTests : IDisposable
         Assert.True(string.IsNullOrWhiteSpace(lines[25]));
         Assert.StartsWith(HelpRow("/interrupt", "toggle the speech input wake word interrupt, or /interrupt on|off"), lines[29]);
         Assert.True(string.IsNullOrWhiteSpace(lines[30]));
-        Assert.StartsWith(HelpRow("/memory", "list and prune memory items, or /memory forget | copy <profile> [overwrite]"), lines[31]);   // the copy word folded in later on 2026-09-22 and /memcopy's row went, every row under it one up
+        Assert.StartsWith(HelpRow("/memory", "list and prune memory items, or /memory forget | edit | copy <profile> [overwrite]"), lines[31]);   // the copy word folded in later on 2026-09-22 and /memcopy's row went, every row under it one up
         Assert.StartsWith(HelpRow("/remember", "add a memory: /remember <text>"), lines[32]);
         Assert.StartsWith(HelpRow("/cmdcopy", "copy this profile's allowed shell commands into another: /cmdcopy <profile> [overwrite]"), lines[33]);   // 2026-09-21
         Assert.StartsWith(HelpRow("/cmdlist", "list this profile's allowed shell commands on a pane, Enter removes one"), lines[34]);   // later on 2026-09-21

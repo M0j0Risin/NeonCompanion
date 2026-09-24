@@ -270,7 +270,8 @@ internal sealed partial class ChatScreen
                 break;
             case SlashCommand.Memory:
                 // /memory (2026-09-22): the list pane, or forget's or copy's confirmation — the panes
-                // /forget opened and /memcopy was refused for, so all three forms are panes under a reply.
+                // /forget opened and /memcopy was refused for, so all three forms are panes under a reply;
+                // edit (2026-09-23) opens the editor and a notice, safe under a reply too.
                 await HandleMemoryAsync(args, cancellationToken).ConfigureAwait(false);
                 break;
             case SlashCommand.Queue:

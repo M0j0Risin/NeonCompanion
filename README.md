@@ -354,7 +354,7 @@ Type `/` and the list opens with every command and its summary; after the comman
 | `/expand` | Show every line of the folded tool runs and code blocks in the transcript, and of the ones to come (Ctrl+O flips between this and `/collapse`). |
 | `/collapse` | Fold the tool runs and code blocks in the transcript again. |
 | `/mcp` | Connect external MCP servers and switch their tools on or off. |
-| `/memory [forget \| copy <profile> [overwrite]]` | List and prune the memory items on a pane (the toolbar's 💾 opens it too): Enter removes one, ESC closes. `/memory forget` forgets every one (asks first). `/memory copy <profile>` copies them into another profile, appended after what it already holds and skipping the duplicates; `overwrite` replaces its memory instead. Either copy asks first. |
+| `/memory [forget \| edit \| copy <profile> [overwrite]]` | List and prune the memory items on a pane (the toolbar's 💾 opens it too): Enter removes one, ESC closes. `/memory forget` forgets every one (asks first). `/memory edit` opens `memory.json` in your editor (creating it if needed); your changes are read back the next time memory is used, and an edit that is not valid JSON is ignored with a warning (the memories stay as they were). `/memory copy <profile>` copies them into another profile, appended after what it already holds and skipping the duplicates; `overwrite` replaces its memory instead. Either copy asks first. |
 | `/model [id]` | Pick a model from the server's list, or set one. |
 | `/new` | Start a new conversation without clearing the screen. |
 | `/operata [reset \| copy <profile> [force]]` | Edit `operata.md` (the operating rules) in your editor, go back to the default, or copy it into another profile (`force` replaces the one it has). |

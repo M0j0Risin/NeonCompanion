@@ -51,8 +51,9 @@ public readonly record struct MemoryImportResult(int Added, int Duplicates, int 
 
 /// <summary>
 /// Long-term memory: a short list of facts about the user that outlives the conversation and the
-/// process. One file next to <c>settings.json</c>, loaded once and written through on every
-/// change, so what the store reports is what the disk holds.
+/// process. One file next to <c>settings.json</c>, loaded on first use, read again when it changed
+/// outside the app (<c>/memory edit</c>, 2026-09-23) and written through on every change, so what
+/// the store reports is what the disk holds.
 ///
 /// <para>Three rules, each from the reference's conversation log. <b>One file</b>, so a clear is
 /// one delete and "forgotten" is honest. <b>Stored text is flattened</b> (whitespace collapsed,
@@ -82,6 +83,16 @@ public sealed class MemoryStore
     private readonly string _filePath;
     private readonly TimeProvider _time;
     private List<MemoryEntry>? _entries;
+
+    /// <summary>
+    /// The file as <see cref="_entries"/> last saw it (write time and length; null for no file), so
+    /// an edit made outside the app is read back before the next use rather than written over
+    /// (2026-09-23, with <c>/memory edit</c>, the user's ask). Caller holds the lock.
+    /// </summary>
+    private (DateTime Written, long Length)? _stamp;
+
+    /// <summary>The stamp of a changed file that would not parse, warned about once; see <see cref="Entries"/>.</summary>
+    private (DateTime Written, long Length)? _warnedStamp;
 
     /// <param name="directory">The settings directory; the file is <see cref="FileName"/> under it.</param>
     /// <param name="time">The clock behind <see cref="MemoryEntry.SavedAt"/>; tests pass a fake.</param>
@@ -305,6 +316,7 @@ public sealed class MemoryStore
             }
 
             _entries = new List<MemoryEntry>();
+            _stamp = null;
             if (count > 0)
             {
                 DiagnosticLog.Info(Category, $"Forgot {count} memories.");
@@ -314,16 +326,79 @@ public sealed class MemoryStore
         }
     }
 
-    /// <summary>The list, loaded on first use. Caller holds the lock.</summary>
+    /// <summary>
+    /// <c>/memory edit</c>'s first step (2026-09-23, the user's ask): the file written when it is not
+    /// there yet (an empty list), so the editor opens a file of the right shape rather than none.
+    /// True when it already existed. A write that fails throws, as <see cref="Clear"/>'s delete does.
+    /// </summary>
+    public bool EnsureFile()
+    {
+        lock (_gate)
+        {
+            var entries = Entries();
+            if (File.Exists(_filePath))
+            {
+                return true;
+            }
+
+            Save(entries);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// The list, loaded on first use and read again whenever the file changed since (2026-09-23,
+    /// <c>/memory edit</c>: the user's editor writes it behind the store's back, and the next add
+    /// must build on that edit, not write the old list over it). A file deleted outside is an empty
+    /// list. A changed file that will not parse keeps the last good list — warned once per version
+    /// of the file — rather than the empty one a corrupt first load gets: a typo in a hand edit must
+    /// not let the next add wipe every memory. Caller holds the lock.
+    /// </summary>
     private List<MemoryEntry> Entries()
     {
-        if (_entries is not null)
+        var stamp = Stamp();
+        if (_entries is null)
+        {
+            _entries = Load();
+            _stamp = stamp;
+            return _entries;
+        }
+
+        if (stamp == _stamp)
         {
             return _entries;
         }
 
-        _entries = Load();
+        if (stamp is null)
+        {
+            _entries = new List<MemoryEntry>();
+            _stamp = null;
+            return _entries;
+        }
+
+        try
+        {
+            _entries = Read();
+            _stamp = stamp;
+            DiagnosticLog.Info(Category, $"Read {FileName} again: it changed outside the app.");
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        {
+            if (_warnedStamp != stamp)
+            {
+                _warnedStamp = stamp;
+                DiagnosticLog.Warn(Category, $"Could not read the changed {FileName}; keeping the memories as they were: {ex.Message}", ex);
+            }
+        }
+
         return _entries;
+    }
+
+    /// <summary>The file's write time and length, or null when there is none.</summary>
+    private (DateTime Written, long Length)? Stamp()
+    {
+        var info = new FileInfo(_filePath);
+        return info.Exists ? (info.LastWriteTimeUtc, info.Length) : null;
     }
 
     /// <summary>
@@ -340,21 +415,27 @@ public sealed class MemoryStore
 
         try
         {
-            var file = JsonSerializer.Deserialize(File.ReadAllText(_filePath), MemoryJsonContext.Default.MemoryFile);
-            var entries = file?.Entries ?? new List<MemoryEntry>();
-            entries.RemoveAll(e => string.IsNullOrWhiteSpace(e.Text));
-            foreach (var entry in entries)
-            {
-                entry.Text = Normalize(entry.Text);
-            }
-
-            return entries;
+            return Read();
         }
         catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
         {
             DiagnosticLog.Warn(Category, $"Could not read {FileName}; starting with no memories: {ex.Message}", ex);
             return new List<MemoryEntry>();
         }
+    }
+
+    /// <summary>The file's entries, blank ones dropped and each normalised; throws when it cannot be read or parsed.</summary>
+    private List<MemoryEntry> Read()
+    {
+        var file = JsonSerializer.Deserialize(File.ReadAllText(_filePath), MemoryJsonContext.Default.MemoryFile);
+        var entries = file?.Entries ?? new List<MemoryEntry>();
+        entries.RemoveAll(e => string.IsNullOrWhiteSpace(e.Text));
+        foreach (var entry in entries)
+        {
+            entry.Text = Normalize(entry.Text);
+        }
+
+        return entries;
     }
 
     /// <summary><see cref="Save"/> for the paths that must not throw: the failure is logged and false comes back. Caller holds the lock.</summary>
@@ -382,6 +463,7 @@ public sealed class MemoryStore
             var file = new MemoryFile { Entries = entries };
             File.WriteAllText(tempPath, JsonSerializer.Serialize(file, MemoryJsonContext.Default.MemoryFile));
             File.Move(tempPath, _filePath, overwrite: true);
+            _stamp = Stamp();
         }
         catch
         {

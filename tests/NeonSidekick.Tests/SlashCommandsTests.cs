@@ -590,7 +590,7 @@ public class SlashCommandsTests
         Assert.Contains(Row("/wake", "toggle the speech input wake word, or /wake on|off"), SlashCommands.HelpText);
         Assert.Contains(Row("/interrupt", "toggle the speech input wake word interrupt, or /interrupt on|off"), SlashCommands.HelpText);
         Assert.Contains(Row("/remember", "add a memory: /remember <text>"), SlashCommands.HelpText);
-        Assert.Contains(Row("/memory", "list and prune memory items, or /memory forget | copy <profile> [overwrite]"), SlashCommands.HelpText);   // the forget word folded in 2026-09-22 and /forget's row went, the copy word later that day and /memcopy's row with it
+        Assert.Contains(Row("/memory", "list and prune memory items, or /memory forget | edit | copy <profile> [overwrite]"), SlashCommands.HelpText);   // the forget word folded in 2026-09-22 and /forget's row went, the copy word later that day and /memcopy's row with it
         Assert.Contains(Row("/cmdcopy", "copy this profile's allowed shell commands into another: /cmdcopy <profile> [overwrite]"), SlashCommands.HelpText);   // 2026-09-21
         Assert.Contains(Row("/cwd", "show or change the working directory, or /cwd <path> | ~ | browse"), SlashCommands.HelpText);
         Assert.Contains(Row("/tree", "print a tree of the working directory's folders and files, or /tree <path>"), SlashCommands.HelpText);
@@ -682,7 +682,7 @@ public class SlashCommandsTests
         Assert.Equal(["/tts", "/stt", "/wake", "/interrupt"], SlashCommands.HelpGroups[3].Select(e => e.Command));
         Assert.Equal(["/memory", "/remember", "/cmdcopy", "/cmdlist", "/police"], SlashCommands.HelpGroups[4].Select(e => e.Command));   // /forget went 2026-09-22, folded into /memory as a word, and /memcopy later that day, folded in as copy <profile> [overwrite] — every row under it one up   // /cmdlist last since later on 2026-09-21; /cmdcopy last from earlier that day until then; /memcopy last from 2026-09-17 until then
         Assert.Equal("/memory", SlashCommands.HelpEntries[27].Command);
-        Assert.Equal("list and prune memory items, or /memory forget | copy <profile> [overwrite]", SlashCommands.HelpEntries[27].Summary);   // the forget word folded in 2026-09-22, the copy one later that day
+        Assert.Equal("list and prune memory items, or /memory forget | edit | copy <profile> [overwrite]", SlashCommands.HelpEntries[27].Summary);   // the forget word folded in 2026-09-22, the copy one later that day
         Assert.Equal("add a memory: /remember <text>", SlashCommands.HelpEntries[28].Summary);
         Assert.Equal("/cmdcopy", SlashCommands.HelpEntries[29].Command);   // 2026-09-21: every row under it one down
         Assert.Equal("copy this profile's allowed shell commands into another: /cmdcopy <profile> [overwrite]", SlashCommands.HelpEntries[29].Summary);

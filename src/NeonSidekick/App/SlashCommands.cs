@@ -212,7 +212,7 @@ public static class SlashCommands
             new("/interrupt", "toggle the speech input wake word interrupt, or /interrupt on|off"),
         ],
         [
-            new("/memory", "list and prune memory items, or /memory forget | copy <profile> [overwrite]"),
+            new("/memory", "list and prune memory items, or /memory forget | edit | copy <profile> [overwrite]"),
             new("/remember", "add a memory: /remember <text>"),
             new("/cmdcopy", "copy this profile's allowed shell commands into another: /cmdcopy <profile> [overwrite]"),
             new("/cmdlist", "list this profile's allowed shell commands on a pane, Enter removes one"),

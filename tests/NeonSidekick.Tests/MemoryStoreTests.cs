@@ -173,6 +173,60 @@ public class MemoryStoreTests : IDisposable
     }
 
     [Fact]
+    public void AFileChangedOutside_IsReadBack_AndTheNextAddBuildsOnIt()
+    {
+        // 2026-09-23, /memory edit: the user's editor rewrites the file behind a loaded store.
+        var store = new MemoryStore(_dir);
+        store.Add("one");
+        store.Add("two");
+        File.WriteAllText(FilePath, "{ \"SchemaVersion\": 1, \"Entries\": [ { \"Text\": \"edited  by\\nhand\" } ] }");
+
+        Assert.Equal(new[] { "edited by hand" }, store.Snapshot());
+        Assert.Equal(MemoryAddOutcome.Added, store.Add("three").Outcome);
+        Assert.Equal(new[] { "edited by hand", "three" }, new MemoryStore(_dir).Snapshot());
+
+        File.Delete(FilePath);
+        Assert.Equal(0, store.Count);
+    }
+
+    [Fact]
+    public void AChangedFileThatWillNotParse_KeepsTheLastGoodList_WithOneWarning()
+    {
+        var store = new MemoryStore(_dir);
+        store.Add("keep me");
+        File.WriteAllText(FilePath, "{ \"Entries\": [ oops");
+        var warnings = new List<string>();
+        Action<DiagnosticEvent> capture = e => { if (e.Category == "Memory" && e.Level == DiagnosticLevel.Warning) warnings.Add(e.Message); };
+        DiagnosticLog.Emitted += capture;
+        try
+        {
+            Assert.Equal(new[] { "keep me" }, store.Snapshot());
+            Assert.Equal(1, store.Count);   // the same bad file: not warned twice
+        }
+        finally
+        {
+            DiagnosticLog.Emitted -= capture;
+        }
+
+        Assert.Contains(MemoryStore.FileName, Assert.Single(warnings));
+    }
+
+    [Fact]
+    public void EnsureFile_WritesAnEmptyFileOnce_AndKeepsOneThatIsThere()
+    {
+        var store = new MemoryStore(_dir);
+
+        Assert.False(store.EnsureFile());
+        Assert.True(File.Exists(FilePath));
+        Assert.Contains("\"Entries\": []", File.ReadAllText(FilePath));
+        Assert.True(store.EnsureFile());
+
+        store.Add("a");
+        Assert.True(store.EnsureFile());
+        Assert.Equal(new[] { "a" }, new MemoryStore(_dir).Snapshot());
+    }
+
+    [Fact]
     public void OldFile_WithBlankOrUntidyEntries_IsCleanedOnLoad()
     {
         Directory.CreateDirectory(_dir);
